@@ -164,19 +164,22 @@ QPushButton#TopNavButton:checked {
     min-height: 32px;
 }
 
-/* Folder body the tabs attach to */
+/* Folder body the tabs attach to — framed sides/top; no chrome above tabs */
 QWidget#ContentPanel {
     background-color: #1c1816;
-    border: 1px solid rgba(150, 131, 158, 0.22);
     border-top: 1px solid rgba(124, 92, 196, 0.40);
-    border-left: none;
-    border-right: none;
+    border-left: 1px solid rgba(150, 131, 158, 0.28);
+    border-right: 1px solid rgba(150, 131, 158, 0.28);
     border-bottom: none;
+    border-radius: 0;
 }
 
 QWidget#BottomBar {
     background-color: #100d0c;
     border-top: 1px solid rgba(150, 131, 158, 0.15);
+    border-left: 1px solid rgba(150, 131, 158, 0.28);
+    border-right: 1px solid rgba(150, 131, 158, 0.28);
+    border-bottom: 1px solid rgba(150, 131, 158, 0.28);
     border-bottom-left-radius: 14px;
     border-bottom-right-radius: 14px;
 }
