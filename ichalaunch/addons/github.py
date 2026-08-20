@@ -145,9 +145,10 @@ def _addon_install_meta(
     sha: str,
     url: str,
     commit_date: str = "",
+    match_kind: str = "exact",
 ) -> dict[str, Any]:
     """Build metadata for a successful install/update, preserving installed_at."""
-    from ichalaunch.core.detect import match_catalog_entry, merge_addon_meta
+    from ichalaunch.core.detect import merge_addon_meta, resolve_catalog_entry
 
     prev = settings.installed_addons.get(folder) or {}
     today = iso_date_today()
@@ -164,13 +165,91 @@ def _addon_install_meta(
         # Store YYYY-MM-DD when possible
         payload["commit_date"] = str(commit_date)[:10]
     # Fill name/description/category from turtle_wiki catalog when known
-    cat = match_catalog_entry(folder)
-    enriched = merge_addon_meta(folder, {**prev, **payload}, cat)
+    cat, kind = resolve_catalog_entry(folder)
+    kind = match_kind if match_kind else (kind or "exact")
+    enriched = merge_addon_meta(folder, {**prev, **payload}, cat, match_kind=kind)
     # Prefer github tracking fields from this install
     for key in ("repository", "branch", "installed_commit", "url", "updated_at", "installed_at", "commit_date", "source"):
         if payload.get(key):
             enriched[key] = payload[key]
     return enriched
+
+
+def _record_pack_install(
+    *,
+    installed: list[str],
+    owner: str,
+    repo: str,
+    branch: str,
+    sha: str,
+    url: str,
+    commit_date: str,
+    preferred_primary: str | None = None,
+) -> str:
+    """Write settings for a multi-folder (or single) GitHub install as one managed pack."""
+    from ichalaunch.core.detect import pick_pack_primary
+
+    if not installed:
+        raise FileNotFoundError("No addon folders installed")
+
+    # Drop stale settings keys for this repo that are no longer on disk after reinstall
+    repo_key = f"{owner}/{repo}".lower()
+    installed_lower = {n.lower() for n in installed}
+    for existing, meta in list(settings.installed_addons.items()):
+        if existing.lower() in installed_lower:
+            continue
+        existing_repo = str(meta.get("repository") or "").strip().lower()
+        if existing_repo == repo_key:
+            settings.remove_installed_addon(existing)
+
+    primary = preferred_primary if preferred_primary in installed else None
+    if not primary and preferred_primary:
+        primary = next((n for n in installed if n.lower() == preferred_primary.lower()), None)
+    if not primary:
+        # Build a temporary meta map for primary selection
+        stub = {f: {"repository": f"{owner}/{repo}", "url": url} for f in installed}
+        primary = pick_pack_primary(installed, stub, preferred=preferred_primary)
+
+    for name in installed:
+        kind = "exact" if name == primary else "prefix"
+        meta = _addon_install_meta(
+            folder=name,
+            owner=owner,
+            repo=repo,
+            branch=branch,
+            sha=sha,
+            url=url,
+            commit_date=commit_date,
+            match_kind=kind,
+        )
+        if len(installed) > 1:
+            if name == primary:
+                meta["folders"] = sorted(installed, key=str.lower)
+                meta.pop("managed_by", None)
+                meta["name"] = meta.get("name") if meta.get("name") and meta["name"] != name else name
+                # Prefer catalog display name for primary
+                from ichalaunch.core.detect import resolve_catalog_entry
+
+                cat, ckind = resolve_catalog_entry(primary)
+                if ckind == "exact" and cat and cat.get("name"):
+                    meta["name"] = cat["name"]
+            else:
+                meta["managed_by"] = primary
+                meta["name"] = name
+                meta.pop("folders", None)
+        else:
+            meta.pop("managed_by", None)
+            meta.pop("folders", None)
+        settings.set_installed_addon(name, meta)
+
+    log.info(
+        "Installed addon pack %s (%s) from %s/%s",
+        primary,
+        ", ".join(sorted(installed)),
+        owner,
+        repo,
+    )
+    return primary if len(installed) == 1 else f"{primary} ({len(installed)} modules)"
 
 
 def install_from_github(url: str, folder_name: str | None = None, progress: ProgressCb | None = None) -> str:
@@ -199,60 +278,56 @@ def install_from_github(url: str, folder_name: str | None = None, progress: Prog
         if not roots and any(extracted.glob("*.toc")):
             roots = [extracted]
         if not roots:
-            # multi-addon repos (e.g. Bongos)
+            # Fall back: any .toc parent (deeper nesting)
             candidates = [p for p in extracted.rglob("*.toc")]
             parents = {c.parent for c in candidates}
-            # install each unique parent that looks like an addon package
-            installed = []
-            addons_dir = game / "Interface" / "AddOns"
-            addons_dir.mkdir(parents=True, exist_ok=True)
-            for parent in sorted(parents, key=lambda p: p.name):
-                name = normalize_addon_name(folder_name or parent.name)
-                dest = addons_dir / name
+            roots = sorted(parents, key=lambda p: (len(p.parts), p.name.lower()))
+        if not roots:
+            raise FileNotFoundError("No .toc files found in repository")
+
+        addons_dir = game / "Interface" / "AddOns"
+        addons_dir.mkdir(parents=True, exist_ok=True)
+
+        # Always keep each TOC root's real folder name — never rename children to catalog folder.
+        installed: list[str] = []
+        for root in roots:
+            name = normalize_addon_name(root.name)
+            if name.lower() in ("master", "main"):
+                name = repo
+            dest = addons_dir / name
+            if dest.exists():
+                shutil.rmtree(dest)
+            copy_tree(root, dest)
+            installed.append(name)
+
+        # Single-root installs may use catalog folder_name as the destination name
+        if len(installed) == 1 and folder_name:
+            only = installed[0]
+            wanted = normalize_addon_name(folder_name)
+            if wanted and wanted.lower() != only.lower():
+                src = addons_dir / only
+                dest = addons_dir / wanted
                 if dest.exists():
                     shutil.rmtree(dest)
-                copy_tree(parent, dest)
-                installed.append(name)
-                settings.set_installed_addon(
-                    name,
-                    _addon_install_meta(
-                        folder=name,
-                        owner=owner,
-                        repo=repo,
-                        branch=branch,
-                        sha=meta["sha"],
-                        url=url,
-                        commit_date=commit_date,
-                    ),
-                )
-            if not installed:
-                raise FileNotFoundError("No .toc files found in repository")
-            return ", ".join(installed)
+                src.rename(dest)
+                installed = [wanted]
 
-        # Prefer root matching repo name
-        preferred = next((r for r in roots if normalize_addon_name(r.name).lower() == repo.lower()), roots[0])
-        name = normalize_addon_name(folder_name or preferred.name)
-        if name.lower() in ("master", "main"):
-            name = repo
-        dest = game / "Interface" / "AddOns" / name
-        if dest.exists():
-            shutil.rmtree(dest)
-        copy_tree(preferred, dest)
-        settings.set_installed_addon(
-            name,
-            _addon_install_meta(
-                folder=name,
-                owner=owner,
-                repo=repo,
-                branch=branch,
-                sha=meta["sha"],
-                url=url,
-                commit_date=commit_date,
-            ),
+        preferred = None
+        if folder_name:
+            preferred = normalize_addon_name(folder_name)
+        elif any(normalize_addon_name(n).lower() == repo.lower() for n in installed):
+            preferred = next(n for n in installed if normalize_addon_name(n).lower() == repo.lower())
+
+        return _record_pack_install(
+            installed=installed,
+            owner=owner,
+            repo=repo,
+            branch=branch,
+            sha=meta["sha"],
+            url=url,
+            commit_date=commit_date,
+            preferred_primary=preferred,
         )
-        log.info("Installed addon %s from %s/%s", name, owner, repo)
-        return name
-
 
 def _addon_has_repo(meta: dict[str, Any]) -> bool:
     repo = meta.get("repository")
@@ -282,6 +357,8 @@ def check_addon_updates(*, respect_cooldown: bool = False) -> AddonUpdateCheckRe
 
     On rate limit (403/429 or X-RateLimit-Remaining=0), stops further API calls
     for this run and returns any updates found so far.
+    Child modules of a multi-folder pack (managed_by) are skipped — only the
+    primary entry is checked / listed for Update.
     """
     if respect_cooldown and recently_checked_addon_updates():
         return AddonUpdateCheckResult(skipped_recent=True)
@@ -291,6 +368,8 @@ def check_addon_updates(*, respect_cooldown: bool = False) -> AddonUpdateCheckRe
     rate_limited = False
 
     for folder, meta in settings.installed_addons.items():
+        if meta.get("managed_by"):
+            continue
         if not _addon_has_repo(meta):
             continue
         repo = meta.get("repository")
@@ -352,11 +431,46 @@ def check_addon_updates(*, respect_cooldown: bool = False) -> AddonUpdateCheckRe
     return AddonUpdateCheckResult(updates=updates)
 
 
+def _pack_folders(folder: str, meta: dict[str, Any] | None = None) -> list[str]:
+    """Return all Interface/AddOns folders belonging to this managed pack."""
+    meta = meta if meta is not None else (settings.installed_addons.get(folder) or {})
+    # If this is a child, resolve to parent pack
+    managed_by = str(meta.get("managed_by") or "").strip()
+    if managed_by:
+        parent_meta = settings.installed_addons.get(managed_by) or {}
+        return _pack_folders(managed_by, parent_meta)
+
+    folders = meta.get("folders")
+    if isinstance(folders, list) and folders:
+        return [str(f) for f in folders if f]
+    # Also include any settings entries that declare managed_by == folder
+    extras = [
+        f
+        for f, m in settings.installed_addons.items()
+        if str(m.get("managed_by") or "").lower() == folder.lower()
+    ]
+    if extras:
+        return sorted({folder, *extras}, key=str.lower)
+    return [folder]
+
+
 def update_addon(folder: str, progress: ProgressCb | None = None) -> None:
     meta = settings.installed_addons.get(folder)
     if not meta:
+        # Case-insensitive fallback
+        for key, val in settings.installed_addons.items():
+            if key.lower() == folder.lower():
+                folder, meta = key, val
+                break
+    if not meta:
         raise KeyError(folder)
+    # Updates always target the pack primary
+    managed_by = str(meta.get("managed_by") or "").strip()
+    if managed_by:
+        folder = managed_by
+        meta = settings.installed_addons.get(folder) or meta
     url = meta.get("url") or f"https://github.com/{meta['repository']}"
+    # Pass primary folder name only as preferred primary — install keeps all module names
     install_from_github(url, folder_name=folder, progress=progress)
 
 
@@ -364,11 +478,23 @@ def uninstall_addon(folder: str) -> None:
     game = detect_game()
     if not game:
         raise FileNotFoundError("Game path not set")
-    path = game / "Interface" / "AddOns" / folder
-    if path.exists():
-        shutil.rmtree(path)
-    settings.remove_installed_addon(folder)
-
+    meta = settings.installed_addons.get(folder) or {}
+    if not meta:
+        for key, val in settings.installed_addons.items():
+            if key.lower() == folder.lower():
+                folder, meta = key, val
+                break
+    # Removing a child removes the whole pack (same repo install)
+    target = str(meta.get("managed_by") or folder).strip() or folder
+    parent_meta = settings.installed_addons.get(target) or meta
+    folders = _pack_folders(target, parent_meta)
+    for name in folders:
+        path = game / "Interface" / "AddOns" / name
+        if path.exists():
+            shutil.rmtree(path)
+        settings.remove_installed_addon(name)
+    # Ensure primary key cleared even if not in folders list
+    settings.remove_installed_addon(target)
 
 def load_catalog() -> list[dict[str, Any]]:
     from ichalaunch.core.paths import data_file

@@ -59,12 +59,59 @@ def test_detect_state():
     print("OK detect state")
 
 
+def test_multi_folder_pack_grouping():
+    from ichalaunch.core.detect import (
+        group_multi_folder_addons,
+        merge_addon_meta,
+        resolve_catalog_entry,
+    )
+
+    cat, kind = resolve_catalog_entry("Bongos_ActionBar", include_mods=False)
+    assert kind == "prefix", kind
+    assert cat and (cat.get("folder") or cat.get("name") or "").lower() == "bongos"
+    meta = merge_addon_meta("Bongos_ActionBar", {}, cat, match_kind="prefix")
+    assert meta["name"] == "Bongos_ActionBar", meta["name"]
+    assert "bongos" in (meta.get("url") or "").lower() or "bongos" in (meta.get("repository") or "").lower()
+
+    cat_root, kind_root = resolve_catalog_entry("Bongos", include_mods=False)
+    assert kind_root == "exact"
+    root_meta = merge_addon_meta("Bongos", {}, cat_root, match_kind="exact")
+    assert root_meta["name"] == "Bongos"
+
+    merged = {
+        "Bongos": root_meta,
+        "Bongos_ActionBar": meta,
+        "Bongos_XP": merge_addon_meta(
+            "Bongos_XP", {}, cat, match_kind="prefix"
+        ),
+    }
+    grouped = group_multi_folder_addons(merged)
+    assert grouped["Bongos"].get("folders") and len(grouped["Bongos"]["folders"]) == 3
+    assert grouped["Bongos_ActionBar"].get("managed_by") == "Bongos"
+    assert grouped["Bongos_ActionBar"]["name"] == "Bongos_ActionBar"
+    assert grouped["Bongos"]["name"] == "Bongos"
+
+    # Separate catalog entries must not collapse (ShaguTweaks vs ShaguTweaks-extras)
+    st, st_kind = resolve_catalog_entry("ShaguTweaks", include_mods=False)
+    ste, ste_kind = resolve_catalog_entry("ShaguTweaks-extras", include_mods=False)
+    assert st_kind == "exact" and ste_kind == "exact"
+    separate = {
+        "ShaguTweaks": merge_addon_meta("ShaguTweaks", {}, st, match_kind="exact"),
+        "ShaguTweaks-extras": merge_addon_meta("ShaguTweaks-extras", {}, ste, match_kind="exact"),
+    }
+    sep_grouped = group_multi_folder_addons(separate)
+    assert "managed_by" not in sep_grouped["ShaguTweaks-extras"]
+    assert "folders" not in sep_grouped.get("ShaguTweaks", {})
+    print("OK multi-folder pack grouping")
+
+
 def main():
     test_catalogs()
     test_github_parse()
     test_protected()
     test_dlls_txt()
     test_detect_state()
+    test_multi_folder_pack_grouping()
     print("\nAll smoke tests passed.")
 
 

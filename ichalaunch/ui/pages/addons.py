@@ -22,8 +22,8 @@ from ichalaunch.addons.github import load_catalog
 from ichalaunch.config.settings import settings
 from ichalaunch.core.detect import (
     catalog_index,
-    match_catalog_entry,
     merge_addon_meta,
+    resolve_catalog_entry,
     scan_installed_addon_folders,
 )
 from ichalaunch.ui.widgets.common import AddonRow, status_with_stamp
@@ -295,6 +295,16 @@ class AddonsPage(QWidget):
                 self.installed_list.setMaximumHeight(16777215)
 
             cat_idx = catalog_index()
+            # Folders claimed as modules of another installed primary
+            child_of_pack: set[str] = set()
+            for p, m in installed_meta.items():
+                folders_list = m.get("folders") if isinstance(m.get("folders"), list) else None
+                if not folders_list:
+                    continue
+                for f in folders_list:
+                    if f and f.lower() != p.lower():
+                        child_of_pack.add(f.lower())
+
             for folder in sorted(installed_folders, key=str.lower):
                 if mode == "Update Available" and folder not in update_map:
                     continue
@@ -305,10 +315,51 @@ class AddonsPage(QWidget):
                         if key.lower() == folder.lower():
                             meta = val
                             break
-                cat = match_catalog_entry(folder, cat_idx)
-                meta = merge_addon_meta(folder, meta, cat)
+                # Collapse multi-module packs: hide child folders
+                if meta.get("managed_by") or folder.lower() in child_of_pack:
+                    continue
+                cat, kind = resolve_catalog_entry(folder, cat_idx)
+                # Prefix module (Bongos_ActionBar) when parent folder is also installed
+                if kind == "prefix" and cat:
+                    parent_name = (cat.get("folder") or cat.get("name") or "").strip()
+                    if parent_name and any(f.lower() == parent_name.lower() for f in installed_folders):
+                        continue
+                meta = merge_addon_meta(folder, meta, cat, match_kind=kind or "exact")
                 name = meta.get("name") or folder
                 desc = meta.get("description") or meta.get("repository") or "Detected in Interface/AddOns"
+                pack_folders = meta.get("folders") if isinstance(meta.get("folders"), list) else None
+                if not pack_folders:
+                    # Children may only be linked via managed_by
+                    pack_folders = [
+                        folder,
+                        *[
+                            f
+                            for f, m in installed_meta.items()
+                            if str(m.get("managed_by") or "").lower() == folder.lower()
+                        ],
+                    ]
+                    # Also include disk modules that prefix-match this catalog parent
+                    if cat and kind == "exact":
+                        base = (cat.get("folder") or cat.get("name") or folder).strip()
+                        base_l = base.lower()
+                        for disk_f in installed_folders:
+                            fl = disk_f.lower()
+                            if fl == base_l:
+                                continue
+                            if fl.startswith(base_l + "_") or fl.startswith(base_l + "-"):
+                                if disk_f not in pack_folders:
+                                    pack_folders.append(disk_f)
+                pack_folders = sorted({f for f in pack_folders if f}, key=str.lower)
+                if len(pack_folders) > 1:
+                    modules = [f for f in pack_folders if f.lower() != folder.lower()]
+                    mod_note = f"{len(pack_folders)} modules: {', '.join(modules)}"
+                    if len(mod_note) > 90:
+                        shown = modules[:4]
+                        extra = len(modules) - len(shown)
+                        mod_note = f"{len(pack_folders)} modules: {', '.join(shown)}"
+                        if extra > 0:
+                            mod_note += f", +{extra} more"
+                    desc = mod_note
                 category = meta.get("category") or "Installed"
                 repo_url = meta.get("url") or (cat or {}).get("repo") or ""
                 if not matches(name, desc, category, folder):
