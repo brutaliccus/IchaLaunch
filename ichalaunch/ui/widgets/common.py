@@ -267,8 +267,8 @@ class AddonRow(QWidget):
                 btn_u.setObjectName("UpdateButton")
                 btn_u.clicked.connect(lambda: self.update_clicked.emit(entry))
                 layout.addWidget(btn_u)
-            # Reinstall for any installed row that has a GitHub source
-            if entry.get("repo") or entry.get("source") == "github":
+            # Reinstall when a GitHub repo/url is known (settings or catalog merge)
+            if entry.get("repo") or entry.get("url") or entry.get("source") == "github":
                 btn_ri = QPushButton("Reinstall")
                 btn_ri.setToolTip("Re-download and overwrite installed files")
                 btn_ri.clicked.connect(lambda: self.reinstall_clicked.emit(entry))

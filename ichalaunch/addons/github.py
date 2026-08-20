@@ -147,6 +147,8 @@ def _addon_install_meta(
     commit_date: str = "",
 ) -> dict[str, Any]:
     """Build metadata for a successful install/update, preserving installed_at."""
+    from ichalaunch.core.detect import match_catalog_entry, merge_addon_meta
+
     prev = settings.installed_addons.get(folder) or {}
     today = iso_date_today()
     payload: dict[str, Any] = {
@@ -161,7 +163,14 @@ def _addon_install_meta(
     if commit_date:
         # Store YYYY-MM-DD when possible
         payload["commit_date"] = str(commit_date)[:10]
-    return payload
+    # Fill name/description/category from turtle_wiki catalog when known
+    cat = match_catalog_entry(folder)
+    enriched = merge_addon_meta(folder, {**prev, **payload}, cat)
+    # Prefer github tracking fields from this install
+    for key in ("repository", "branch", "installed_commit", "url", "updated_at", "installed_at", "commit_date", "source"):
+        if payload.get(key):
+            enriched[key] = payload[key]
+    return enriched
 
 
 def install_from_github(url: str, folder_name: str | None = None, progress: ProgressCb | None = None) -> str:

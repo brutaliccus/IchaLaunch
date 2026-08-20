@@ -1,5 +1,13 @@
 [
   {
+    "name": "\"Deprecated\" version of Cleanup",
+    "repo": "https://github.com/shirsig/Clean_Up",
+    "category": "Bags",
+    "description": "that seems to require SUCC-bag. May work as an alternative for some users if the original doesn't function for them.",
+    "source": "turtle_wiki",
+    "folder": "Clean_Up"
+  },
+  {
     "name": "Bagnon",
     "repo": "https://github.com/McPewPew/Bagnon",
     "category": "Bags",
@@ -22,14 +30,6 @@
     "description": "will move any Blizzard Frame and all your Bags",
     "source": "turtle_wiki",
     "folder": "BlizzMo_Vanilla"
-  },
-  {
-    "name": "Compost-2.0",
-    "repo": "https://github.com/refaim/Vanilla-WoW-1.12-Addon-Development-Libraries-Archive",
-    "category": "Bags",
-    "description": "Recycle tables to reduce garbage generation.",
-    "source": "turtle_wiki",
-    "folder": "Vanilla-WoW-1.12-Addon-Development-Libraries-Archive"
   },
   {
     "name": "CooldownTimers",
@@ -147,7 +147,7 @@
     "name": "ItemSplit",
     "repo": "https://github.com/balakethelock/ItemSplit",
     "category": "Bags",
-    "description": "merge and split large amounts of items in your inventory with slash commands [Vid1 ]",
+    "description": "merge and split large amounts of items in your inventory with slash commands [Vid1]",
     "source": "turtle_wiki",
     "folder": "ItemSplit"
   },
@@ -175,14 +175,6 @@
     "description": "Bag sorting addon with various options",
     "source": "turtle_wiki",
     "folder": "MrPlow"
-  },
-  {
-    "name": "OneStorage-2.0",
-    "repo": "https://github.com/refaim/Vanilla-WoW-1.12-Addon-Development-Libraries-Archive",
-    "category": "Bags",
-    "description": "A universal persistent pooled database for bank, inventory, and equipment data.",
-    "source": "turtle_wiki",
-    "folder": "Vanilla-WoW-1.12-Addon-Development-Libraries-Archive"
   },
   {
     "name": "pfDebug",
@@ -225,14 +217,6 @@
     "folder": "SoulShardManager"
   },
   {
-    "name": "SpecialEvents-Bags-2.0",
-    "repo": "https://github.com/refaim/Vanilla-WoW-1.12-Addon-Development-Libraries-Archive",
-    "category": "Bags",
-    "description": "Special events for bag/slot changes.",
-    "source": "turtle_wiki",
-    "folder": "Vanilla-WoW-1.12-Addon-Development-Libraries-Archive"
-  },
-  {
     "name": "SUCC-bag",
     "repo": "https://github.com/Otari98/SUCC-bag",
     "category": "Bags",
@@ -247,6 +231,14 @@
     "description": "allows to automatically trade any water or food you have in your bags [Img1]",
     "source": "turtle_wiki",
     "folder": "tradeDispenser"
+  },
+  {
+    "name": "UnitXP_SP3_Addon",
+    "repo": "https://github.com/OldManAlpha/UnitXP_SP3_Addon",
+    "category": "Client",
+    "description": "Companion addon for UnitXP Service Pack 3 (nameplates, LoS helpers, Lua debugger package).",
+    "source": "turtle_wiki",
+    "folder": "UnitXP_SP3_Addon"
   },
   {
     "name": "Akkio_Consume_Helper",
@@ -268,7 +260,7 @@
     "name": "BattleMusic",
     "repo": "https://github.com/zmarotrix/BattleMusic",
     "category": "Combat",
-    "description": "Plays battle music on combat start and ends when combat ends. [vid1 ] https://github.com/Fiurs-Hearth/BattleMusic Alt1",
+    "description": "Plays battle music on combat start and ends when combat ends. [vid1] https://github.com/Fiurs-Hearth/BattleMusic Alt1",
     "source": "turtle_wiki",
     "folder": "BattleMusic"
   },
@@ -381,7 +373,7 @@
     "name": "CooldownTracker",
     "repo": "https://github.com/Abstr4ctz/CooldownTracker",
     "category": "Combat",
-    "description": "Auras for tracking your spell and item cooldowns. [Img1 ]",
+    "description": "Auras for tracking your spell and item cooldowns. [Img1]",
     "source": "turtle_wiki",
     "folder": "CooldownTracker"
   },
@@ -389,7 +381,7 @@
     "name": "CoolHealthBar",
     "repo": "https://github.com/Redbu11dev/CoolHealthBar",
     "category": "Combat",
-    "description": "Extra health and power bar. [Img1 ]",
+    "description": "Extra health and power bar. [Img1]",
     "source": "turtle_wiki",
     "folder": "CoolHealthBar"
   },
@@ -397,7 +389,7 @@
     "name": "Critei",
     "repo": "https://github.com/Caracioly/Critei",
     "category": "Combat",
-    "description": "An simple way to share your highest damage with your friends [Img1 ]",
+    "description": "An simple way to share your highest damage with your friends [Img1]",
     "source": "turtle_wiki",
     "folder": "Critei"
   },
@@ -432,15 +424,6 @@
     "description": "Timer Overlays for enemy buffs and debuffs [Img1] [Img2]",
     "source": "turtle_wiki",
     "folder": "DebuffTimers"
-  },
-  {
-    "name": "Decursive",
-    "repo": "",
-    "category": "Combat",
-    "description": "Its job is to help a class that can remove debuffs [Vid1]",
-    "source": "turtle_wiki",
-    "folder": "Decursive",
-    "installable": false
   },
   {
     "name": "DispelBorder",
@@ -529,14 +512,6 @@
     "description": "Visual representation of incoming heals https://github.com/maztheman/HealComm Alt [Img1]",
     "source": "turtle_wiki",
     "folder": "HealComm"
-  },
-  {
-    "name": "HealComm-1.0",
-    "repo": "https://github.com/refaim/Vanilla-WoW-1.12-Addon-Development-Libraries-Archive",
-    "category": "Combat",
-    "description": "A library to provide communication of heals and resurrections.",
-    "source": "turtle_wiki",
-    "folder": "Vanilla-WoW-1.12-Addon-Development-Libraries-Archive"
   },
   {
     "name": "HealingAssignments",
@@ -653,14 +628,6 @@
     "installable": false
   },
   {
-    "name": "ParserLib-1.1",
-    "repo": "https://github.com/refaim/Vanilla-WoW-1.12-Addon-Development-Libraries-Archive",
-    "category": "Combat",
-    "description": "An embedded combat log parser, which works on all localizations.",
-    "source": "turtle_wiki",
-    "folder": "Vanilla-WoW-1.12-Addon-Development-Libraries-Archive"
-  },
-  {
     "name": "pfUI-lazyres",
     "repo": "https://github.com/liiora/pfUI-lazyres",
     "category": "Combat",
@@ -672,7 +639,7 @@
     "name": "pfUI-WeakIcons",
     "repo": "https://github.com/jrc13245/pfUI-WeakIcons",
     "category": "Combat",
-    "description": "Allows the creation of aura tracking icons, much like MPOWA. [Img1 ]",
+    "description": "Allows the creation of aura tracking icons, much like MPOWA. [Img1]",
     "source": "turtle_wiki",
     "folder": "pfUI-WeakIcons"
   },
@@ -726,14 +693,6 @@
     "folder": "Recap"
   },
   {
-    "name": "Rinse",
-    "repo": "https://github.com/Otari98/Rinse",
-    "category": "Combat",
-    "description": "This addon is very similar to Decursive, it helps with removing debuffs from friendly units",
-    "source": "turtle_wiki",
-    "folder": "Rinse"
-  },
-  {
     "name": "RoguePoker",
     "repo": "https://github.com/Pokerbhind/RoguePoker",
     "category": "Combat",
@@ -748,14 +707,6 @@
     "description": "displays your combat state via glowing screen edges [Img1]",
     "source": "turtle_wiki",
     "folder": "ShaguCombat"
-  },
-  {
-    "name": "ShaguDPS",
-    "repo": "https://github.com/shagu/ShaguDPS",
-    "category": "Combat",
-    "description": "A very small and lightweight damage meter [Img1] [Img2]",
-    "source": "turtle_wiki",
-    "folder": "ShaguDPS"
   },
   {
     "name": "SimpleAuras",
@@ -806,28 +757,12 @@
     "folder": "SnaguLoatheb-TurtleEdition"
   },
   {
-    "name": "SpecialEvents-Aura-2.0",
-    "repo": "https://github.com/refaim/Vanilla-WoW-1.12-Addon-Development-Libraries-Archive",
-    "category": "Combat",
-    "description": "Special events for Aura's, (de)buffs gained, lost etc.",
-    "source": "turtle_wiki",
-    "folder": "Vanilla-WoW-1.12-Addon-Development-Libraries-Archive"
-  },
-  {
     "name": "SpellPowerMulti",
     "repo": "https://github.com/kevmodrome/SpellPowerMulti",
     "category": "Combat",
     "description": "displays the current relevant damage multipliers on a target as well as the current total multiplier [Img1]",
     "source": "turtle_wiki",
     "folder": "SpellPowerMulti"
-  },
-  {
-    "name": "SpellTimes-1.0",
-    "repo": "https://github.com/refaim/Vanilla-WoW-1.12-Addon-Development-Libraries-Archive",
-    "category": "Combat",
-    "description": "A library to provide buff times and cooldowns for spells.",
-    "source": "turtle_wiki",
-    "folder": "Vanilla-WoW-1.12-Addon-Development-Libraries-Archive"
   },
   {
     "name": "StopDuelBuffer",
@@ -916,14 +851,14 @@
     "category": "Combat",
     "description": "Alerts you to your own low or critical health or mana, or to a party member or pet's health, using any combination of a centered large font frame, emotes, sounds, and party message.",
     "source": "turtle_wiki",
-    "folder": "VitalWatch",
+    "folder": "vitalwatch",
     "installable": false
   },
   {
     "name": "WarriorCombatManager",
     "repo": "https://github.com/Faraso/WarriorCombatManager",
     "category": "Combat",
-    "description": "WCM is a lightweight timeline helper for TurtleWoW (SuperWoW supported setups) that helps you plan and execute cooldown stacking on boss fights. [Img1 ] [Img2 ]",
+    "description": "WCM is a lightweight timeline helper for TurtleWoW (SuperWoW supported setups) that helps you plan and execute cooldown stacking on boss fights. [Img1] [Img2]",
     "source": "turtle_wiki",
     "folder": "WarriorCombatManager"
   },
@@ -1019,7 +954,15 @@
     "name": "Aux-Revamped",
     "repo": "https://github.com/acid9000/Aux-addon",
     "category": "Economy",
-    "description": "*Updated for 1.18* A refreshed and transparent UI update for the classic Aux auction addon [Img1 ]. (Defunct project link here)",
+    "description": "*Updated for 1.18* A refreshed and transparent UI update for the classic Aux auction addon [Img1]. (Defunct project link here)",
+    "source": "turtle_wiki",
+    "folder": "aux-addon"
+  },
+  {
+    "name": "Aux-Revamped-Opaque",
+    "repo": "https://github.com/ftkun/Aux-Revamped-opaque",
+    "category": "Economy",
+    "description": "I absolutely love Aux, but I’ve always thought the UI could use some polish — and I know many of you agree. So, I took some time to give it a facelift!",
     "source": "turtle_wiki",
     "folder": "aux-addon"
   },
@@ -1156,7 +1099,7 @@
     "name": "SortByBuyout",
     "repo": "https://github.com/Redbu11dev/SortByBuyout",
     "category": "Economy",
-    "description": "Adds \"sort by buyout\" button to the auction house frame [Img1 ]",
+    "description": "Adds \"sort by buyout\" button to the auction house frame [Img1]",
     "source": "turtle_wiki",
     "folder": "SortByBuyout"
   },
@@ -1167,22 +1110,6 @@
     "description": "Documents Gold Spammers by making an automatic screenshot of the message",
     "source": "turtle_wiki",
     "folder": "SpamSentry"
-  },
-  {
-    "name": "SpecialEvents-LearnSpell-2.0",
-    "repo": "https://github.com/refaim/Vanilla-WoW-1.12-Addon-Development-Libraries-Archive",
-    "category": "Economy",
-    "description": "Special events for mail (received, auction notices, etc).",
-    "source": "turtle_wiki",
-    "folder": "Vanilla-WoW-1.12-Addon-Development-Libraries-Archive"
-  },
-  {
-    "name": "SpecialEvents-Mail-2.0",
-    "repo": "https://github.com/refaim/Vanilla-WoW-1.12-Addon-Development-Libraries-Archive",
-    "category": "Economy",
-    "description": "Special events for mail (received, auction notices, etc).",
-    "source": "turtle_wiki",
-    "folder": "Vanilla-WoW-1.12-Addon-Development-Libraries-Archive"
   },
   {
     "name": "TopMeOff",
@@ -1247,6 +1174,15 @@
     "description": "If you are annoyed by whispers of gold sellers and beggars this is right choice for you [Img1]",
     "source": "turtle_wiki",
     "folder": "whisperfilter"
+  },
+  {
+    "name": "WoWAuctions",
+    "repo": "",
+    "category": "Economy",
+    "description": "Search the Turtle WoW Auction House from web (not actually an addon, just a useful resource)",
+    "source": "turtle_wiki",
+    "folder": "www.wowauctions.net",
+    "installable": false
   },
   {
     "name": "WRUGS",
@@ -1461,7 +1397,7 @@
     "name": "AutoLFM",
     "repo": "https://github.com/FSuhas/AutoLFM",
     "category": "General",
-    "description": "Automated LFM Message [img1 ]",
+    "description": "Automated LFM Message [img1]",
     "source": "turtle_wiki",
     "folder": "AutoLFM"
   },
@@ -1480,6 +1416,14 @@
     "description": "Allows automatic sending of a message to a channel at an interval specified by a user",
     "source": "turtle_wiki",
     "folder": "AutoMessage"
+  },
+  {
+    "name": "AutoReputationBar",
+    "repo": "https://github.com/gbl/AutoReputationBar",
+    "category": "General",
+    "description": "automatically switches your reputation bar to whichever faction you last gained reputation with.",
+    "source": "turtle_wiki",
+    "folder": "AutoReputationBar"
   },
   {
     "name": "AutoShot",
@@ -1978,6 +1922,14 @@
     "folder": "ColorSocialFrame"
   },
   {
+    "name": "Comix",
+    "repo": "https://github.com/Cysthen/Comix",
+    "category": "General",
+    "description": "(Susangrundle/Cysthen) or Comix (Goose404) - Adds sounds and special effects to your interface",
+    "source": "turtle_wiki",
+    "folder": "Comix"
+  },
+  {
     "name": "CompanionManager",
     "repo": "https://github.com/sica42/CompanionManager",
     "category": "General",
@@ -2024,22 +1976,6 @@
     "description": "Sphere addon for Paladins, mainly for solo play",
     "source": "turtle_wiki",
     "folder": "Crusader"
-  },
-  {
-    "name": "Cryolysis",
-    "repo": "https://github.com/laytya/Vanilla-Addons",
-    "category": "General",
-    "description": "Management of Mage spells, abilities, and reagents. Not updated for Turtle WoW like the Arcanum addon is.",
-    "source": "turtle_wiki",
-    "folder": "Vanilla-Addons"
-  },
-  {
-    "name": "CT PlayerNotes",
-    "repo": "https://github.com/WoWruRU-ClassicAddons/CT_PlayerNotes",
-    "category": "General",
-    "description": "Allows you to save notes for your friends, guildies & ignored persons.",
-    "source": "turtle_wiki",
-    "folder": "CT_PlayerNotes"
   },
   {
     "name": "CT UnitFrames",
@@ -2155,14 +2091,6 @@
     "folder": "DruidConsumable"
   },
   {
-    "name": "DruidManaBar",
-    "repo": "https://github.com/gashole/DruidManaBar",
-    "category": "General",
-    "description": "Displays a mana bar when shapeshifted [Img1]",
-    "source": "turtle_wiki",
-    "folder": "DruidManaBar"
-  },
-  {
     "name": "DrunkTracker",
     "repo": "https://github.com/akzkak/DrunkTracker",
     "category": "General",
@@ -2259,13 +2187,12 @@
     "folder": "EmeraldFramework"
   },
   {
-    "name": "EquipCompare",
-    "repo": "",
+    "name": "EnemyFrames",
+    "repo": "https://github.com/zetone/enemyFrames",
     "category": "General",
-    "description": "Compare items easily with ones you have equipped",
+    "description": "or enemyFrames- display enemy players on BGs [Img1] [Img2] [Read]",
     "source": "turtle_wiki",
-    "folder": "EquipCompare",
-    "installable": false
+    "folder": "enemyFrames"
   },
   {
     "name": "ES",
@@ -2435,14 +2362,6 @@
     "description": "Merchant button that sells all poor-quality items with one click",
     "source": "turtle_wiki",
     "folder": "Forged_SellAllGrays"
-  },
-  {
-    "name": "Friend-O-Tron",
-    "repo": "https://github.com/refaim/Friend-O-Tron",
-    "category": "General",
-    "description": "Synchronizes your friends list across all your characters and accounts (with SuperWoW) on the same realm.",
-    "source": "turtle_wiki",
-    "folder": "Friend-O-Tron"
   },
   {
     "name": "FriendFinder",
@@ -2777,7 +2696,7 @@
     "name": "Iconic",
     "repo": "https://github.com/alchem1ster/Vanilla-Iconic",
     "category": "General",
-    "description": "Improves the default macro icon selection system by adding a search bar [Gif ]",
+    "description": "Improves the default macro icon selection system by adding a search bar [Gif]",
     "source": "turtle_wiki",
     "folder": "Vanilla-Iconic"
   },
@@ -2930,7 +2849,7 @@
     "name": "KillCounter",
     "repo": "https://github.com/FrostShock/KillCounter",
     "category": "General",
-    "description": "Shows how many things you killed (mobs, players, critters) [Alt ]",
+    "description": "Shows how many things you killed (mobs, players, critters) [Alt]",
     "source": "turtle_wiki",
     "folder": "KillCounter"
   },
@@ -3029,14 +2948,6 @@
     "description": "Converts CLINK links into regular ones and localizes and fixes regular ones if possible",
     "source": "turtle_wiki",
     "folder": "linkmend"
-  },
-  {
-    "name": "LoadIT",
-    "repo": "https://github.com/laytya/Vanilla-Addons",
-    "category": "General",
-    "description": "In-game addon management",
-    "source": "turtle_wiki",
-    "folder": "Vanilla-Addons"
   },
   {
     "name": "LockPort",
@@ -3186,7 +3097,7 @@
     "name": "ModernSpellAlert",
     "repo": "https://github.com/Abstr4ctz/ModernSpellAlert",
     "category": "General",
-    "description": "A powerful, lightweight, and highly customizable addon for tracking spell casts and procs in real time. [Img1 ]",
+    "description": "A powerful, lightweight, and highly customizable addon for tracking spell casts and procs in real time. [Img1]",
     "source": "turtle_wiki",
     "folder": "ModernSpellAlert"
   },
@@ -3205,14 +3116,6 @@
     "description": "puts VanillaGuide into a chat window",
     "source": "turtle_wiki",
     "folder": "modguide"
-  },
-  {
-    "name": "MonkeySpeed",
-    "repo": "https://github.com/TrangOul/MonkeySpeed",
-    "category": "General",
-    "description": "Adds a simple movable speedometer displaying speed as a percentage of run speed.",
-    "source": "turtle_wiki",
-    "folder": "MonkeySpeed"
   },
   {
     "name": "MoPGearTooltips",
@@ -3306,7 +3209,7 @@
     "name": "Necrosis",
     "repo": "https://github.com/Nedlinin/necrosis-twow",
     "category": "General",
-    "description": "is a tool designed to help warlock players manage various aspects of their gameplay. [2 ]",
+    "description": "is a tool designed to help warlock players manage various aspects of their gameplay. [2]",
     "source": "turtle_wiki",
     "folder": "necrosis-twow"
   },
@@ -3322,7 +3225,7 @@
     "name": "NewLevelFrame",
     "repo": "https://github.com/alchem1ster/Vanilla-NewLevelFrame",
     "category": "General",
-    "description": "shows a congratulations frame when a new level is reached [gif ]",
+    "description": "shows a congratulations frame when a new level is reached [gif]",
     "source": "turtle_wiki",
     "folder": "Vanilla-NewLevelFrame"
   },
@@ -3379,7 +3282,7 @@
     "name": "oCB",
     "repo": "https://github.com/laytya/Vanilla_oCB",
     "category": "General",
-    "description": "(Otravi Casting Bar) Quartz Like castbar [2 ] [3 ]",
+    "description": "(Otravi Casting Bar) Quartz Like castbar [2] [3]",
     "source": "turtle_wiki",
     "folder": "Vanilla_oCB"
   },
@@ -3483,7 +3386,7 @@
     "name": "pfUI-turtle",
     "repo": "https://github.com/doorknob6/pfUI-turtle",
     "category": "General",
-    "description": "A small extension that fixes some issues that arise from Turtle's custom UI, class and item changes [img1 ]",
+    "description": "A small extension that fixes some issues that arise from Turtle's custom UI, class and item changes [img1]",
     "source": "turtle_wiki",
     "folder": "pfUI-turtle"
   },
@@ -3491,7 +3394,7 @@
     "name": "PizzaSlices",
     "repo": "https://github.com/neimad-mp/PizzaSlices",
     "category": "General",
-    "description": "Radial action menus for TurtleWoW. A simplified OPie clone. [Gif1 ]",
+    "description": "Radial action menus for TurtleWoW. A simplified OPie clone. [Gif1]",
     "source": "turtle_wiki",
     "folder": "PizzaSlices"
   },
@@ -3515,7 +3418,7 @@
     "name": "PorkNotes",
     "repo": "https://github.com/porkfriedlumpia/PorkNotes",
     "category": "General",
-    "description": "Write notes about other players, and display them in tooltips and chat. Built from MrToffee/CaramelNotes. [Img1 ]",
+    "description": "Write notes about other players, and display them in tooltips and chat. Built from MrToffee/CaramelNotes. [Img1]",
     "source": "turtle_wiki",
     "folder": "PorkNotes"
   },
@@ -3739,7 +3642,7 @@
     "name": "RogueTick",
     "repo": "https://github.com/pseja/RogueTick",
     "category": "General",
-    "description": "Rogue energy tick for the player frame. [Vid1 ]",
+    "description": "Rogue energy tick for the player frame. [Vid1]",
     "source": "turtle_wiki",
     "folder": "RogueTick"
   },
@@ -3747,7 +3650,7 @@
     "name": "RogueTicker",
     "repo": "https://github.com/akzkak/RogueTicker",
     "category": "General",
-    "description": "Energy, tick and combo point tracker for rogues with support for latest 1.18.0 Turtle changes. [Img1 ]",
+    "description": "Energy, tick and combo point tracker for rogues with support for latest 1.18.0 Turtle changes. [Img1]",
     "source": "turtle_wiki",
     "folder": "RogueTicker"
   },
@@ -3824,18 +3727,10 @@
     "folder": "SealTracker"
   },
   {
-    "name": "Select AddOns",
-    "repo": "https://github.com/Road-block/Select_AddOns",
-    "category": "General",
-    "description": "addons authored by Road-block (some not) [Img1]",
-    "source": "turtle_wiki",
-    "folder": "Select_AddOns"
-  },
-  {
     "name": "ShaguActions",
     "repo": "https://github.com/shagu/ShaguActions",
     "category": "General",
-    "description": "Automatically saves and restores one actionbar profile for each of the 3 skill trees [Img1 ]",
+    "description": "Automatically saves and restores one actionbar profile for each of the 3 skill trees [Img1]",
     "source": "turtle_wiki",
     "folder": "ShaguActions"
   },
@@ -3952,18 +3847,10 @@
     "folder": "ShaguTooltips"
   },
   {
-    "name": "ShaguTweaks",
-    "repo": "https://github.com/shagu/ShaguTweaks",
-    "category": "General",
-    "description": "A small AddOn for those who don't want to use any AddOns at all. [Img1]",
-    "source": "turtle_wiki",
-    "folder": "ShaguTweaks"
-  },
-  {
     "name": "ShaguTweaks DruidManaBar",
     "repo": "https://github.com/gashole/ShaguTweaks-DruidManaBar",
     "category": "General",
-    "description": "Adds ShaguTweaks style changes to DruidManaBar [Img1 ]",
+    "description": "Adds ShaguTweaks style changes to DruidManaBar [Img1]",
     "source": "turtle_wiki",
     "folder": "ShaguTweaks-DruidManaBar"
   },
@@ -3979,7 +3866,7 @@
     "name": "ShaguTweaks more mods",
     "repo": "https://github.com/CrimsonHollow/ShaguTweaks-more-mods",
     "category": "General",
-    "description": "Adds additional mods to ShaguTweaks [Img1 ]",
+    "description": "Adds additional mods to ShaguTweaks [Img1]",
     "source": "turtle_wiki",
     "folder": "ShaguTweaks-more-mods"
   },
@@ -4126,14 +4013,6 @@
     "description": "Shows an alert tooltip and timer bar on your screen when Revenge procs",
     "source": "turtle_wiki",
     "folder": "SP_Revenge"
-  },
-  {
-    "name": "SP_SwingTimer",
-    "repo": "https://github.com/balakethelock/SP_SwingTimer",
-    "category": "General",
-    "description": "Warrior Swing Timer [Img1]",
-    "source": "turtle_wiki",
-    "folder": "SP_SwingTimer"
   },
   {
     "name": "SpamThrottle",
@@ -4317,7 +4196,7 @@
     "name": "TankHelper",
     "repo": "https://github.com/balakethelock/TankHelper",
     "category": "General",
-    "description": "Shows information about target [Img1 ]",
+    "description": "Shows information about target [Img1]",
     "source": "turtle_wiki",
     "folder": "TankHelper"
   },
@@ -4437,7 +4316,7 @@
     "name": "TotemTimersEnhanced",
     "repo": "https://github.com/MOUZU/TotemTimers-Enhanced",
     "category": "General",
-    "description": "keep track of shaman totems, how long they'll last and when their next Tick comes [2 ]",
+    "description": "keep track of shaman totems, how long they'll last and when their next Tick comes [2]",
     "source": "turtle_wiki",
     "folder": "TotemTimers-Enhanced"
   },
@@ -4525,7 +4404,7 @@
     "name": "TurtleTweaks",
     "repo": "https://github.com/mitjafelicijan/TurtleTweaks",
     "category": "General",
-    "description": "Tweaks and Enhancements [Img1 ]",
+    "description": "Tweaks and Enhancements [Img1]",
     "source": "turtle_wiki",
     "folder": "TurtleTweaks"
   },
@@ -4662,9 +4541,9 @@
     "name": "VanillaStoryline Transparent Patch",
     "repo": "",
     "category": "General",
-    "description": "Removes paper backgrounds [Img1 ]",
+    "description": "Removes paper backgrounds [Img1]",
     "source": "turtle_wiki",
-    "folder": "VanillaStorylineTransparentPatch",
+    "folder": "870",
     "installable": false
   },
   {
@@ -4743,7 +4622,7 @@
     "name": "WhatsTraining_Turtle",
     "repo": "https://github.com/FrancisEgan/WhatsTraining_Turtle",
     "category": "General",
-    "description": "Shows you what spells are available at your class trainer https://github.com/Gescht/WhatsTraining_Turtle Alt [Img1 ]",
+    "description": "Shows you what spells are available at your class trainer https://github.com/Gescht/WhatsTraining_Turtle Alt [Img1]",
     "source": "turtle_wiki",
     "folder": "WhatsTraining_Turtle"
   },
@@ -5084,14 +4963,6 @@
     "folder": "LevelRange-Turtle"
   },
   {
-    "name": "LibDBIcon-1.0",
-    "repo": "https://github.com/refaim/Vanilla-WoW-1.12-Addon-Development-Libraries-Archive",
-    "category": "Maps",
-    "description": "A library for creating minimap icons.",
-    "source": "turtle_wiki",
-    "folder": "Vanilla-WoW-1.12-Addon-Development-Libraries-Archive"
-  },
-  {
     "name": "Magnify",
     "repo": "https://github.com/lookino/Magnify",
     "category": "Maps",
@@ -5127,7 +4998,7 @@
     "name": "MiniMage_TWOW",
     "repo": "https://github.com/totalllyswede/MiniMage_TWOW",
     "category": "Maps",
-    "description": "Mage portal/teleport buttons on mini-map. Updated for TurtleWoW [Img1 ]",
+    "description": "Mage portal/teleport buttons on mini-map. Updated for TurtleWoW [Img1]",
     "source": "turtle_wiki",
     "folder": "MiniMage_TWOW"
   },
@@ -5151,7 +5022,7 @@
     "name": "PizzaWorldBuffs",
     "repo": "https://github.com/acid9000/PizzaWorldBuffs",
     "category": "Maps",
-    "description": "Shows tent locations on the map, world buff (head despawn) timers and Darkmoon Faire location [Img1 ] [Img2 ]",
+    "description": "Shows tent locations on the map, world buff (head despawn) timers and Darkmoon Faire location [Img1] [Img2]",
     "source": "turtle_wiki",
     "folder": "PizzaWorldBuffs"
   },
@@ -5215,7 +5086,7 @@
     "name": "Zones Level",
     "repo": "https://github.com/Arthur-Helias/ZonesLevel",
     "category": "Maps",
-    "description": "A lightweight Turtle WoW addon that displays the mouse hovered zone's level under its title on the world map. [Img1 ]",
+    "description": "A lightweight Turtle WoW addon that displays the mouse hovered zone's level under its title on the world map. [Img1]",
     "source": "turtle_wiki",
     "folder": "ZonesLevel"
   },
@@ -5223,7 +5094,7 @@
     "name": "AdvancedTradeSkillWindow",
     "repo": "https://github.com/laytya/AdvancedTradeSkillWindow-vanilla",
     "category": "Professions",
-    "description": "replacement for Blizzards trade skill window [Img1 ] use it w/ LSW",
+    "description": "replacement for Blizzards trade skill window [Img1] use it w/ LSW",
     "source": "turtle_wiki",
     "folder": "AdvancedTradeSkillWindow-vanilla"
   },
@@ -5231,7 +5102,7 @@
     "name": "AdvancedTradeSkillWindow2",
     "repo": "https://github.com/Shellyoung/AdvancedTradeSkillWindow2",
     "category": "Professions",
-    "description": "Improved window for your professions for World of Warcraft vanilla (Evolution of the previous addon) [Image ].",
+    "description": "Improved window for your professions for World of Warcraft vanilla (Evolution of the previous addon) [Image].",
     "source": "turtle_wiki",
     "folder": "AdvancedTradeSkillWindow2"
   },
@@ -5257,14 +5128,14 @@
     "category": "Professions",
     "description": "Adds over 30 different Warcraft combat tunes.",
     "source": "turtle_wiki",
-    "folder": "BattleMusicLoreFriendlyMusicPack",
+    "folder": "869",
     "installable": false
   },
   {
     "name": "Better Character Panel",
     "repo": "https://github.com/Arthur-Helias/BetterCharacterPanel",
     "category": "Professions",
-    "description": "Improves the default character and inspect panel by adding enchants effects and more! Made for TWoW [Img1 ] [Img2 ]",
+    "description": "Improves the default character and inspect panel by adding enchants effects and more! Made for TWoW [Img1] [Img2]",
     "source": "turtle_wiki",
     "folder": "BetterCharacterPanel"
   },
@@ -5312,7 +5183,7 @@
     "name": "InstanceJournal",
     "repo": "https://github.com/Arthur-Helias/InstanceJournal",
     "category": "Professions",
-    "description": "A reimagining of World of Warcraft's original Encounter Journal, built for TurtleWoW! [Img1 ] [Img2 ] [Img3 ] [Img4 ]",
+    "description": "A reimagining of World of Warcraft's original Encounter Journal, built for TurtleWoW! [Img1] [Img2] [Img3] [Img4]",
     "source": "turtle_wiki",
     "folder": "InstanceJournal"
   },
@@ -5320,33 +5191,9 @@
     "name": "ItemTooltipIcons",
     "repo": "https://github.com/refaim/ItemTooltipIcons",
     "category": "Professions",
-    "description": "enhances item tooltips by displaying profession icons for crafting ingredients [Img1 ] [Img2 ] [Img3 ]",
+    "description": "enhances item tooltips by displaying profession icons for crafting ingredients [Img1] [Img2] [Img3]",
     "source": "turtle_wiki",
     "folder": "ItemTooltipIcons"
-  },
-  {
-    "name": "LibCraftingProfessions-1.0",
-    "repo": "https://github.com/refaim/LibCraftingProfessions-1.0",
-    "category": "Professions",
-    "description": "A small library designed to provide a universal interface for crafting professions.",
-    "source": "turtle_wiki",
-    "folder": "LibCraftingProfessions-1.0"
-  },
-  {
-    "name": "LibCrafts-1.0",
-    "repo": "https://github.com/refaim/LibCrafts-1.0",
-    "category": "Professions",
-    "description": "A library designed to provide an embeddable database of crafting spells, recipes, reagents, results, sources etc. Supersedes ReagentData, TradeSkillsData and TradeSkillsData-turtle (not as a drop-in replacement; i.e., it",
-    "source": "turtle_wiki",
-    "folder": "LibCrafts-1.0"
-  },
-  {
-    "name": "LibVendorValue-1.0",
-    "repo": "https://github.com/refaim/Vanilla-WoW-1.12-Addon-Development-Libraries-Archive",
-    "category": "Professions",
-    "description": "A library for vendor item values in World of Warcraft 1.12.1.",
-    "source": "turtle_wiki",
-    "folder": "Vanilla-WoW-1.12-Addon-Development-Libraries-Archive"
   },
   {
     "name": "LilSparkysWorkshop",
@@ -5360,7 +5207,7 @@
     "name": "Lookup",
     "repo": "https://github.com/TrangOul/Lookup",
     "category": "Professions",
-    "description": "Adds searchboxes to the backpack and tradeskill window that the player can use to look up what they need [Img ]",
+    "description": "Adds searchboxes to the backpack and tradeskill window that the player can use to look up what they need[Img]",
     "source": "turtle_wiki",
     "folder": "Lookup"
   },
@@ -5384,7 +5231,7 @@
     "name": "MissingCrafts",
     "repo": "https://github.com/refaim/MissingCrafts",
     "category": "Professions",
-    "description": "Shows the missing crafts for your crafting professions and how to obtain them. Contains all Turtle WoW recipes including Jewelcrafting. [Img1 ] [Img2 ] [Img3 ]",
+    "description": "Shows the missing crafts for your crafting professions and how to obtain them. Contains all Turtle WoW recipes including Jewelcrafting. [Img1] [Img2] [Img3]",
     "source": "turtle_wiki",
     "folder": "MissingCrafts"
   },
@@ -5454,6 +5301,14 @@
     "installable": false
   },
   {
+    "name": "TradeChat",
+    "repo": "https://github.com/gbl/TradeChat",
+    "category": "Professions",
+    "description": "tells you in chat when people give you money. Use when you can't remember if people gave you money with crafting materials.",
+    "source": "turtle_wiki",
+    "folder": "TradeChat"
+  },
+  {
     "name": "TradeSkillsData",
     "repo": "https://github.com/refaim/TradeSkillsData",
     "category": "Professions",
@@ -5518,14 +5373,6 @@
     "folder": "avbars"
   },
   {
-    "name": "BGAssistRU",
-    "repo": "https://github.com/xVitali2/Addons-for-Vanilla-1.12.1",
-    "category": "PvP",
-    "description": "Battleground helper",
-    "source": "turtle_wiki",
-    "folder": "Addons-for-Vanilla-1.12.1"
-  },
-  {
     "name": "BGReport",
     "repo": "https://github.com/yutsuku/BGReport",
     "category": "PvP",
@@ -5541,14 +5388,6 @@
     "source": "turtle_wiki",
     "folder": "CallOfElements",
     "installable": false
-  },
-  {
-    "name": "Glory-2.0",
-    "repo": "https://github.com/refaim/Vanilla-WoW-1.12-Addon-Development-Libraries-Archive",
-    "category": "PvP",
-    "description": "A library for PvP and Battlegrounds.",
-    "source": "turtle_wiki",
-    "folder": "Vanilla-WoW-1.12-Addon-Development-Libraries-Archive"
   },
   {
     "name": "HCWarn",
@@ -5568,7 +5407,7 @@
   },
   {
     "name": "MouseOverSounds_PvP",
-    "repo": "https://github.com//mikefirefly/MouseOverSounds_PvP",
+    "repo": "https://github.com/mikefirefly/MouseOverSounds_PvP",
     "category": "PvP",
     "description": "Plays a warning sound when you mouseover a unit that is PvP enabled.",
     "source": "turtle_wiki",
@@ -5753,14 +5592,6 @@
     "folder": "ChroniclesPI"
   },
   {
-    "name": "Chronos",
-    "repo": "https://github.com/refaim/Vanilla-WoW-1.12-Addon-Development-Libraries-Archive",
-    "category": "Questing",
-    "description": "A library that managers time. You can schedule a function to be called in X seconds, with or without an id. You can request a timer, which tracks the elapsed duration since the timer was started.",
-    "source": "turtle_wiki",
-    "folder": "Vanilla-WoW-1.12-Addon-Development-Libraries-Archive"
-  },
-  {
     "name": "Classicdb",
     "repo": "https://github.com/Muehe/classicdb",
     "category": "Questing",
@@ -5938,22 +5769,6 @@
     "folder": "QuestHistory"
   },
   {
-    "name": "Questie",
-    "repo": "https://github.com/SaxxonPike/Questie-Twow",
-    "category": "Questing",
-    "description": "A standalone Vanilla QuestHelper. Has far less features than the 2024 Classic version most people know. Completely lacks support for new Turtle quests and changes. [Vid1].",
-    "source": "turtle_wiki",
-    "folder": "Questie-Twow"
-  },
-  {
-    "name": "QuestItem",
-    "repo": "https://github.com/wow-vanilla-addons/QuestItem",
-    "category": "Questing",
-    "description": "stores an in-game database over quest items and tell you which quest they belong to",
-    "source": "turtle_wiki",
-    "folder": "QuestItem"
-  },
-  {
     "name": "QuestProgressShare",
     "repo": "https://github.com/graved/QuestProgressShare",
     "category": "Questing",
@@ -6000,14 +5815,6 @@
     "description": "Italian Quests Translator [Img1]",
     "source": "turtle_wiki",
     "folder": "QuestTranslator"
-  },
-  {
-    "name": "Quixote-1.0",
-    "repo": "https://github.com/refaim/Vanilla-WoW-1.12-Addon-Development-Libraries-Archive",
-    "category": "Questing",
-    "description": "Abstracts out questlog handling.",
-    "source": "turtle_wiki",
-    "folder": "Vanilla-WoW-1.12-Addon-Development-Libraries-Archive"
   },
   {
     "name": "ShowChests",
@@ -6233,14 +6040,6 @@
     "folder": "CombatLoggingReminder"
   },
   {
-    "name": "CommChannel-1.0",
-    "repo": "https://github.com/refaim/Vanilla-WoW-1.12-Addon-Development-Libraries-Archive",
-    "category": "Raiding",
-    "description": "A library that manages three communication channels (\"guild\", \"raid\" and \"sync\") and allows addons to use a RPC mechanism.",
-    "source": "turtle_wiki",
-    "folder": "Vanilla-WoW-1.12-Addon-Development-Libraries-Archive"
-  },
-  {
     "name": "CThunPositions",
     "repo": "https://github.com/Cinecom/CThunPositions",
     "category": "Raiding",
@@ -6407,7 +6206,7 @@
     "category": "Raiding",
     "description": "Detects and tracks rolls which are made with '/random' or '/roll' and sorts them, allowing raid leaders to announce roll winners quickly and easily.",
     "source": "turtle_wiki",
-    "folder": "LootHog",
+    "folder": "info12031-LootHog.html",
     "installable": false
   },
   {
@@ -6422,7 +6221,7 @@
     "name": "LootBlare",
     "repo": "https://github.com/MarcelineVQ/LootBlare",
     "category": "Raiding",
-    "description": "A frame that pops up and shows item and rolls when a single uncommon+ item is linked in Raid Warning [Img ]",
+    "description": "A frame that pops up and shows item and rolls when a single uncommon+ item is linked in Raid Warning [Img]",
     "source": "turtle_wiki",
     "folder": "LootBlare"
   },
@@ -6430,7 +6229,7 @@
     "name": "LootBlare 2.0",
     "repo": "https://github.com/FSuhas/LootBlare-For-RoolFor",
     "category": "Raiding",
-    "description": "LootBlare customizable RollCap with /lbr [Img1 ] [img2 ]",
+    "description": "LootBlare customizable RollCap with /lbr [Img1] [img2]",
     "source": "turtle_wiki",
     "folder": "LootBlare-For-RoolFor"
   },
@@ -6438,7 +6237,7 @@
     "name": "LootMonitor",
     "repo": "https://github.com/Wiggen94/lootmonitor",
     "category": "Raiding",
-    "description": "Customizable floating loot notification that displays fading notifications with real item icons when you loot items or coins [img ]",
+    "description": "Customizable floating loot notification that displays fading notifications with real item icons when you loot items or coins [img]",
     "source": "turtle_wiki",
     "folder": "lootmonitor"
   },
@@ -6494,9 +6293,17 @@
     "name": "MijksRaidAssist",
     "repo": "https://github.com/mijkrofl/MijksRaidAssist",
     "category": "Raiding",
-    "description": "Checks for Flask, GGSP/GGNP/GGFP/GGAP/GGFRP, Mageblood and Mongoose potions [Img1 ] [Img2 ]",
+    "description": "Checks for Flask, GGSP/GGNP/GGFP/GGAP/GGFRP, Mageblood and Mongoose potions [Img1] [Img2]",
     "source": "turtle_wiki",
     "folder": "MijksRaidAssist"
+  },
+  {
+    "name": "Modern Map Markers",
+    "repo": "https://github.com/tilare/ModernMapMarkers",
+    "category": "Raiding",
+    "description": "Shows the locations of dungeons, raids, world bosses, boats, zeppelins, and trams on the world map.",
+    "source": "turtle_wiki",
+    "folder": "ModernMapMarkers"
   },
   {
     "name": "NotChatLootBidder",
@@ -6546,14 +6353,6 @@
     "description": "Automatically swap the loot chat window to the docked meters when in combat and out of combat.",
     "source": "turtle_wiki",
     "folder": "pfUI-combatdock"
-  },
-  {
-    "name": "ProximityLib",
-    "repo": "https://github.com/refaim/Vanilla-WoW-1.12-Addon-Development-Libraries-Archive",
-    "category": "Raiding",
-    "description": "A library to track raid/party unit's general range.",
-    "source": "turtle_wiki",
-    "folder": "Vanilla-WoW-1.12-Addon-Development-Libraries-Archive"
   },
   {
     "name": "pwscounter",
@@ -6636,6 +6435,14 @@
     "folder": "RAT"
   },
   {
+    "name": "RDX",
+    "repo": "https://github.com/coryo/RDX",
+    "category": "Raiding",
+    "description": "(Raid Data Exchange) a tool for acquiring, filtering, and visualizing information about your raid team [Img1]",
+    "source": "turtle_wiki",
+    "folder": "RDX"
+  },
+  {
     "name": "Recents",
     "repo": "https://github.com/luskanek/Recents",
     "category": "Raiding",
@@ -6666,14 +6473,6 @@
     "description": "An automated item roller with soft ressing support via raidres.fly.dev.",
     "source": "turtle_wiki",
     "folder": "RollFor"
-  },
-  {
-    "name": "RosterLib-2.0",
-    "repo": "https://github.com/refaim/Vanilla-WoW-1.12-Addon-Development-Libraries-Archive",
-    "category": "Raiding",
-    "description": "party/raid roster management.",
-    "source": "turtle_wiki",
-    "folder": "Vanilla-WoW-1.12-Addon-Development-Libraries-Archive"
   },
   {
     "name": "RoundRobinhood",
@@ -6748,14 +6547,6 @@
     "folder": "SmartRoll"
   },
   {
-    "name": "Sorgis Raid Marks",
-    "repo": "https://github.com/sorgis-sorgis/sorgis_raid_marks",
-    "category": "Raiding",
-    "description": "Raid mark targeting and assigning.",
-    "source": "turtle_wiki",
-    "folder": "sorgis_raid_marks"
-  },
-  {
     "name": "Sota",
     "repo": "https://github.com/Sentilix/sota",
     "category": "Raiding",
@@ -6778,6 +6569,14 @@
     "description": "was originally designed to replace the raid frames provided by CT_RaidAssist [Img1] [Img2]",
     "source": "turtle_wiki",
     "folder": "sRaidFrames_Improved"
+  },
+  {
+    "name": "StatCompare",
+    "repo": "https://github.com/grimfiendish/StatCompare",
+    "category": "Raiding",
+    "description": "2.0 - adds a Character and Inspection Pane for raid gear checks or to compare gear to your target's. Updates including TurtleWoW specific spells and enchants). https://raw.githubusercontent.com/grimfiendish/StatCompare/1",
+    "source": "turtle_wiki",
+    "folder": "StatCompare"
   },
   {
     "name": "SwapRaidSubgroupByName",
@@ -6847,7 +6646,7 @@
     "name": "Threat",
     "repo": "https://github.com/muellerj/Threat",
     "category": "Raiding",
-    "description": "Providing warrior tank a single button to generate the maximum available threat on a given single target [Alt ]",
+    "description": "Providing warrior tank a single button to generate the maximum available threat on a given single target [Alt]",
     "source": "turtle_wiki",
     "folder": "Threat"
   },
@@ -6996,6 +6795,382 @@
     "folder": "TurtleRP"
   },
   {
+    "name": "aDF",
+    "repo": "https://github.com/Zebouski/aDF",
+    "category": "SuperWoW",
+    "description": "adds a small HUD that standardizes critical info about your target's defences, including Armor, Resists, and specific debuffs [Img1] https://github.com/Autignem/aDF Alt",
+    "source": "turtle_wiki",
+    "folder": "aDF"
+  },
+  {
+    "name": "AutoLock",
+    "repo": "https://github.com/DavidBecht/AutoLock",
+    "category": "SuperWoW",
+    "description": "Priority-based spell rotation addon for Warlocks.",
+    "source": "turtle_wiki",
+    "folder": "AutoLock"
+  },
+  {
+    "name": "AutoMarker",
+    "repo": "https://github.com/MarcelineVQ/AutoMarker",
+    "category": "SuperWoW",
+    "description": "Automatically mark raid mobs.",
+    "source": "turtle_wiki",
+    "folder": "AutoMarker"
+  },
+  {
+    "name": "Cursive",
+    "repo": "https://github.com/pepopo978/Cursive",
+    "category": "SuperWoW",
+    "description": "Curse tracker and multi curse assistant",
+    "source": "turtle_wiki",
+    "folder": "Cursive"
+  },
+  {
+    "name": "Cursive-raid",
+    "repo": "https://github.com/Kirchlive/cursive-raid",
+    "category": "SuperWoW",
+    "description": "Real-time debuff tracking, live armor monitoring, and full raid visibility.",
+    "source": "turtle_wiki",
+    "folder": "cursive-raid"
+  },
+  {
+    "name": "Decursive",
+    "repo": "https://github.com/MarcelineVQ/Decursive",
+    "category": "SuperWoW",
+    "description": "This is a cleaning mod. Its job it to help a class that can remove debuffs, do it with ease.",
+    "source": "turtle_wiki",
+    "folder": "Decursive"
+  },
+  {
+    "name": "Dragonflight3",
+    "repo": "https://github.com/Flaxic-LUA/-Dragonflight3",
+    "category": "SuperWoW",
+    "description": "A comprehensive UI overhaul. Its in Alpha so expect bugs.",
+    "source": "turtle_wiki",
+    "folder": "-Dragonflight3"
+  },
+  {
+    "name": "DruidManaBar",
+    "repo": "https://github.com/gashole/DruidManaBar",
+    "category": "SuperWoW",
+    "description": "Displays a mana bar when shapeshifted [Img1]",
+    "source": "turtle_wiki",
+    "folder": "DruidManaBar"
+  },
+  {
+    "name": "FastTOT",
+    "repo": "https://github.com/OldManAlpha/FastTOT",
+    "category": "SuperWoW",
+    "description": "Massively increases performance of Target Of Target frame",
+    "source": "turtle_wiki",
+    "folder": "FastTOT"
+  },
+  {
+    "name": "Friend-O-Tron",
+    "repo": "https://github.com/refaim/Friend-O-Tron",
+    "category": "SuperWoW",
+    "description": "Synchronizes your friends list across all your characters and accounts (with SuperWoW) on the same realm.",
+    "source": "turtle_wiki",
+    "folder": "Friend-O-Tron"
+  },
+  {
+    "name": "GCDisplay",
+    "repo": "https://github.com/MrDoufuru/GCDisplay",
+    "category": "SuperWoW",
+    "description": "Displays your GCD, with the last spell that triggers it, as a circle reducing its size.",
+    "source": "turtle_wiki",
+    "folder": "GCDisplay"
+  },
+  {
+    "name": "IWinEnhanced",
+    "repo": "https://github.com/Profiler781/IWinEnhanced",
+    "category": "SuperWoW",
+    "description": "1-button rotation macros for Turtle Druids, Paladins and Warriors.",
+    "source": "turtle_wiki",
+    "folder": "IWinEnhanced"
+  },
+  {
+    "name": "JankyPlates",
+    "repo": "https://github.com/Ageous27/JankyPlates",
+    "category": "SuperWoW",
+    "description": "Colors enemy name plates based on players threat.",
+    "source": "turtle_wiki",
+    "folder": "JankyPlates"
+  },
+  {
+    "name": "Lateral",
+    "repo": "https://github.com/Carravan/Lateral",
+    "category": "SuperWoW",
+    "description": "Rogue Rotation and T3.5 Proc Tracking",
+    "source": "turtle_wiki",
+    "folder": "Lateral"
+  },
+  {
+    "name": "MageHud",
+    "repo": "https://github.com/pepopo978/MageHud",
+    "category": "SuperWoW",
+    "description": "Display remaining mage shields for ice barrier/mana shield/protection pots and more.",
+    "source": "turtle_wiki",
+    "folder": "MageHud"
+  },
+  {
+    "name": "MonkeySpeed",
+    "repo": "https://github.com/TrangOul/MonkeySpeed",
+    "category": "SuperWoW",
+    "description": "Adds a simple movable speedometer displaying speed as a percentage of run speed.",
+    "source": "turtle_wiki",
+    "folder": "MonkeySpeed"
+  },
+  {
+    "name": "oCB [SuperWoW",
+    "repo": "https://github.com/Shellyoung/oCB-SuperWoW",
+    "category": "SuperWoW",
+    "description": "] - (Otravi Casting Bar) Quartz Like castbar with SuperWoW support [Image].",
+    "source": "turtle_wiki",
+    "folder": "oCB"
+  },
+  {
+    "name": "Overhead",
+    "repo": "https://github.com/Otari98/Overhead",
+    "category": "SuperWoW",
+    "description": "Simple and lightweight overlapping nameplates with cast bars and class colors",
+    "source": "turtle_wiki",
+    "folder": "Overhead"
+  },
+  {
+    "name": "pfUI",
+    "repo": "https://github.com/me0wg4ming/pfUI",
+    "category": "SuperWoW",
+    "description": "full replacement for the original Wow interface in a single Addon [Vid1]",
+    "source": "turtle_wiki",
+    "folder": "pfUI"
+  },
+  {
+    "name": "pfUI-bettertotems",
+    "repo": "https://github.com/Bombg/pfUI-bettertotems",
+    "category": "SuperWoW",
+    "description": "External module for pfUI providing some extra features to totems [Img1]",
+    "source": "turtle_wiki",
+    "folder": "pfUI-bettertotems"
+  },
+  {
+    "name": "Puppeteer",
+    "repo": "https://github.com/OldManAlpha/Puppeteer",
+    "category": "SuperWoW",
+    "description": "Unit frames addon for healers or any class/spec, an alternative to modern WoW's VuhDo, Cell, or Healbot",
+    "source": "turtle_wiki",
+    "folder": "Puppeteer"
+  },
+  {
+    "name": "Quartz",
+    "repo": "https://github.com/laytya/Quartz",
+    "category": "SuperWoW",
+    "description": "Modular casting bar",
+    "source": "turtle_wiki",
+    "folder": "Quartz"
+  },
+  {
+    "name": "QuickTurtleDBLookUp",
+    "repo": "https://github.com/Taeko-ar/QuickTurtleDBLookUp",
+    "category": "SuperWoW",
+    "description": "Quick NPC search in the Turtle WoW database",
+    "source": "turtle_wiki",
+    "folder": "QuickTurtleDBLookUp"
+  },
+  {
+    "name": "Rank14losSA Reborn",
+    "repo": "https://github.com/me0wg4ming/Rank14losSA",
+    "category": "SuperWoW",
+    "description": "verbally warns you when an enemy uses an important spell",
+    "source": "turtle_wiki",
+    "folder": "Rank14losSA"
+  },
+  {
+    "name": "Rinse",
+    "repo": "https://github.com/Otari98/Rinse",
+    "category": "SuperWoW",
+    "description": "This addon is very similar to Decursive, it helps with removing debuffs from friendly units",
+    "source": "turtle_wiki",
+    "folder": "Rinse"
+  },
+  {
+    "name": "ShaguDPS",
+    "repo": "https://github.com/shagu/ShaguDPS",
+    "category": "SuperWoW",
+    "description": "A very small and lightweight damage meter [Img1] [Img2]",
+    "source": "turtle_wiki",
+    "folder": "ShaguDPS"
+  },
+  {
+    "name": "ShaguPlates",
+    "repo": "https://github.com/shagu/ShaguPlates",
+    "category": "SuperWoW",
+    "description": "modifies and extends the default nameplates [Img1] TidyPlates-Edit",
+    "source": "turtle_wiki",
+    "folder": "ShaguPlates"
+  },
+  {
+    "name": "ShaguScan",
+    "repo": "https://github.com/shagu/ShaguScan",
+    "category": "SuperWoW",
+    "description": "Tracks and filters nearby players and npcs",
+    "source": "turtle_wiki",
+    "folder": "ShaguScan"
+  },
+  {
+    "name": "ShaguTweaks",
+    "repo": "https://github.com/shagu/ShaguTweaks",
+    "category": "SuperWoW",
+    "description": "A small AddOn for those who don't want to use any AddOns at all. [Img1]",
+    "source": "turtle_wiki",
+    "folder": "ShaguTweaks"
+  },
+  {
+    "name": "SimpleActionSets",
+    "repo": "https://github.com/pepopo978/SimpleActionSets",
+    "category": "SuperWoW",
+    "description": "Save action bars as sets that can be swapped out.",
+    "source": "turtle_wiki",
+    "folder": "SimpleActionSets"
+  },
+  {
+    "name": "SoloRaidTargetIcons",
+    "repo": "https://github.com/refaim/SoloRaidTargetIcons",
+    "category": "SuperWoW",
+    "description": "Enables raid target icons through the default Blizzard UI while not in a group",
+    "source": "turtle_wiki",
+    "folder": "SoloRaidTargetIcons"
+  },
+  {
+    "name": "Sorgis Raid Marks",
+    "repo": "https://github.com/sorgis-sorgis/sorgis_raid_marks",
+    "category": "SuperWoW",
+    "description": "Raid mark targeting and assigning, improved fork making use of superwow",
+    "source": "turtle_wiki",
+    "folder": "sorgis_raid_marks"
+  },
+  {
+    "name": "SP SwingTimer",
+    "repo": "https://github.com/MarcelineVQ/SP_SwingTimer",
+    "category": "SuperWoW",
+    "description": "Auto-Attack Swing Timer",
+    "source": "turtle_wiki",
+    "folder": "SP_SwingTimer"
+  },
+  {
+    "name": "SP_SwingTimer",
+    "repo": "https://github.com/balakethelock/SP_SwingTimer",
+    "category": "SuperWoW",
+    "description": "Warrior Swing Timer [Img1]",
+    "source": "turtle_wiki",
+    "folder": "SP_SwingTimer"
+  },
+  {
+    "name": "SpiritLinker",
+    "repo": "https://github.com/MarcelineVQ/SpiritLinker",
+    "category": "SuperWoW",
+    "description": "Information bar for using Spirit Link",
+    "source": "turtle_wiki",
+    "folder": "SpiritLinker"
+  },
+  {
+    "name": "SunderNP",
+    "repo": "https://github.com/perks/SunderNP",
+    "category": "SuperWoW",
+    "description": "Adds a sunder count to the right of your Nameplates",
+    "source": "turtle_wiki",
+    "folder": "SunderNP"
+  },
+  {
+    "name": "SuperAPI",
+    "repo": "https://github.com/balakethelock/SuperAPI",
+    "category": "SuperWoW",
+    "description": "The companion compatibility addon to the 1.12.1 client mod SuperWoW",
+    "source": "turtle_wiki",
+    "folder": "SuperAPI"
+  },
+  {
+    "name": "SuperAPI Castlib",
+    "repo": "https://github.com/balakethelock/SuperAPI_Castlib",
+    "category": "SuperWoW",
+    "description": "Adds accurate castbars to any nameplate",
+    "source": "turtle_wiki",
+    "folder": "SuperAPI_Castlib"
+  },
+  {
+    "name": "SuperCleveRoid Macros",
+    "repo": "https://github.com/jrc13245/SuperCleveRoidMacros",
+    "category": "SuperWoW",
+    "description": "Enhance macros with dynamic tooltips, conditional execution, and extended syntax",
+    "source": "turtle_wiki",
+    "folder": "SuperCleveRoidMacros"
+  },
+  {
+    "name": "SuperLazyScript",
+    "repo": "https://github.com/arimbaud-x/lazyScript",
+    "category": "SuperWoW",
+    "description": "Programmable Class Attacks",
+    "source": "turtle_wiki",
+    "folder": "lazyScript"
+  },
+  {
+    "name": "SuperTotem",
+    "repo": "https://github.com/elboaf/SuperTotem",
+    "category": "SuperWoW",
+    "description": "A Shaman totem and shield manager",
+    "source": "turtle_wiki",
+    "folder": "SuperTotem"
+  },
+  {
+    "name": "SuperWowCombatLogger",
+    "repo": "https://github.com/pepopo978/SuperWowCombatLogger",
+    "category": "SuperWoW",
+    "description": "Improved combatlogger for TurtleWoW (for LegacyPlayers/Monkeylogs)",
+    "source": "turtle_wiki",
+    "folder": "SuperWowCombatLogger"
+  },
+  {
+    "name": "Tankalyze",
+    "repo": "https://github.com/MarcelineVQ/Tankalyze",
+    "category": "SuperWoW",
+    "description": "Captures missed Taunts and some other nice to have tank additions",
+    "source": "turtle_wiki",
+    "folder": "Tankalyze"
+  },
+  {
+    "name": "TankPlates",
+    "repo": "https://github.com/MarcelineVQ/TankPlates",
+    "category": "SuperWoW",
+    "description": "Colors enemy Nameplates depending on if they're targeting the player",
+    "source": "turtle_wiki",
+    "folder": "TankPlates"
+  },
+  {
+    "name": "Tattler",
+    "repo": "https://github.com/MarcelineVQ/Tattler",
+    "category": "SuperWoW",
+    "description": "Announce when certain items or spells are used",
+    "source": "turtle_wiki",
+    "folder": "Tattler"
+  },
+  {
+    "name": "TrackTarget",
+    "repo": "https://github.com/MarcelineVQ/TrackTarget",
+    "category": "SuperWoW",
+    "description": "Track any friendly you target which is assistable on the Minimap",
+    "source": "turtle_wiki",
+    "folder": "TrackTarget"
+  },
+  {
+    "name": "Twister",
+    "repo": "https://github.com/MarcelineVQ/Twister",
+    "category": "SuperWoW",
+    "description": "Addon to totem twist automatically.",
+    "source": "turtle_wiki",
+    "folder": "Twister"
+  },
+  {
     "name": "_Nameplates",
     "repo": "",
     "category": "UI",
@@ -7021,28 +7196,12 @@
     "folder": "ActionBarProfiles"
   },
   {
-    "name": "aDF",
-    "repo": "https://github.com/Zebouski/aDF",
-    "category": "UI",
-    "description": "adds a small HUD that standardizes critical info about your target's defences, including Armor, Resists, and specific debuffs [Img1] https://github.com/Autignem/aDF Alt",
-    "source": "turtle_wiki",
-    "folder": "aDF"
-  },
-  {
     "name": "agUnitFramesImproved",
     "repo": "https://github.com/satan666/ag_UnitFrames_Improved",
     "category": "UI",
     "description": "Customizable unit frame addon",
     "source": "turtle_wiki",
     "folder": "ag_UnitFrames_Improved"
-  },
-  {
-    "name": "AnchorsAway-1.0",
-    "repo": "https://github.com/refaim/Vanilla-WoW-1.12-Addon-Development-Libraries-Archive",
-    "category": "UI",
-    "description": "Row stacking and anchoring template.",
-    "source": "turtle_wiki",
-    "folder": "Vanilla-WoW-1.12-Addon-Development-Libraries-Archive"
   },
   {
     "name": "APD",
@@ -7109,14 +7268,6 @@
     "folder": "cyCircled"
   },
   {
-    "name": "ElvUI",
-    "repo": "https://github.com/ElvUI-Vanilla/ElvUI",
-    "category": "UI",
-    "description": "Complete User Interface replacement and overhaul. This is an incomplete backport from later WoW versions. [Img1]",
-    "source": "turtle_wiki",
-    "folder": "ElvUI"
-  },
-  {
     "name": "eUI",
     "repo": "https://github.com/Ennea/eUI",
     "category": "UI",
@@ -7176,7 +7327,7 @@
     "name": "Goblin Brain Saver",
     "repo": "https://github.com/FSuhas/Goblin-Brain-Saver",
     "category": "UI",
-    "description": "Goblin Brain Saver is a Turtle addon that allows you to save, restore, and organize your talent specializations. It integrates seamlessly with the game UI using a custom Spellbook-inspired window. [img ]",
+    "description": "Goblin Brain Saver is a Turtle addon that allows you to save, restore, and organize your talent specializations. It integrates seamlessly with the game UI using a custom Spellbook-inspired window. [img]",
     "source": "turtle_wiki",
     "folder": "Goblin-Brain-Saver"
   },
@@ -7303,14 +7454,6 @@
     "installable": false
   },
   {
-    "name": "MageHud",
-    "repo": "https://github.com/pepopo978/MageHud",
-    "category": "UI",
-    "description": "Display remaining mage shields for ice barrier/mana shield/protection pots and more.",
-    "source": "turtle_wiki",
-    "folder": "MageHud"
-  },
-  {
     "name": "McgUI",
     "repo": "https://github.com/McgGithub/McgUI",
     "category": "UI",
@@ -7378,17 +7521,9 @@
     "name": "PetXPBar",
     "repo": "https://github.com/refaim/PetXPBar",
     "category": "UI",
-    "description": "Pet experience bar for the default Blizzard UI [Img1 ]",
+    "description": "Pet experience bar for the default Blizzard UI [Img1]",
     "source": "turtle_wiki",
     "folder": "PetXPBar"
-  },
-  {
-    "name": "pfUI",
-    "repo": "https://github.com/me0wg4ming/pfUI",
-    "category": "UI",
-    "description": "full replacement for the original Wow interface in a single Addon [Vid1]",
-    "source": "turtle_wiki",
-    "folder": "pfUI"
   },
   {
     "name": "pfUI-addonskinner",
@@ -7405,14 +7540,6 @@
     "description": "External module for pfUI that allows you to set auto invites through whispers [Img1]",
     "source": "turtle_wiki",
     "folder": "pfUI-autoinvite"
-  },
-  {
-    "name": "pfUI-bettertotems",
-    "repo": "https://github.com/Bombg/pfUI-bettertotems",
-    "category": "UI",
-    "description": "External module for pfUI providing some extra features to totems [Img1]",
-    "source": "turtle_wiki",
-    "folder": "pfUI-bettertotems"
   },
   {
     "name": "pfUI-CustomMedia",
@@ -7434,7 +7561,7 @@
     "name": "pfUI-LocationPlus",
     "repo": "https://github.com/Arthur-Helias/pfUI-LocationPlus",
     "category": "UI",
-    "description": "An external module for pfUI that adds a location panel and more! [Img1 ]",
+    "description": "An external module for pfUI that adds a location panel and more! [Img1]",
     "source": "turtle_wiki",
     "folder": "pfUI-LocationPlus"
   },
@@ -7442,7 +7569,7 @@
     "name": "pfUI-MoreDatatexts",
     "repo": "https://github.com/Arthur-Helias/pfUI-MoreDatatexts",
     "category": "UI",
-    "description": "An external module for pfUI that adds more datatexts for your panels! [Img1 ]",
+    "description": "An external module for pfUI that adds more datatexts for your panels! [Img1]",
     "source": "turtle_wiki",
     "folder": "pfUI-MoreDatatexts"
   },
@@ -7455,14 +7582,6 @@
     "folder": "pfUI-RainbowHealthBar"
   },
   {
-    "name": "Puppeteer",
-    "repo": "https://github.com/OldManAlpha/Puppeteer",
-    "category": "UI",
-    "description": "Unit frames addon for healers or any class/spec, an alternative to modern WoW's VuhDo, Cell, or Healbot",
-    "source": "turtle_wiki",
-    "folder": "Puppeteer"
-  },
-  {
     "name": "QuickBind",
     "repo": "https://github.com/DennisWG/QuickBind",
     "category": "UI",
@@ -7471,26 +7590,10 @@
     "folder": "QuickBind"
   },
   {
-    "name": "Ryac's Steam Deck UI",
-    "repo": "https://github.com/Ryac1/Ryac_TW_Steamdeck_UI",
-    "category": "UI",
-    "description": "Consoleport like UI for 1.12 with 40+ actionbuttons https://i.imgur.com/18EUC5F.jpg Img1",
-    "source": "turtle_wiki",
-    "folder": "Ryac_TW_Steamdeck_UI"
-  },
-  {
-    "name": "ShaguPlates",
-    "repo": "https://github.com/shagu/ShaguPlates",
-    "category": "UI",
-    "description": "modifies and extends the default nameplates [Img1] TidyPlates-Edit",
-    "source": "turtle_wiki",
-    "folder": "ShaguPlates"
-  },
-  {
     "name": "ShaguPlates-extra",
     "repo": "https://github.com/Redbu11dev/ShaguPlates-extra",
     "category": "UI",
-    "description": "ShaguPlates, but restyled and with extra stuff [Img1 ]",
+    "description": "ShaguPlates, but restyled and with extra stuff [Img1]",
     "source": "turtle_wiki",
     "folder": "ShaguPlates"
   },
@@ -7515,7 +7618,7 @@
     "name": "SkelaCustomNameplates",
     "repo": "https://github.com/KrekoG/SkelaCustomNameplates",
     "category": "UI",
-    "description": "Skela's Custom Nameplates [Img1 ]",
+    "description": "Skela's Custom Nameplates [Img1]",
     "source": "turtle_wiki",
     "folder": "SkelaCustomNameplates"
   },
@@ -7526,6 +7629,14 @@
     "description": "designed to free your screen by moving a majority of the interface elements to the bottom",
     "source": "turtle_wiki",
     "folder": "SpartanUI_Vanilla"
+  },
+  {
+    "name": "SpecialTalent",
+    "repo": "https://github.com/KrekoG/SpecialTalent",
+    "category": "UI",
+    "description": "+ SpecialTalentUI - Talent planning/saving/changing, plus the option to view all three talent trees simultaneously (must install both!)",
+    "source": "turtle_wiki",
+    "folder": "SpecialTalent"
   },
   {
     "name": "SUCC-ui",
@@ -7560,22 +7671,6 @@
     "folder": "TurtleReagentDisplay"
   },
   {
-    "name": "Turtle WoW UI Source",
-    "repo": "https://github.com/refaim/Turtle-WoW-UI-Source",
-    "category": "UI",
-    "description": "the user interface source code for Turtle WoW.",
-    "source": "turtle_wiki",
-    "folder": "Turtle-WoW-UI-Source"
-  },
-  {
-    "name": "UI Macros",
-    "repo": "https://github.com/Meridaw/Vanilla-Macros",
-    "category": "UI",
-    "description": "a large collection of useful macros that can be copied and used on turtle wow.",
-    "source": "turtle_wiki",
-    "folder": "Vanilla-Macros"
-  },
-  {
     "name": "UnitFramesImproved",
     "repo": "https://github.com/Ko0z/UnitFramesImproved_Vanilla",
     "category": "UI",
@@ -7598,14 +7693,6 @@
     "description": "a HUD(Head-up-Display) created exclusively for Warriors [Img1]",
     "source": "turtle_wiki",
     "folder": "WarriorHUD"
-  },
-  {
-    "name": "Waterfall-1.0",
-    "repo": "https://github.com/refaim/Vanilla-WoW-1.12-Addon-Development-Libraries-Archive",
-    "category": "UI",
-    "description": "GUI configuration library.",
-    "source": "turtle_wiki",
-    "folder": "Vanilla-WoW-1.12-Addon-Development-Libraries-Archive"
   },
   {
     "name": "zUI",

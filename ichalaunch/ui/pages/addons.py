@@ -20,7 +20,12 @@ from PySide6.QtWidgets import (
 
 from ichalaunch.addons.github import load_catalog
 from ichalaunch.config.settings import settings
-from ichalaunch.core.detect import scan_installed_addon_folders
+from ichalaunch.core.detect import (
+    catalog_index,
+    match_catalog_entry,
+    merge_addon_meta,
+    scan_installed_addon_folders,
+)
 from ichalaunch.ui.widgets.common import AddonRow, status_with_stamp
 from ichalaunch.ui.widgets.dialogs import prompt_text
 
@@ -287,13 +292,23 @@ class AddonsPage(QWidget):
             else:
                 self.installed_list.setMaximumHeight(16777215)
 
+            cat_idx = catalog_index()
             for folder in sorted(installed_folders, key=str.lower):
                 if mode == "Update Available" and folder not in update_map:
                     continue
+                # Case-insensitive settings lookup + live catalog gap-fill for display
                 meta = installed_meta.get(folder) or {}
+                if not meta:
+                    for key, val in installed_meta.items():
+                        if key.lower() == folder.lower():
+                            meta = val
+                            break
+                cat = match_catalog_entry(folder, cat_idx)
+                meta = merge_addon_meta(folder, meta, cat)
                 name = meta.get("name") or folder
                 desc = meta.get("description") or meta.get("repository") or "Detected in Interface/AddOns"
                 category = meta.get("category") or "Installed"
+                repo_url = meta.get("url") or (cat or {}).get("repo") or ""
                 if not matches(name, desc, category, folder):
                     continue
                 entry = {
@@ -301,7 +316,7 @@ class AddonsPage(QWidget):
                     "folder": folder,
                     "description": desc,
                     "category": category,
-                    "repo": meta.get("url") or "",
+                    "repo": repo_url,
                     "source": meta.get("source", "detected"),
                 }
                 if folder in update_map:
