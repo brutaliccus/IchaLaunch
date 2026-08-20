@@ -35,7 +35,7 @@ from ichalaunch.core.filesystem import (
     update_dlls_txt,
 )
 from ichalaunch.core.logging_setup import log
-from ichalaunch.core.process import download_file
+from ichalaunch.core.process import download_file, google_drive_url
 from ichalaunch.game.launcher import detect_game
 
 ProgressCb = Callable[[str], None]
@@ -197,11 +197,17 @@ def _download_source(source: dict[str, Any], work: Path, progress: ProgressCb | 
     stype = source.get("type")
     if progress:
         progress(f"Downloading ({stype})...")
+    if stype == "google_drive":
+        file_id = source["id"]
+        filename = source.get("filename") or f"{file_id}.bin"
+        dest = work / filename
+        download_file(google_drive_url(file_id), dest, timeout=int(source.get("timeout") or 300))
+        return dest
     if stype in ("raw", "github_release", "github_zip", "raw_zip"):
         url = source["url"]
         filename = source.get("filename") or url.split("/")[-1].split("?")[0]
         dest = work / filename
-        download_file(url, dest)
+        download_file(url, dest, timeout=int(source.get("timeout") or 120))
         return dest
     if stype == "github_release_latest":
         repo = source["repo"]
@@ -244,10 +250,18 @@ def _branch_from_archive_url(url: str) -> str | None:
 
 def _head_identity(url: str) -> dict[str, str]:
     """ETag / Last-Modified fingerprint for a static download URL."""
-    r = requests.head(url, timeout=30, headers=UA, allow_redirects=True)
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        )
+    }
+    r = requests.head(url, timeout=30, headers=headers, allow_redirects=True)
     if r.status_code >= 400:
         # Some hosts reject HEAD — fall back to a ranged GET
-        r = requests.get(url, timeout=30, headers={**UA, "Range": "bytes=0-0"}, allow_redirects=True)
+        r = requests.get(
+            url, timeout=30, headers={**headers, "Range": "bytes=0-0"}, allow_redirects=True
+        )
     etag = (r.headers.get("ETag") or "").strip()
     last_mod = (r.headers.get("Last-Modified") or "").strip()
     key = etag or last_mod or url
@@ -348,6 +362,22 @@ def _remote_identity(source: dict[str, Any]) -> dict[str, Any] | None:
                     pass
         ident = _head_identity(url)
         return {"kind": "http", "url": url, **ident}
+    if stype == "google_drive":
+        file_id = source.get("id") or ""
+        if not file_id:
+            return None
+        url = google_drive_url(file_id)
+        try:
+            ident = _head_identity(url)
+            return {"kind": "http", "url": url, "drive_id": file_id, **ident}
+        except Exception:
+            return {
+                "kind": "http",
+                "key": file_id,
+                "display": file_id[:12],
+                "drive_id": file_id,
+                "url": url,
+            }
     return None
 
 
@@ -648,6 +678,21 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
         if kind == "mpq_file":
             assert source
             artifact = _download_source(source, work, progress)
+            # Zip sources (e.g. Darker Nights archive) — extract and pick the MPQ
+            if artifact.suffix.lower() == ".zip" or source.get("type") in ("raw_zip", "github_zip"):
+                extracted = extract_zip(artifact, work / "extract")
+                needle = (source.get("mpq_match") or Path(mod.get("destination") or "").name or ".mpq").lower()
+                prefer = (source.get("mpq_prefer_path") or "").replace("\\", "/").lower()
+                candidates = [p for p in extracted.rglob("*.mpq") if p.is_file()]
+                if prefer:
+                    ranked = [p for p in candidates if prefer in str(p).replace("\\", "/").lower()]
+                    candidates = ranked or candidates
+                if needle and needle != ".mpq":
+                    matched = [p for p in candidates if needle in p.name.lower()]
+                    candidates = matched or candidates
+                if not candidates:
+                    raise FileNotFoundError(f"No .mpq found in archive for {mod_id}")
+                artifact = candidates[0]
             dest_rel = mod.get("destination") or f"Data/{source.get('filename') or artifact.name}"
             dest = game / dest_rel
             dest.parent.mkdir(parents=True, exist_ok=True)
