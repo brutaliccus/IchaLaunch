@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QRect, Qt
-from PySide6.QtGui import QColor, QFont, QPainter, QPixmap
+from PySide6.QtGui import QColor, QFont, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QPushButton, QSizePolicy
 
 from ichalaunch.core.paths import theme_file
@@ -11,9 +11,8 @@ from ichalaunch.core.paths import theme_file
 # RavenCraft palette
 _GOLD = QColor("#F1C22D")
 _GOLD_SOFT = QColor("#E8C878")
-_CREAM = QColor("#F5E6B8")
-_PURPLE = QColor("#7c5cc4")
 _MUTED = QColor("#6a6358")
+_PURPLE = QColor("#7c5cc4")
 
 
 class LaunchButton(QPushButton):
@@ -21,6 +20,7 @@ class LaunchButton(QPushButton):
 
     Uses a generated 9-slice-friendly chrome PNG (beveled frame, recessed
     panel, purple bottom glow, inward gold triangles) with painted gold text.
+    Hover is a gold border only — no full-button tint/glow overlay.
     """
 
     def __init__(self, text: str = "PLAY", parent=None):
@@ -43,7 +43,6 @@ class LaunchButton(QPushButton):
             "}"
         )
         self._chrome: QPixmap | None = None
-        self._chrome_hover: QPixmap | None = None
         self._chrome_pressed: QPixmap | None = None
         self._chrome_disabled: QPixmap | None = None
         self._load_chrome()
@@ -58,8 +57,8 @@ class LaunchButton(QPushButton):
             self._chrome = None
             return
         self._chrome = base
-        self._chrome_hover = self._tint_pixmap(base, QColor(124, 92, 196, 36), brighten=18)
-        self._chrome_pressed = self._tint_pixmap(base, QColor(0, 0, 0, 70), brighten=-22)
+        # Subtle darken for press only — hover uses normal chrome + gold border.
+        self._chrome_pressed = self._tint_pixmap(base, QColor(0, 0, 0, 45), brighten=-12)
         self._chrome_disabled = self._desaturate_pixmap(base)
 
     @staticmethod
@@ -109,12 +108,12 @@ class LaunchButton(QPushButton):
         if chrome is not None and not chrome.isNull():
             # Slight press inset for tactile feel
             draw_rect = rect.adjusted(1, 2, -1, 0) if self.isDown() else rect
-            if self.underMouse() and self.isEnabled() and not self.isDown():
-                # OctoWoW hover scale ~1.02 — approximate with a 1px expand
-                draw_rect = rect.adjusted(-1, -1, 1, 1)
             painter.drawPixmap(draw_rect, chrome)
         else:
             self._paint_fallback_chrome(painter, rect)
+
+        if self.isEnabled() and (self.underMouse() or self.isDown()):
+            self._paint_gold_border(painter, rect)
 
         self._paint_label(painter, rect)
         painter.end()
@@ -124,9 +123,16 @@ class LaunchButton(QPushButton):
             return self._chrome_disabled or self._chrome
         if self.isDown():
             return self._chrome_pressed or self._chrome
-        if self.underMouse():
-            return self._chrome_hover or self._chrome
         return self._chrome
+
+    def _paint_gold_border(self, painter: QPainter, rect: QRect) -> None:
+        """Hover / pressed: RavenCraft gold outline only."""
+        pen = QPen(_GOLD)
+        pen.setWidth(2)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 5, 5)
 
     def _paint_fallback_chrome(self, painter: QPainter, rect: QRect) -> None:
         """Vector fallback if the chrome PNG is missing."""
@@ -158,8 +164,6 @@ class LaunchButton(QPushButton):
             color = _MUTED
         elif self.isDown():
             color = _GOLD_SOFT
-        elif self.underMouse():
-            color = _CREAM
         else:
             color = _GOLD
 
@@ -168,12 +172,6 @@ class LaunchButton(QPushButton):
         shadow = QColor(0, 0, 0, 160)
         painter.setPen(shadow)
         painter.drawText(text_rect.adjusted(1, 2, 1, 2), Qt.AlignmentFlag.AlignCenter, text)
-        # Warm under-glow on hover
-        if self.isEnabled() and self.underMouse() and not self.isDown():
-            glow = QColor(_PURPLE)
-            glow.setAlpha(70)
-            painter.setPen(glow)
-            painter.drawText(text_rect.adjusted(0, 1, 0, 1), Qt.AlignmentFlag.AlignCenter, text)
         painter.setPen(color)
         painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, text)
 
