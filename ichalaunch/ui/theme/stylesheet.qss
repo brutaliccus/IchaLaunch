@@ -138,6 +138,14 @@ QWidget#ClientCatNav {
     border-radius: 8px;
 }
 
+QWidget#HomeBrandPane {
+    background-color: transparent;
+}
+
+QWidget#HomeModsHost {
+    background-color: transparent;
+}
+
 QPushButton#CatNavButton {
     text-align: left;
     padding: 12px 14px;
