@@ -61,9 +61,9 @@ def is_newer(remote: str, local: str) -> bool:
     return parse_version_tuple(remote) > parse_version_tuple(local)
 
 
-def _bat_escape(value: str) -> str:
-    """Escape % so cmd does not expand env vars inside set "VAR=..."."""
-    return value.replace("%", "%%")
+def _ps_single_quote(value: str) -> str:
+    """Single-quoted PowerShell string literal (safe for paths with spaces)."""
+    return "'" + (value or "").replace("'", "''") + "'"
 
 
 def resolve_install_exe() -> Path:
@@ -196,60 +196,57 @@ def _download_asset(url: str, dest: Path, *, asset_id: int | None = None, repo: 
 
 
 def _write_windows_replace_script(*, pid: int, src: Path, dest: Path) -> Path:
-    """Batch helper: wait for PID, replace EXE with retries, relaunch, clean up.
+    """PowerShell helper: wait for PID, replace EXE with retries, relaunch, clean up.
 
-    Paths are quoted; % is escaped. Working directory for the new process is
-    the EXE's folder so relative assets resolve after restart.
+    Relaunch uses explorer.exe (not cmd ``start``) so the new process's parent is
+    explorer — the same as a normal double-click. Relaunching via ``cmd /c start``
+    leaves cmd.exe as parent and triggers Windows/runtime
+    "Security validation failure: parent process has different executable!".
     """
-    script = Path(tempfile.gettempdir()) / f"ichalaunch_update_{pid}.bat"
-    src_s = _bat_escape(str(src))
-    dest_s = _bat_escape(str(dest))
-    dest_dir_s = _bat_escape(str(dest.parent))
-    old_s = _bat_escape(str(dest) + ".old")
-    # ping delay avoids needing timeout.exe; retries handle AV file locks.
+    script = Path(tempfile.gettempdir()) / f"ichalaunch_update_{pid}.ps1"
+    src_s = _ps_single_quote(str(src))
+    dest_s = _ps_single_quote(str(dest))
+    dest_dir_s = _ps_single_quote(str(dest.parent))
+    old_s = _ps_single_quote(str(dest) + ".old")
+    # Retries handle AV / file locks after the old process exits.
     lines = [
-        "@echo off",
-        "setlocal EnableExtensions",
-        f"set \"PID={pid}\"",
-        f"set \"SRC={src_s}\"",
-        f"set \"DST={dest_s}\"",
-        f"set \"DSTDIR={dest_dir_s}\"",
-        f"set \"OLD={old_s}\"",
-        "set /A ATTEMPTS=0",
-        ":wait",
-        'tasklist /FI "PID eq %PID%" 2>NUL | find "%PID%" >NUL',
-        "if not errorlevel 1 (",
-        "  ping -n 2 127.0.0.1 >NUL",
-        "  goto wait",
-        ")",
-        ":replace",
-        "set /A ATTEMPTS+=1",
-        'if exist "%OLD%" del /F /Q "%OLD%" >NUL 2>&1',
-        'if exist "%DST%" (',
-        '  move /Y "%DST%" "%OLD%" >NUL 2>&1',
-        "  if errorlevel 1 (",
-        "    if %ATTEMPTS% LSS 40 (",
-        "      ping -n 2 127.0.0.1 >NUL",
-        "      goto replace",
-        "    )",
-        "    exit /B 1",
-        "  )",
-        ")",
-        'copy /Y "%SRC%" "%DST%" >NUL',
-        "if errorlevel 1 (",
-        '  if exist "%OLD%" move /Y "%OLD%" "%DST%" >NUL 2>&1',
-        "  if %ATTEMPTS% LSS 40 (",
-        "    ping -n 2 127.0.0.1 >NUL",
-        "    goto replace",
-        "  )",
-        "  exit /B 1",
-        ")",
-        'del /F /Q "%SRC%" >NUL 2>&1',
-        'del /F /Q "%OLD%" >NUL 2>&1',
-        'start "" /D "%DSTDIR%" "%DST%"',
-        "ping -n 2 127.0.0.1 >NUL",
-        'del /F /Q "%~f0" >NUL 2>&1',
-        "exit /B 0",
+        "$ErrorActionPreference = 'Continue'",
+        f"$pidToWait = {int(pid)}",
+        f"$src = {src_s}",
+        f"$dst = {dest_s}",
+        f"$dstDir = {dest_dir_s}",
+        f"$old = {old_s}",
+        "while (Get-Process -Id $pidToWait -ErrorAction SilentlyContinue) {",
+        "  Start-Sleep -Seconds 1",
+        "}",
+        "$ok = $false",
+        "for ($i = 0; $i -lt 40; $i++) {",
+        "  try {",
+        "    if (Test-Path -LiteralPath $old) {",
+        "      Remove-Item -LiteralPath $old -Force -ErrorAction SilentlyContinue",
+        "    }",
+        "    if (Test-Path -LiteralPath $dst) {",
+        "      Move-Item -LiteralPath $dst -Destination $old -Force -ErrorAction Stop",
+        "    }",
+        "    Copy-Item -LiteralPath $src -Destination $dst -Force -ErrorAction Stop",
+        "    Remove-Item -LiteralPath $src -Force -ErrorAction SilentlyContinue",
+        "    if (Test-Path -LiteralPath $old) {",
+        "      Remove-Item -LiteralPath $old -Force -ErrorAction SilentlyContinue",
+        "    }",
+        "    $ok = $true",
+        "    break",
+        "  } catch {",
+        "    Start-Sleep -Seconds 1",
+        "  }",
+        "}",
+        "if (-not $ok) { exit 1 }",
+        "# Relaunch via explorer.exe so the new process parent matches a normal",
+        "# double-click. cmd/powershell Start-Process leaves a non-explorer parent and",
+        "# triggers: Security validation failure: parent process has different executable!",
+        'Start-Process -FilePath "explorer.exe" -ArgumentList ([string]::Format(\'"{0}"\', $dst)) | Out-Null',
+        "Start-Sleep -Seconds 1",
+        "Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue",
+        "exit 0",
     ]
     script.write_bytes(("\r\n".join(lines) + "\r\n").encode("utf-8"))
     return script
@@ -284,7 +281,7 @@ def download_and_stage_update(
 def apply_windows_self_replace(staged_exe: Path, *, target: Path | None = None) -> Path:
     """Spawn helper to replace this process's EXE after exit; caller must quit.
 
-    Returns the path of the helper .bat that was started.
+    Returns the path of the helper .ps1 that was started.
     """
     if os.name != "nt":
         raise RuntimeError("Automatic launcher replace is only supported on Windows")
@@ -304,7 +301,16 @@ def apply_windows_self_replace(staged_exe: Path, *, target: Path | None = None) 
     flags = create_no_window | create_new_process_group
     # List argv quotes paths with spaces correctly for CreateProcess.
     proc = subprocess.Popen(
-        ["cmd.exe", "/C", "call", str(script)],
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-WindowStyle",
+            "Hidden",
+            "-File",
+            str(script),
+        ],
         cwd=str(dest.parent),
         creationflags=flags,
         stdin=subprocess.DEVNULL,
