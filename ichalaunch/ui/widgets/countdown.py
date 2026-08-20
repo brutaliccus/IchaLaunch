@@ -40,7 +40,8 @@ class LaunchCountdown(QWidget):
         super().__init__(parent)
         self.setObjectName("LaunchCountdown")
         root = QVBoxLayout(self)
-        root.setContentsMargins(0, 8, 0, 4)
+        # Extra bottom padding so cells sit above the nav_bottom banner, not flush on it.
+        root.setContentsMargins(0, 8, 0, 18)
         root.setSpacing(8)
         root.setAlignment(Qt.AlignmentFlag.AlignCenter)
 

@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollBar,
     QSizeGrip,
+    QSizePolicy,
     QStackedWidget,
     QTextEdit,
     QVBoxLayout,
@@ -49,6 +50,9 @@ _MOA_GLOW_PAD_X = 56
 _MOA_GLOW_PAD_Y = 12
 # Quiet re-check while the launcher stays open (addons / mods / self-update).
 _PERIODIC_UPDATE_MS = 5 * 60 * 1000
+# Let the window finish laying out / detecting game path before the first network scan.
+_STARTUP_UPDATE_DELAY_MS = 1500
+_NAV_BOTTOM_BANNER_H = 30
 _GOLD = QColor("#F1C22D")
 
 from ichalaunch import __version__
@@ -190,6 +194,32 @@ class MoaFloatingLogo(QWidget):
         painter.drawPixmap(_MOA_GLOW_PAD_X, _MOA_GLOW_PAD_Y, self._pix)
 
 
+class NavBottomBanner(QWidget):
+    """Cached ravencraft.io nav strip between page content and the play bar."""
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setObjectName("NavBottomBanner")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setFixedHeight(_NAV_BOTTOM_BANNER_H)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._pix = QPixmap()
+        path = theme_file("nav_bottom.png")
+        if path.exists():
+            src = QPixmap(str(path))
+            if not src.isNull():
+                self._pix = src
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        if self._pix.isNull():
+            painter.fillRect(self.rect(), QColor("#1a1518"))
+            return
+        # Full-bleed stretch — asset is a wide decorative strip (1920×38).
+        painter.drawPixmap(self.rect(), self._pix)
+
+
 class Worker(QThread):
     finished_ok = Signal(object)
     failed = Signal(str)
@@ -245,6 +275,7 @@ class MainWindow(QMainWindow):
         self._pending_ok_handler = None
         self._current_nav = -1
         self._fitted = False
+        self._startup_checks_scheduled = False
 
         self.setMouseTracking(True)
         self._fit_to_screen(initial=True)
@@ -336,8 +367,12 @@ class MainWindow(QMainWindow):
         bot_l.addWidget(self.play_btn, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         bot_l.addWidget(grip, 0, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
 
+        # Decorative strip between pages and the play/progress bar (bundled offline asset).
+        self._nav_bottom_banner = NavBottomBanner()
+
         outer.addWidget(nav)
         outer.addWidget(content, 1)
+        outer.addWidget(self._nav_bottom_banner)
         outer.addWidget(bottom)
 
         # Mysteries of Azeroth wordmark — straddles ContentPanel top border (click-through).
@@ -377,16 +412,12 @@ class MainWindow(QMainWindow):
             self.settings_page.refresh()
             self.home.refresh()
             self._refresh_play_button()
-        # Always lightly check for a newer IchaLaunch release (one API call).
-        self._check_launcher_update(silent=True)
         if is_installed():
             self._resync(silent=True)
-            if settings.check_updates_on_startup():
-                self._check_updates(silent=True)
-                self._check_mod_updates(silent=True)
         self._refresh_nav_badges()
 
         # Keep looking for updates while the app stays open (no reopen required).
+        # First fire is deferred via singleShot in showEvent — timer only covers the interval.
         self._update_timer = QTimer(self)
         self._update_timer.setInterval(_PERIODIC_UPDATE_MS)
         self._update_timer.timeout.connect(self._periodic_update_check)
@@ -502,6 +533,10 @@ class MainWindow(QMainWindow):
         self._fit_to_screen()
         self._update_window_mask()
         self._position_moa_logo()
+        # Reliable initial scan shortly after the UI is visible (not only on the 5‑min timer).
+        if not self._startup_checks_scheduled:
+            self._startup_checks_scheduled = True
+            QTimer.singleShot(_STARTUP_UPDATE_DELAY_MS, self._run_startup_update_checks)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -703,6 +738,31 @@ class MainWindow(QMainWindow):
         self.nav_btns[2].set_badge_visible(self.client.has_pending_badge())
         # SETTINGS — unused for badges
         self.nav_btns[3].set_badge_visible(False)
+
+    def _run_startup_update_checks(self) -> None:
+        """Quiet first-pass update scan after launch (bypasses cooldown skips)."""
+        # Path may become valid after __init__ via co-located WoW / late settings.
+        if not is_installed() and ensure_game_path_from_launcher() is not None:
+            self.settings_page.refresh()
+            self.home.refresh()
+            self._resync(silent=True)
+            self._refresh_play_button()
+
+        log.info("Startup update checks beginning")
+        self._check_launcher_update(silent=True)
+
+        if not settings.check_updates_on_startup():
+            self._refresh_nav_badges()
+            return
+        if not is_installed():
+            log.info("Startup addon/mod checks skipped — no game path yet")
+            self._refresh_nav_badges()
+            return
+        if rate_limit_exhausted():
+            # Still attempt — check_* handlers stop early and surface RATE_LIMIT_STATUS.
+            log.info("GitHub rate limit low at startup; attempting checks anyway")
+        self._check_updates(silent=True, force=True)
+        self._check_mod_updates(silent=True, force=True)
 
     def _periodic_update_check(self) -> None:
         """Recurring quiet update detection while the launcher remains open."""
@@ -1125,7 +1185,7 @@ class MainWindow(QMainWindow):
         except Exception as exc:  # noqa: BLE001
             themed.error(self, "Error", str(exc))
 
-    def _check_updates(self, silent: bool = False, periodic: bool = False) -> None:
+    def _check_updates(self, silent: bool = False, periodic: bool = False, force: bool = False) -> None:
         """Quiet background check — status bar only, never blocks PLAY or shows a popup."""
         if not is_installed():
             if not silent:
@@ -1136,8 +1196,10 @@ class MainWindow(QMainWindow):
                 self.status_lbl.setText("Update check already running…")
             return
 
-        # Startup cooldown only — periodic checks skip it so the open app stays current.
-        if silent and not periodic and recently_checked_addon_updates():
+        # Optional debounce for non-forced silent checks. Startup uses force=True so a
+        # prior session's 30‑min cooldown cannot skip the first post-launch scan.
+        if silent and not periodic and not force and recently_checked_addon_updates():
+            log.info("Skipping silent addon update check — checked recently")
             return
 
         self.status_lbl.setText("Checking addon updates…")
@@ -1169,13 +1231,14 @@ class MainWindow(QMainWindow):
             self._refresh_check_loading()
             self.status_lbl.setText(f"Update check failed: {msg[:80]}")
             self._update_worker = None
+            self._refresh_nav_badges()
 
         worker.finished_ok.connect(done)
         worker.failed.connect(fail)
         self._update_worker = worker
         worker.start()
 
-    def _check_mod_updates(self, silent: bool = False, periodic: bool = False) -> None:
+    def _check_mod_updates(self, silent: bool = False, periodic: bool = False, force: bool = False) -> None:
         if not is_installed():
             if not silent:
                 self.status_lbl.setText("Set a game path before checking updates")
@@ -1184,8 +1247,8 @@ class MainWindow(QMainWindow):
             if not silent:
                 self.status_lbl.setText("Client mod update check already running…")
             return
-        # Startup cooldown only — periodic checks skip it so the open app stays current.
-        if silent and not periodic and recently_checked_mod_updates():
+        if silent and not periodic and not force and recently_checked_mod_updates():
+            log.info("Skipping silent client mod update check — checked recently")
             return
 
         self.status_lbl.setText("Checking client mod updates…")
@@ -1201,6 +1264,7 @@ class MainWindow(QMainWindow):
                 status = result.status_message
                 if result.skipped_recent:
                     self._mod_update_worker = None
+                    self._refresh_nav_badges()
                     return
             else:
                 updates = result or []
@@ -1220,6 +1284,7 @@ class MainWindow(QMainWindow):
             self._refresh_check_loading()
             self.status_lbl.setText(f"Client mod check failed: {msg[:80]}")
             self._mod_update_worker = None
+            self._refresh_nav_badges()
 
         worker.finished_ok.connect(done)
         worker.failed.connect(fail)
