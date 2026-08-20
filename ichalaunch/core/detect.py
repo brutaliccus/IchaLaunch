@@ -73,6 +73,10 @@ def sync_installed_addons_from_disk() -> dict[str, Any]:
             or (cat or {}).get("repo")
             or "",
         }
+        # Preserve install/update stamps across disk resync
+        for key in ("installed_at", "updated_at", "commit_date"):
+            if prev.get(key):
+                meta[key] = prev[key]
         # If catalog has repo and we don't track commits yet, store url for updates later
         if cat and cat.get("repo") and not meta.get("url"):
             meta["url"] = cat["repo"]

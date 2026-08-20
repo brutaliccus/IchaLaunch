@@ -219,9 +219,11 @@ class MainWindow(QMainWindow):
         self.client.rescan_clicked.connect(self._resync)
         self.client.check_updates_requested.connect(self._check_mod_updates)
         self.client.update_mod_requested.connect(self._update_client_mod)
+        self.client.reinstall_mod_requested.connect(self._reinstall_client_mod)
         self.client.update_all_mods_requested.connect(self._update_all_client_mods)
         self.addons.install_requested.connect(self._install_catalog_addon)
         self.addons.update_requested.connect(self._update_addon)
+        self.addons.reinstall_requested.connect(self._reinstall_addon)
         self.addons.update_all_requested.connect(self._update_all_addons)
         self.addons.remove_requested.connect(self._remove_addon)
         self.addons.github_import_requested.connect(self._github_import)
@@ -636,6 +638,29 @@ class MainWindow(QMainWindow):
 
         self._busy(f"Updating {folder}…", worker, on_ok=on_ok)
 
+    def _reinstall_addon(self, entry: dict) -> None:
+        """Force re-download/overwrite regardless of current commit."""
+        folder = entry.get("folder") or entry.get("name")
+        if not folder:
+            return
+        if not is_installed():
+            themed.warning(self, "No game", "Set a valid game path first.")
+            return
+        meta = settings.installed_addons.get(folder) or {}
+        url = entry.get("repo") or meta.get("url") or (
+            f"https://github.com/{meta['repository']}" if meta.get("repository") else ""
+        )
+        if not url:
+            themed.warning(self, "Cannot reinstall", f"No GitHub URL for {folder}.")
+            return
+
+        def on_ok(_result):
+            self.addons.clear_pending_update(folder)
+            self.status_lbl.setText(f"Reinstalled {folder}")
+
+        worker = Worker(install_from_github, url, folder)
+        self._busy(f"Reinstalling {folder}…", worker, on_ok=on_ok)
+
     def _update_all_addons(self) -> None:
         pending = self.addons.pending_updates
         folders = [u.get("folder") or u.get("name") for u in pending]
@@ -798,10 +823,24 @@ class MainWindow(QMainWindow):
         def on_ok(_result):
             self.client.clear_pending_update(mod_id)
             self.status_lbl.setText(f"Updated {mod_id}")
-            themed.info(self, "Updated", f"Updated client mod: {mod_id}")
 
         worker = Worker(update_mod, mod_id)
         self._busy(f"Updating {mod_id}…", worker, on_ok=on_ok)
+
+    def _reinstall_client_mod(self, mod_id: str) -> None:
+        """Force re-download with prefer_latest, even if already current."""
+        if not mod_id:
+            return
+        if not is_installed():
+            themed.warning(self, "No game", "Set a valid game path first.")
+            return
+
+        def on_ok(_result):
+            self.client.clear_pending_update(mod_id)
+            self.status_lbl.setText(f"Reinstalled {mod_id}")
+
+        worker = Worker(update_mod, mod_id)
+        self._busy(f"Reinstalling {mod_id}…", worker, on_ok=on_ok)
 
     def _update_all_client_mods(self) -> None:
         pending = self.client.pending_updates

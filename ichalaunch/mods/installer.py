@@ -385,11 +385,16 @@ def _record_mod_install(
     mod_id: str, mod: dict[str, Any], source_override: dict[str, Any] | None = None
 ) -> None:
     """Persist installed version fingerprint after a successful install."""
+    from ichalaunch.addons.github import iso_date_today
+
     source = source_override if source_override is not None else (mod.get("source") or {})
+    prev = settings.installed_mods.get(mod_id) or {}
+    today = iso_date_today()
     meta: dict[str, Any] = {
         "name": mod.get("name"),
         "kind": mod.get("kind"),
-        "installed_at": time.time(),
+        "installed_at": prev.get("installed_at") or today,
+        "updated_at": today,
     }
     # Prefer the catalog-pinned tag when present (accurate for what was downloaded).
     pinned = _tag_from_release_url((source or {}).get("url") or "")

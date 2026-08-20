@@ -8,6 +8,7 @@ import shutil
 import tempfile
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -27,6 +28,11 @@ STARTUP_CHECK_COOLDOWN_SEC = 30 * 60
 
 # Updated after each GitHub API response (None if header missing).
 _last_rate_remaining: int | None = None
+
+
+def iso_date_today() -> str:
+    """UTC calendar date as YYYY-MM-DD for install/update stamps."""
+    return datetime.now(timezone.utc).date().isoformat()
 
 
 class GitHubRateLimitError(Exception):
@@ -109,7 +115,18 @@ def github_latest_commit(owner: str, repo: str, branch: str | None = None) -> di
             raise GitHubRateLimitError(RATE_LIMIT_STATUS)
     r = github_get(f"https://api.github.com/repos/{owner}/{repo}/commits/{branch}")
     data = r.json()
-    return {"sha": data["sha"], "branch": branch, "message": data.get("commit", {}).get("message", "")}
+    commit = data.get("commit") or {}
+    commit_date = (
+        (commit.get("committer") or {}).get("date")
+        or (commit.get("author") or {}).get("date")
+        or ""
+    )
+    return {
+        "sha": data["sha"],
+        "branch": branch,
+        "message": commit.get("message", ""),
+        "date": commit_date,
+    }
 
 
 def normalize_addon_name(name: str) -> str:
@@ -117,6 +134,34 @@ def normalize_addon_name(name: str) -> str:
         if name.endswith(suffix):
             name = name[: -len(suffix)]
     return name
+
+
+def _addon_install_meta(
+    *,
+    folder: str,
+    owner: str,
+    repo: str,
+    branch: str,
+    sha: str,
+    url: str,
+    commit_date: str = "",
+) -> dict[str, Any]:
+    """Build metadata for a successful install/update, preserving installed_at."""
+    prev = settings.installed_addons.get(folder) or {}
+    today = iso_date_today()
+    payload: dict[str, Any] = {
+        "repository": f"{owner}/{repo}",
+        "branch": branch,
+        "installed_commit": sha,
+        "source": "github",
+        "url": url,
+        "updated_at": today,
+        "installed_at": prev.get("installed_at") or today,
+    }
+    if commit_date:
+        # Store YYYY-MM-DD when possible
+        payload["commit_date"] = str(commit_date)[:10]
+    return payload
 
 
 def install_from_github(url: str, folder_name: str | None = None, progress: ProgressCb | None = None) -> str:
@@ -132,6 +177,7 @@ def install_from_github(url: str, folder_name: str | None = None, progress: Prog
         progress("Fetching repository info...")
     meta = github_latest_commit(owner, repo)
     branch = meta["branch"]
+    commit_date = meta.get("date") or ""
     zip_url = f"https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.zip"
 
     with tempfile.TemporaryDirectory(prefix="icha_addon_") as tmp:
@@ -160,13 +206,15 @@ def install_from_github(url: str, folder_name: str | None = None, progress: Prog
                 installed.append(name)
                 settings.set_installed_addon(
                     name,
-                    {
-                        "repository": f"{owner}/{repo}",
-                        "branch": branch,
-                        "installed_commit": meta["sha"],
-                        "source": "github",
-                        "url": url,
-                    },
+                    _addon_install_meta(
+                        folder=name,
+                        owner=owner,
+                        repo=repo,
+                        branch=branch,
+                        sha=meta["sha"],
+                        url=url,
+                        commit_date=commit_date,
+                    ),
                 )
             if not installed:
                 raise FileNotFoundError("No .toc files found in repository")
@@ -183,13 +231,15 @@ def install_from_github(url: str, folder_name: str | None = None, progress: Prog
         copy_tree(preferred, dest)
         settings.set_installed_addon(
             name,
-            {
-                "repository": f"{owner}/{repo}",
-                "branch": branch,
-                "installed_commit": meta["sha"],
-                "source": "github",
-                "url": url,
-            },
+            _addon_install_meta(
+                folder=name,
+                owner=owner,
+                repo=repo,
+                branch=branch,
+                sha=meta["sha"],
+                url=url,
+                commit_date=commit_date,
+            ),
         )
         log.info("Installed addon %s from %s/%s", name, owner, repo)
         return name

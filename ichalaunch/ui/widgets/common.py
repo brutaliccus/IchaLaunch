@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from typing import Any
+
 from PySide6.QtCore import QPoint, QRect, QSize, Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -15,6 +18,39 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+
+def format_updated_stamp(meta: dict[str, Any] | None) -> str | None:
+    """Human date from installed_addons / installed_mods metadata."""
+    if not meta:
+        return None
+    raw = meta.get("updated_at") or meta.get("installed_at") or meta.get("commit_date")
+    if raw is None or raw == "":
+        return None
+    try:
+        if isinstance(raw, (int, float)):
+            dt = datetime.fromtimestamp(float(raw), tz=timezone.utc)
+        else:
+            text = str(raw).strip()
+            if text.endswith("Z"):
+                text = text[:-1] + "+00:00"
+            if "T" in text:
+                dt = datetime.fromisoformat(text)
+            else:
+                dt = datetime.strptime(text[:10], "%Y-%m-%d")
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+        return dt.strftime("%b %d, %Y")
+    except (TypeError, ValueError, OSError):
+        return None
+
+
+def status_with_stamp(base: str, meta: dict[str, Any] | None = None) -> str:
+    """Append · date for Up to date rows when metadata has a stamp."""
+    if not base.startswith("Up to date"):
+        return base
+    stamp = format_updated_stamp(meta)
+    return f"{base} · {stamp}" if stamp else base
 
 
 class FlowLayout(QLayout):
@@ -103,10 +139,11 @@ class Card(QFrame):
 
 
 class ModCheckRow(QWidget):
-    """Single compact line: [checkbox] Name — description — status [Update]."""
+    """Single compact line: [checkbox] Name — description — status [Update] [Reinstall]."""
 
     toggled = Signal(str, bool)
     update_clicked = Signal(str)
+    reinstall_clicked = Signal(str)
 
     def __init__(self, mod_id: str, title: str, description: str, checked: bool = False, parent=None):
         super().__init__(parent)
@@ -152,6 +189,14 @@ class ModCheckRow(QWidget):
         self.update_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.update_btn.clicked.connect(lambda: self.update_clicked.emit(self.mod_id))
 
+        self.reinstall_btn = QPushButton("Reinstall")
+        self.reinstall_btn.setVisible(False)
+        self.reinstall_btn.setStyleSheet("padding: 4px 12px;")
+        self.reinstall_btn.setMinimumSize(84, 28)
+        self.reinstall_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.reinstall_btn.setToolTip("Re-download and overwrite installed files")
+        self.reinstall_btn.clicked.connect(lambda: self.reinstall_clicked.emit(self.mod_id))
+
         row.addWidget(self.cb, 0)
         row.addWidget(name_lbl, 0)
         row.addWidget(sep1, 0)
@@ -159,6 +204,7 @@ class ModCheckRow(QWidget):
         row.addWidget(sep2, 0)
         row.addWidget(self.status_lbl, 0)
         row.addWidget(self.update_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+        row.addWidget(self.reinstall_btn, 0, Qt.AlignmentFlag.AlignVCenter)
 
     def set_update_available(self, available: bool, detail: str = "") -> None:
         self.update_btn.setVisible(available)
@@ -166,10 +212,14 @@ class ModCheckRow(QWidget):
             self.update_btn.setText("Update available" if not detail else "Update")
             self.update_btn.setToolTip(detail or "Update available")
 
+    def set_reinstall_visible(self, visible: bool) -> None:
+        self.reinstall_btn.setVisible(visible)
+
 
 class AddonRow(QWidget):
     install_clicked = Signal(dict)
     update_clicked = Signal(dict)
+    reinstall_clicked = Signal(dict)
     remove_clicked = Signal(str)
 
     def __init__(self, entry: dict, status: str = "available", parent=None):
@@ -199,7 +249,7 @@ class AddonRow(QWidget):
         status_lbl = QLabel(status)
         if status.startswith("Update"):
             status_lbl.setStyleSheet("color: #F1C22D;")
-        elif status in ("Installed", "Up to date"):
+        elif status.startswith("Up to date") or status == "Installed":
             status_lbl.setStyleSheet("color: #7c5cc4;")
         else:
             status_lbl.setObjectName("Muted")
@@ -207,7 +257,8 @@ class AddonRow(QWidget):
 
         # Installed rows may show "Not checked" before an update scan completes.
         is_installed = (
-            status in ("Installed", "Up to date", "Not checked", "—")
+            status in ("Installed", "Not checked", "—")
+            or status.startswith("Up to date")
             or status.startswith("Update")
         )
         if is_installed:
@@ -215,6 +266,12 @@ class AddonRow(QWidget):
                 btn_u = QPushButton("Update")
                 btn_u.clicked.connect(lambda: self.update_clicked.emit(entry))
                 layout.addWidget(btn_u)
+            # Reinstall for any installed row that has a GitHub source
+            if entry.get("repo") or entry.get("source") == "github":
+                btn_ri = QPushButton("Reinstall")
+                btn_ri.setToolTip("Re-download and overwrite installed files")
+                btn_ri.clicked.connect(lambda: self.reinstall_clicked.emit(entry))
+                layout.addWidget(btn_ri)
             btn_r = QPushButton("Remove")
             btn_r.clicked.connect(lambda: self.remove_clicked.emit(entry.get("folder") or entry.get("name")))
             layout.addWidget(btn_r)

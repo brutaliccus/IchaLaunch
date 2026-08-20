@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 from ichalaunch.addons.github import load_catalog
 from ichalaunch.config.settings import settings
 from ichalaunch.core.detect import scan_installed_addon_folders
-from ichalaunch.ui.widgets.common import AddonRow
+from ichalaunch.ui.widgets.common import AddonRow, status_with_stamp
 from ichalaunch.ui.widgets.dialogs import prompt_text
 
 PAGE_SIZE = 80
@@ -31,6 +31,7 @@ INSTALLED_ROW_H = 56
 class AddonsPage(QWidget):
     install_requested = Signal(dict)
     update_requested = Signal(dict)
+    reinstall_requested = Signal(dict)
     update_all_requested = Signal()
     remove_requested = Signal(str)
     github_import_requested = Signal(str)
@@ -305,11 +306,12 @@ class AddonsPage(QWidget):
                 if folder in update_map:
                     status = "Update available"
                 elif self._addons_scan_done:
-                    status = "Up to date"
+                    status = status_with_stamp("Up to date", meta)
                 else:
                     status = "Not checked"
                 row = AddonRow(entry, status=status)
                 row.update_clicked.connect(self.update_requested.emit)
+                row.reinstall_clicked.connect(self.reinstall_requested.emit)
                 row.remove_clicked.connect(self.remove_requested.emit)
                 item = QListWidgetItem()
                 item.setSizeHint(QSize(0, INSTALLED_ROW_H))

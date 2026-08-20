@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 from ichalaunch.config.settings import settings
 from ichalaunch.game.launcher import detect_game
 from ichalaunch.mods.installer import detect_actual_state, load_mod_catalog, plan_changes
-from ichalaunch.ui.widgets.common import ModCheckRow
+from ichalaunch.ui.widgets.common import ModCheckRow, status_with_stamp
 
 CATEGORY_ORDER = [
     "Performance & Fixes",
@@ -32,6 +32,7 @@ class ClientPage(QWidget):
     rescan_clicked = Signal()
     check_updates_requested = Signal()
     update_mod_requested = Signal(str)
+    reinstall_mod_requested = Signal(str)
     update_all_mods_requested = Signal()
 
     def __init__(self, parent=None):
@@ -139,6 +140,7 @@ class ClientPage(QWidget):
                 )
                 row.toggled.connect(self._on_toggle)
                 row.update_clicked.connect(self.update_mod_requested.emit)
+                row.reinstall_clicked.connect(self.reinstall_mod_requested.emit)
                 host_l.addWidget(row)
                 self.rows[mod["id"]] = row
             host_l.addStretch(1)
@@ -208,6 +210,7 @@ class ClientPage(QWidget):
 
     def refresh_from_settings(self) -> None:
         desired = settings.desired_mods
+        installed_meta = settings.installed_mods
         game = detect_game()
         actual = detect_actual_state(game) if game else {}
         for mid, row in self.rows.items():
@@ -220,18 +223,21 @@ class ClientPage(QWidget):
                 row.status_lbl.setText(f"Update available ({detail})")
                 row.status_lbl.setStyleSheet("color: #F1C22D;")
                 row.set_update_available(True, detail)
+                row.set_reinstall_visible(True)
             elif actual.get(mid):
                 if self._client_mods_scan_done:
-                    row.status_lbl.setText("Up to date")
+                    row.status_lbl.setText(status_with_stamp("Up to date", installed_meta.get(mid)))
                     row.status_lbl.setStyleSheet("color: #7c5cc4;")
                 else:
                     row.status_lbl.setText("Not checked")
                     row.status_lbl.setStyleSheet("color: #8a8a92;")
                 row.set_update_available(False)
+                row.set_reinstall_visible(True)
             else:
                 row.status_lbl.setText("Not installed")
                 row.status_lbl.setStyleSheet("color: #8a8a92;")
                 row.set_update_available(False)
+                row.set_reinstall_visible(False)
         self.refresh_plan()
 
     def refresh_plan(self) -> None:
