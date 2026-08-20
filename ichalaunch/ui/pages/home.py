@@ -18,6 +18,7 @@ from ichalaunch.core.paths import theme_file
 from ichalaunch.game.launcher import detect_game, is_installed
 from ichalaunch.mods.installer import detect_actual_state, load_mod_catalog
 from ichalaunch.ui.widgets.common import Card
+from ichalaunch.ui.widgets.countdown import LaunchCountdown
 
 CATEGORY_ORDER = [
     "Performance & Fixes",
@@ -26,7 +27,6 @@ CATEGORY_ORDER = [
     "Visual / QoL",
 ]
 
-# Side-drawer width (fixed-ish, not full-window stretch)
 DRAWER_MIN_W = 260
 DRAWER_MAX_W = 320
 
@@ -39,9 +39,14 @@ class HomePage(QWidget):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-        root = QHBoxLayout(self)
+        page = QVBoxLayout(self)
+        page.setSpacing(0)
+        page.setContentsMargins(0, 0, 0, 0)
+
+        body = QWidget()
+        root = QHBoxLayout(body)
         root.setSpacing(24)
-        root.setContentsMargins(28, 24, 28, 20)
+        root.setContentsMargins(28, 24, 28, 12)
 
         # --- Left: fixed-ish side drawer of categorized mods ---
         left = QWidget()
@@ -66,9 +71,6 @@ class HomePage(QWidget):
         scroll.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
-        scroll.setStyleSheet(
-            "QScrollArea { background: transparent; border: none; }"
-        )
 
         scroll_host = QWidget()
         scroll_host.setObjectName("HomeModsHost")
@@ -79,10 +81,9 @@ class HomePage(QWidget):
 
         scroll.setWidget(scroll_host)
         self.summary.body.addWidget(scroll)
-
         left_l.addWidget(self.summary, 1)
 
-        # --- Right: logo / brand (fills remaining width) ---
+        # --- Right: logo / brand ---
         right = QWidget()
         right.setObjectName("HomeBrandPane")
         right.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -112,7 +113,7 @@ class HomePage(QWidget):
         load_l.setSpacing(6)
         load_l.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.loading_lbl = QLabel("Checking for updates…")
-        self.loading_lbl.setStyleSheet("color: #ffd700;")
+        self.loading_lbl.setStyleSheet("color: #F1C22D;")
         self.loading_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.loading_bar = QProgressBar()
         self.loading_bar.setRange(0, 0)
@@ -131,6 +132,12 @@ class HomePage(QWidget):
 
         root.addWidget(left, 0)
         root.addWidget(right, 1)
+
+        # Countdown sits at bottom of home, above the global progress/play bar
+        self.countdown = LaunchCountdown()
+
+        page.addWidget(body, 1)
+        page.addWidget(self.countdown, 0, Qt.AlignmentFlag.AlignHCenter)
 
         self.refresh()
 
@@ -172,7 +179,7 @@ class HomePage(QWidget):
         cat_lbl = QLabel(category)
         cat_lbl.setObjectName("HomeModCategory")
         cat_lbl.setStyleSheet(
-            "color: #a0a0a8; font-size: 12px; font-weight: 600; padding-bottom: 2px;"
+            "color: #F1C22D; font-size: 12px; font-weight: 600; padding-bottom: 2px;"
         )
         block_l.addWidget(cat_lbl)
 
@@ -181,7 +188,7 @@ class HomePage(QWidget):
             item.setObjectName("HomeModItem")
             item.setWordWrap(True)
             item.setStyleSheet(
-                "color: #d8d8dc; font-size: 13px; padding-left: 14px;"
+                "color: #e6e0ee; font-size: 13px; padding-left: 14px;"
             )
             block_l.addWidget(item)
 

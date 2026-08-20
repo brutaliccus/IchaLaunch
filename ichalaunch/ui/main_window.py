@@ -107,7 +107,9 @@ class MainWindow(QMainWindow):
         root = QWidget()
         root.setObjectName("Root")
         root.setMouseTracking(True)
-        root.setStyleSheet("QWidget#Root { background-color: #151518; border: 1px solid #35353d; }")
+        root.setStyleSheet(
+            "QWidget#Root { background-color: #181412; border: 1px solid rgba(150, 131, 158, 0.22); }"
+        )
         self.setCentralWidget(root)
         app = QApplication.instance()
         if app is not None:
@@ -123,8 +125,8 @@ class MainWindow(QMainWindow):
         title_l = QHBoxLayout(title)
         title_l.setContentsMargins(16, 0, 8, 0)
         brand = QLabel("IchaLaunch")
-        brand.setStyleSheet("color: #ffd700; font-size: 16px; font-weight: 700;")
-        sub = QLabel(f"  Ravencraft  ·  v{__version__}")
+        brand.setStyleSheet("color: #F1C22D; font-size: 16px; font-weight: 700;")
+        sub = QLabel(f"  RavenCraft  ·  v{__version__}")
         sub.setObjectName("Muted")
         title_l.addWidget(brand)
         title_l.addWidget(sub)

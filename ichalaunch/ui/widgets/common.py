@@ -183,7 +183,7 @@ class AddonRow(QWidget):
         info.setContentsMargins(0, 0, 0, 0)
         info.setSpacing(0)
         name = QLabel(entry.get("name", "?"))
-        name.setStyleSheet("font-weight: 600; color: #ffd700;")
+        name.setStyleSheet("font-weight: 600; color: #F1C22D;")
         desc_raw = (entry.get("description") or "").replace("\n", " ").strip()
         if len(desc_raw) > 90:
             desc_raw = desc_raw[:87] + "…"
@@ -198,9 +198,9 @@ class AddonRow(QWidget):
 
         status_lbl = QLabel(status)
         if status.startswith("Update"):
-            status_lbl.setStyleSheet("color: #ffd700;")
+            status_lbl.setStyleSheet("color: #F1C22D;")
         elif status in ("Installed", "Up to date"):
-            status_lbl.setStyleSheet("color: #4CAF50;")
+            status_lbl.setStyleSheet("color: #7c5cc4;")
         else:
             status_lbl.setObjectName("Muted")
         layout.addWidget(status_lbl)

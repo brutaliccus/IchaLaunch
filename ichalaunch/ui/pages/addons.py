@@ -82,7 +82,7 @@ class AddonsPage(QWidget):
 
         self.loading_row = QHBoxLayout()
         self.loading_lbl = QLabel("")
-        self.loading_lbl.setStyleSheet("color: #ffd700;")
+        self.loading_lbl.setStyleSheet("color: #F1C22D;")
         self.loading_bar = QProgressBar()
         self.loading_bar.setRange(0, 0)
         self.loading_bar.setFixedHeight(6)
@@ -93,7 +93,7 @@ class AddonsPage(QWidget):
         self.loading_row.addStretch(1)
 
         self.updates_lbl = QLabel("")
-        self.updates_lbl.setStyleSheet("color: #ffd700;")
+        self.updates_lbl.setStyleSheet("color: #F1C22D;")
 
         self.installed_hdr = QLabel("Installed")
         self.installed_hdr.setObjectName("SectionTitle")

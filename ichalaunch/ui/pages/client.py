@@ -69,7 +69,7 @@ class ClientPage(QWidget):
 
         self.loading_row = QHBoxLayout()
         self.loading_lbl = QLabel("")
-        self.loading_lbl.setStyleSheet("color: #ffd700;")
+        self.loading_lbl.setStyleSheet("color: #F1C22D;")
         self.loading_bar = QProgressBar()
         self.loading_bar.setRange(0, 0)
         self.loading_bar.setFixedHeight(6)
@@ -82,7 +82,7 @@ class ClientPage(QWidget):
         self.set_checking(False)
 
         self.updates_lbl = QLabel("")
-        self.updates_lbl.setStyleSheet("color: #ffd700;")
+        self.updates_lbl.setStyleSheet("color: #F1C22D;")
         root.addWidget(self.updates_lbl)
 
         body = QHBoxLayout()
@@ -218,12 +218,12 @@ class ClientPage(QWidget):
             if pending:
                 detail = f"{pending.get('local', '?')} → {pending.get('remote', '?')}"
                 row.status_lbl.setText(f"Update available ({detail})")
-                row.status_lbl.setStyleSheet("color: #ffd700;")
+                row.status_lbl.setStyleSheet("color: #F1C22D;")
                 row.set_update_available(True, detail)
             elif actual.get(mid):
                 if self._client_mods_scan_done:
                     row.status_lbl.setText("Up to date")
-                    row.status_lbl.setStyleSheet("color: #4CAF50;")
+                    row.status_lbl.setStyleSheet("color: #7c5cc4;")
                 else:
                     row.status_lbl.setText("Not checked")
                     row.status_lbl.setStyleSheet("color: #8a8a92;")
