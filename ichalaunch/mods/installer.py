@@ -193,6 +193,69 @@ def _install_addon_folder(src_root: Path, game: Path, preferred_name: str | None
         copy_tree(root, dest)
 
 
+_VERSION_TOKEN_RE = re.compile(r"[-_]?v?\d+(?:\.\d+)+", re.IGNORECASE)
+
+
+def _normalize_asset_stem(filename: str) -> str:
+    """Strip extension + semver tokens so pinned and latest names compare equal.
+
+    vanillafixes-1.5.2.zip      → vanillafixes
+    vanillafixes-1.5.3-dxvk.zip → vanillafixes-dxvk
+    """
+    stem = Path(filename.split("?")[0]).stem.lower()
+    return _VERSION_TOKEN_RE.sub("", stem).strip("-_.")
+
+
+def _asset_contains_from_filename(filename: str) -> str:
+    """Derive a version-stable asset_contains needle from a pinned release filename.
+
+    vanillafixes-1.5.2-dxvk.zip → dxvk
+    vanillafixes-1.5.2.zip      → vanillafixes
+    """
+    name = filename.split("?")[0]
+    if not name:
+        return ".zip"
+    norm = _normalize_asset_stem(name)
+    parts = [p for p in re.split(r"[-_]+", norm) if p]
+    if len(parts) >= 2:
+        # Prefer the trailing qualifier (e.g. dxvk) — unique across variant builds.
+        return parts[-1]
+    if parts:
+        return parts[0]
+    suffix = Path(name).suffix.lower()
+    return suffix if suffix else ".zip"
+
+
+def _pick_release_asset(
+    assets: list[dict[str, Any]],
+    *,
+    asset_contains: str | None = None,
+    asset_not_contains: str | None = None,
+    prefer_filename: str | None = None,
+) -> dict[str, Any] | None:
+    """Pick a release asset by substring filters, then version-normalized stem."""
+    needle = (asset_contains or ".zip").lower()
+    exclude = (asset_not_contains or "").lower().strip()
+    candidates = [a for a in assets if needle in (a.get("name") or "").lower()]
+    if exclude:
+        candidates = [a for a in candidates if exclude not in (a.get("name") or "").lower()]
+    if not candidates:
+        return None
+    if prefer_filename:
+        target = _normalize_asset_stem(prefer_filename)
+        exact = [
+            a
+            for a in candidates
+            if _normalize_asset_stem(a.get("name") or "") == target
+        ]
+        if exact:
+            return exact[0]
+    if len(candidates) == 1:
+        return candidates[0]
+    # Ambiguous (.zip matching several builds): prefer the shortest / base package.
+    return min(candidates, key=lambda a: (len(a.get("name") or ""), a.get("name") or ""))
+
+
 def _download_source(source: dict[str, Any], work: Path, progress: ProgressCb | None) -> Path:
     stype = source.get("type")
     if progress:
@@ -214,10 +277,18 @@ def _download_source(source: dict[str, Any], work: Path, progress: ProgressCb | 
         api = f"https://api.github.com/repos/{repo}/releases/latest"
         r = github_get(api)
         assets = r.json().get("assets") or []
-        needle = (source.get("asset_contains") or ".zip").lower()
-        asset = next((a for a in assets if needle in a["name"].lower()), None)
+        needle = source.get("asset_contains") or ".zip"
+        asset = _pick_release_asset(
+            assets,
+            asset_contains=needle,
+            asset_not_contains=source.get("asset_not_contains"),
+            prefer_filename=source.get("prefer_filename"),
+        )
         if not asset:
-            raise FileNotFoundError(f"No release asset matching {needle} for {repo}")
+            detail = needle
+            if source.get("asset_not_contains"):
+                detail = f"{needle} (excluding {source['asset_not_contains']})"
+            raise FileNotFoundError(f"No release asset matching {detail} for {repo}")
         dest = work / asset["name"]
         download_file(asset["browser_download_url"], dest)
         return dest
@@ -578,12 +649,23 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
         if prefer_latest and source and source.get("type") == "github_release":
             repo = _repo_from_github_url(source.get("url") or "")
             if repo:
-                fname = source.get("filename") or (source.get("url") or "").split("/")[-1]
-                source = {
+                fname = (
+                    source.get("filename")
+                    or (source.get("url") or "").split("/")[-1].split("?")[0]
+                )
+                # Prefer catalog override; else derive a version-stable needle from
+                # the pinned filename (vanillafixes-1.5.2-dxvk.zip → "dxvk"), not
+                # the full versioned name which breaks when the tag bumps.
+                needle = source.get("asset_contains") or _asset_contains_from_filename(fname)
+                converted: dict[str, Any] = {
                     "type": "github_release_latest",
                     "repo": repo,
-                    "asset_contains": fname if fname else ".zip",
+                    "asset_contains": needle if needle else ".zip",
+                    "prefer_filename": fname,
                 }
+                if source.get("asset_not_contains"):
+                    converted["asset_not_contains"] = source["asset_not_contains"]
+                source = converted
 
         if kind == "wdb_block":
             wdb = game / "WDB"

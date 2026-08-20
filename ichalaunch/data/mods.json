@@ -16,7 +16,12 @@
     "category": "Performance & Fixes",
     "description": "Modern launcher that loads DLL mods and reduces stutter / animation lag. Use this to start the game.",
     "detect": {"any_files": ["VanillaFixes.exe"]},
-    "source": {"type": "github_release", "url": "https://github.com/hannesmann/vanillafixes/releases/download/v1.5.2/vanillafixes-1.5.2.zip"},
+    "source": {
+      "type": "github_release_latest",
+      "repo": "hannesmann/vanillafixes",
+      "asset_contains": "vanillafixes",
+      "asset_not_contains": "dxvk"
+    },
     "kind": "zip_root",
     "dependencies": [],
     "conflicts": []
@@ -27,7 +32,11 @@
     "category": "Performance & Fixes",
     "description": "Vulkan backend via DXVK. Needs a capable GPU. May conflict with overlays / some Nvidia 50-series setups.",
     "detect": {"all_files": ["d3d9.dll", "dxvk.conf"]},
-    "source": {"type": "github_release", "url": "https://github.com/hannesmann/vanillafixes/releases/download/v1.5.2/vanillafixes-1.5.2-dxvk.zip"},
+    "source": {
+      "type": "github_release_latest",
+      "repo": "hannesmann/vanillafixes",
+      "asset_contains": "dxvk"
+    },
     "kind": "zip_root",
     "dependencies": ["vanillafixes"],
     "conflicts": []
