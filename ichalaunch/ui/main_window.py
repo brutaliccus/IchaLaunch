@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QPoint, QRect, Qt, QThread, Signal
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -25,6 +25,7 @@ from ichalaunch.ui.widgets import dialogs as themed
 _RESIZE_MARGIN = 6
 
 from ichalaunch import __version__
+from ichalaunch.core.paths import theme_file
 from ichalaunch.addons.github import (
     AddonUpdateCheckResult,
     check_addon_updates,
@@ -85,6 +86,9 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"IchaLaunch {__version__}")
+        icon_path = theme_file("ichalaunch.ico")
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
         self.setMinimumSize(780, 520)
