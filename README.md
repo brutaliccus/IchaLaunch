@@ -1,8 +1,46 @@
 # IchaLaunch
 
-Python launcher for **RavenCraft** (Turtle 1.18-compatible client).
+**IchaLaunch** is the desktop launcher for **[RavenCraft](https://ravencraft.io/)** — a Turtle WoW–compatible 1.18 client experience. It installs and updates addons, manages client mods and visual packs, keeps itself up to date, and launches the game with one click.
 
-RavenCraft-themed UI inspired by [ravencraft.io](https://ravencraft.io/) and [ichasarmory.quest/gear-planner](https://ichasarmory.quest/gear-planner).
+Download the latest build from **[Releases](https://github.com/brutaliccus/IchaLaunch/releases/latest)**.
+
+---
+
+## Features
+
+- **Play / Install** — point at an existing game folder (or pick where to install), then launch with the metallic **PLAY** button
+- **Home** — RavenCraft branding, launch countdown, and a live list of installed client mods
+- **Addons** — browse the Turtle WoW wiki catalog, search and filter, install or reinstall, and paste any GitHub addon repo
+- **Client** — turn RetroCro / TurtleWoW-style fixes and Visual/QoL packs on or off (VanillaFixes, SuperWoW, Nampower, UnitXP, DXVK, night sky, and more), then **Apply Changes**
+- **Updates** — quiet checks for addon, client-mod, and launcher updates, with gold badges on tabs when something needs attention
+- **Self-update** — when a newer IchaLaunch is available, **PLAY** becomes **UPDATE**
+- **Backups** — copies of changed files live under `<your game>/.ichalaunch/backups/`
+
+---
+
+## Download & install
+
+1. Open the latest release: [github.com/brutaliccus/IchaLaunch/releases/latest](https://github.com/brutaliccus/IchaLaunch/releases/latest)
+2. Download **`IchaLaunch.exe`**
+3. Put it somewhere convenient (next to your game folder is fine — not required)
+4. Run the EXE
+
+No installer is required. Windows may show a SmartScreen prompt for an unsigned download — choose **More info** → **Run anyway** if you trust the release.
+
+---
+
+## First run
+
+1. Open **SETTINGS**
+2. Click **Browse…** and select your Turtle / RavenCraft **game folder** (the folder that contains `WoW.exe`)
+3. Prefer a simple path (for example `D:\Games\RavenCraft`). Avoid `Program Files`, Desktop, Downloads, and Documents when you can — Windows protections there often block client mods
+4. Optional: open **CLIENT**, tick the mods you want, then **Apply Changes**
+5. Optional: open **ADDONS**, install from the catalog or **Add from GitHub**
+6. Click **PLAY** on the bottom bar
+
+Official hosted client zip install is not required if you already have a 1.18 client — just point Settings at that folder.
+
+---
 
 ## Screenshots
 
@@ -22,22 +60,28 @@ RavenCraft-themed UI inspired by [ravencraft.io](https://ravencraft.io/) and [ic
 
 ![Settings](docs/screenshots/settings.png)
 
-### Themed dialog
+---
 
-![Themed dialog](docs/screenshots/themed_dialog.png)
+## Troubleshooting
 
-## Features
+**Windows Defender / Controlled Folder Access blocks VanillaFixes or DLL mods**  
+Allow `IchaLaunch.exe`, `VanillaFixes.exe`, and `WoW.exe`, or move the game out of a protected folder. If a VanillaFixes zip extract fails with a strange path error, Defender is a common cause — retry after an allow-list, or reinstall VanillaFixes from the **CLIENT** tab.
 
-- **PLAY / INSTALL** — pick a game folder or point at an existing client; launches via `VanillaFixes.exe` when enabled
-- **Home** — RavenCraft branding plus launch countdown (same target as ravencraft.io)
-- **CLIENT** — desired-state checkboxes for RetroCro/TurtleWoW-Mods style fixes (Vanilla Tweaks, SuperWoW, Nampower, UnitXP, PerfBoost, no1600x1200, WDB block, VanillaFixes/DXVK) plus automated Visual/QoL MPQs (night sky, Epoch water, fog, darker nights, pink herbs, raid visuals)
-- **ADDONS** — Turtle WoW wiki baseline catalog + paste any GitHub repo; per-row Install, last-updated stamp next to Up to date, Reinstall to force overwrite
-- Quiet update flow — no success popup after addon updates; status bar + Up to date
-- RavenCraft-themed dialogs instead of system message boxes
-- Custom RavenCraft app icon on the window and packaged EXE
-- Backups under `<game>/.ichalaunch/backups/`
+**Addon / update checks fail or feel stuck**  
+GitHub’s anonymous API limit is low. In **SETTINGS → GitHub API**, paste a personal access token (no special scopes needed for public repos). It only raises the local rate limit and stays on your PC.
 
-## Run from source
+**PLAY does nothing / “Client not found”**  
+Confirm **SETTINGS** points at the folder that contains `WoW.exe`, then click **Verify**.
+
+**Gold dots on ADDONS or CLIENT**  
+Those tabs have pending updates or unapplied client changes — open the tab and update / apply.
+
+More help and downloads: **[Releases](https://github.com/brutaliccus/IchaLaunch/releases)**.
+
+---
+
+<details>
+<summary>For developers</summary>
 
 ```bat
 cd F:\Launcher
@@ -45,21 +89,12 @@ python -m pip install -r requirements.txt
 python run.py
 ```
 
-## Build EXE
+Build the EXE:
 
 ```bat
-cd F:\Launcher
 python -m PyInstaller IchaLaunch.spec --noconfirm
 ```
 
-Output: `F:\Launcher\dist\IchaLaunch.exe`
+Output: `dist\IchaLaunch.exe`
 
-## First trial
-
-1. Open IchaLaunch
-2. Settings → Browse → select your existing game folder (e.g. `F:\capybara wow v1181\capybara wow v1181\Game`)
-3. CLIENT → toggle desired mods → Apply Changes
-4. ADDONS → install from catalog or paste a GitHub URL
-5. PLAY
-
-Official Ravencraft client zip hosting is not wired yet — use Browse to an existing 1.18 client.
+</details>

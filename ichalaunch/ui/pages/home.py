@@ -123,21 +123,23 @@ class HomePage(QWidget):
         load_l.addWidget(self.loading_bar, 0, Qt.AlignmentFlag.AlignCenter)
         self.loading_wrap.setVisible(False)
 
+        # Countdown sits centered under the RavenCraft logo (not under the mods drawer).
+        self.countdown = LaunchCountdown()
+
         right_l.addStretch(1)
         right_l.addWidget(self.logo, 0, Qt.AlignmentFlag.AlignHCenter)
         right_l.addWidget(sub, 0, Qt.AlignmentFlag.AlignHCenter)
         right_l.addWidget(self.status, 0, Qt.AlignmentFlag.AlignHCenter)
         right_l.addWidget(self.loading_wrap, 0, Qt.AlignmentFlag.AlignHCenter)
+        right_l.addWidget(self.countdown, 0, Qt.AlignmentFlag.AlignHCenter)
         right_l.addStretch(1)
 
         root.addWidget(left, 0)
         root.addWidget(right, 1)
 
-        # Countdown sits at bottom of home, above the global progress/play bar
-        self.countdown = LaunchCountdown()
-
+        # Body fills the content panel down to the nav_bottom banner so the
+        # installed-mods drawer can use the full available height.
         page.addWidget(body, 1)
-        page.addWidget(self.countdown, 0, Qt.AlignmentFlag.AlignHCenter)
 
         self.refresh()
 
