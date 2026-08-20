@@ -264,6 +264,22 @@
     "conflicts": []
   },
   {
+    "id": "raid_visuals",
+    "name": "Raid Visuals (patch-O)",
+    "category": "Visual / QoL",
+    "description": "Spell visual changes to assist vanilla raiding (MarcelineVQ/twow-raid-visuals).",
+    "detect": {"data_mpq": ["patch-O.mpq", "Patch-O.mpq"]},
+    "source": {
+      "type": "github_release_latest",
+      "repo": "MarcelineVQ/twow-raid-visuals",
+      "asset_contains": "patch-O.mpq"
+    },
+    "kind": "mpq_file",
+    "destination": "Data/patch-O.mpq",
+    "dependencies": [],
+    "conflicts": []
+  },
+  {
     "id": "pretty_night_sky",
     "name": "Pretty Night Sky",
     "category": "Visual / QoL",
