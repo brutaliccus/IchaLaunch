@@ -4,9 +4,15 @@
     font-family: "Segoe UI", "Candara", "Calibri", sans-serif;
 }
 
-QMainWindow, QWidget#Root {
+QMainWindow {
+    background: transparent;
+}
+
+QWidget#Root {
     background-color: #181412;
     color: #e6e0ee;
+    border: 1px solid rgba(150, 131, 158, 0.28);
+    border-radius: 14px;
 }
 
 QLabel#Brand {
@@ -76,61 +82,63 @@ QPushButton#PlayButton:disabled {
     border-color: rgba(150, 131, 158, 0.2);
 }
 
-QWidget#TitleBar {
-    background-color: #100d0c;
-    border-bottom: 1px solid rgba(150, 131, 158, 0.15);
+/* Folder-tab strip — sits above the content “folder body” */
+QWidget#TopNav {
+    background-color: transparent;
+    border: none;
 }
 
-QWidget#TopNav {
-    background-color: #141110;
-    border-bottom: 1px solid rgba(150, 131, 158, 0.15);
+QPushButton#TopNavButton {
+    text-align: center;
+    padding: 8px 18px 10px 18px;
+    margin: 4px 0 0 0;
+    border: 1px solid rgba(150, 131, 158, 0.22);
+    border-bottom: none;
+    border-top-left-radius: 9px;
+    border-top-right-radius: 9px;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    background-color: #12100e;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    color: #9990ab;
+    min-width: 92px;
+    min-height: 30px;
+}
+
+QPushButton#TopNavButton:hover {
+    color: #e6e0ee;
+    background-color: #1a1614;
+    border-color: rgba(124, 92, 196, 0.50);
+}
+
+QPushButton#TopNavButton:checked {
+    color: #F1C22D;
+    background-color: #1c1816;
+    border: 1px solid rgba(241, 194, 45, 0.55);
+    border-bottom: 1px solid #1c1816;
+    margin-top: 0;
+    padding-top: 10px;
+    padding-bottom: 12px;
+    min-height: 34px;
+}
+
+/* Folder body the tabs attach to */
+QWidget#ContentPanel {
+    background-color: #1c1816;
+    border: 1px solid rgba(150, 131, 158, 0.22);
+    border-top: 1px solid rgba(124, 92, 196, 0.40);
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
 }
 
 QWidget#BottomBar {
     background-color: #100d0c;
     border-top: 1px solid rgba(150, 131, 158, 0.15);
-}
-
-QPushButton#TopNavButton {
-    text-align: center;
-    padding: 8px 18px;
-    border: none;
-    border-radius: 0;
-    background: transparent;
-    font-size: 13px;
-    font-weight: 600;
-    color: #9990ab;
-    min-width: 88px;
-}
-
-QPushButton#TopNavButton:hover {
-    color: #e6e0ee;
-    background-color: rgba(120, 100, 150, 0.10);
-}
-
-QPushButton#TopNavButton:checked {
-    color: #F1C22D;
-    border-bottom: 3px solid #7c5cc4;
-    background-color: rgba(120, 100, 150, 0.08);
-}
-
-QPushButton#WinBtn, QPushButton#CloseBtn {
-    background: transparent;
-    border: none;
-    border-radius: 4px;
-    color: #9990ab;
-    font-size: 14px;
-    padding: 0;
-}
-
-QPushButton#WinBtn:hover {
-    background-color: rgba(120, 100, 150, 0.18);
-    color: #e6e0ee;
-}
-
-QPushButton#CloseBtn:hover {
-    background-color: #c62828;
-    color: #ffffff;
+    border-bottom-left-radius: 14px;
+    border-bottom-right-radius: 14px;
 }
 
 QWidget#ClientCatNav {

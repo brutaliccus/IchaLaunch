@@ -1,11 +1,11 @@
-"""Main window — borderless, top tabs, bottom play bar."""
+"""Main window — borderless rounded chrome, folder tabs, bottom play bar."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QPoint, QRect, Qt, QThread, Signal
-from PySide6.QtGui import QGuiApplication, QIcon
+from PySide6.QtGui import QGuiApplication, QIcon, QPainterPath, QRegion
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -23,6 +23,8 @@ from PySide6.QtWidgets import (
 from ichalaunch.ui.widgets import dialogs as themed
 
 _RESIZE_MARGIN = 6
+_CORNER_RADIUS = 14
+_TAB_STRIP_HEIGHT = 44
 
 from ichalaunch import __version__
 from ichalaunch.core.paths import theme_file
@@ -97,7 +99,8 @@ class MainWindow(QMainWindow):
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
+        # Transparent frame so Root's rounded corners are not filled with black.
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setMinimumSize(780, 520)
 
         self._worker: Worker | None = None
@@ -120,10 +123,8 @@ class MainWindow(QMainWindow):
 
         root = QWidget()
         root.setObjectName("Root")
+        root.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         root.setMouseTracking(True)
-        root.setStyleSheet(
-            "QWidget#Root { background-color: #181412; border: 1px solid rgba(150, 131, 158, 0.22); }"
-        )
         self.setCentralWidget(root)
         app = QApplication.instance()
         if app is not None:
@@ -132,38 +133,15 @@ class MainWindow(QMainWindow):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        # ---- Title bar ----
-        title = QWidget()
-        title.setObjectName("TitleBar")
-        title.setFixedHeight(44)
-        title_l = QHBoxLayout(title)
-        title_l.setContentsMargins(16, 0, 8, 0)
-        brand = QLabel("IchaLaunch")
-        brand.setStyleSheet("color: #F1C22D; font-size: 16px; font-weight: 700;")
-        sub = QLabel(f"  RavenCraft  ·  v{__version__}")
-        sub.setObjectName("Muted")
-        title_l.addWidget(brand)
-        title_l.addWidget(sub)
-        title_l.addStretch(1)
-
-        min_btn = QPushButton("—")
-        min_btn.setObjectName("WinBtn")
-        min_btn.setFixedSize(36, 28)
-        min_btn.clicked.connect(self.showMinimized)
-        close_btn = QPushButton("✕")
-        close_btn.setObjectName("CloseBtn")
-        close_btn.setFixedSize(36, 28)
-        close_btn.clicked.connect(self.close)
-        title_l.addWidget(min_btn)
-        title_l.addWidget(close_btn)
-
-        # ---- Top nav tabs ----
+        # ---- Folder tabs (top chrome) ----
         nav = QWidget()
         nav.setObjectName("TopNav")
-        nav.setFixedHeight(44)
+        nav.setFixedHeight(_TAB_STRIP_HEIGHT)
+        nav.setMouseTracking(True)
         nav_l = QHBoxLayout(nav)
-        nav_l.setContentsMargins(12, 0, 12, 0)
-        nav_l.setSpacing(4)
+        nav_l.setContentsMargins(14, 6, 14, 0)
+        nav_l.setSpacing(3)
+        nav_l.setAlignment(Qt.AlignmentFlag.AlignBottom)
         self.nav_btns: list[QPushButton] = []
         for i, label in enumerate(["HOME", "ADDONS", "CLIENT", "SETTINGS"]):
             btn = QPushButton(label)
@@ -171,11 +149,18 @@ class MainWindow(QMainWindow):
             btn.setCheckable(True)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda checked=False, idx=i: self._nav(idx))
-            nav_l.addWidget(btn)
+            nav_l.addWidget(btn, 0, Qt.AlignmentFlag.AlignBottom)
             self.nav_btns.append(btn)
         nav_l.addStretch(1)
 
-        # ---- Pages ----
+        # ---- Folder body (pages) ----
+        content = QWidget()
+        content.setObjectName("ContentPanel")
+        content.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        content_l = QVBoxLayout(content)
+        content_l.setContentsMargins(0, 0, 0, 0)
+        content_l.setSpacing(0)
+
         self.stack = QStackedWidget()
         self.home = HomePage()
         self.addons = AddonsPage()
@@ -183,10 +168,12 @@ class MainWindow(QMainWindow):
         self.settings_page = SettingsPage()
         for page in (self.home, self.addons, self.client, self.settings_page):
             self.stack.addWidget(page)
+        content_l.addWidget(self.stack)
 
         # ---- Bottom play bar ----
         bottom = QWidget()
         bottom.setObjectName("BottomBar")
+        bottom.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         bottom.setFixedHeight(78)
         bot_l = QHBoxLayout(bottom)
         bot_l.setContentsMargins(16, 12, 4, 4)
@@ -220,10 +207,10 @@ class MainWindow(QMainWindow):
         bot_l.addWidget(self.play_btn, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         bot_l.addWidget(grip, 0, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
 
-        outer.addWidget(title)
         outer.addWidget(nav)
-        outer.addWidget(self.stack, 1)
+        outer.addWidget(content, 1)
         outer.addWidget(bottom)
+        self._update_window_mask()
 
         # Wire
         self.home.play_clicked.connect(self._on_play_or_install)
@@ -256,6 +243,15 @@ class MainWindow(QMainWindow):
                 self._check_mod_updates(silent=True)
 
     # --- window chrome ---
+    def _update_window_mask(self) -> None:
+        """Clip the frameless window to rounded corners (avoids square black corners)."""
+        path = QPainterPath()
+        path.addRoundedRect(
+            0.0, 0.0, float(self.width()), float(self.height()),
+            float(_CORNER_RADIUS), float(_CORNER_RADIUS),
+        )
+        self.setMask(QRegion(path.toFillPolygon().toPolygon()))
+
     def _available_geo(self):
         screen = self.screen() or QGuiApplication.primaryScreen()
         return screen.availableGeometry()
@@ -314,6 +310,11 @@ class MainWindow(QMainWindow):
     def showEvent(self, event):
         super().showEvent(event)
         self._fit_to_screen()
+        self._update_window_mask()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_window_mask()
 
     def closeEvent(self, event):
         app = QApplication.instance()
@@ -404,7 +405,7 @@ class MainWindow(QMainWindow):
                 self._drag_pos = None
                 event.accept()
                 return
-            if pos.y() <= 44:
+            if pos.y() <= _TAB_STRIP_HEIGHT:
                 self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
                 self._resize_edges = None
                 event.accept()
