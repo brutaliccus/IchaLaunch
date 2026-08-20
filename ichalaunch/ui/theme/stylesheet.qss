@@ -183,9 +183,10 @@ QWidget#ContentPanel {
     border-radius: 0;
 }
 
-/* RavenCraft nav strip between content and play bar — painted via NavBottomBanner */
+/* RavenCraft nav strip between content and play bar — painted via NavBottomBanner.
+   Match BottomBar so PNG alpha between spikes shows the same dark (#100d0c). */
 QWidget#NavBottomBanner {
-    background-color: #161218;
+    background-color: #100d0c;
     border-left: 1px solid rgba(150, 131, 158, 0.28);
     border-right: 1px solid rgba(150, 131, 158, 0.28);
     border-top: none;

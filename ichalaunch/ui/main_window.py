@@ -213,8 +213,9 @@ class NavBottomBanner(QWidget):
     def paintEvent(self, event) -> None:  # noqa: N802
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        # Same dark as BottomBar / QSS — shows through PNG alpha between spikes.
+        painter.fillRect(self.rect(), QColor("#100d0c"))
         if self._pix.isNull():
-            painter.fillRect(self.rect(), QColor("#1a1518"))
             return
         # Full-bleed stretch — asset is a wide decorative strip (1920×38).
         painter.drawPixmap(self.rect(), self._pix)
