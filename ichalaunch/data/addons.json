@@ -7737,5 +7737,32 @@
     "source": "manual",
     "folder": "Aegis_RallyPower",
     "installable": true
+  },
+  {
+    "name": "BijouCounter",
+    "repo": "https://github.com/cinos03/BijouCounter",
+    "category": "Raiding",
+    "description": "Tracks all nine Hakkari Bijou colors in your bags with a live movable on-screen counter for Zul'Gurub farming.",
+    "source": "manual",
+    "folder": "BijouCounter",
+    "installable": true
+  },
+  {
+    "name": "Bankraider",
+    "repo": "https://github.com/cinos03/Bankraider",
+    "category": "Raiding",
+    "description": "Automates bank-alt raid setup: invites your main, converts to raid, promotes assist, sets free-for-all loot, with optional anti-AFK.",
+    "source": "manual",
+    "folder": "Bankraider",
+    "installable": true
+  },
+  {
+    "name": "Surprise Me!",
+    "repo": "https://github.com/cinos03/SurpriseMe-1.12",
+    "category": "Raiding",
+    "description": "Auto-invites players who whisper configurable keywords; converts to raid when needed. Ideal for raid and group invites on 1.12.",
+    "source": "manual",
+    "folder": "SurpriseMe",
+    "installable": true
   }
 ]

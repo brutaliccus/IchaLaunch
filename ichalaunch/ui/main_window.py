@@ -695,8 +695,19 @@ class MainWindow(QMainWindow):
         self._set_busy_ui(False, "Ready")
         handler = self._pending_ok_handler
         self._pending_ok_handler = None
+        restarting = False
         if handler:
-            handler(result)
+            try:
+                restarting = bool(handler(result))
+            except Exception as exc:  # noqa: BLE001
+                log.exception("Post-worker handler failed")
+                themed.error(self, "Error", str(exc))
+                self.status_lbl.setText(f"Failed: {str(exc)[:80]}")
+                return
+        # Self-update calls quit() — do not touch widgets afterward (causes crashes).
+        app = QApplication.instance()
+        if restarting or (app is not None and app.closingDown()):
+            return
         self.home.refresh()
         self.client.refresh_plan()
         self.addons.mark_dirty()
@@ -707,6 +718,7 @@ class MainWindow(QMainWindow):
     def _on_worker_fail(self, msg: str) -> None:
         self._set_busy_ui(False, "Failed")
         themed.error(self, "Error", msg)
+        self.status_lbl.setText(f"Failed: {msg[:80]}")
 
     def _on_play_or_install(self) -> None:
         if self._launcher_update_pending():
@@ -773,10 +785,15 @@ class MainWindow(QMainWindow):
             try:
                 apply_windows_self_replace(staged)
             except Exception as exc:  # noqa: BLE001
+                log.exception("Launcher self-replace failed")
                 themed.error(self, "Update failed", str(exc))
-                return
+                self.status_lbl.setText(f"Update failed: {str(exc)[:80]}")
+                return False
+            self.status_lbl.setText("Installing update and restarting…")
             # Helper waits for this process to exit, then swaps the EXE and relaunches.
+            # Return True so _on_worker_ok skips UI refresh (quit tears down widgets).
             QApplication.instance().quit()
+            return True
 
         worker = Worker(perform_launcher_update, info)
         self._busy(f"Downloading launcher v{info.version}…", worker, on_ok=on_ok)

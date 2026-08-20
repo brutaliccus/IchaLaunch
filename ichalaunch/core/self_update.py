@@ -61,10 +61,32 @@ def is_newer(remote: str, local: str) -> bool:
     return parse_version_tuple(remote) > parse_version_tuple(local)
 
 
+def _bat_escape(value: str) -> str:
+    """Escape % so cmd does not expand env vars inside set "VAR=..."."""
+    return value.replace("%", "%%")
+
+
 def resolve_install_exe() -> Path:
-    """Path of the EXE to replace (frozen) or dist copy when running from source."""
+    """Path of the real on-disk EXE to replace (never PyInstaller _MEIPASS)."""
     if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve()
+        # One-file and one-dir: sys.executable is the real launcher EXE.
+        # Extracted payload lives under sys._MEIPASS — never write there.
+        exe = Path(sys.executable).resolve()
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            meipass_path = Path(meipass).resolve()
+            try:
+                exe.relative_to(meipass_path)
+            except ValueError:
+                pass
+            else:
+                raise RuntimeError(
+                    "Refusing to self-update inside the PyInstaller extract folder "
+                    f"({meipass_path}). sys.executable must be the installed EXE."
+                )
+        if not exe.is_file() or exe.suffix.lower() != ".exe":
+            raise RuntimeError(f"Frozen executable path is not an .exe: {exe}")
+        return exe
     root = Path(__file__).resolve().parents[2]
     candidates = [
         root / "dist" / PREFERRED_ASSET,
@@ -77,6 +99,17 @@ def resolve_install_exe() -> Path:
         "Self-update requires the packaged IchaLaunch.exe "
         "(run the frozen build, or place it under dist/)."
     )
+
+
+def _validate_pe_exe(path: Path) -> None:
+    """Reject non-EXE / truncated downloads before we try to replace ourselves."""
+    size = path.stat().st_size
+    if size < 1024 * 64:
+        raise RuntimeError(f"Downloaded launcher looks too small ({size} bytes)")
+    with path.open("rb") as f:
+        magic = f.read(2)
+    if magic != b"MZ":
+        raise RuntimeError("Downloaded launcher is not a Windows EXE (missing MZ header)")
 
 
 def _pick_exe_asset(assets: list[dict]) -> dict | None:
@@ -163,38 +196,62 @@ def _download_asset(url: str, dest: Path, *, asset_id: int | None = None, repo: 
 
 
 def _write_windows_replace_script(*, pid: int, src: Path, dest: Path) -> Path:
-    """Batch helper: wait for PID, swap EXE, relaunch, clean up."""
+    """Batch helper: wait for PID, replace EXE with retries, relaunch, clean up.
+
+    Paths are quoted; % is escaped. Working directory for the new process is
+    the EXE's folder so relative assets resolve after restart.
+    """
     script = Path(tempfile.gettempdir()) / f"ichalaunch_update_{pid}.bat"
-    # Escape for batch: wrap paths in quotes; avoid % expansion issues.
-    src_s = str(src)
-    dest_s = str(dest)
-    old_s = str(dest) + ".old"
+    src_s = _bat_escape(str(src))
+    dest_s = _bat_escape(str(dest))
+    dest_dir_s = _bat_escape(str(dest.parent))
+    old_s = _bat_escape(str(dest) + ".old")
+    # ping delay avoids needing timeout.exe; retries handle AV file locks.
     lines = [
         "@echo off",
         "setlocal EnableExtensions",
         f"set \"PID={pid}\"",
         f"set \"SRC={src_s}\"",
         f"set \"DST={dest_s}\"",
+        f"set \"DSTDIR={dest_dir_s}\"",
         f"set \"OLD={old_s}\"",
+        "set /A ATTEMPTS=0",
         ":wait",
-        'tasklist /FI "PID eq %PID%" 2>NUL | findstr /R /C:" %PID% " >NUL',
+        'tasklist /FI "PID eq %PID%" 2>NUL | find "%PID%" >NUL',
         "if not errorlevel 1 (",
         "  ping -n 2 127.0.0.1 >NUL",
         "  goto wait",
         ")",
+        ":replace",
+        "set /A ATTEMPTS+=1",
         'if exist "%OLD%" del /F /Q "%OLD%" >NUL 2>&1',
-        'if exist "%DST%" move /Y "%DST%" "%OLD%" >NUL',
+        'if exist "%DST%" (',
+        '  move /Y "%DST%" "%OLD%" >NUL 2>&1',
+        "  if errorlevel 1 (",
+        "    if %ATTEMPTS% LSS 40 (",
+        "      ping -n 2 127.0.0.1 >NUL",
+        "      goto replace",
+        "    )",
+        "    exit /B 1",
+        "  )",
+        ")",
         'copy /Y "%SRC%" "%DST%" >NUL',
         "if errorlevel 1 (",
-        '  if exist "%OLD%" move /Y "%OLD%" "%DST%" >NUL',
+        '  if exist "%OLD%" move /Y "%OLD%" "%DST%" >NUL 2>&1',
+        "  if %ATTEMPTS% LSS 40 (",
+        "    ping -n 2 127.0.0.1 >NUL",
+        "    goto replace",
+        "  )",
         "  exit /B 1",
         ")",
         'del /F /Q "%SRC%" >NUL 2>&1',
         'del /F /Q "%OLD%" >NUL 2>&1',
-        'start "" "%DST%"',
+        'start "" /D "%DSTDIR%" "%DST%"',
+        "ping -n 2 127.0.0.1 >NUL",
         'del /F /Q "%~f0" >NUL 2>&1',
+        "exit /B 0",
     ]
-    script.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
+    script.write_bytes(("\r\n".join(lines) + "\r\n").encode("utf-8"))
     return script
 
 
@@ -218,29 +275,54 @@ def download_and_stage_update(
         tmp,
         asset_id=info.asset_id,
     )
+    _validate_pe_exe(tmp)
     if progress:
         progress("Preparing installer…")
     return tmp
 
 
-def apply_windows_self_replace(staged_exe: Path, *, target: Path | None = None) -> None:
-    """Spawn helper to replace this process's EXE after exit, then caller should quit."""
+def apply_windows_self_replace(staged_exe: Path, *, target: Path | None = None) -> Path:
+    """Spawn helper to replace this process's EXE after exit; caller must quit.
+
+    Returns the path of the helper .bat that was started.
+    """
     if os.name != "nt":
         raise RuntimeError("Automatic launcher replace is only supported on Windows")
     dest = (target or resolve_install_exe()).resolve()
     staged = staged_exe.resolve()
     if not staged.is_file():
         raise FileNotFoundError(str(staged))
+    _validate_pe_exe(staged)
+    if dest.resolve() == staged.resolve():
+        raise RuntimeError("Staged update path must differ from the installed EXE")
     script = _write_windows_replace_script(pid=os.getpid(), src=staged, dest=dest)
-    log.info("Launching self-update helper %s -> %s", staged, dest)
-    # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP so helper outlives us.
-    flags = 0x00000008 | 0x00000200
-    subprocess.Popen(
-        ["cmd.exe", "/C", str(script)],
+    log.info("Launching self-update helper %s -> %s (script %s)", staged, dest, script)
+    # CREATE_NO_WINDOW + CREATE_NEW_PROCESS_GROUP: helper outlives us with no console flash.
+    # (DETACHED_PROCESS is mutually exclusive with CREATE_NO_WINDOW on some Windows builds.)
+    create_no_window = 0x08000000
+    create_new_process_group = 0x00000200
+    flags = create_no_window | create_new_process_group
+    # List argv quotes paths with spaces correctly for CreateProcess.
+    proc = subprocess.Popen(
+        ["cmd.exe", "/C", "call", str(script)],
         cwd=str(dest.parent),
         creationflags=flags,
-        close_fds=True,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
+    # Give the helper a moment to enter its wait loop before we return to quit.
+    try:
+        proc.wait(timeout=0.15)
+    except subprocess.TimeoutExpired:
+        pass  # still running — expected
+    else:
+        if proc.returncode not in (0, None):
+            raise RuntimeError(
+                f"Update helper exited immediately with code {proc.returncode}. "
+                f"Script: {script}"
+            )
+    return script
 
 
 def perform_launcher_update(
