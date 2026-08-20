@@ -9,12 +9,12 @@ QMainWindow {
 }
 
 QWidget#Root {
-    /* Transparent so the tab strip above the folder body has no filled panel;
-       ContentPanel / BottomBar / tab buttons supply opaque chrome. */
+    /* Transparent tab-strip host — no outer outline above/around floating tabs.
+       ContentPanel / BottomBar carry the folder-body frame. */
     background-color: transparent;
     color: #e6e0ee;
-    border: 1px solid rgba(150, 131, 158, 0.28);
-    border-radius: 14px;
+    border: none;
+    border-radius: 0;
 }
 
 QLabel#Brand {
