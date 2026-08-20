@@ -111,23 +111,22 @@ class AddonsPage(QWidget):
         self.avail_hdr.setObjectName("SectionTitle")
 
         self.list = QListWidget()
+        self.list.setSpacing(2)
         self.list.setUniformItemSizes(True)
-        self.list.setAlternatingRowColors(True)
+        self.list.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.list.itemDoubleClicked.connect(self._install_selected)
         self.list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.list.setMinimumHeight(80)
 
         action_row = QHBoxLayout()
-        self.install_sel_btn = QPushButton("Install Selected")
-        self.install_sel_btn.clicked.connect(self._install_selected)
         self.prev_btn = QPushButton("◀ Prev")
         self.next_btn = QPushButton("Next ▶")
         self.prev_btn.clicked.connect(lambda: self._page(-1))
         self.next_btn.clicked.connect(lambda: self._page(1))
         self.page_lbl = QLabel("")
         self.page_lbl.setObjectName("Muted")
-        action_row.addWidget(self.install_sel_btn)
         action_row.addStretch(1)
         action_row.addWidget(self.prev_btn)
         action_row.addWidget(self.page_lbl)
@@ -241,18 +240,13 @@ class AddonsPage(QWidget):
         start = self._page_index * PAGE_SIZE
         chunk = self._filtered_available[start : start + PAGE_SIZE]
         for entry in chunk:
-            name = entry.get("name", "?")
-            cat = entry.get("category") or "General"
-            desc = (entry.get("description") or "").replace("\n", " ")
-            if len(desc) > 90:
-                desc = desc[:87] + "…"
-            text = f"{name}  —  {cat}"
-            if desc:
-                text += f"\n{desc}"
-            item = QListWidgetItem(text)
+            row = AddonRow(entry, status="available")
+            row.install_clicked.connect(self.install_requested.emit)
+            item = QListWidgetItem()
             item.setData(Qt.ItemDataRole.UserRole, entry)
-            item.setSizeHint(QSize(0, 48))
+            item.setSizeHint(QSize(0, INSTALLED_ROW_H))
             self.list.addItem(item)
+            self.list.setItemWidget(item, row)
 
         total = len(self._filtered_available)
         max_page = max(0, (total - 1) // PAGE_SIZE) if total else 0
@@ -265,7 +259,6 @@ class AddonsPage(QWidget):
         show_avail = mode in ("Available", "All")
         self.avail_hdr.setVisible(show_avail)
         self.list.setVisible(show_avail)
-        self.install_sel_btn.setVisible(show_avail)
         self.prev_btn.setVisible(show_avail)
         self.next_btn.setVisible(show_avail)
         self.page_lbl.setVisible(show_avail)
