@@ -40,9 +40,16 @@ QLabel#Muted {
 }
 
 QFrame#Card, QFrame.Card {
-    background-color: rgba(120, 100, 150, 0.08);
-    border: 1px solid rgba(150, 131, 158, 0.15);
+    background-color: #181412;
+    border: 1px solid rgba(124, 92, 196, 0.28);
     border-radius: 10px;
+}
+
+QLabel#CardTitle {
+    color: #F1C22D;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
 }
 
 QPushButton {
@@ -124,6 +131,13 @@ QPushButton#UpdateButton {
     min-height: 22px;
 }
 
+/* Match Update compact padding so "Reinstall" is not clipped by global 8/14 padding. */
+QPushButton#ReinstallButton {
+    padding: 4px 12px;
+    min-width: 100px;
+    min-height: 22px;
+}
+
 /* Gold border pulse when Apply Changes has pending installs/removes */
 QPushButton#ApplyReadyButtonPulse {
     border: 2px solid #FFD966;
@@ -176,19 +190,19 @@ QPushButton#TopNavButton:checked {
 /* Folder body the tabs attach to — framed sides/top; no chrome above tabs */
 QWidget#ContentPanel {
     background-color: #1c1816;
-    border-top: 1px solid rgba(124, 92, 196, 0.40);
-    border-left: 1px solid rgba(150, 131, 158, 0.28);
-    border-right: 1px solid rgba(150, 131, 158, 0.28);
+    border-top: 1px solid rgba(124, 92, 196, 0.45);
+    border-left: 1px solid rgba(124, 92, 196, 0.45);
+    border-right: 1px solid rgba(124, 92, 196, 0.45);
     border-bottom: none;
     border-radius: 0;
 }
 
 /* RavenCraft nav strip between content and play bar — painted via NavBottomBanner.
-   Match BottomBar so PNG alpha between spikes shows the same dark (#100d0c). */
+   Side borders must stay visible: paintEvent insets fill/pixmap by 1px L/R. */
 QWidget#NavBottomBanner {
     background-color: #100d0c;
-    border-left: 1px solid rgba(150, 131, 158, 0.28);
-    border-right: 1px solid rgba(150, 131, 158, 0.28);
+    border-left: 1px solid rgba(124, 92, 196, 0.45);
+    border-right: 1px solid rgba(124, 92, 196, 0.45);
     border-top: none;
     border-bottom: none;
 }
@@ -196,17 +210,37 @@ QWidget#NavBottomBanner {
 QWidget#BottomBar {
     background-color: #100d0c;
     border-top: none;
-    border-left: 1px solid rgba(150, 131, 158, 0.28);
-    border-right: 1px solid rgba(150, 131, 158, 0.28);
-    border-bottom: 1px solid rgba(150, 131, 158, 0.28);
+    border-left: 1px solid rgba(124, 92, 196, 0.45);
+    border-right: 1px solid rgba(124, 92, 196, 0.45);
+    border-bottom: 1px solid rgba(124, 92, 196, 0.45);
     border-bottom-left-radius: 14px;
     border-bottom-right-radius: 14px;
 }
 
 QWidget#ClientCatNav {
-    background-color: rgba(120, 100, 150, 0.06);
-    border: 1px solid rgba(150, 131, 158, 0.15);
+    background-color: #181412;
+    border: 1px solid rgba(124, 92, 196, 0.30);
     border-radius: 10px;
+}
+
+QWidget#SettingsHost,
+QWidget#ClientCatPanel,
+QWidget#ClientCatHost,
+QStackedWidget#ClientCatStack {
+    background: transparent;
+    color: #e6e0ee;
+}
+
+QScrollArea#SettingsScroll,
+QScrollArea#ClientCatScroll {
+    background-color: #181412;
+    border: 1px solid rgba(150, 131, 158, 0.18);
+    border-radius: 10px;
+}
+
+QScrollArea#SettingsScroll > QWidget > QWidget,
+QScrollArea#ClientCatScroll > QWidget > QWidget {
+    background: transparent;
 }
 
 QWidget#HomeBrandPane {
@@ -239,18 +273,60 @@ QPushButton#CatNavButton {
     border-radius: 0;
     background: transparent;
     font-size: 13px;
+    font-weight: 600;
     color: #9990ab;
 }
 
 QPushButton#CatNavButton:hover {
-    background-color: rgba(120, 100, 150, 0.10);
+    background-color: rgba(124, 92, 196, 0.16);
     color: #e6e0ee;
 }
 
 QPushButton#CatNavButton:checked {
-    background-color: rgba(120, 100, 150, 0.12);
+    background-color: rgba(74, 47, 122, 0.35);
     color: #F1C22D;
-    border-left: 3px solid #7c5cc4;
+    border-left: 3px solid #F1C22D;
+}
+
+QWidget#ModCheckRow {
+    background-color: rgba(120, 100, 150, 0.07);
+    border: 1px solid rgba(150, 131, 158, 0.14);
+    border-radius: 8px;
+}
+
+QLabel#ModRowName {
+    color: #e6e0ee;
+    font-weight: 600;
+}
+
+QPushButton#DescToggle {
+    border: none;
+    background: transparent;
+    color: #9990ab;
+    padding: 0;
+    min-width: 18px;
+}
+
+QPushButton#DescToggle:hover {
+    color: #F1C22D;
+    background: transparent;
+}
+
+QPushButton#DescToggle:pressed {
+    color: #7c5cc4;
+    background: transparent;
+}
+
+QLabel#StatusMuted {
+    color: #9990ab;
+}
+
+QLabel#StatusOk {
+    color: #7c5cc4;
+}
+
+QLabel#StatusUpdate {
+    color: #F1C22D;
 }
 
 QProgressBar#BottomProgress {
@@ -360,33 +436,115 @@ QProgressBar::chunk {
     border-radius: 3px;
 }
 
-QScrollArea {
+QScrollArea,
+QAbstractScrollArea {
     border: none;
     background: transparent;
 }
 
+QAbstractScrollArea::viewport {
+    background: transparent;
+}
+
+/* RavenCraft scrollbars — thin dark track, purple thumb, gold on hover */
 QScrollBar:vertical {
     background: #181412;
-    width: 10px;
-    margin: 0;
+    width: 9px;
+    margin: 2px 1px 2px 1px;
+    border: none;
+    border-radius: 4px;
 }
 
 QScrollBar::handle:vertical {
-    background: rgba(150, 131, 158, 0.35);
-    border-radius: 5px;
-    min-height: 30px;
+    background: #4a2f7a;
+    border: 1px solid rgba(241, 194, 45, 0.25);
+    border-radius: 4px;
+    min-height: 28px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #7c5cc4;
+    border-color: #F1C22D;
+}
+
+QScrollBar::handle:vertical:pressed {
+    background: #F1C22D;
+    border-color: #F1C22D;
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+    height: 0px;
+    width: 0px;
+    background: none;
+    border: none;
+}
+
+QScrollBar::add-page:vertical,
+QScrollBar::sub-page:vertical {
+    background: none;
+}
+
+QScrollBar:horizontal {
+    background: #181412;
+    height: 9px;
+    margin: 1px 2px 1px 2px;
+    border: none;
+    border-radius: 4px;
+}
+
+QScrollBar::handle:horizontal {
+    background: #4a2f7a;
+    border: 1px solid rgba(241, 194, 45, 0.25);
+    border-radius: 4px;
+    min-width: 28px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background: #7c5cc4;
+    border-color: #F1C22D;
+}
+
+QScrollBar::handle:horizontal:pressed {
+    background: #F1C22D;
+    border-color: #F1C22D;
+}
+
+QScrollBar::add-line:horizontal,
+QScrollBar::sub-line:horizontal {
+    height: 0px;
+    width: 0px;
+    background: none;
+    border: none;
+}
+
+QScrollBar::add-page:horizontal,
+QScrollBar::sub-page:horizontal {
+    background: none;
 }
 
 QListWidget, QTreeWidget, QTableWidget {
-    background-color: rgba(120, 100, 150, 0.06);
-    border: 1px solid rgba(150, 131, 158, 0.15);
+    background-color: #181412;
+    border: 1px solid rgba(124, 92, 196, 0.25);
     border-radius: 8px;
     color: #e6e0ee;
     outline: none;
+    padding: 4px;
+}
+
+QListWidget::item, QTreeWidget::item {
+    padding: 4px 6px;
+    border-radius: 6px;
+    color: #e6e0ee;
+}
+
+QListWidget::item:hover, QTreeWidget::item:hover {
+    background-color: rgba(124, 92, 196, 0.18);
 }
 
 QListWidget::item:selected, QTreeWidget::item:selected {
     background-color: #4a2f7a;
+    color: #ffffff;
 }
 
 QStatusBar {

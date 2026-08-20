@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, QRectF, Qt, QThread, QTimer, Signal
+from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import (
     QColor,
     QGuiApplication,
@@ -12,7 +12,6 @@ from PySide6.QtGui import (
     QPainter,
     QPainterPath,
     QPixmap,
-    QRadialGradient,
     QRegion,
 )
 from PySide6.QtWidgets import (
@@ -44,10 +43,11 @@ from ichalaunch.ui.widgets import dialogs as themed
 _RESIZE_MARGIN = 6
 _CORNER_RADIUS = 14
 _TAB_STRIP_HEIGHT = 44
-_MOA_LOGO_WIDTH = 290
-# Soft haze padding — wide enough that “M” / last letter aren’t clipped; short vertically.
-_MOA_GLOW_PAD_X = 56
-_MOA_GLOW_PAD_Y = 12
+# RavenCraft crest at ContentPanel top (was MoA). Larger than MoA wordmark was.
+_RC_LOGO_WIDTH = 210
+# Optional outer pad around the crest (kept for layout math; no glow drawn).
+_RC_GLOW_PAD_X = 0
+_RC_GLOW_PAD_Y = 0
 # Quiet launcher self-update re-check while the app stays open (addons/client: launch only).
 _PERIODIC_UPDATE_MS = 5 * 60 * 1000
 # Let the window finish laying out / detecting game path before the first network scan.
@@ -128,12 +128,12 @@ class NavTabButton(QPushButton):
         painter.drawEllipse(center, radius, radius)
 
 
-class MoaFloatingLogo(QWidget):
-    """Mysteries of Azeroth wordmark — soft elliptical glow, click-through."""
+class RavenCraftFloatingLogo(QWidget):
+    """RavenCraft crest — rides ContentPanel top border (no glow)."""
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
-        self.setObjectName("MoaFloatingLogo")
+        self.setObjectName("RavenCraftFloatingLogo")
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self._pix = QPixmap()
@@ -141,7 +141,7 @@ class MoaFloatingLogo(QWidget):
         self._load()
 
     def _load(self) -> None:
-        path = theme_file("moa_logo.png")
+        path = theme_file("ravencraft.png")
         if not path.exists():
             self.hide()
             return
@@ -149,18 +149,18 @@ class MoaFloatingLogo(QWidget):
         if src.isNull():
             self.hide()
             return
-        self._pix = src.scaledToWidth(_MOA_LOGO_WIDTH, Qt.TransformationMode.SmoothTransformation)
+        self._pix = src.scaledToWidth(_RC_LOGO_WIDTH, Qt.TransformationMode.SmoothTransformation)
         self._logo_h = self._pix.height()
         self.setFixedSize(
-            self._pix.width() + _MOA_GLOW_PAD_X * 2,
-            self._logo_h + _MOA_GLOW_PAD_Y * 2,
+            self._pix.width() + _RC_GLOW_PAD_X * 2,
+            self._logo_h + _RC_GLOW_PAD_Y * 2,
         )
         self.show()
 
     @property
     def logo_offset_y(self) -> int:
-        """Y of the wordmark top edge relative to this widget."""
-        return _MOA_GLOW_PAD_Y
+        """Y of the crest top edge relative to this widget."""
+        return _RC_GLOW_PAD_Y
 
     @property
     def logo_height(self) -> int:
@@ -172,26 +172,7 @@ class MoaFloatingLogo(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-
-        cx = self.width() / 2.0
-        cy = self.height() / 2.0
-        # Soft RavenCraft haze (grey / black / purple) — wider horizontally, shorter vertically.
-        painter.save()
-        painter.translate(cx, cy)
-        painter.scale(1.22, 0.24)
-        radius = max(self._pix.width() * 0.58, 1.0)
-        glow = QRadialGradient(0.0, 0.0, radius)
-        glow.setColorAt(0.0, QColor(55, 42, 78, 200))
-        glow.setColorAt(0.28, QColor(32, 26, 40, 150))
-        glow.setColorAt(0.55, QColor(18, 14, 22, 80))
-        glow.setColorAt(0.82, QColor(10, 8, 12, 28))
-        glow.setColorAt(1.0, QColor(0, 0, 0, 0))
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(glow)
-        painter.drawEllipse(QRectF(-radius, -radius, radius * 2, radius * 2))
-        painter.restore()
-
-        painter.drawPixmap(_MOA_GLOW_PAD_X, _MOA_GLOW_PAD_Y, self._pix)
+        painter.drawPixmap(_RC_GLOW_PAD_X, _RC_GLOW_PAD_Y, self._pix)
 
 
 class NavBottomBanner(QWidget):
@@ -213,12 +194,15 @@ class NavBottomBanner(QWidget):
     def paintEvent(self, event) -> None:  # noqa: N802
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        # Same dark as BottomBar / QSS — shows through PNG alpha between spikes.
-        painter.fillRect(self.rect(), QColor("#100d0c"))
+        # Inset L/R by the frame border so fill/pixmap never paint over the
+        # purple side border shared with ContentPanel / BottomBar.
+        inset = 1
+        inner = self.rect().adjusted(inset, 0, -inset, 0)
+        painter.fillRect(inner, QColor("#100d0c"))
         if self._pix.isNull():
             return
-        # Full-bleed stretch — asset is a wide decorative strip (1920×38).
-        painter.drawPixmap(self.rect(), self._pix)
+        # Stretch strip inside the border (asset is a wide decorative strip).
+        painter.drawPixmap(inner, self._pix)
 
 
 class Worker(QThread):
@@ -331,7 +315,8 @@ class MainWindow(QMainWindow):
         self.settings_page = SettingsPage()
         for page in (self.home, self.addons, self.client, self.settings_page):
             self.stack.addWidget(page)
-        content_l.addWidget(self.stack)
+        # Stretch so page bottom meets NavBottomBanner top (no dead gap above the strip).
+        content_l.addWidget(self.stack, 1)
 
         # ---- Bottom play bar ----
         bottom = QWidget()
@@ -376,12 +361,12 @@ class MainWindow(QMainWindow):
         outer.addWidget(self._nav_bottom_banner)
         outer.addWidget(bottom)
 
-        # Mysteries of Azeroth wordmark — straddles ContentPanel top border (click-through).
-        self._moa_logo = MoaFloatingLogo(root)
-        self._moa_logo.raise_()
+        # RavenCraft crest — straddles ContentPanel top border (click-through).
+        self._rc_logo = RavenCraftFloatingLogo(root)
+        self._rc_logo.raise_()
 
         self._update_window_mask()
-        self._position_moa_logo()
+        self._position_rc_logo()
 
         # Wire
         self.home.play_clicked.connect(self._on_play_or_install)
@@ -489,9 +474,9 @@ class MainWindow(QMainWindow):
         else:
             self.unsetCursor()
 
-    def _position_moa_logo(self) -> None:
-        """Center logo on ContentPanel top border, between SETTINGS and panel right."""
-        logo = getattr(self, "_moa_logo", None)
+    def _position_rc_logo(self) -> None:
+        """Center RavenCraft crest on ContentPanel top border, between SETTINGS and panel right."""
+        logo = getattr(self, "_rc_logo", None)
         root = self.centralWidget()
         content = getattr(self, "_content_panel", None)
         if logo is None or root is None or content is None or not self.nav_btns or logo.isHidden():
@@ -504,28 +489,26 @@ class MainWindow(QMainWindow):
         right = content_origin.x() + content.width()
         cx = (left + right) / 2.0
         x = int(round(cx - logo.width() / 2.0))
-        # Keep the wordmark pixmap fully inside the zone — avoid rounded-mask / edge clip
-        # of the leading “M” and trailing letter (glow may feather outside).
+        # Keep the crest pixmap fully inside the zone — avoid rounded-mask / edge clip
+        # (glow may feather outside).
         corner_safe = _CORNER_RADIUS + 6
-        pix_left = x + _MOA_GLOW_PAD_X
-        pix_right = x + logo.width() - _MOA_GLOW_PAD_X
+        pix_left = x + _RC_GLOW_PAD_X
+        pix_right = x + logo.width() - _RC_GLOW_PAD_X
         min_pix_left = left + 6
         max_pix_right = right - corner_safe
         if pix_left < min_pix_left:
             x += min_pix_left - pix_left
         if pix_right > max_pix_right:
             x -= pix_right - max_pix_right
-        # Prefer fitting the full wordmark; if zone is too narrow, bias slightly left
-        # so the “M” stays clear of the right-corner mask.
-        pix_left = x + _MOA_GLOW_PAD_X
+        # Prefer fitting the full crest; if zone is too narrow, bias slightly left.
+        pix_left = x + _RC_GLOW_PAD_X
         if pix_left < min_pix_left:
             x += min_pix_left - pix_left
-        # Vertical: wordmark center on ContentPanel top purple border (half above / half below).
+        # Vertical: crest center on ContentPanel top purple border (half above / half
+        # below) — same hang MoA used to have. Crest may clip above the window.
         content_top = content_origin.y()
         y = int(round(content_top - (logo.logo_offset_y + logo.logo_height / 2.0)))
-        # Keep glow canvas inside the window mask (no top/side shave).
-        y = max(2, y)
-        x = max(2, min(x, root.width() - logo.width() - 2))
+        x = max(2 - _RC_GLOW_PAD_X, min(x, root.width() - logo.width() + _RC_GLOW_PAD_X - 2))
         logo.move(x, y)
         logo.raise_()
 
@@ -533,7 +516,7 @@ class MainWindow(QMainWindow):
         super().showEvent(event)
         self._fit_to_screen()
         self._update_window_mask()
-        self._position_moa_logo()
+        self._position_rc_logo()
         # Reliable initial scan shortly after the UI is visible (not only on the 5‑min timer).
         if not self._startup_checks_scheduled:
             self._startup_checks_scheduled = True
@@ -542,7 +525,7 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._update_window_mask()
-        self._position_moa_logo()
+        self._position_rc_logo()
 
     def closeEvent(self, event):
         app = QApplication.instance()

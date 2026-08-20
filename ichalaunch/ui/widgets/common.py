@@ -129,6 +129,7 @@ class Card(QFrame):
         super().__init__(parent)
         self.setObjectName("Card")
         self.setProperty("class", "Card")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(16, 14, 16, 14)
         self._layout.setSpacing(8)
@@ -153,11 +154,13 @@ class ModCheckRow(QWidget):
         self.mod_id = mod_id
         self._full_desc = (description or "").replace("\n", " ").strip()
         self._desc_expanded = False
+        self.setObjectName("ModCheckRow")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setMinimumWidth(0)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
         row = QHBoxLayout(self)
-        row.setContentsMargins(2, 4, 4, 4)
+        row.setContentsMargins(8, 6, 8, 6)
         row.setSpacing(6)
 
         self.cb = QCheckBox()
@@ -165,7 +168,7 @@ class ModCheckRow(QWidget):
         self.cb.toggled.connect(lambda v: self.toggled.emit(self.mod_id, v))
 
         name_lbl = QLabel(title)
-        name_lbl.setStyleSheet("font-weight: 600; color: #d8d8dc;")
+        name_lbl.setObjectName("ModRowName")
         name_lbl.setWordWrap(False)
         name_lbl.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
 
@@ -188,10 +191,6 @@ class ModCheckRow(QWidget):
         self.desc_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
         self.desc_toggle.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.desc_toggle.setToolTip("Show full description")
-        self.desc_toggle.setStyleSheet(
-            "QPushButton { border: none; background: transparent; color: #8a8a92; padding: 0; }"
-            "QPushButton:hover { color: #d8d8dc; }"
-        )
         self.desc_toggle.setVisible(False)
         self.desc_toggle.clicked.connect(self._toggle_desc)
 
@@ -212,9 +211,10 @@ class ModCheckRow(QWidget):
         self.update_btn.clicked.connect(lambda: self.update_clicked.emit(self.mod_id))
 
         self.reinstall_btn = QPushButton("Reinstall")
+        self.reinstall_btn.setObjectName("ReinstallButton")
         self.reinstall_btn.setVisible(False)
-        self.reinstall_btn.setStyleSheet("padding: 4px 12px;")
-        self.reinstall_btn.setMinimumSize(84, 28)
+        # Wider than Update — "Reinstall" + compact padding must not elide/clip.
+        self.reinstall_btn.setMinimumSize(104, 28)
         self.reinstall_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.reinstall_btn.setToolTip("Re-download and overwrite installed files")
         self.reinstall_btn.clicked.connect(lambda: self.reinstall_clicked.emit(self.mod_id))

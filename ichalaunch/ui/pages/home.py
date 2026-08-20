@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+import logging
+
+from PySide6.QtCore import QEvent, QPoint, Qt, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -19,6 +21,9 @@ from ichalaunch.game.launcher import detect_game, is_installed
 from ichalaunch.mods.installer import detect_actual_state, load_mod_catalog
 from ichalaunch.ui.widgets.common import Card
 from ichalaunch.ui.widgets.countdown import LaunchCountdown
+from ichalaunch.ui.widgets.talent_bg import TalentFrameBackground
+
+log = logging.getLogger("ichalaunch")
 
 CATEGORY_ORDER = [
     "Performance & Fixes",
@@ -29,6 +34,18 @@ CATEGORY_ORDER = [
 
 DRAWER_MIN_W = 260
 DRAWER_MAX_W = 320
+# Near-touch mods drawer / right content edge; feather softens into the gap.
+_SIDE_PAD_PX = 16
+# Gap between mods Card bottom border and NavBottomBanner diamond strip.
+_MODS_BANNER_GAP_PX = 16
+# Talent art width relative to brand column (mods→right); keep bottom flush / H-center.
+_ART_WIDTH_SCALE = 0.83
+# MoA wordmark prefer width when half-mounted on art top edge.
+_MOA_ART_LOGO_W = 240
+# Fraction of MoA height above the art top (rest overlaps art) — seated on the edge.
+_MOA_ART_OVERHANG = 0.40
+# Small downward nudge so MoA sits slightly lower on the art top edge.
+_MOA_ART_NUDGE_Y = 6
 
 
 class HomePage(QWidget):
@@ -38,15 +55,24 @@ class HomePage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setStyleSheet("QWidget#HomePage, HomePage { background: transparent; }")
+        self.setObjectName("HomePage")
+        self._flush_logged = False
+        self._overlay_filters_installed = False
+        self._overlays_on_root = False
 
         page = QVBoxLayout(self)
         page.setSpacing(0)
         page.setContentsMargins(0, 0, 0, 0)
 
         body = QWidget()
+        self._body = body
+        body.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        body.setStyleSheet("background: transparent;")
         root = QHBoxLayout(body)
         root.setSpacing(24)
-        root.setContentsMargins(28, 24, 28, 12)
+        root.setContentsMargins(28, 24, 28, 0)
 
         # --- Left: fixed-ish side drawer of categorized mods ---
         left = QWidget()
@@ -54,8 +80,10 @@ class HomePage(QWidget):
         left.setMinimumWidth(DRAWER_MIN_W)
         left.setMaximumWidth(DRAWER_MAX_W)
         left.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        self._mods_drawer = left
         left_l = QVBoxLayout(left)
-        left_l.setContentsMargins(0, 0, 0, 0)
+        # Lift Card off NavBottomBanner — art still flushes to the diamond strip.
+        left_l.setContentsMargins(0, 0, 0, _MODS_BANNER_GAP_PX)
         left_l.setSpacing(0)
 
         self.summary = Card()
@@ -83,31 +111,29 @@ class HomePage(QWidget):
         self.summary.body.addWidget(scroll)
         left_l.addWidget(self.summary, 1)
 
-        # --- Right: logo / brand ---
+        # --- Right: empty brand spacer (art/logo/countdown live on Root overlay) ---
         right = QWidget()
         right.setObjectName("HomeBrandPane")
         right.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        right_l = QVBoxLayout(right)
-        right_l.setContentsMargins(8, 8, 8, 8)
-        right_l.setSpacing(12)
-        right_l.setAlignment(
-            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
-        )
+        self._brand_pane = right
 
-        self.logo = QLabel()
+        root.addWidget(left, 0)
+        root.addWidget(right, 1)
+
+        page.addWidget(body, 1)
+
+        # Created as HomePage children; reparented to MainWindow Root so art can
+        # share coordinates with NavBottomBanner (cousin of ContentPanel).
+        self.talent_bg = TalentFrameBackground(self)
+
+        self.logo = QLabel(self)
         self.logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.logo.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self._logo_src: QPixmap | None = None
         self._load_logo()
 
-        sub = QLabel("Powered by IchaLaunch")
-        sub.setObjectName("Subtitle")
-        sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        self.status = QLabel("")
-        self.status.setObjectName("Subtitle")
-        self.status.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.status.setWordWrap(True)
-
-        self.loading_wrap = QWidget()
+        self.loading_wrap = QWidget(self)
+        self.loading_wrap.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         load_l = QVBoxLayout(self.loading_wrap)
         load_l.setContentsMargins(0, 0, 0, 0)
         load_l.setSpacing(6)
@@ -123,41 +149,292 @@ class HomePage(QWidget):
         load_l.addWidget(self.loading_bar, 0, Qt.AlignmentFlag.AlignCenter)
         self.loading_wrap.setVisible(False)
 
-        # Countdown sits centered under the RavenCraft logo (not under the mods drawer).
-        self.countdown = LaunchCountdown()
+        self.countdown = LaunchCountdown(self)
+        self.countdown.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
-        right_l.addStretch(1)
-        right_l.addWidget(self.logo, 0, Qt.AlignmentFlag.AlignHCenter)
-        right_l.addWidget(sub, 0, Qt.AlignmentFlag.AlignHCenter)
-        right_l.addWidget(self.status, 0, Qt.AlignmentFlag.AlignHCenter)
-        right_l.addWidget(self.loading_wrap, 0, Qt.AlignmentFlag.AlignHCenter)
-        right_l.addWidget(self.countdown, 0, Qt.AlignmentFlag.AlignHCenter)
-        right_l.addStretch(1)
-
-        root.addWidget(left, 0)
-        root.addWidget(right, 1)
-
-        # Body fills the content panel down to the nav_bottom banner so the
-        # installed-mods drawer can use the full available height.
-        page.addWidget(body, 1)
+        right.installEventFilter(self)
+        body.installEventFilter(self)
+        left.installEventFilter(self)
 
         self.refresh()
+        self._sync_brand_layout()
+
+    def _logo_height(self) -> int:
+        pm = self.logo.pixmap()
+        if pm is not None and not pm.isNull():
+            return pm.height()
+        return max(self.logo.sizeHint().height(), self.logo.height(), 40)
+
+    def _fit_logo(self, max_h: int, prefer_w: int = _MOA_ART_LOGO_W) -> tuple[int, int]:
+        """Scale MoA wordmark from source so it can half-mount on the art top edge."""
+        src = self._logo_src
+        if src is None or src.isNull():
+            h = self._logo_height()
+            w = max(self.logo.width(), self.logo.sizeHint().width(), 1)
+            return w, h
+        scaled = src.scaledToWidth(prefer_w, Qt.TransformationMode.SmoothTransformation)
+        if scaled.height() > max_h > 0:
+            scaled = src.scaledToHeight(max_h, Qt.TransformationMode.SmoothTransformation)
+        self.logo.setPixmap(scaled)
+        self.logo.setFixedSize(scaled.size())
+        return scaled.width(), scaled.height()
+
+    def _overlay_widgets(self) -> tuple[QWidget, ...]:
+        return (
+            self.talent_bg,
+            self.logo,
+            self.loading_wrap,
+            self.countdown,
+        )
+
+    def _overlay_host(self) -> QWidget | None:
+        """MainWindow Root — same parent tree as NavBottomBanner."""
+        win = self.window()
+        if win is None:
+            return None
+        root = win.centralWidget()
+        return root if isinstance(root, QWidget) else None
+
+    def _nav_bottom_banner(self) -> QWidget | None:
+        win = self.window()
+        banner = getattr(win, "_nav_bottom_banner", None)
+        if isinstance(banner, QWidget):
+            return banner
+        return None
+
+    def _content_panel(self) -> QWidget | None:
+        win = self.window()
+        panel = getattr(win, "_content_panel", None)
+        if isinstance(panel, QWidget):
+            return panel
+        return None
+
+    def _ensure_overlays_on_root(self) -> QWidget | None:
+        """Reparent art/logo/countdown onto Root so flush uses banner.y() directly."""
+        host = self._overlay_host()
+        if host is None:
+            return None
+        for w in self._overlay_widgets():
+            if w.parent() is not host:
+                w.setParent(host)
+                self._overlays_on_root = True
+        if not self._overlay_filters_installed:
+            host.installEventFilter(self)
+            banner = self._nav_bottom_banner()
+            if banner is not None:
+                banner.installEventFilter(self)
+            panel = self._content_panel()
+            if panel is not None:
+                panel.installEventFilter(self)
+            self._overlay_filters_installed = True
+        return host
+
+    def _home_overlays_active(self) -> bool:
+        """True only while HOME is the visible stack page."""
+        if not self.isVisible():
+            return False
+        win = self.window()
+        stack = getattr(win, "stack", None)
+        if stack is not None and stack.currentWidget() is not self:
+            return False
+        return True
+
+    def _set_chrome_visible(self, visible: bool) -> None:
+        self.talent_bg.setVisible(visible)
+        self.logo.setVisible(visible)
+        self.countdown.setVisible(visible)
+        # loading_wrap keeps its own busy flag; only force-hide when leaving HOME.
+        if not visible:
+            self.loading_wrap.setVisible(False)
+
+    def _sync_brand_layout(self) -> None:
+        """Place talent art flush to NavBottomBanner; overlay MoA + countdown.
+
+        Overlays live on MainWindow Root (not in any VBox). Width is ~83% of the
+        brand column (mods → right edge), H-centered; height follows framed texture
+        aspect; bottom flush to NavBottomBanner:
+
+          art_bottom = NavBottomBanner.mapTo(Root, 0, 0).y()
+          aspect     = src_w / src_h   # after transparent-pad trim only
+          art_w      ≈ 0.83 * avail_w
+          art_h      = art_w / aspect
+
+        MoA sits on the art top edge (visually centered / half-on). RavenCraft
+        crest straddles the ContentPanel top border (MainWindow).
+        Countdown overlays near the art bottom.
+        """
+        mods = getattr(self, "_mods_drawer", None)
+        if mods is None or not hasattr(self, "talent_bg"):
+            return
+
+        if not self._home_overlays_active():
+            self._set_chrome_visible(False)
+            return
+
+        host = self._ensure_overlays_on_root()
+        if host is None or host.width() <= 0 or host.height() <= 0:
+            return
+
+        side_pad = _SIDE_PAD_PX
+        countdown_pad = 8
+
+        banner = self._nav_bottom_banner()
+        panel = self._content_panel()
+
+        # Exact diamond-strip top in Root space (sibling under ContentPanel).
+        if banner is not None and banner.isVisible():
+            art_bottom = banner.mapTo(host, QPoint(0, 0)).y()
+        elif panel is not None:
+            art_bottom = panel.mapTo(host, QPoint(0, panel.height())).y()
+        else:
+            art_bottom = host.height()
+
+        # Keep art inside the folder body (below top tabs).
+        if panel is not None:
+            content_top = panel.mapTo(host, QPoint(0, 0)).y()
+            content_right = panel.mapTo(host, QPoint(panel.width(), 0)).x()
+        else:
+            content_top = 0
+            content_right = host.width()
+
+        if art_bottom <= content_top:
+            return
+
+        mods_right = mods.mapTo(host, QPoint(mods.width(), 0)).x()
+        art_left = mods_right + side_pad
+        art_right = content_right - side_pad
+        avail_w = art_right - art_left
+        if avail_w < 64:
+            art_left = side_pad
+            art_right = content_right - side_pad
+            avail_w = max(64, art_right - art_left)
+
+        avail_h = art_bottom - content_top
+        # ~83% of brand column; height from full texture aspect (no crop).
+        aspect = max(0.01, float(self.talent_bg.source_aspect()))
+        art_w = max(64, int(round(avail_w * _ART_WIDTH_SCALE)))
+        art_h = max(1, int(round(art_w / aspect)))
+        if art_h > avail_h:
+            art_h = max(64, avail_h)
+            art_w = max(64, int(round(art_h * aspect)))
+            if art_w > avail_w:
+                art_w = avail_w
+                art_h = max(1, int(round(art_w / aspect)))
+        art_x = art_left + (avail_w - art_w) // 2
+        art_y = art_bottom - art_h
+
+        self.talent_bg.set_frame(art_x, art_y, art_w, art_h)
+        art = self.talent_bg.geometry()
+
+        # --- MoA seated on art TOP edge (visually centered / ~half-on) ---
+        max_logo_h = max(48, 2 * max(0, art.y() - 2))
+        prefer_w = min(_MOA_ART_LOGO_W, max(140, art.width() - 24))
+        logo_w, logo_h = self._fit_logo(max_h=max_logo_h, prefer_w=prefer_w)
+        logo_x = art.x() + (art.width() - logo_w) // 2
+        logo_y = art.y() - int(round(logo_h * _MOA_ART_OVERHANG)) + _MOA_ART_NUDGE_Y
+        if logo_y < 2:
+            logo_y = 2
+        self.logo.setGeometry(logo_x, logo_y, logo_w, logo_h)
+
+        # --- Busy spinner under MoA (no “Powered by” / Ready meta) ---
+        if self.loading_wrap.isVisible():
+            load_hint = self.loading_wrap.sizeHint()
+            load_w = min(max(160, load_hint.width()), max(120, art.width() - 16))
+            load_h = max(load_hint.height(), 40)
+            load_x = art.x() + (art.width() - load_w) // 2
+            load_y = logo_y + logo_h + 6
+            self.loading_wrap.setGeometry(load_x, load_y, load_w, load_h)
+
+        # --- Countdown overlaid on art BOTTOM (above diamond strip) ---
+        cd = self.countdown
+        cd_hint = cd.sizeHint()
+        cd_w = min(art.width() - 16, max(cd_hint.width(), 280))
+        cd_h = max(cd_hint.height(), 1)
+        cd_x = art.x() + (art.width() - cd_w) // 2
+        cd_y = art.y() + art.height() - cd_h - countdown_pad
+        if cd_y < art.y():
+            cd_y = art.y()
+        cd.setGeometry(cd_x, cd_y, cd_w, cd_h)
+
+        self._set_chrome_visible(True)
+
+        # Stacking: art under chrome; banner/strip stays above art; RC crest on top.
+        rc = getattr(self.window(), "_rc_logo", None)
+        self.talent_bg.raise_()
+        self.loading_wrap.raise_()
+        self.logo.raise_()
+        self.countdown.raise_()
+        if banner is not None:
+            banner.raise_()
+        if isinstance(rc, QWidget):
+            rc.raise_()
+
+        art_bottom_now = art.y() + art.height()
+        gap = art_bottom - art_bottom_now
+        if not self._flush_logged and art.height() > 0:
+            self._flush_logged = True
+            banner_pt = (
+                banner.mapTo(host, QPoint(0, 0)) if banner is not None else None
+            )
+            log.info(
+                "HOME flush proof (Root coords): host=%s content_top=%s "
+                "banner_pt=%s art=%s art_bottom=%s banner_top=%s gap=%s ok=%s",
+                host.rect().getRect(),
+                content_top,
+                banner_pt,
+                art.getRect(),
+                art_bottom_now,
+                art_bottom,
+                gap,
+                gap == 0,
+            )
+
+    def eventFilter(self, obj, event):  # noqa: ANN001
+        if event.type() in (QEvent.Type.Resize, QEvent.Type.Show, QEvent.Type.Move):
+            tracked = (
+                getattr(self, "_brand_pane", None),
+                getattr(self, "_body", None),
+                getattr(self, "_mods_drawer", None),
+                self._overlay_host(),
+                self._nav_bottom_banner(),
+                self._content_panel(),
+            )
+            if obj in tracked:
+                self._sync_brand_layout()
+        return super().eventFilter(obj, event)
+
+    def resizeEvent(self, event) -> None:  # noqa: ANN001
+        super().resizeEvent(event)
+        self._sync_brand_layout()
+
+    def showEvent(self, event) -> None:  # noqa: ANN001
+        super().showEvent(event)
+        self._sync_brand_layout()
+
+    def hideEvent(self, event) -> None:  # noqa: ANN001
+        super().hideEvent(event)
+        self._set_chrome_visible(False)
 
     def _load_logo(self) -> None:
-        path = theme_file("ravencraft.png")
+        path = theme_file("moa_logo.png")
         if path.exists():
             pix = QPixmap(str(path))
             if not pix.isNull():
-                scaled = pix.scaledToWidth(260, Qt.TransformationMode.SmoothTransformation)
+                self._logo_src = pix
+                scaled = pix.scaledToWidth(
+                    _MOA_ART_LOGO_W, Qt.TransformationMode.SmoothTransformation
+                )
                 self.logo.setPixmap(scaled)
-                self.logo.setMinimumHeight(scaled.height())
+                self.logo.setFixedSize(scaled.size())
                 return
-        self.logo.setText("RAVENCRAFT")
+        self._logo_src = None
+        self.logo.setText("Mysteries of Azeroth")
         self.logo.setObjectName("Brand")
 
     def set_checking(self, busy: bool, msg: str = "Checking for updates…") -> None:
         self.loading_lbl.setText(msg if busy else "")
         self.loading_wrap.setVisible(busy)
+        self._sync_brand_layout()
 
     def _clear_summary(self) -> None:
         while self.summary_host.count():
@@ -201,7 +478,6 @@ class HomePage(QWidget):
         self._clear_summary()
 
         if installed:
-            self.status.setText("Ready")
             game = detect_game()
             actual = detect_actual_state(game) if game else {}
             catalog = load_mod_catalog()
@@ -234,7 +510,6 @@ class HomePage(QWidget):
 
             self.summary_host.addStretch(1)
         else:
-            self.status.setText("Client not found — use INSTALL or Settings")
             tip = QLabel(
                 "Ravencraft uses the Turtle 1.18 client.<br>"
                 "Click <b>INSTALL</b> in the bottom-right to pick a save location, or open "
@@ -244,3 +519,5 @@ class HomePage(QWidget):
             tip.setObjectName("Muted")
             self.summary_host.addWidget(tip)
             self.summary_host.addStretch(1)
+
+        self._sync_brand_layout()

@@ -33,11 +33,15 @@ class SettingsPage(QWidget):
         outer.setSpacing(0)
 
         scroll = QScrollArea()
+        scroll.setObjectName("SettingsScroll")
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
 
         host = QWidget()
+        host.setObjectName("SettingsHost")
+        host.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         host.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         layout = QVBoxLayout(host)
         layout.setContentsMargins(24, 24, 24, 24)
@@ -48,7 +52,9 @@ class SettingsPage(QWidget):
 
         game_card = Card()
         game_card.body.setSpacing(10)
-        game_card.body.addWidget(QLabel("Game location"))
+        game_title = QLabel("Game location")
+        game_title.setObjectName("CardTitle")
+        game_card.body.addWidget(game_title)
         row = QHBoxLayout()
         row.setSpacing(8)
         self.path_edit = QLineEdit(settings.game_path)
@@ -69,7 +75,9 @@ class SettingsPage(QWidget):
 
         launch_card = Card()
         launch_card.body.setSpacing(10)
-        launch_card.body.addWidget(QLabel("Launch"))
+        launch_title = QLabel("Launch")
+        launch_title.setObjectName("CardTitle")
+        launch_card.body.addWidget(launch_title)
         self.cb_vf = QCheckBox("Launch through VanillaFixes.exe when available")
         self.cb_vf.setChecked(bool(settings.get("vanillafixes_enabled", True)))
         self.cb_vf.toggled.connect(lambda v: settings.set("vanillafixes_enabled", v))
@@ -85,7 +93,9 @@ class SettingsPage(QWidget):
 
         upd_card = Card()
         upd_card.body.setSpacing(10)
-        upd_card.body.addWidget(QLabel("Updates"))
+        upd_title = QLabel("Updates")
+        upd_title.setObjectName("CardTitle")
+        upd_card.body.addWidget(upd_title)
         self.cb_auto_updates = QCheckBox("Automatically Check For Updates On Startup")
         self.cb_auto_updates.setChecked(settings.check_updates_on_startup())
         self.cb_auto_updates.setToolTip(
@@ -99,7 +109,9 @@ class SettingsPage(QWidget):
 
         gh_card = Card()
         gh_card.body.setSpacing(10)
-        gh_card.body.addWidget(QLabel("GitHub API"))
+        gh_title = QLabel("GitHub API")
+        gh_title.setObjectName("CardTitle")
+        gh_card.body.addWidget(gh_title)
         token_row = QHBoxLayout()
         token_row.setSpacing(8)
         self.token_edit = QLineEdit(str(settings.get("github_token") or ""))
@@ -137,7 +149,9 @@ class SettingsPage(QWidget):
 
         about = Card()
         about.body.setSpacing(10)
-        about.body.addWidget(QLabel(f"IchaLaunch {__version__}"))
+        about_title = QLabel(f"IchaLaunch {__version__}")
+        about_title.setObjectName("CardTitle")
+        about.body.addWidget(about_title)
         about_sub = QLabel(
             "Styled after ichasarmory.quest · Client mods via RetroCro/TurtleWoW-Mods sources"
         )

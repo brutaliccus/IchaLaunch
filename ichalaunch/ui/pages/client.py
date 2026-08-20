@@ -86,6 +86,8 @@ class ClientPage(QWidget):
         side_l.setSpacing(2)
         self.cat_btns: list[QPushButton] = []
         self.cat_stack = QStackedWidget()
+        self.cat_stack.setObjectName("ClientCatStack")
+        self.cat_stack.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.rows: dict[str, ModCheckRow] = {}
         self._pending_updates: dict[str, dict] = {}
         self._apply_pending = False
@@ -160,16 +162,22 @@ class ClientPage(QWidget):
         self._cat_index[cat] = index
 
         page = QWidget()
+        page.setObjectName("ClientCatPanel")
+        page.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         page_l = QVBoxLayout(page)
         page_l.setContentsMargins(0, 0, 0, 0)
         scroll = QScrollArea()
+        scroll.setObjectName("ClientCatScroll")
+        scroll.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         host = QWidget()
+        host.setObjectName("ClientCatHost")
+        host.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         host.setMinimumWidth(0)
         host_l = QVBoxLayout(host)
-        host_l.setContentsMargins(4, 0, 4, 0)
+        host_l.setContentsMargins(8, 8, 8, 8)
         host_l.setSpacing(8)
         self._cat_hosts[cat] = host_l
         for mod in mods:
@@ -322,24 +330,32 @@ class ClientPage(QWidget):
             if pending:
                 detail = f"{pending.get('local', '?')} → {pending.get('remote', '?')}"
                 row.status_lbl.setText(f"Update available ({detail})")
-                row.status_lbl.setStyleSheet("color: #F1C22D;")
+                self._set_status_style(row.status_lbl, "StatusUpdate")
                 row.set_update_available(True, detail)
                 row.set_reinstall_visible(can_ri)
             elif actual.get(mid):
                 if self._client_mods_scan_done:
                     row.status_lbl.setText(status_with_stamp("Up to date", installed_meta.get(mid)))
-                    row.status_lbl.setStyleSheet("color: #7c5cc4;")
+                    self._set_status_style(row.status_lbl, "StatusOk")
                 else:
                     row.status_lbl.setText("Not checked")
-                    row.status_lbl.setStyleSheet("color: #8a8a92;")
+                    self._set_status_style(row.status_lbl, "StatusMuted")
                 row.set_update_available(False)
                 row.set_reinstall_visible(can_ri)
             else:
                 row.status_lbl.setText("Not installed")
-                row.status_lbl.setStyleSheet("color: #8a8a92;")
+                self._set_status_style(row.status_lbl, "StatusMuted")
                 row.set_update_available(False)
                 row.set_reinstall_visible(False)
         self.refresh_plan()
+
+    @staticmethod
+    def _set_status_style(lbl: QLabel, object_name: str) -> None:
+        lbl.setStyleSheet("")
+        if lbl.objectName() != object_name:
+            lbl.setObjectName(object_name)
+            lbl.style().unpolish(lbl)
+            lbl.style().polish(lbl)
 
     def _pulse_apply_btn(self) -> None:
         if self.apply_btn.objectName() not in ("ApplyReadyButton", "ApplyReadyButtonPulse"):

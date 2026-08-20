@@ -40,7 +40,7 @@ class LaunchCountdown(QWidget):
         super().__init__(parent)
         self.setObjectName("LaunchCountdown")
         root = QVBoxLayout(self)
-        # Compact padding — countdown lives under the HOME logo, not above the banner.
+        # Compact — HomePage pins this over the art bottom (banner), not below art.
         root.setContentsMargins(0, 10, 0, 0)
         root.setSpacing(8)
         root.setAlignment(Qt.AlignmentFlag.AlignCenter)
