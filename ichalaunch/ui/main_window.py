@@ -7,15 +7,24 @@ from pathlib import Path
 from PySide6.QtCore import QEvent, QPoint, QRect, Qt, QThread, Signal
 from PySide6.QtGui import QGuiApplication, QIcon, QPainterPath, QRegion
 from PySide6.QtWidgets import (
+    QAbstractButton,
+    QAbstractItemView,
+    QAbstractSlider,
+    QAbstractSpinBox,
     QApplication,
+    QComboBox,
     QFileDialog,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMainWindow,
+    QPlainTextEdit,
     QProgressBar,
     QPushButton,
+    QScrollBar,
     QSizeGrip,
     QStackedWidget,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -137,9 +146,11 @@ class MainWindow(QMainWindow):
         nav = QWidget()
         nav.setObjectName("TopNav")
         nav.setFixedHeight(_TAB_STRIP_HEIGHT)
+        nav.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         nav.setMouseTracking(True)
         nav_l = QHBoxLayout(nav)
-        nav_l.setContentsMargins(14, 6, 14, 0)
+        # Less top margin so tab labels sit higher relative to the folder body
+        nav_l.setContentsMargins(14, 2, 14, 0)
         nav_l.setSpacing(3)
         nav_l.setAlignment(Qt.AlignmentFlag.AlignBottom)
         self.nav_btns: list[QPushButton] = []
@@ -324,36 +335,79 @@ class MainWindow(QMainWindow):
             self.releaseMouse()
         super().closeEvent(event)
 
+    def _widget_is_interactive(self, widget: QWidget | None) -> bool:
+        """True if clicks should stay with the control (not start a window drag)."""
+        w = widget
+        while w is not None and w is not self:
+            if isinstance(
+                w,
+                (
+                    QAbstractButton,
+                    QAbstractSlider,
+                    QAbstractSpinBox,
+                    QAbstractItemView,
+                    QComboBox,
+                    QLineEdit,
+                    QTextEdit,
+                    QPlainTextEdit,
+                    QScrollBar,
+                    QSizeGrip,
+                ),
+            ):
+                return True
+            # Native scrollbars / viewport hosts often aren't the interactive class itself
+            if w.objectName() == "qt_scrollarea_viewport":
+                parent = w.parentWidget()
+                if isinstance(parent, QAbstractItemView):
+                    return True
+            w = w.parentWidget()
+        return False
+
+    def _begin_window_drag(self, global_pos: QPoint) -> None:
+        self._drag_pos = global_pos - self.frameGeometry().topLeft()
+        self._resize_edges = None
+        self._resize_origin = None
+        self._resize_geo = None
+
     def eventFilter(self, obj, event):
-        """Edge-resize / cursor when children sit on the frameless border."""
-        if isinstance(obj, QWidget) and obj.window() is self and not isinstance(obj, QSizeGrip):
+        """Edge-resize on border; drag window from non-interactive chrome."""
+        if isinstance(obj, QWidget) and obj.window() is self:
             et = event.type()
             if et == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
                 pos = self.mapFromGlobal(event.globalPosition().toPoint())
                 edges = self._hit_resize_edges(pos)
-                if any(edges):
+                if any(edges) and not isinstance(obj, QSizeGrip):
                     self._resize_edges = edges
                     self._resize_origin = event.globalPosition().toPoint()
                     self._resize_geo = QRect(self.geometry())
                     self._drag_pos = None
                     self.grabMouse()
                     return True
+                if not isinstance(obj, QSizeGrip) and not self._widget_is_interactive(obj):
+                    self._begin_window_drag(event.globalPosition().toPoint())
+                    # Do not consume — labels/panels still get the press; move is tracked below
             elif et == QEvent.Type.MouseMove:
                 if self._resize_edges is not None and self._resize_origin is not None and self._resize_geo is not None:
                     self._apply_edge_resize(event.globalPosition().toPoint())
+                    return True
+                if self._drag_pos is not None and event.buttons() & Qt.MouseButton.LeftButton:
+                    self.move(event.globalPosition().toPoint() - self._drag_pos)
+                    self._clamp_on_screen()
                     return True
                 if not (event.buttons() & Qt.MouseButton.LeftButton):
                     pos = self.mapFromGlobal(event.globalPosition().toPoint())
                     if self.rect().contains(pos):
                         self._update_resize_cursor(self._hit_resize_edges(pos))
-            elif et == QEvent.Type.MouseButtonRelease and self._resize_edges is not None:
-                self.releaseMouse()
-                self._resize_edges = None
-                self._resize_origin = None
-                self._resize_geo = None
-                pos = self.mapFromGlobal(event.globalPosition().toPoint())
-                self._update_resize_cursor(self._hit_resize_edges(pos))
-                return True
+            elif et == QEvent.Type.MouseButtonRelease:
+                if self._resize_edges is not None:
+                    self.releaseMouse()
+                    self._resize_edges = None
+                    self._resize_origin = None
+                    self._resize_geo = None
+                    pos = self.mapFromGlobal(event.globalPosition().toPoint())
+                    self._update_resize_cursor(self._hit_resize_edges(pos))
+                    return True
+                self._drag_pos = None
         return super().eventFilter(obj, event)
 
     def _apply_edge_resize(self, global_pos: QPoint) -> None:
@@ -405,11 +459,10 @@ class MainWindow(QMainWindow):
                 self._drag_pos = None
                 event.accept()
                 return
-            if pos.y() <= _TAB_STRIP_HEIGHT:
-                self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
-                self._resize_edges = None
-                event.accept()
-                return
+            # Fallback when press lands on the window itself (not a child)
+            self._begin_window_drag(event.globalPosition().toPoint())
+            event.accept()
+            return
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
