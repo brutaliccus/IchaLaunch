@@ -158,7 +158,10 @@ class ClientPage(QWidget):
         page_l.setContentsMargins(0, 0, 0, 0)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         host = QWidget()
+        host.setMinimumWidth(0)
         host_l = QVBoxLayout(host)
         host_l.setContentsMargins(4, 0, 4, 0)
         host_l.setSpacing(8)
@@ -283,23 +286,33 @@ class ClientPage(QWidget):
             settings.set("vanillafixes_enabled", enabled)
         self.refresh_plan()
 
+    @staticmethod
+    def _mod_can_reinstall(mod: dict) -> bool:
+        """True when a downloadable source exists (same gate as update checks)."""
+        kind = mod.get("kind")
+        if kind in ("manual_link", "wdb_block", "config_script_memory"):
+            return False
+        return bool(mod.get("source"))
+
     def refresh_from_settings(self) -> None:
         self.sync_catalog_rows()
         desired = settings.desired_mods
         installed_meta = settings.installed_mods
         game = detect_game()
         actual = detect_actual_state(game) if game else {}
+        catalog = {m["id"]: m for m in load_mod_catalog()}
         for mid, row in self.rows.items():
             row.cb.blockSignals(True)
             row.cb.setChecked(bool(desired.get(mid, False)))
             row.cb.blockSignals(False)
+            can_ri = self._mod_can_reinstall(catalog.get(mid) or {})
             pending = self._pending_updates.get(mid)
             if pending:
                 detail = f"{pending.get('local', '?')} → {pending.get('remote', '?')}"
                 row.status_lbl.setText(f"Update available ({detail})")
                 row.status_lbl.setStyleSheet("color: #F1C22D;")
                 row.set_update_available(True, detail)
-                row.set_reinstall_visible(True)
+                row.set_reinstall_visible(can_ri)
             elif actual.get(mid):
                 if self._client_mods_scan_done:
                     row.status_lbl.setText(status_with_stamp("Up to date", installed_meta.get(mid)))
@@ -308,7 +321,7 @@ class ClientPage(QWidget):
                     row.status_lbl.setText("Not checked")
                     row.status_lbl.setStyleSheet("color: #8a8a92;")
                 row.set_update_available(False)
-                row.set_reinstall_visible(True)
+                row.set_reinstall_visible(can_ri)
             else:
                 row.status_lbl.setText("Not installed")
                 row.status_lbl.setStyleSheet("color: #8a8a92;")

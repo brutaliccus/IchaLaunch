@@ -139,7 +139,10 @@ class Card(QFrame):
 
 
 class ModCheckRow(QWidget):
-    """Single compact line: [checkbox] Name — description — status [Update] [Reinstall]."""
+    """Compact row: [checkbox] Name — truncated desc [▸] — status [Update] [Reinstall].
+
+    Description takes remaining width and elides; Update/Reinstall stay fixed on the right.
+    """
 
     toggled = Signal(str, bool)
     update_clicked = Signal(str)
@@ -148,6 +151,11 @@ class ModCheckRow(QWidget):
     def __init__(self, mod_id: str, title: str, description: str, checked: bool = False, parent=None):
         super().__init__(parent)
         self.mod_id = mod_id
+        self._full_desc = (description or "").replace("\n", " ").strip()
+        self._desc_expanded = False
+        self.setMinimumWidth(0)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+
         row = QHBoxLayout(self)
         row.setContentsMargins(2, 4, 4, 4)
         row.setSpacing(6)
@@ -158,20 +166,34 @@ class ModCheckRow(QWidget):
 
         name_lbl = QLabel(title)
         name_lbl.setStyleSheet("font-weight: 600; color: #d8d8dc;")
+        name_lbl.setWordWrap(False)
+        name_lbl.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
 
         sep1 = QLabel("—")
         sep1.setObjectName("Muted")
 
-        desc_raw = (description or "").replace("\n", " ").strip()
-        if len(desc_raw) > 72:
-            desc_raw = desc_raw[:69] + "…"
-        desc_lbl = QLabel(desc_raw)
-        desc_lbl.setObjectName("Muted")
-        desc_lbl.setWordWrap(False)
-        desc_lbl.setToolTip(description or "")
-        # Stretch/shrink here so long descriptions never crush the Update button.
-        desc_lbl.setMinimumWidth(0)
-        desc_lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.desc_lbl = QLabel()
+        self.desc_lbl.setObjectName("Muted")
+        self.desc_lbl.setWordWrap(False)
+        self.desc_lbl.setToolTip(self._full_desc)
+        self.desc_lbl.setMinimumWidth(0)
+        desc_policy = QSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        desc_policy.setHorizontalStretch(1)
+        self.desc_lbl.setSizePolicy(desc_policy)
+
+        self.desc_toggle = QPushButton("▸")
+        self.desc_toggle.setObjectName("DescToggle")
+        self.desc_toggle.setFlat(True)
+        self.desc_toggle.setFixedSize(18, 22)
+        self.desc_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.desc_toggle.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.desc_toggle.setToolTip("Show full description")
+        self.desc_toggle.setStyleSheet(
+            "QPushButton { border: none; background: transparent; color: #8a8a92; padding: 0; }"
+            "QPushButton:hover { color: #d8d8dc; }"
+        )
+        self.desc_toggle.setVisible(False)
+        self.desc_toggle.clicked.connect(self._toggle_desc)
 
         sep2 = QLabel("—")
         sep2.setObjectName("Muted")
@@ -179,7 +201,7 @@ class ModCheckRow(QWidget):
         self.status_lbl = QLabel("")
         self.status_lbl.setObjectName("Muted")
         self.status_lbl.setWordWrap(False)
-        self.status_lbl.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        self.status_lbl.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
 
         self.update_btn = QPushButton("Update")
         self.update_btn.setObjectName("UpdateButton")
@@ -200,11 +222,55 @@ class ModCheckRow(QWidget):
         row.addWidget(self.cb, 0)
         row.addWidget(name_lbl, 0)
         row.addWidget(sep1, 0)
-        row.addWidget(desc_lbl, 1)
+        row.addWidget(self.desc_lbl, 1)
+        row.addWidget(self.desc_toggle, 0, Qt.AlignmentFlag.AlignVCenter)
         row.addWidget(sep2, 0)
         row.addWidget(self.status_lbl, 0)
         row.addWidget(self.update_btn, 0, Qt.AlignmentFlag.AlignVCenter)
         row.addWidget(self.reinstall_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+        self._apply_desc()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        if not self._desc_expanded:
+            self._apply_desc()
+
+    def _toggle_desc(self) -> None:
+        self._desc_expanded = not self._desc_expanded
+        self._apply_desc()
+        self.updateGeometry()
+
+    def _apply_desc(self) -> None:
+        if not self._full_desc:
+            self.desc_lbl.clear()
+            self.desc_toggle.setVisible(False)
+            return
+        if self._desc_expanded:
+            self.desc_lbl.setWordWrap(True)
+            expand_policy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+            expand_policy.setHorizontalStretch(1)
+            self.desc_lbl.setSizePolicy(expand_policy)
+            self.desc_lbl.setText(self._full_desc)
+            self.desc_toggle.setText("▾")
+            self.desc_toggle.setToolTip("Hide full description")
+            self.desc_toggle.setVisible(True)
+            return
+        self.desc_lbl.setWordWrap(False)
+        collapse_policy = QSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        collapse_policy.setHorizontalStretch(1)
+        self.desc_lbl.setSizePolicy(collapse_policy)
+        width = max(0, self.desc_lbl.width())
+        if width <= 1:
+            self.desc_lbl.setText(self._full_desc)
+            self.desc_toggle.setVisible(len(self._full_desc) > 48)
+        else:
+            elided = self.desc_lbl.fontMetrics().elidedText(
+                self._full_desc, Qt.TextElideMode.ElideRight, width
+            )
+            self.desc_lbl.setText(elided)
+            self.desc_toggle.setVisible(elided != self._full_desc)
+        self.desc_toggle.setText("▸")
+        self.desc_toggle.setToolTip("Show full description")
 
     def set_update_available(self, available: bool, detail: str = "") -> None:
         self.update_btn.setVisible(available)

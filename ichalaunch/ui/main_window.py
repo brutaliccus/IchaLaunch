@@ -44,10 +44,9 @@ _RESIZE_MARGIN = 6
 _CORNER_RADIUS = 14
 _TAB_STRIP_HEIGHT = 44
 _MOA_LOGO_WIDTH = 300
-# Soft haze padding — keep vertical tight so the ellipse wraps the wordmark
-# (avoids tall glow clipping at top/bottom of the floating logo widget).
-_MOA_GLOW_PAD_X = 28
-_MOA_GLOW_PAD_Y = 14
+# Soft haze padding — modest feather around the wordmark (between old huge and tiny).
+_MOA_GLOW_PAD_X = 32
+_MOA_GLOW_PAD_Y = 22
 
 from ichalaunch import __version__
 from ichalaunch.core.paths import theme_file
@@ -134,12 +133,12 @@ class MoaFloatingLogo(QWidget):
 
         cx = self.width() / 2.0
         cy = self.height() / 2.0
-        # Soft RavenCraft haze (grey / black / purple) — tight ellipse around text.
+        # Soft RavenCraft haze (grey / black / purple) — soft ellipse around text.
         painter.save()
         painter.translate(cx, cy)
-        # ~60% shorter vertically vs prior 0.52 scale; slight horizontal tighten.
-        painter.scale(0.92, 0.21)
-        radius = max(self._pix.width() * 0.52, 1.0)
+        # Halfway between prior huge (0.52) and post-shrink tiny (0.21).
+        painter.scale(0.94, 0.34)
+        radius = max(self._pix.width() * 0.54, 1.0)
         glow = QRadialGradient(0.0, 0.0, radius)
         glow.setColorAt(0.0, QColor(55, 42, 78, 200))
         glow.setColorAt(0.28, QColor(32, 26, 40, 150))
