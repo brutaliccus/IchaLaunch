@@ -47,44 +47,9 @@ class AddonsPage(QWidget):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
+        # Extra top padding clears the floating MoA logo overhang
+        layout.setContentsMargins(16, 28, 16, 12)
         layout.setSpacing(8)
-
-        tools = QHBoxLayout()
-        self.search = QLineEdit()
-        self.search.setPlaceholderText("Search catalog…")
-        self._search_timer = QTimer(self)
-        self._search_timer.setSingleShot(True)
-        self._search_timer.setInterval(180)
-        self._search_timer.timeout.connect(self.refresh)
-        self.search.textChanged.connect(lambda: self._search_timer.start())
-
-        self.filter_box = QComboBox()
-        self.filter_box.addItems(["Installed", "Available", "Update Available", "All"])
-        self.filter_box.currentTextChanged.connect(self.refresh)
-
-        self.cat_box = QComboBox()
-        self.cat_box.addItem("All categories")
-        self.cat_box.currentTextChanged.connect(self.refresh)
-
-        check_btn = QPushButton("Check Updates")
-        check_btn.clicked.connect(self.check_updates_requested.emit)
-        self.check_btn = check_btn
-        update_all_btn = QPushButton("Update All")
-        update_all_btn.setObjectName("UpdateAllButton")
-        update_all_btn.clicked.connect(self.update_all_requested.emit)
-        rescan_btn = QPushButton("Rescan Disk")
-        rescan_btn.clicked.connect(self.rescan_requested.emit)
-        import_btn = QPushButton("Add from GitHub")
-        import_btn.clicked.connect(self._open_github_import_dialog)
-
-        tools.addWidget(self.search, 2)
-        tools.addWidget(self.filter_box)
-        tools.addWidget(self.cat_box)
-        tools.addWidget(rescan_btn)
-        tools.addWidget(check_btn)
-        tools.addWidget(update_all_btn)
-        tools.addWidget(import_btn)
 
         self.loading_row = QHBoxLayout()
         self.loading_lbl = QLabel("")
@@ -138,7 +103,43 @@ class AddonsPage(QWidget):
         action_row.addWidget(self.page_lbl)
         action_row.addWidget(self.next_btn)
 
-        layout.addLayout(tools)
+        # Search / filters / actions sit at the bottom near the play bar
+        tools = QHBoxLayout()
+        self.search = QLineEdit()
+        self.search.setPlaceholderText("Search catalog…")
+        self._search_timer = QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(180)
+        self._search_timer.timeout.connect(self.refresh)
+        self.search.textChanged.connect(lambda: self._search_timer.start())
+
+        self.filter_box = QComboBox()
+        self.filter_box.addItems(["Installed", "Available", "Update Available", "All"])
+        self.filter_box.currentTextChanged.connect(self.refresh)
+
+        self.cat_box = QComboBox()
+        self.cat_box.addItem("All categories")
+        self.cat_box.currentTextChanged.connect(self.refresh)
+
+        check_btn = QPushButton("Check Updates")
+        check_btn.clicked.connect(self.check_updates_requested.emit)
+        self.check_btn = check_btn
+        update_all_btn = QPushButton("Update All")
+        update_all_btn.setObjectName("UpdateAllButton")
+        update_all_btn.clicked.connect(self.update_all_requested.emit)
+        rescan_btn = QPushButton("Rescan Disk")
+        rescan_btn.clicked.connect(self.rescan_requested.emit)
+        import_btn = QPushButton("Add from GitHub")
+        import_btn.clicked.connect(self._open_github_import_dialog)
+
+        tools.addWidget(self.search, 2)
+        tools.addWidget(self.filter_box)
+        tools.addWidget(self.cat_box)
+        tools.addWidget(rescan_btn)
+        tools.addWidget(check_btn)
+        tools.addWidget(update_all_btn)
+        tools.addWidget(import_btn)
+
         layout.addLayout(self.loading_row)
         layout.addWidget(self.updates_lbl)
         layout.addWidget(self.installed_hdr)
@@ -146,6 +147,7 @@ class AddonsPage(QWidget):
         layout.addWidget(self.avail_hdr)
         layout.addWidget(self.list, 2)
         layout.addLayout(action_row)
+        layout.addLayout(tools)
 
         self._pending_updates: list[dict] = []
         self._addons_scan_done = False
