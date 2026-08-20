@@ -47,4 +47,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='ichalaunch/ui/theme/ichalaunch.ico',
 )
