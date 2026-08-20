@@ -85,16 +85,14 @@ class SettingsPage(QWidget):
         upd_card = Card()
         upd_card.body.setSpacing(10)
         upd_card.body.addWidget(QLabel("Updates"))
-        self.cb_addon = QCheckBox("Check addon updates on startup")
-        self.cb_addon.setChecked(bool(settings.get("check_addon_updates_on_startup", True)))
-        self.cb_addon.toggled.connect(lambda v: settings.set("check_addon_updates_on_startup", v))
-        self.cb_addon.setMinimumHeight(28)
-        upd_card.body.addWidget(self.cb_addon)
-        self.cb_mods = QCheckBox("Check client mod updates on startup")
-        self.cb_mods.setChecked(bool(settings.get("check_mod_updates_on_startup", True)))
-        self.cb_mods.toggled.connect(lambda v: settings.set("check_mod_updates_on_startup", v))
-        self.cb_mods.setMinimumHeight(28)
-        upd_card.body.addWidget(self.cb_mods)
+        self.cb_auto_updates = QCheckBox("Automatically Check For Updates On Startup")
+        self.cb_auto_updates.setChecked(settings.check_updates_on_startup())
+        self.cb_auto_updates.setToolTip(
+            "When enabled, quietly checks addon and client mod updates after launch."
+        )
+        self.cb_auto_updates.toggled.connect(settings.set_check_updates_on_startup)
+        self.cb_auto_updates.setMinimumHeight(28)
+        upd_card.body.addWidget(self.cb_auto_updates)
 
         gh_card = Card()
         gh_card.body.setSpacing(10)
@@ -169,6 +167,9 @@ class SettingsPage(QWidget):
 
     def refresh(self) -> None:
         self.path_edit.setText(settings.game_path)
+        self.cb_auto_updates.blockSignals(True)
+        self.cb_auto_updates.setChecked(settings.check_updates_on_startup())
+        self.cb_auto_updates.blockSignals(False)
         # Avoid clobbering in-progress edits / firing textChanged autosave.
         stored = str(settings.get("github_token") or "")
         if self.token_edit.text() != stored:

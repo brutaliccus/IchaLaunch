@@ -205,7 +205,11 @@ class AddonRow(QWidget):
             status_lbl.setObjectName("Muted")
         layout.addWidget(status_lbl)
 
-        is_installed = status in ("Installed", "Up to date") or status.startswith("Update")
+        # Installed rows may show "Not checked" before an update scan completes.
+        is_installed = (
+            status in ("Installed", "Up to date", "Not checked", "—")
+            or status.startswith("Update")
+        )
         if is_installed:
             if status.startswith("Update"):
                 btn_u = QPushButton("Update")

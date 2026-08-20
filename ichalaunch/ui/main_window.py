@@ -231,9 +231,8 @@ class MainWindow(QMainWindow):
         self._nav(0)
         if is_installed():
             self._resync(silent=True)
-            if settings.get("check_addon_updates_on_startup"):
+            if settings.check_updates_on_startup():
                 self._check_updates(silent=True)
-            if settings.get("check_mod_updates_on_startup"):
                 self._check_mod_updates(silent=True)
 
     # --- window chrome ---
@@ -471,6 +470,10 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "No game", "Set a valid game path first.")
             return
         result = full_resync()
+        # Disk rescan is not an update-check — keep / reset scan-done so we don't
+        # claim "Up to date" without a successful Check Updates pass.
+        self.addons.reset_scan_done()
+        self.client.reset_scan_done()
         self.client.refresh_from_settings()
         self.addons.mark_dirty()
         self.addons.refresh()

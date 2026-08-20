@@ -24,6 +24,9 @@ DEFAULTS: dict[str, Any] = {
     "vanillafixes_enabled": True,
     "minimize_on_launch": False,
     "close_on_launch": False,
+    # Unified: covers both addon and client-mod quiet checks on launch.
+    "check_updates_on_startup": True,
+    # Legacy keys kept for migration from older settings.json files.
     "check_addon_updates_on_startup": True,
     "check_mod_updates_on_startup": True,
     "auto_install_updates": False,
@@ -70,9 +73,25 @@ class Settings:
                     im = dict(DEFAULTS.get("installed_mods") or {})
                     im.update(loaded.get("installed_mods") or {})
                     merged["installed_mods"] = im
+                    # Migrate older dual startup toggles into one setting.
+                    if "check_updates_on_startup" not in loaded:
+                        addon_on = bool(loaded.get("check_addon_updates_on_startup", True))
+                        mod_on = bool(loaded.get("check_mod_updates_on_startup", True))
+                        merged["check_updates_on_startup"] = addon_on or mod_on
                     self._data = merged
             except (json.JSONDecodeError, OSError):
                 self._data = dict(DEFAULTS)
+
+    def check_updates_on_startup(self) -> bool:
+        return bool(self.get("check_updates_on_startup", True))
+
+    def set_check_updates_on_startup(self, enabled: bool) -> None:
+        """Persist the unified startup check flag and keep legacy keys in sync."""
+        enabled = bool(enabled)
+        self._data["check_updates_on_startup"] = enabled
+        self._data["check_addon_updates_on_startup"] = enabled
+        self._data["check_mod_updates_on_startup"] = enabled
+        self.save()
 
     def save(self) -> None:
         path = settings_path()

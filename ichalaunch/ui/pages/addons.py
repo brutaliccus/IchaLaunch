@@ -143,6 +143,7 @@ class AddonsPage(QWidget):
         layout.addLayout(action_row)
 
         self._pending_updates: list[dict] = []
+        self._addons_scan_done = False
         self._catalog_cache = load_catalog()
         self._dirty = True
         self._page_index = 0
@@ -192,12 +193,18 @@ class AddonsPage(QWidget):
 
     def set_updates(self, updates: list[dict]) -> None:
         self._pending_updates = updates
+        self._addons_scan_done = True
         if updates:
             self.updates_lbl.setText(f"{len(updates)} update(s) available")
         else:
             self.updates_lbl.setText("")
         self.mark_dirty()
         self.refresh()
+
+    def reset_scan_done(self) -> None:
+        """Clear update-check completion (e.g. disk rescan is not an update scan)."""
+        self._addons_scan_done = False
+        self.mark_dirty()
 
     def clear_pending_update(self, folder: str) -> None:
         """Remove one folder from the pending-update list after a successful update."""
@@ -315,7 +322,12 @@ class AddonsPage(QWidget):
                     "repo": meta.get("url") or "",
                     "source": meta.get("source", "detected"),
                 }
-                status = "Update available" if folder in update_map else "Up to date"
+                if folder in update_map:
+                    status = "Update available"
+                elif self._addons_scan_done:
+                    status = "Up to date"
+                else:
+                    status = "Not checked"
                 row = AddonRow(entry, status=status)
                 row.update_clicked.connect(self.update_requested.emit)
                 row.remove_clicked.connect(self.remove_requested.emit)

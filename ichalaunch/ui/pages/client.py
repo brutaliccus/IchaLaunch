@@ -99,6 +99,7 @@ class ClientPage(QWidget):
         self.cat_stack = QStackedWidget()
         self.rows: dict[str, ModCheckRow] = {}
         self._pending_updates: dict[str, dict] = {}
+        self._client_mods_scan_done = False
 
         by_cat: dict[str, list] = {}
         for mod in load_mod_catalog():
@@ -171,6 +172,7 @@ class ClientPage(QWidget):
 
     def set_updates(self, updates: list[dict]) -> None:
         self._pending_updates = {u["id"]: u for u in updates if u.get("id")}
+        self._client_mods_scan_done = True
         n = len(self._pending_updates)
         if n:
             self.updates_lbl.setText(f"{n} client mod update(s) available")
@@ -178,6 +180,10 @@ class ClientPage(QWidget):
             self.updates_lbl.setText("")
         self.update_all_btn.setEnabled(n > 0)
         self.refresh_from_settings()
+
+    def reset_scan_done(self) -> None:
+        """Clear update-check completion (disk rescan is not an update scan)."""
+        self._client_mods_scan_done = False
 
     def clear_pending_update(self, mod_id: str) -> None:
         self._pending_updates.pop(mod_id, None)
@@ -215,8 +221,12 @@ class ClientPage(QWidget):
                 row.status_lbl.setStyleSheet("color: #ffd700;")
                 row.set_update_available(True, detail)
             elif actual.get(mid):
-                row.status_lbl.setText("Detected on disk")
-                row.status_lbl.setStyleSheet("color: #4CAF50;")
+                if self._client_mods_scan_done:
+                    row.status_lbl.setText("Up to date")
+                    row.status_lbl.setStyleSheet("color: #4CAF50;")
+                else:
+                    row.status_lbl.setText("Not checked")
+                    row.status_lbl.setStyleSheet("color: #8a8a92;")
                 row.set_update_available(False)
             else:
                 row.status_lbl.setText("Not installed")
