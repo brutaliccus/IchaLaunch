@@ -437,7 +437,7 @@
     "name": "DoiteAuras",
     "repo": "https://github.com/Player-Doite/DoiteAuras",
     "category": "Combat",
-    "description": "Looking for WeakAuras? DoiteAuras is a lightweight, condition-based tracker for abilities, buffs, debuffs, items and bars https://www.youtube.com/watch?v=oXDpkqRlLDc Vid1",
+    "description": "Ability, buff, debuff & item tracker for Vanilla WoW — lightweight condition-based auras (WeakAuras-style). https://github.com/Player-Doite/DoiteAuras",
     "source": "turtle_wiki",
     "folder": "DoiteAuras"
   },

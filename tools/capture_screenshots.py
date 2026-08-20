@@ -18,6 +18,9 @@ from ichalaunch.ui.widgets.dialogs import ThemedDialog
 
 OUT = ROOT / "docs" / "screenshots"
 PAGES = ("home", "addons", "client", "settings")
+# Allow talent art / overlays / countdown to settle before the first grab.
+_SETTLE_MS = 1800
+_PAGE_PAUSE_MS = 350
 
 
 def main() -> int:
@@ -34,37 +37,42 @@ def main() -> int:
     win.show()
     app.processEvents()
 
-    def finish() -> None:
-        for idx, name in enumerate(PAGES):
-            win._nav(idx)
+    def grab_pages(idx: int = 0) -> None:
+        if idx >= len(PAGES):
+            dlg = ThemedDialog(
+                win,
+                "Ready",
+                "Client path saved.\nThis is the RavenCraft-themed dialog style.",
+                kind="info",
+            )
+            dlg.show()
             app.processEvents()
-            # Let layout / countdown paint settle
+            dlg.adjustSize()
+            app.processEvents()
+            dlg_pix = dlg.grab()
+            dlg_path = OUT / "themed_dialog.png"
+            dlg_pix.save(str(dlg_path), "PNG")
+            print(f"Wrote {dlg_path}")
+            dlg.close()
+            win.close()
+            app.quit()
+            return
+
+        name = PAGES[idx]
+        win._nav(idx)
+        app.processEvents()
+
+        def snap() -> None:
             app.processEvents()
             pix = win.grab()
             dest = OUT / f"{name}.png"
             pix.save(str(dest), "PNG")
             print(f"Wrote {dest}")
+            grab_pages(idx + 1)
 
-        dlg = ThemedDialog(
-            win,
-            "Ready",
-            "Client path saved.\nThis is the RavenCraft-themed dialog style.",
-            kind="info",
-        )
-        dlg.show()
-        app.processEvents()
-        dlg.adjustSize()
-        app.processEvents()
-        dlg_pix = dlg.grab()
-        dlg_path = OUT / "themed_dialog.png"
-        dlg_pix.save(str(dlg_path), "PNG")
-        print(f"Wrote {dlg_path}")
-        dlg.close()
+        QTimer.singleShot(_PAGE_PAUSE_MS, snap)
 
-        win.close()
-        app.quit()
-
-    QTimer.singleShot(400, finish)
+    QTimer.singleShot(_SETTLE_MS, grab_pages)
     return app.exec()
 
 
