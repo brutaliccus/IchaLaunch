@@ -83,6 +83,26 @@ def test_discover_game_path_near_launcher():
     print("OK discover game path near launcher")
 
 
+def test_status_progress_bytes():
+    from ichalaunch.core.process import StatusProgress, download_bytes_cb
+
+    statuses: list[str] = []
+    pcts: list[int] = []
+    p = StatusProgress(statuses.append, pcts.append)
+    p("Downloading pack…")
+    assert pcts[-1] == -1
+    cb = download_bytes_cb(p)
+    assert cb is not None
+    cb(42, 100)
+    assert pcts[-1] == 42
+    assert "42%" in statuses[-1]
+    cb(50, 0)  # unknown total → indeterminate
+    assert pcts[-1] == -1
+    assert download_bytes_cb(None) is None
+    assert download_bytes_cb(lambda m: None) is None
+    print("OK status progress bytes")
+
+
 def test_multi_folder_pack_grouping():
     from ichalaunch.core.detect import (
         group_multi_folder_addons,
@@ -136,6 +156,7 @@ def main():
     test_dlls_txt()
     test_detect_state()
     test_discover_game_path_near_launcher()
+    test_status_progress_bytes()
     test_multi_folder_pack_grouping()
     print("\nAll smoke tests passed.")
 

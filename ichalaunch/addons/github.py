@@ -17,7 +17,7 @@ import requests
 from ichalaunch.config.settings import settings
 from ichalaunch.core.filesystem import copy_tree, extract_zip, find_toc_roots
 from ichalaunch.core.logging_setup import log
-from ichalaunch.core.process import download_file
+from ichalaunch.core.process import download_bytes_cb, download_file
 from ichalaunch.game.launcher import detect_game
 
 ProgressCb = Callable[[str], None]
@@ -272,7 +272,9 @@ def install_from_github(url: str, folder_name: str | None = None, progress: Prog
         work = Path(tmp)
         if progress:
             progress(f"Downloading {owner}/{repo}@{branch}...")
-        zpath = download_file(zip_url, work / "addon.zip")
+        zpath = download_file(
+            zip_url, work / "addon.zip", progress=download_bytes_cb(progress)
+        )
         extracted = extract_zip(zpath, work / "extract")
         roots = find_toc_roots(extracted)
         if not roots and any(extracted.glob("*.toc")):

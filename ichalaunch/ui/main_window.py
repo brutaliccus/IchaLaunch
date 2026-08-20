@@ -63,6 +63,7 @@ from ichalaunch.config.settings import settings
 from ichalaunch.core.detect import full_resync
 from ichalaunch.core.filesystem import is_protected_path
 from ichalaunch.core.logging_setup import log
+from ichalaunch.core.process import StatusProgress
 from ichalaunch.core.self_update import (
     LauncherReleaseInfo,
     apply_windows_self_replace,
@@ -172,10 +173,10 @@ class Worker(QThread):
 
     def run(self):
         try:
-            def progress(msg: str):
-                self.status.emit(msg)
-                self.progress_pct.emit(-1)
-
+            progress = StatusProgress(
+                lambda m: self.status.emit(m),
+                lambda p: self.progress_pct.emit(p),
+            )
             kwargs = dict(self.kwargs)
             try:
                 result = self.fn(*self.args, progress=progress, **kwargs)
@@ -663,13 +664,28 @@ class MainWindow(QMainWindow):
         self.play_btn.setEnabled(not busy)
         if busy:
             self.progress.show()
-            self.progress.setRange(0, 0)  # indeterminate
+            self.progress.setRange(0, 0)  # indeterminate until bytes known
+            self.progress.setFormat("")
             self.status_lbl.setText(msg or "Working…")
         else:
             self.progress.hide()
             self.progress.setRange(0, 100)
             self.progress.setValue(0)
+            self.progress.setFormat("%p%")
             self.status_lbl.setText(msg or "Ready")
+
+    def _on_progress_pct(self, pct: int) -> None:
+        """Update bottom bar: determinate 0–100, or busy when pct < 0."""
+        if not self.progress.isVisible():
+            return
+        if pct < 0:
+            self.progress.setRange(0, 0)
+            self.progress.setFormat("")
+            return
+        if self.progress.maximum() == 0:
+            self.progress.setRange(0, 100)
+        self.progress.setValue(max(0, min(100, int(pct))))
+        self.progress.setFormat("%p%")
 
     def _refresh_check_loading(self) -> None:
         addon_busy = self._checking_addons
@@ -713,6 +729,7 @@ class MainWindow(QMainWindow):
             return
         self._set_busy_ui(True, title)
         worker.status.connect(lambda m: self.status_lbl.setText(m))
+        worker.progress_pct.connect(self._on_progress_pct)
         worker.finished_ok.connect(self._on_worker_ok)
         worker.failed.connect(self._on_worker_fail)
         self._worker = worker

@@ -4,11 +4,53 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 import requests
 
-ProgressCb = Callable[[int, int], None]  # downloaded, total
+BytesProgressCb = Callable[[int, int], None]  # downloaded, total
+# Back-compat alias used by download_file callers.
+ProgressCb = BytesProgressCb
+
+
+class StatusProgress:
+    """Status-string reporter that can also emit determinate download percents.
+
+    Compatible with ``Callable[[str], None]`` progress hooks used by install/update
+    workers. Pass ``.on_bytes`` into ``download_file`` for byte-level progress.
+    """
+
+    def __init__(
+        self,
+        on_status: Callable[[str], None],
+        on_pct: Callable[[int], None],
+    ) -> None:
+        self._on_status = on_status
+        self._on_pct = on_pct
+        self._label = ""
+
+    def __call__(self, msg: str) -> None:
+        self._label = (msg or "").strip()
+        self._on_status(self._label)
+        # Status-only updates (install/extract) fall back to indeterminate.
+        self._on_pct(-1)
+
+    def on_bytes(self, done: int, total: int) -> None:
+        if total and total > 0:
+            pct = max(0, min(100, int(done * 100 / total)))
+            self._on_pct(pct)
+            base = self._label.rstrip(".…") or "Downloading"
+            self._on_status(f"{base}… {pct}%")
+        else:
+            self._on_pct(-1)
+
+
+def download_bytes_cb(progress: Any) -> BytesProgressCb | None:
+    """Adapt a status progress object to ``download_file``'s (done, total) callback."""
+    if progress is None:
+        return None
+    cb = getattr(progress, "on_bytes", None)
+    return cb if callable(cb) else None
 
 
 def download_file(url: str, dest: Path, progress: ProgressCb | None = None, timeout: int = 120) -> Path:

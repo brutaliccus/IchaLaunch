@@ -35,7 +35,7 @@ from ichalaunch.core.filesystem import (
     update_dlls_txt,
 )
 from ichalaunch.core.logging_setup import log
-from ichalaunch.core.process import download_file, google_drive_url
+from ichalaunch.core.process import download_bytes_cb, download_file, google_drive_url
 from ichalaunch.game.launcher import detect_game
 
 ProgressCb = Callable[[str], None]
@@ -483,17 +483,25 @@ def _download_source(source: dict[str, Any], work: Path, progress: ProgressCb | 
     stype = source.get("type")
     if progress:
         progress(f"Downloading ({stype})...")
+    bytes_cb = download_bytes_cb(progress)
     if stype == "google_drive":
         file_id = source["id"]
         filename = source.get("filename") or f"{file_id}.bin"
         dest = work / filename
-        download_file(google_drive_url(file_id), dest, timeout=int(source.get("timeout") or 300))
+        download_file(
+            google_drive_url(file_id),
+            dest,
+            progress=bytes_cb,
+            timeout=int(source.get("timeout") or 300),
+        )
         return dest
     if stype in ("raw", "github_release", "github_zip", "raw_zip"):
         url = source["url"]
         filename = source.get("filename") or url.split("/")[-1].split("?")[0]
         dest = work / filename
-        download_file(url, dest, timeout=int(source.get("timeout") or 120))
+        download_file(
+            url, dest, progress=bytes_cb, timeout=int(source.get("timeout") or 120)
+        )
         return dest
     if stype == "github_release_latest":
         repo = source["repo"]
@@ -513,7 +521,7 @@ def _download_source(source: dict[str, Any], work: Path, progress: ProgressCb | 
                 detail = f"{needle} (excluding {source['asset_not_contains']})"
             raise FileNotFoundError(f"No release asset matching {detail} for {repo}")
         dest = work / asset["name"]
-        download_file(asset["browser_download_url"], dest)
+        download_file(asset["browser_download_url"], dest, progress=bytes_cb)
         return dest
     raise ValueError(f"Unknown source type: {stype}")
 

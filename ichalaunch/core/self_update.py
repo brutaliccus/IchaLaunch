@@ -22,6 +22,7 @@ from ichalaunch.addons.github import (
     rate_limit_exhausted,
 )
 from ichalaunch.core.logging_setup import log
+from ichalaunch.core.process import download_bytes_cb
 
 ProgressCb = Callable[[str], None]
 
@@ -166,7 +167,14 @@ def check_latest_launcher_release(
     )
 
 
-def _download_asset(url: str, dest: Path, *, asset_id: int | None = None, repo: str = LAUNCHER_REPO) -> Path:
+def _download_asset(
+    url: str,
+    dest: Path,
+    *,
+    asset_id: int | None = None,
+    repo: str = LAUNCHER_REPO,
+    progress: Callable[[int, int], None] | None = None,
+) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
     headers = github_headers()
     # Prefer API asset URL when we have an id (works with token for private assets).
@@ -174,22 +182,31 @@ def _download_asset(url: str, dest: Path, *, asset_id: int | None = None, repo: 
     if asset_id is not None:
         fetch_url = f"https://api.github.com/repos/{repo}/releases/assets/{asset_id}"
         headers["Accept"] = "application/octet-stream"
+
+    def _write_stream(resp: requests.Response) -> None:
+        total = int(resp.headers.get("Content-Length") or 0)
+        done = 0
+        with dest.open("wb") as f:
+            for chunk in resp.iter_content(chunk_size=1024 * 256):
+                if not chunk:
+                    continue
+                f.write(chunk)
+                done += len(chunk)
+                if progress:
+                    progress(done, total)
+
     with requests.get(fetch_url, headers=headers, stream=True, timeout=180, allow_redirects=True) as r:
         if r.status_code == 404 and fetch_url != url and url:
             # Fall back to browser_download_url for public releases.
             r.close()
             with requests.get(url, headers=github_headers(), stream=True, timeout=180, allow_redirects=True) as r2:
                 r2.raise_for_status()
-                with dest.open("wb") as f:
-                    for chunk in r2.iter_content(chunk_size=1024 * 256):
-                        if chunk:
-                            f.write(chunk)
+                _write_stream(r2)
+            if dest.stat().st_size < 1024:
+                raise RuntimeError("Downloaded launcher update looks too small — aborting")
             return dest
         r.raise_for_status()
-        with dest.open("wb") as f:
-            for chunk in r.iter_content(chunk_size=1024 * 256):
-                if chunk:
-                    f.write(chunk)
+        _write_stream(r)
     if dest.stat().st_size < 1024:
         raise RuntimeError("Downloaded launcher update looks too small — aborting")
     return dest
@@ -271,6 +288,7 @@ def download_and_stage_update(
         info.download_url,
         tmp,
         asset_id=info.asset_id,
+        progress=download_bytes_cb(progress),
     )
     _validate_pe_exe(tmp)
     if progress:
