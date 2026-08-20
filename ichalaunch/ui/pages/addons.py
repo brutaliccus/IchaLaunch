@@ -6,8 +6,6 @@ from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
-    QDialog,
-    QDialogButtonBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -24,6 +22,7 @@ from ichalaunch.addons.github import load_catalog
 from ichalaunch.config.settings import settings
 from ichalaunch.core.detect import scan_installed_addon_folders
 from ichalaunch.ui.widgets.common import AddonRow
+from ichalaunch.ui.widgets.dialogs import prompt_text
 
 PAGE_SIZE = 80
 INSTALLED_ROW_H = 56
@@ -168,25 +167,13 @@ class AddonsPage(QWidget):
         self._dirty = True
 
     def _open_github_import_dialog(self) -> None:
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Add from GitHub")
-        dlg.setMinimumWidth(420)
-        body = QVBoxLayout(dlg)
-        body.addWidget(QLabel("Paste a GitHub repository URL:"))
-        url_edit = QLineEdit()
-        url_edit.setPlaceholderText("https://github.com/owner/addon-repo")
-        body.addWidget(url_edit)
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        url = prompt_text(
+            self,
+            "Add from GitHub",
+            "Paste a GitHub repository URL:",
+            placeholder="https://github.com/owner/addon-repo",
+            accept_text="Import",
         )
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Import")
-        buttons.accepted.connect(dlg.accept)
-        buttons.rejected.connect(dlg.reject)
-        body.addWidget(buttons)
-        url_edit.returnPressed.connect(dlg.accept)
-        if dlg.exec() != QDialog.DialogCode.Accepted:
-            return
-        url = url_edit.text().strip()
         if url:
             self.github_import_requested.emit(url)
 

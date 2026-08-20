@@ -12,7 +12,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
-    QMessageBox,
     QProgressBar,
     QPushButton,
     QSizeGrip,
@@ -20,6 +19,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from ichalaunch.ui.widgets import dialogs as themed
 
 _RESIZE_MARGIN = 6
 
@@ -469,7 +470,7 @@ class MainWindow(QMainWindow):
     def _resync(self, silent: bool = False) -> None:
         if not is_installed():
             if not silent:
-                QMessageBox.warning(self, "No game", "Set a valid game path first.")
+                themed.warning(self, "No game", "Set a valid game path first.")
             return
         result = full_resync()
         # Disk rescan is not an update-check — keep / reset scan-done so we don't
@@ -482,7 +483,7 @@ class MainWindow(QMainWindow):
         self.home.refresh()
         self._refresh_play_button()
         if not silent:
-            QMessageBox.information(
+            themed.info(
                 self,
                 "Rescan complete",
                 f"Detected {len(result['addons'])} addon folder(s) and synced client mod checkboxes.",
@@ -490,7 +491,7 @@ class MainWindow(QMainWindow):
 
     def _busy(self, title: str, worker: Worker, on_ok=None) -> None:
         if self._worker and self._worker.isRunning():
-            QMessageBox.information(self, "Busy", "Another task is already running.")
+            themed.info(self, "Busy", "Another task is already running.")
             return
         self._set_busy_ui(True, title)
         worker.status.connect(lambda m: self.status_lbl.setText(m))
@@ -515,7 +516,7 @@ class MainWindow(QMainWindow):
 
     def _on_worker_fail(self, msg: str) -> None:
         self._set_busy_ui(False, "Failed")
-        QMessageBox.critical(self, "Error", msg)
+        themed.error(self, "Error", msg)
 
     def _on_play_or_install(self) -> None:
         if is_installed():
@@ -531,7 +532,7 @@ class MainWindow(QMainWindow):
             elif settings.get("minimize_on_launch"):
                 self.showMinimized()
         except Exception as exc:  # noqa: BLE001
-            QMessageBox.critical(self, "Launch failed", str(exc))
+            themed.error(self, "Launch failed", str(exc))
 
     def _install_or_browse(self) -> None:
         path = QFileDialog.getExistingDirectory(self, "Choose Ravencraft install folder", "C:/Games")
@@ -540,17 +541,17 @@ class MainWindow(QMainWindow):
         p = Path(path)
         ok, msg = validate_install_location(p)
         if not ok:
-            QMessageBox.warning(self, "Protected location", msg)
+            themed.warning(self, "Protected location", msg)
             return
         if (p / "WoW.exe").exists():
             settings.game_path = str(p)
             self._resync(silent=True)
-            QMessageBox.information(self, "Ready", f"Using existing client:\n{p}")
+            themed.info(self, "Ready", f"Using existing client:\n{p}")
             self.home.refresh()
             self._refresh_play_button()
             return
         note = install_game_stub(p)
-        QMessageBox.information(
+        themed.info(
             self,
             "Install folder ready",
             f"{note}\n\nSelected folder:\n{p}\n\n"
@@ -564,42 +565,42 @@ class MainWindow(QMainWindow):
         if not path:
             return
         if is_protected_path(path):
-            QMessageBox.warning(
+            themed.warning(
                 self,
                 "Protected location",
                 "This folder may cause permission issues with client mods.",
             )
         if not (Path(path) / "WoW.exe").exists():
-            QMessageBox.warning(self, "Not a game folder", "WoW.exe was not found in that folder.")
+            themed.warning(self, "Not a game folder", "WoW.exe was not found in that folder.")
             return
         settings.game_path = path
         self.settings_page.refresh()
         self._resync(silent=True)
         self._refresh_play_button()
-        QMessageBox.information(self, "Saved", f"Game path set to:\n{path}")
+        themed.info(self, "Saved", f"Game path set to:\n{path}")
 
     def _verify_game(self) -> None:
         if is_installed():
-            QMessageBox.information(self, "Verify", f"WoW.exe found at:\n{settings.game_path}")
+            themed.info(self, "Verify", f"WoW.exe found at:\n{settings.game_path}")
         else:
-            QMessageBox.warning(self, "Verify", "Game not detected. Browse to a valid client folder.")
+            themed.warning(self, "Verify", "Game not detected. Browse to a valid client folder.")
 
     def _apply_mods(self) -> None:
         if not is_installed():
-            QMessageBox.warning(self, "No game", "Set a valid game path first.")
+            themed.warning(self, "No game", "Set a valid game path first.")
             return
         worker = Worker(apply_desired_state)
         self._busy(
             "Applying client mods…",
             worker,
-            on_ok=lambda result: QMessageBox.information(
+            on_ok=lambda result: themed.info(
                 self, "Client updated", "Changes applied:\n" + ("\n".join(result) if result else "(none)")
             ),
         )
 
     def _install_catalog_addon(self, entry: dict) -> None:
         if not is_installed():
-            QMessageBox.warning(self, "No game", "Set a valid game path first.")
+            themed.warning(self, "No game", "Set a valid game path first.")
             return
         url = entry.get("repo")
         folder = entry.get("folder")
@@ -607,18 +608,18 @@ class MainWindow(QMainWindow):
         self._busy(
             f"Installing {entry.get('name')}…",
             worker,
-            on_ok=lambda name: QMessageBox.information(self, "Installed", f"Installed: {name}"),
+            on_ok=lambda name: themed.info(self, "Installed", f"Installed: {name}"),
         )
 
     def _github_import(self, url: str) -> None:
         if not is_installed():
-            QMessageBox.warning(self, "No game", "Set a valid game path first.")
+            themed.warning(self, "No game", "Set a valid game path first.")
             return
         worker = Worker(install_from_github, url)
         self._busy(
             "Importing from GitHub…",
             worker,
-            on_ok=lambda name: QMessageBox.information(
+            on_ok=lambda name: themed.info(
                 self, "Installed from GitHub", f"Installed from GitHub: {name}"
             ),
         )
@@ -643,7 +644,7 @@ class MainWindow(QMainWindow):
             self.status_lbl.setText("No updates available — run Check Updates first.")
             return
         if not is_installed():
-            QMessageBox.warning(self, "No game", "Set a valid game path first.")
+            themed.warning(self, "No game", "Set a valid game path first.")
             return
 
         total = len(folders)
@@ -679,7 +680,7 @@ class MainWindow(QMainWindow):
         self._busy(f"Updating {total} addon(s)…", worker, on_ok=on_ok)
 
     def _remove_addon(self, folder: str) -> None:
-        if QMessageBox.question(self, "Remove addon", f"Remove {folder}?") != QMessageBox.StandardButton.Yes:
+        if not themed.question(self, "Remove addon", f"Remove {folder}?"):
             return
         try:
             uninstall_addon(folder)
@@ -687,7 +688,7 @@ class MainWindow(QMainWindow):
             self.addons.refresh()
             self.home.refresh()
         except Exception as exc:  # noqa: BLE001
-            QMessageBox.critical(self, "Error", str(exc))
+            themed.error(self, "Error", str(exc))
 
     def _check_updates(self, silent: bool = False) -> None:
         """Quiet background check — status bar only, never blocks PLAY or shows a popup."""
@@ -791,13 +792,13 @@ class MainWindow(QMainWindow):
         if not mod_id:
             return
         if not is_installed():
-            QMessageBox.warning(self, "No game", "Set a valid game path first.")
+            themed.warning(self, "No game", "Set a valid game path first.")
             return
 
         def on_ok(_result):
             self.client.clear_pending_update(mod_id)
             self.status_lbl.setText(f"Updated {mod_id}")
-            QMessageBox.information(self, "Updated", f"Updated client mod: {mod_id}")
+            themed.info(self, "Updated", f"Updated client mod: {mod_id}")
 
         worker = Worker(update_mod, mod_id)
         self._busy(f"Updating {mod_id}…", worker, on_ok=on_ok)
@@ -809,7 +810,7 @@ class MainWindow(QMainWindow):
             self.status_lbl.setText("No client mod updates — run Check Updates first.")
             return
         if not is_installed():
-            QMessageBox.warning(self, "No game", "Set a valid game path first.")
+            themed.warning(self, "No game", "Set a valid game path first.")
             return
         total = len(ids)
 

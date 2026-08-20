@@ -347,6 +347,59 @@ QMessageBox {
     background-color: #100d0c;
 }
 
+/* Themed modal dialogs (frameless RavenCraft cards) */
+QDialog#ThemedDialog {
+    background: transparent;
+}
+
+QWidget#ThemedDialogCard {
+    background-color: #100d0c;
+    border: 1px solid rgba(150, 131, 158, 0.22);
+    border-radius: 10px;
+}
+
+QLabel#ThemedDialogTitle {
+    color: #F1C22D;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+QLabel#ThemedDialogBody {
+    color: #e6e0ee;
+    font-size: 13px;
+    line-height: 1.35;
+}
+
+QPushButton#ThemedDialogPrimary {
+    background-color: #4a2f7a;
+    color: #ffffff;
+    border: 1px solid #F1C22D;
+    border-radius: 8px;
+    padding: 8px 18px;
+    font-weight: 600;
+    min-width: 72px;
+}
+
+QPushButton#ThemedDialogPrimary:hover {
+    background-color: #7c5cc4;
+    border-color: #FF7757;
+}
+
+QPushButton#ThemedDialogSecondary {
+    background-color: rgba(120, 100, 150, 0.10);
+    color: #e6e0ee;
+    border: 1px solid rgba(150, 131, 158, 0.18);
+    border-radius: 8px;
+    padding: 8px 18px;
+    min-width: 72px;
+}
+
+QPushButton#ThemedDialogSecondary:hover {
+    background-color: rgba(124, 92, 196, 0.22);
+    border-color: #7c5cc4;
+}
+
 /* Launch countdown (ravencraft.io) */
 QWidget#LaunchCountdown QLabel#CountdownTitle {
     color: #9990ab;
