@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QLayout,
     QLayoutItem,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -131,6 +132,9 @@ class ModCheckRow(QWidget):
         desc_lbl.setObjectName("Muted")
         desc_lbl.setWordWrap(False)
         desc_lbl.setToolTip(description or "")
+        # Stretch/shrink here so long descriptions never crush the Update button.
+        desc_lbl.setMinimumWidth(0)
+        desc_lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
         sep2 = QLabel("—")
         sep2.setObjectName("Muted")
@@ -138,10 +142,14 @@ class ModCheckRow(QWidget):
         self.status_lbl = QLabel("")
         self.status_lbl.setObjectName("Muted")
         self.status_lbl.setWordWrap(False)
+        self.status_lbl.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
 
         self.update_btn = QPushButton("Update")
         self.update_btn.setVisible(False)
-        self.update_btn.setFixedHeight(26)
+        # Compact padding + min size so global QPushButton padding doesn't clip the label.
+        self.update_btn.setStyleSheet("padding: 4px 12px;")
+        self.update_btn.setMinimumSize(76, 28)
+        self.update_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.update_btn.clicked.connect(lambda: self.update_clicked.emit(self.mod_id))
 
         row.addWidget(self.cb, 0)
@@ -150,7 +158,7 @@ class ModCheckRow(QWidget):
         row.addWidget(desc_lbl, 1)
         row.addWidget(sep2, 0)
         row.addWidget(self.status_lbl, 0)
-        row.addWidget(self.update_btn, 0)
+        row.addWidget(self.update_btn, 0, Qt.AlignmentFlag.AlignVCenter)
 
     def set_update_available(self, available: bool, detail: str = "") -> None:
         self.update_btn.setVisible(available)
