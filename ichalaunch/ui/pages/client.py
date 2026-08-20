@@ -36,6 +36,7 @@ class ClientPage(QWidget):
     reinstall_mod_requested = Signal(str)
     update_all_mods_requested = Signal()
     custom_dll_import_requested = Signal(str)
+    badge_state_changed = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -87,6 +88,7 @@ class ClientPage(QWidget):
         self.cat_stack = QStackedWidget()
         self.rows: dict[str, ModCheckRow] = {}
         self._pending_updates: dict[str, dict] = {}
+        self._apply_pending = False
         self._client_mods_scan_done = False
         self._cat_hosts: dict[str, QVBoxLayout] = {}
         self._cat_index: dict[str, int] = {}
@@ -248,6 +250,10 @@ class ClientPage(QWidget):
     def pending_updates(self) -> list[dict]:
         return list(self._pending_updates.values())
 
+    def has_pending_badge(self) -> bool:
+        """True when CLIENT tab should show a gold update/apply badge."""
+        return bool(self._pending_updates) or bool(self._apply_pending)
+
     def set_checking(self, busy: bool, msg: str = "Checking for updates…") -> None:
         self.loading_lbl.setText(msg if busy else "")
         self.loading_bar.setVisible(busy)
@@ -264,6 +270,7 @@ class ClientPage(QWidget):
             self.updates_lbl.setText("")
         self.update_all_btn.setEnabled(n > 0)
         self.refresh_from_settings()
+        self.badge_state_changed.emit()
 
     def reset_scan_done(self) -> None:
         """Clear update-check completion (disk rescan is not an update scan)."""
@@ -278,6 +285,7 @@ class ClientPage(QWidget):
             self.updates_lbl.setText("")
         self.update_all_btn.setEnabled(n > 0)
         self.refresh_from_settings()
+        self.badge_state_changed.emit()
 
     def _show_cat(self, idx: int) -> None:
         self.cat_stack.setCurrentIndex(idx)
@@ -344,6 +352,9 @@ class ClientPage(QWidget):
 
     def _set_apply_pending(self, pending: bool) -> None:
         """Highlight Apply Changes when installs/removes are pending; mute when clean."""
+        pending = bool(pending)
+        changed = pending != self._apply_pending
+        self._apply_pending = pending
         if pending:
             if self.apply_btn.objectName() not in ("ApplyReadyButton", "ApplyReadyButtonPulse"):
                 self.apply_btn.setObjectName("ApplyReadyButton")
@@ -363,6 +374,8 @@ class ClientPage(QWidget):
                 self.apply_btn.style().polish(self.apply_btn)
             self.apply_btn.setEnabled(False)
             self.apply_btn.setToolTip("No pending client mod changes")
+        if changed:
+            self.badge_state_changed.emit()
 
     def refresh_plan(self) -> None:
         game = detect_game()

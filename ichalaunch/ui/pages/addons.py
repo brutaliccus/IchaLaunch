@@ -42,6 +42,7 @@ class AddonsPage(QWidget):
     github_import_requested = Signal(str)
     check_updates_requested = Signal()
     rescan_requested = Signal()
+    badge_state_changed = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -195,6 +196,7 @@ class AddonsPage(QWidget):
             self.updates_lbl.setText("")
         self.mark_dirty()
         self.refresh()
+        self.badge_state_changed.emit()
 
     def reset_scan_done(self) -> None:
         """Clear update-check completion (e.g. disk rescan is not an update scan)."""
@@ -213,6 +215,7 @@ class AddonsPage(QWidget):
             self.updates_lbl.setText("")
         self.mark_dirty()
         self.refresh()
+        self.badge_state_changed.emit()
 
     def reload_catalog(self) -> None:
         self._catalog_cache = load_catalog()

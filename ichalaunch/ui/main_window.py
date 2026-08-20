@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QPoint, QRect, QRectF, Qt, QThread, Signal
+from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, QRectF, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import (
     QColor,
     QGuiApplication,
@@ -47,6 +47,9 @@ _MOA_LOGO_WIDTH = 290
 # Soft haze padding — wide enough that “M” / last letter aren’t clipped; short vertically.
 _MOA_GLOW_PAD_X = 56
 _MOA_GLOW_PAD_Y = 12
+# Quiet re-check while the launcher stays open (addons / mods / self-update).
+_PERIODIC_UPDATE_MS = 5 * 60 * 1000
+_GOLD = QColor("#F1C22D")
 
 from ichalaunch import __version__
 from ichalaunch.core.paths import theme_file
@@ -55,6 +58,7 @@ from ichalaunch.addons.github import (
     RATE_LIMIT_STATUS,
     check_addon_updates,
     install_from_github,
+    rate_limit_exhausted,
     recently_checked_addon_updates,
     uninstall_addon,
     update_addon,
@@ -91,6 +95,33 @@ from ichalaunch.ui.pages.client import ClientPage
 from ichalaunch.ui.pages.home import HomePage
 from ichalaunch.ui.pages.settings import SettingsPage
 from ichalaunch.ui.widgets.launch_button import LaunchButton
+
+
+class NavTabButton(QPushButton):
+    """Folder tab with an optional gold pending-update badge."""
+
+    def __init__(self, text: str, parent: QWidget | None = None):
+        super().__init__(text, parent)
+        self._badge = False
+
+    def set_badge_visible(self, visible: bool) -> None:
+        visible = bool(visible)
+        if visible == self._badge:
+            return
+        self._badge = visible
+        self.update()
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        super().paintEvent(event)
+        if not self._badge:
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        radius = 4.5
+        center = QPointF(self.width() - radius - 7.0, radius + 5.0)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(_GOLD)
+        painter.drawEllipse(center, radius, radius)
 
 
 class MoaFloatingLogo(QWidget):
@@ -241,9 +272,9 @@ class MainWindow(QMainWindow):
         nav_l.setContentsMargins(14, 2, 14, 0)
         nav_l.setSpacing(3)
         nav_l.setAlignment(Qt.AlignmentFlag.AlignBottom)
-        self.nav_btns: list[QPushButton] = []
+        self.nav_btns: list[NavTabButton] = []
         for i, label in enumerate(["HOME", "ADDONS", "CLIENT", "SETTINGS"]):
-            btn = QPushButton(label)
+            btn = NavTabButton(label)
             btn.setObjectName("TopNavButton")
             btn.setCheckable(True)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -334,6 +365,8 @@ class MainWindow(QMainWindow):
         self.addons.github_import_requested.connect(self._github_import)
         self.addons.check_updates_requested.connect(self._check_updates)
         self.addons.rescan_requested.connect(self._resync)
+        self.addons.badge_state_changed.connect(self._refresh_nav_badges)
+        self.client.badge_state_changed.connect(self._refresh_nav_badges)
         self.settings_page.browse_clicked.connect(self._browse_game)
         self.settings_page.verify_clicked.connect(self._verify_game)
 
@@ -351,6 +384,13 @@ class MainWindow(QMainWindow):
             if settings.check_updates_on_startup():
                 self._check_updates(silent=True)
                 self._check_mod_updates(silent=True)
+        self._refresh_nav_badges()
+
+        # Keep looking for updates while the app stays open (no reopen required).
+        self._update_timer = QTimer(self)
+        self._update_timer.setInterval(_PERIODIC_UPDATE_MS)
+        self._update_timer.timeout.connect(self._periodic_update_check)
+        self._update_timer.start()
 
     # --- window chrome ---
     def _update_window_mask(self) -> None:
@@ -651,14 +691,44 @@ class MainWindow(QMainWindow):
         info = self._latest_launcher_release
         return bool(info and info.update_available)
 
+    def _refresh_nav_badges(self) -> None:
+        """Gold dots on folder tabs when that area has pending work."""
+        if len(self.nav_btns) < 4:
+            return
+        # HOME — launcher self-update (PLAY already becomes UPDATE)
+        self.nav_btns[0].set_badge_visible(self._launcher_update_pending())
+        # ADDONS — managed addon updates available
+        self.nav_btns[1].set_badge_visible(bool(self.addons.pending_updates))
+        # CLIENT — mod updates or Apply Changes pending
+        self.nav_btns[2].set_badge_visible(self.client.has_pending_badge())
+        # SETTINGS — unused for badges
+        self.nav_btns[3].set_badge_visible(False)
+
+    def _periodic_update_check(self) -> None:
+        """Recurring quiet update detection while the launcher remains open."""
+        if self._worker and self._worker.isRunning():
+            return
+        self._check_launcher_update(silent=True)
+        if not is_installed():
+            self._refresh_nav_badges()
+            return
+        if rate_limit_exhausted():
+            log.info("Skipping periodic addon/mod checks — GitHub rate limit low")
+            self._refresh_nav_badges()
+            return
+        self._check_updates(silent=True, periodic=True)
+        self._check_mod_updates(silent=True, periodic=True)
+
     def _refresh_play_button(self) -> None:
         if self._launcher_update_pending():
             self.play_btn.setText("UPDATE")
+            self._refresh_nav_badges()
             return
         if is_installed():
             self.play_btn.setText("PLAY")
         else:
             self.play_btn.setText("INSTALL")
+        self._refresh_nav_badges()
 
     def _set_busy_ui(self, busy: bool, msg: str = "") -> None:
         self.play_btn.setEnabled(not busy)
@@ -759,6 +829,7 @@ class MainWindow(QMainWindow):
         self.addons.refresh()
         self.settings_page.refresh()
         self._refresh_play_button()
+        self._refresh_nav_badges()
 
     def _on_worker_fail(self, msg: str) -> None:
         self._set_busy_ui(False, "Failed")
@@ -1054,7 +1125,7 @@ class MainWindow(QMainWindow):
         except Exception as exc:  # noqa: BLE001
             themed.error(self, "Error", str(exc))
 
-    def _check_updates(self, silent: bool = False) -> None:
+    def _check_updates(self, silent: bool = False, periodic: bool = False) -> None:
         """Quiet background check — status bar only, never blocks PLAY or shows a popup."""
         if not is_installed():
             if not silent:
@@ -1065,8 +1136,8 @@ class MainWindow(QMainWindow):
                 self.status_lbl.setText("Update check already running…")
             return
 
-        # Startup: skip quietly if we already checked within the cooldown window.
-        if silent and recently_checked_addon_updates():
+        # Startup cooldown only — periodic checks skip it so the open app stays current.
+        if silent and not periodic and recently_checked_addon_updates():
             return
 
         self.status_lbl.setText("Checking addon updates…")
@@ -1091,6 +1162,7 @@ class MainWindow(QMainWindow):
             else:
                 self.status_lbl.setText("Addons up to date")
             self._update_worker = None
+            self._refresh_nav_badges()
 
         def fail(msg: str):
             self._checking_addons = False
@@ -1103,7 +1175,7 @@ class MainWindow(QMainWindow):
         self._update_worker = worker
         worker.start()
 
-    def _check_mod_updates(self, silent: bool = False) -> None:
+    def _check_mod_updates(self, silent: bool = False, periodic: bool = False) -> None:
         if not is_installed():
             if not silent:
                 self.status_lbl.setText("Set a game path before checking updates")
@@ -1112,7 +1184,8 @@ class MainWindow(QMainWindow):
             if not silent:
                 self.status_lbl.setText("Client mod update check already running…")
             return
-        if silent and recently_checked_mod_updates():
+        # Startup cooldown only — periodic checks skip it so the open app stays current.
+        if silent and not periodic and recently_checked_mod_updates():
             return
 
         self.status_lbl.setText("Checking client mod updates…")
@@ -1140,6 +1213,7 @@ class MainWindow(QMainWindow):
             else:
                 self.status_lbl.setText("Client mods up to date")
             self._mod_update_worker = None
+            self._refresh_nav_badges()
 
         def fail(msg: str):
             self._checking_mods = False
