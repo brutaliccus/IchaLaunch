@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from ichalaunch.config.settings import settings
@@ -27,6 +28,59 @@ def detect_game(path: str | Path | None = None) -> Path | None:
     if wow.exists():
         return p
     return None
+
+
+def discover_game_path_near_launcher() -> Path | None:
+    """Locate WoW.exe near the running launcher (EXE dir / cwd).
+
+    Covers launcher sitting in the game root, in ``Game/``, or in
+    ``Game/IchaLaunch/`` (and similar parent/child layouts). Does not
+    consult or overwrite ``settings.game_path``.
+    """
+    starts: list[Path] = []
+    if getattr(sys, "frozen", False):
+        starts.append(Path(sys.executable).resolve().parent)
+    try:
+        starts.append(Path.cwd().resolve())
+    except OSError:
+        pass
+
+    candidates: list[Path] = []
+    for start in starts:
+        candidates.extend(
+            [
+                start,
+                start / "Game",
+                start.parent,
+                start.parent / "Game",
+                start.parent.parent,
+            ]
+        )
+
+    seen: set[Path] = set()
+    for cand in candidates:
+        try:
+            resolved = cand.resolve()
+        except OSError:
+            continue
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        if (resolved / "WoW.exe").is_file():
+            return resolved
+    return None
+
+
+def ensure_game_path_from_launcher() -> Path | None:
+    """If settings lack a valid game folder, auto-fill from nearby WoW.exe."""
+    if detect_game() is not None:
+        return None
+    found = discover_game_path_near_launcher()
+    if found is None:
+        return None
+    settings.game_path = str(found)
+    log.info("Auto-detected game path near launcher: %s", found)
+    return found
 
 
 def is_installed() -> bool:

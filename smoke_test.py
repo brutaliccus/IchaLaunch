@@ -59,6 +59,30 @@ def test_detect_state():
     print("OK detect state")
 
 
+def test_discover_game_path_near_launcher():
+    from ichalaunch.game.launcher import discover_game_path_near_launcher
+
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        wow_dir = root / "Game"
+        wow_dir.mkdir()
+        (wow_dir / "WoW.exe").write_bytes(b"MZ")
+        nested = wow_dir / "IchaLaunch"
+        nested.mkdir()
+        # Simulate launcher living in Game/IchaLaunch/
+        old = Path.cwd()
+        try:
+            import os
+
+            os.chdir(nested)
+            found = discover_game_path_near_launcher()
+            assert found is not None
+            assert found.resolve() == wow_dir.resolve()
+        finally:
+            os.chdir(old)
+    print("OK discover game path near launcher")
+
+
 def test_multi_folder_pack_grouping():
     from ichalaunch.core.detect import (
         group_multi_folder_addons,
@@ -111,6 +135,7 @@ def main():
     test_protected()
     test_dlls_txt()
     test_detect_state()
+    test_discover_game_path_near_launcher()
     test_multi_folder_pack_grouping()
     print("\nAll smoke tests passed.")
 

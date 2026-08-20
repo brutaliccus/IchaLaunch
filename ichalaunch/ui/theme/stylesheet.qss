@@ -81,9 +81,11 @@ QPushButton#PlayButton:disabled {
     color: transparent;
 }
 
-/* Eye-catching Update / Update All (RavenCraft purple primary) */
+/* Eye-catching Update / Update All / Apply-when-pending (RavenCraft purple primary) */
 QPushButton#UpdateButton,
-QPushButton#UpdateAllButton {
+QPushButton#UpdateAllButton,
+QPushButton#ApplyReadyButton,
+QPushButton#ApplyReadyButtonPulse {
     background-color: #4a2f7a;
     color: #ffffff;
     border: 1px solid #F1C22D;
@@ -94,14 +96,18 @@ QPushButton#UpdateAllButton {
 }
 
 QPushButton#UpdateButton:hover,
-QPushButton#UpdateAllButton:hover {
+QPushButton#UpdateAllButton:hover,
+QPushButton#ApplyReadyButton:hover,
+QPushButton#ApplyReadyButtonPulse:hover {
     background-color: #7c5cc4;
     border-color: #FF7757;
     color: #ffffff;
 }
 
 QPushButton#UpdateButton:pressed,
-QPushButton#UpdateAllButton:pressed {
+QPushButton#UpdateAllButton:pressed,
+QPushButton#ApplyReadyButton:pressed,
+QPushButton#ApplyReadyButtonPulse:pressed {
     background-color: #3a2460;
     border-color: #F1C22D;
 }
@@ -116,6 +122,12 @@ QPushButton#UpdateAllButton:disabled {
 QPushButton#UpdateButton {
     padding: 4px 12px;
     min-height: 22px;
+}
+
+/* Gold border pulse when Apply Changes has pending installs/removes */
+QPushButton#ApplyReadyButtonPulse {
+    border: 2px solid #FFD966;
+    background-color: #5a3a90;
 }
 
 /* Folder-tab strip — sits above the content “folder body”; host stays transparent */

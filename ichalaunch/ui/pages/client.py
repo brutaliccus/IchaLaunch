@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -124,14 +124,18 @@ class ClientPage(QWidget):
         self.update_all_btn.clicked.connect(self.update_all_mods_requested.emit)
         self.add_dll_btn = QPushButton("Add DLL from GitHub")
         self.add_dll_btn.clicked.connect(self._open_custom_dll_dialog)
-        apply_btn = QPushButton("Apply Changes")
-        apply_btn.clicked.connect(self.apply_clicked.emit)
+        self.apply_btn = QPushButton("Apply Changes")
+        self.apply_btn.clicked.connect(self.apply_clicked.emit)
+        self._apply_pulse = False
+        self._apply_pulse_timer = QTimer(self)
+        self._apply_pulse_timer.setInterval(700)
+        self._apply_pulse_timer.timeout.connect(self._pulse_apply_btn)
         actions.addWidget(self.rescan_btn)
         actions.addWidget(self.check_btn)
         actions.addWidget(self.update_all_btn)
         actions.addWidget(self.add_dll_btn)
         actions.addStretch(1)
-        actions.addWidget(apply_btn)
+        actions.addWidget(self.apply_btn)
         root.addLayout(actions)
         self.set_checking(False)
 
@@ -329,16 +333,50 @@ class ClientPage(QWidget):
                 row.set_reinstall_visible(False)
         self.refresh_plan()
 
+    def _pulse_apply_btn(self) -> None:
+        if self.apply_btn.objectName() not in ("ApplyReadyButton", "ApplyReadyButtonPulse"):
+            return
+        self._apply_pulse = not self._apply_pulse
+        name = "ApplyReadyButtonPulse" if self._apply_pulse else "ApplyReadyButton"
+        self.apply_btn.setObjectName(name)
+        self.apply_btn.style().unpolish(self.apply_btn)
+        self.apply_btn.style().polish(self.apply_btn)
+
+    def _set_apply_pending(self, pending: bool) -> None:
+        """Highlight Apply Changes when installs/removes are pending; mute when clean."""
+        if pending:
+            if self.apply_btn.objectName() not in ("ApplyReadyButton", "ApplyReadyButtonPulse"):
+                self.apply_btn.setObjectName("ApplyReadyButton")
+                self.apply_btn.style().unpolish(self.apply_btn)
+                self.apply_btn.style().polish(self.apply_btn)
+            self.apply_btn.setEnabled(True)
+            self.apply_btn.setToolTip("Pending client mod changes — click to apply")
+            if not self._apply_pulse_timer.isActive():
+                self._apply_pulse = False
+                self._apply_pulse_timer.start()
+        else:
+            self._apply_pulse_timer.stop()
+            self._apply_pulse = False
+            if self.apply_btn.objectName():
+                self.apply_btn.setObjectName("")
+                self.apply_btn.style().unpolish(self.apply_btn)
+                self.apply_btn.style().polish(self.apply_btn)
+            self.apply_btn.setEnabled(False)
+            self.apply_btn.setToolTip("No pending client mod changes")
+
     def refresh_plan(self) -> None:
         game = detect_game()
         if not game:
             self.plan_lbl.setText("Set a game path in Settings before applying mods.")
+            self._set_apply_pending(False)
             return
         changes = plan_changes()
         if not changes:
             self.plan_lbl.setText("Desired state matches installed client.")
+            self._set_apply_pending(False)
             return
         lines = ["Pending: " + " · ".join(c["detail"] for c in changes[:8])]
         if len(changes) > 8:
             lines.append(f"…and {len(changes) - 8} more")
         self.plan_lbl.setText("\n".join(lines))
+        self._set_apply_pending(True)

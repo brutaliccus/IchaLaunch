@@ -43,10 +43,10 @@ from ichalaunch.ui.widgets import dialogs as themed
 _RESIZE_MARGIN = 6
 _CORNER_RADIUS = 14
 _TAB_STRIP_HEIGHT = 44
-_MOA_LOGO_WIDTH = 300
-# Soft haze padding — modest feather around the wordmark (between old huge and tiny).
-_MOA_GLOW_PAD_X = 32
-_MOA_GLOW_PAD_Y = 22
+_MOA_LOGO_WIDTH = 290
+# Soft haze padding — wide enough that “M” / last letter aren’t clipped; short vertically.
+_MOA_GLOW_PAD_X = 56
+_MOA_GLOW_PAD_Y = 12
 
 from ichalaunch import __version__
 from ichalaunch.core.paths import theme_file
@@ -69,7 +69,13 @@ from ichalaunch.core.self_update import (
     check_latest_launcher_release,
     perform_launcher_update,
 )
-from ichalaunch.game.launcher import install_game_stub, is_installed, launch_game, validate_install_location
+from ichalaunch.game.launcher import (
+    ensure_game_path_from_launcher,
+    install_game_stub,
+    is_installed,
+    launch_game,
+    validate_install_location,
+)
 from ichalaunch.mods.installer import (
     ModUpdateCheckResult,
     apply_desired_state,
@@ -133,12 +139,11 @@ class MoaFloatingLogo(QWidget):
 
         cx = self.width() / 2.0
         cy = self.height() / 2.0
-        # Soft RavenCraft haze (grey / black / purple) — soft ellipse around text.
+        # Soft RavenCraft haze (grey / black / purple) — wider horizontally, shorter vertically.
         painter.save()
         painter.translate(cx, cy)
-        # Halfway between prior huge (0.52) and post-shrink tiny (0.21).
-        painter.scale(0.94, 0.34)
-        radius = max(self._pix.width() * 0.54, 1.0)
+        painter.scale(1.22, 0.24)
+        radius = max(self._pix.width() * 0.58, 1.0)
         glow = QRadialGradient(0.0, 0.0, radius)
         glow.setColorAt(0.0, QColor(55, 42, 78, 200))
         glow.setColorAt(0.28, QColor(32, 26, 40, 150))
@@ -333,6 +338,11 @@ class MainWindow(QMainWindow):
 
         self._refresh_play_button()
         self._nav(0)
+        # If game_path is empty/invalid, detect WoW.exe next to the launcher EXE.
+        if ensure_game_path_from_launcher() is not None:
+            self.settings_page.refresh()
+            self.home.refresh()
+            self._refresh_play_button()
         # Always lightly check for a newer IchaLaunch release (one API call).
         self._check_launcher_update(silent=True)
         if is_installed():
@@ -421,9 +431,28 @@ class MainWindow(QMainWindow):
         right = content_origin.x() + content.width()
         cx = (left + right) / 2.0
         x = int(round(cx - logo.width() / 2.0))
+        # Keep the wordmark pixmap fully inside the zone — avoid rounded-mask / edge clip
+        # of the leading “M” and trailing letter (glow may feather outside).
+        corner_safe = _CORNER_RADIUS + 6
+        pix_left = x + _MOA_GLOW_PAD_X
+        pix_right = x + logo.width() - _MOA_GLOW_PAD_X
+        min_pix_left = left + 6
+        max_pix_right = right - corner_safe
+        if pix_left < min_pix_left:
+            x += min_pix_left - pix_left
+        if pix_right > max_pix_right:
+            x -= pix_right - max_pix_right
+        # Prefer fitting the full wordmark; if zone is too narrow, bias slightly left
+        # so the “M” stays clear of the right-corner mask.
+        pix_left = x + _MOA_GLOW_PAD_X
+        if pix_left < min_pix_left:
+            x += min_pix_left - pix_left
         # Vertical: wordmark center on ContentPanel top purple border (half above / half below).
         content_top = content_origin.y()
         y = int(round(content_top - (logo.logo_offset_y + logo.logo_height / 2.0)))
+        # Keep glow canvas inside the window mask (no top/side shave).
+        y = max(2, y)
+        x = max(2, min(x, root.width() - logo.width() - 2))
         logo.move(x, y)
         logo.raise_()
 

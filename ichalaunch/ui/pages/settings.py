@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ichalaunch import __version__
 from ichalaunch.config.settings import settings
 from ichalaunch.ui.widgets.common import Card
 
@@ -134,7 +135,7 @@ class SettingsPage(QWidget):
 
         about = Card()
         about.body.setSpacing(10)
-        about.body.addWidget(QLabel("IchaLaunch 0.1.0"))
+        about.body.addWidget(QLabel(f"IchaLaunch {__version__}"))
         about_sub = QLabel(
             "Styled after ichasarmory.quest · Client mods via RetroCro/TurtleWoW-Mods sources"
         )
