@@ -44,7 +44,10 @@ _RESIZE_MARGIN = 6
 _CORNER_RADIUS = 14
 _TAB_STRIP_HEIGHT = 44
 _MOA_LOGO_WIDTH = 300
-_MOA_GLOW_PAD = 36
+# Soft haze padding — keep vertical tight so the ellipse wraps the wordmark
+# (avoids tall glow clipping at top/bottom of the floating logo widget).
+_MOA_GLOW_PAD_X = 28
+_MOA_GLOW_PAD_Y = 14
 
 from ichalaunch import __version__
 from ichalaunch.core.paths import theme_file
@@ -108,15 +111,15 @@ class MoaFloatingLogo(QWidget):
         self._pix = src.scaledToWidth(_MOA_LOGO_WIDTH, Qt.TransformationMode.SmoothTransformation)
         self._logo_h = self._pix.height()
         self.setFixedSize(
-            self._pix.width() + _MOA_GLOW_PAD * 2,
-            self._logo_h + _MOA_GLOW_PAD * 2,
+            self._pix.width() + _MOA_GLOW_PAD_X * 2,
+            self._logo_h + _MOA_GLOW_PAD_Y * 2,
         )
         self.show()
 
     @property
     def logo_offset_y(self) -> int:
         """Y of the wordmark top edge relative to this widget."""
-        return _MOA_GLOW_PAD
+        return _MOA_GLOW_PAD_Y
 
     @property
     def logo_height(self) -> int:
@@ -131,11 +134,12 @@ class MoaFloatingLogo(QWidget):
 
         cx = self.width() / 2.0
         cy = self.height() / 2.0
-        # Soft RavenCraft haze (grey / black / purple) — elliptical, no hard edges.
+        # Soft RavenCraft haze (grey / black / purple) — tight ellipse around text.
         painter.save()
         painter.translate(cx, cy)
-        painter.scale(1.0, 0.52)
-        radius = max(self._pix.width() * 0.58, 1.0)
+        # ~60% shorter vertically vs prior 0.52 scale; slight horizontal tighten.
+        painter.scale(0.92, 0.21)
+        radius = max(self._pix.width() * 0.52, 1.0)
         glow = QRadialGradient(0.0, 0.0, radius)
         glow.setColorAt(0.0, QColor(55, 42, 78, 200))
         glow.setColorAt(0.28, QColor(32, 26, 40, 150))
@@ -147,7 +151,7 @@ class MoaFloatingLogo(QWidget):
         painter.drawEllipse(QRectF(-radius, -radius, radius * 2, radius * 2))
         painter.restore()
 
-        painter.drawPixmap(_MOA_GLOW_PAD, _MOA_GLOW_PAD, self._pix)
+        painter.drawPixmap(_MOA_GLOW_PAD_X, _MOA_GLOW_PAD_Y, self._pix)
 
 
 class Worker(QThread):
