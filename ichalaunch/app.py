@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QApplication
 
 from ichalaunch.core.logging_setup import log
 from ichalaunch.core.paths import theme_file
-from ichalaunch.ui.main_window import MainWindow
+from ichalaunch.ui.widgets.splash import SplashScreen, load_splash_pixmap
 
 
 def load_stylesheet(app: QApplication) -> None:
@@ -40,13 +40,34 @@ def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("IchaLaunch")
     app.setOrganizationName("IchasArmory")
-    load_stylesheet(app)
-    icon = load_app_icon(app)
-    win = MainWindow()
-    if icon is not None:
-        win.setWindowIcon(icon)
-    win.show()
-    return app.exec()
+
+    splash: SplashScreen | None = None
+    try:
+        # Show splash before importing / constructing the heavy main window.
+        splash_pm = load_splash_pixmap()
+        if not splash_pm.isNull():
+            splash = SplashScreen(splash_pm)
+            splash.show()
+            app.processEvents()
+
+        load_stylesheet(app)
+        icon = load_app_icon(app)
+
+        from ichalaunch.ui.main_window import MainWindow
+
+        win = MainWindow()
+        if icon is not None:
+            win.setWindowIcon(icon)
+
+        if splash is not None:
+            splash.finish(win)
+        else:
+            win.show()
+        return app.exec()
+    except Exception:
+        if splash is not None:
+            splash.finish()
+        raise
 
 
 if __name__ == "__main__":
