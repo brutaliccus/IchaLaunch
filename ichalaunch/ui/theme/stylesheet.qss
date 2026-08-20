@@ -142,8 +142,23 @@ QWidget#HomeBrandPane {
     background-color: transparent;
 }
 
+QWidget#HomeModsDrawer {
+    background-color: transparent;
+}
+
 QWidget#HomeModsHost {
     background-color: transparent;
+}
+
+QLabel#HomeModCategory {
+    color: #a0a0a8;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+QLabel#HomeModItem {
+    color: #d8d8dc;
+    font-size: 13px;
 }
 
 QPushButton#CatNavButton {

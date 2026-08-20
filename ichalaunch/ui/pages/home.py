@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 from ichalaunch.core.paths import theme_file
 from ichalaunch.game.launcher import detect_game, is_installed
 from ichalaunch.mods.installer import detect_actual_state, load_mod_catalog
-from ichalaunch.ui.widgets.common import Card, FlowLayout
+from ichalaunch.ui.widgets.common import Card
 
 CATEGORY_ORDER = [
     "Performance & Fixes",
@@ -26,27 +26,9 @@ CATEGORY_ORDER = [
     "Visual / QoL",
 ]
 
-
-class FlowChips(QWidget):
-    """Wrap-friendly row of chip labels."""
-
-    def __init__(self, names: list[str], parent=None):
-        super().__init__(parent)
-        layout = FlowLayout(self, spacing=8)
-        for name in names:
-            chip = QLabel(name)
-            chip.setObjectName("ModChip")
-            chip.setStyleSheet(
-                "QLabel#ModChip {"
-                " background-color: #232328;"
-                " color: #d8d8dc;"
-                " border: 1px solid #35353d;"
-                " border-radius: 12px;"
-                " padding: 4px 12px;"
-                " font-size: 12px;"
-                "}"
-            )
-            layout.addWidget(chip)
+# Side-drawer width (fixed-ish, not full-window stretch)
+DRAWER_MIN_W = 260
+DRAWER_MAX_W = 320
 
 
 class HomePage(QWidget):
@@ -58,15 +40,18 @@ class HomePage(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         root = QHBoxLayout(self)
-        root.setSpacing(20)
+        root.setSpacing(24)
         root.setContentsMargins(28, 24, 28, 20)
 
-        # --- Left: categorized client mods (scrollable) ---
+        # --- Left: fixed-ish side drawer of categorized mods ---
         left = QWidget()
-        left.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        left.setObjectName("HomeModsDrawer")
+        left.setMinimumWidth(DRAWER_MIN_W)
+        left.setMaximumWidth(DRAWER_MAX_W)
+        left.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         left_l = QVBoxLayout(left)
         left_l.setContentsMargins(0, 0, 0, 0)
-        left_l.setSpacing(10)
+        left_l.setSpacing(0)
 
         self.summary = Card()
         self.summary.setSizePolicy(
@@ -77,13 +62,19 @@ class HomePage(QWidget):
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
+        scroll.setStyleSheet(
+            "QScrollArea { background: transparent; border: none; }"
+        )
 
         scroll_host = QWidget()
         scroll_host.setObjectName("HomeModsHost")
         self.summary_host = QVBoxLayout(scroll_host)
-        self.summary_host.setContentsMargins(4, 4, 8, 4)
-        self.summary_host.setSpacing(10)
+        self.summary_host.setContentsMargins(2, 2, 6, 8)
+        self.summary_host.setSpacing(12)
         self.summary_host.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         scroll.setWidget(scroll_host)
@@ -91,12 +82,10 @@ class HomePage(QWidget):
 
         left_l.addWidget(self.summary, 1)
 
-        # --- Right: logo / brand ---
+        # --- Right: logo / brand (fills remaining width) ---
         right = QWidget()
         right.setObjectName("HomeBrandPane")
-        right.setMinimumWidth(280)
-        right.setMaximumWidth(380)
-        right.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+        right.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         right_l = QVBoxLayout(right)
         right_l.setContentsMargins(8, 8, 8, 8)
         right_l.setSpacing(12)
@@ -140,8 +129,8 @@ class HomePage(QWidget):
         right_l.addWidget(self.loading_wrap, 0, Qt.AlignmentFlag.AlignHCenter)
         right_l.addStretch(1)
 
-        root.addWidget(left, 3)
-        root.addWidget(right, 2)
+        root.addWidget(left, 0)
+        root.addWidget(right, 1)
 
         self.refresh()
 
@@ -161,8 +150,7 @@ class HomePage(QWidget):
         self.loading_lbl.setText(msg if busy else "")
         self.loading_wrap.setVisible(busy)
 
-    def refresh(self) -> None:
-        installed = is_installed()
+    def _clear_summary(self) -> None:
         while self.summary_host.count():
             item = self.summary_host.takeAt(0)
             w = item.widget()
@@ -174,6 +162,34 @@ class HomePage(QWidget):
                     child = lay.takeAt(0)
                     if child.widget():
                         child.widget().deleteLater()
+
+    def _add_category_block(self, category: str, names: list[str]) -> None:
+        block = QWidget()
+        block_l = QVBoxLayout(block)
+        block_l.setContentsMargins(0, 0, 0, 0)
+        block_l.setSpacing(4)
+
+        cat_lbl = QLabel(category)
+        cat_lbl.setObjectName("HomeModCategory")
+        cat_lbl.setStyleSheet(
+            "color: #a0a0a8; font-size: 12px; font-weight: 600; padding-bottom: 2px;"
+        )
+        block_l.addWidget(cat_lbl)
+
+        for name in names:
+            item = QLabel(name)
+            item.setObjectName("HomeModItem")
+            item.setWordWrap(True)
+            item.setStyleSheet(
+                "color: #d8d8dc; font-size: 13px; padding-left: 14px;"
+            )
+            block_l.addWidget(item)
+
+        self.summary_host.addWidget(block)
+
+    def refresh(self) -> None:
+        installed = is_installed()
+        self._clear_summary()
 
         if installed:
             self.status.setText("Ready")
@@ -205,12 +221,7 @@ class HomePage(QWidget):
                 ]
                 for cat in cats:
                     names = sorted(by_cat[cat], key=str.lower)
-                    cat_lbl = QLabel(cat)
-                    cat_lbl.setStyleSheet(
-                        "color: #a0a0a8; font-size: 12px; font-weight: 600;"
-                    )
-                    self.summary_host.addWidget(cat_lbl)
-                    self.summary_host.addWidget(FlowChips(names))
+                    self._add_category_block(cat, names)
 
             self.summary_host.addStretch(1)
         else:
