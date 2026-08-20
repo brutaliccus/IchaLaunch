@@ -4,8 +4,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QPoint, QRect, Qt, QThread, Signal
-from PySide6.QtGui import QGuiApplication, QIcon, QPainterPath, QRegion
+from PySide6.QtCore import QEvent, QPoint, QRect, QRectF, Qt, QThread, Signal
+from PySide6.QtGui import (
+    QColor,
+    QGuiApplication,
+    QIcon,
+    QPainter,
+    QPainterPath,
+    QPixmap,
+    QRadialGradient,
+    QRegion,
+)
 from PySide6.QtWidgets import (
     QAbstractButton,
     QAbstractItemView,
@@ -34,6 +43,8 @@ from ichalaunch.ui.widgets import dialogs as themed
 _RESIZE_MARGIN = 6
 _CORNER_RADIUS = 14
 _TAB_STRIP_HEIGHT = 44
+_MOA_LOGO_WIDTH = 300
+_MOA_GLOW_PAD = 36
 
 from ichalaunch import __version__
 from ichalaunch.core.paths import theme_file
@@ -70,6 +81,72 @@ from ichalaunch.ui.pages.client import ClientPage
 from ichalaunch.ui.pages.home import HomePage
 from ichalaunch.ui.pages.settings import SettingsPage
 from ichalaunch.ui.widgets.launch_button import LaunchButton
+
+
+class MoaFloatingLogo(QWidget):
+    """Mysteries of Azeroth wordmark — soft elliptical glow, click-through."""
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setObjectName("MoaFloatingLogo")
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self._pix = QPixmap()
+        self._logo_h = 0
+        self._load()
+
+    def _load(self) -> None:
+        path = theme_file("moa_logo.png")
+        if not path.exists():
+            self.hide()
+            return
+        src = QPixmap(str(path))
+        if src.isNull():
+            self.hide()
+            return
+        self._pix = src.scaledToWidth(_MOA_LOGO_WIDTH, Qt.TransformationMode.SmoothTransformation)
+        self._logo_h = self._pix.height()
+        self.setFixedSize(
+            self._pix.width() + _MOA_GLOW_PAD * 2,
+            self._logo_h + _MOA_GLOW_PAD * 2,
+        )
+        self.show()
+
+    @property
+    def logo_offset_y(self) -> int:
+        """Y of the wordmark top edge relative to this widget."""
+        return _MOA_GLOW_PAD
+
+    @property
+    def logo_height(self) -> int:
+        return self._logo_h
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        if self._pix.isNull():
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+
+        cx = self.width() / 2.0
+        cy = self.height() / 2.0
+        # Soft RavenCraft haze (grey / black / purple) — elliptical, no hard edges.
+        painter.save()
+        painter.translate(cx, cy)
+        painter.scale(1.0, 0.52)
+        radius = max(self._pix.width() * 0.58, 1.0)
+        glow = QRadialGradient(0.0, 0.0, radius)
+        glow.setColorAt(0.0, QColor(55, 42, 78, 200))
+        glow.setColorAt(0.28, QColor(32, 26, 40, 150))
+        glow.setColorAt(0.55, QColor(18, 14, 22, 80))
+        glow.setColorAt(0.82, QColor(10, 8, 12, 28))
+        glow.setColorAt(1.0, QColor(0, 0, 0, 0))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(glow)
+        painter.drawEllipse(QRectF(-radius, -radius, radius * 2, radius * 2))
+        painter.restore()
+
+        painter.drawPixmap(_MOA_GLOW_PAD, _MOA_GLOW_PAD, self._pix)
 
 
 class Worker(QThread):
@@ -220,7 +297,13 @@ class MainWindow(QMainWindow):
         outer.addWidget(nav)
         outer.addWidget(content, 1)
         outer.addWidget(bottom)
+
+        # Mysteries of Azeroth wordmark — floats over tab strip (click-through).
+        self._moa_logo = MoaFloatingLogo(root)
+        self._moa_logo.raise_()
+
         self._update_window_mask()
+        self._position_moa_logo()
 
         # Wire
         self.home.play_clicked.connect(self._on_play_or_install)
@@ -317,14 +400,32 @@ class MainWindow(QMainWindow):
         else:
             self.unsetCursor()
 
+    def _position_moa_logo(self) -> None:
+        """Center logo between SETTINGS tab and the right edge; half off the top."""
+        logo = getattr(self, "_moa_logo", None)
+        root = self.centralWidget()
+        if logo is None or root is None or not self.nav_btns or logo.isHidden():
+            return
+        settings_btn = self.nav_btns[-1]
+        left = settings_btn.mapTo(root, QPoint(settings_btn.width(), 0)).x()
+        right = root.width()
+        cx = (left + right) / 2.0
+        x = int(round(cx - logo.width() / 2.0))
+        # Wordmark vertical center sits on the top edge → half clipped above.
+        y = -(logo.logo_offset_y + logo.logo_height // 2)
+        logo.move(x, y)
+        logo.raise_()
+
     def showEvent(self, event):
         super().showEvent(event)
         self._fit_to_screen()
         self._update_window_mask()
+        self._position_moa_logo()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._update_window_mask()
+        self._position_moa_logo()
 
     def closeEvent(self, event):
         app = QApplication.instance()
