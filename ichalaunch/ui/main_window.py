@@ -28,6 +28,7 @@ from ichalaunch import __version__
 from ichalaunch.core.paths import theme_file
 from ichalaunch.addons.github import (
     AddonUpdateCheckResult,
+    RATE_LIMIT_STATUS,
     check_addon_updates,
     install_from_github,
     recently_checked_addon_updates,
@@ -38,6 +39,12 @@ from ichalaunch.config.settings import settings
 from ichalaunch.core.detect import full_resync
 from ichalaunch.core.filesystem import is_protected_path
 from ichalaunch.core.logging_setup import log
+from ichalaunch.core.self_update import (
+    LauncherReleaseInfo,
+    apply_windows_self_replace,
+    check_latest_launcher_release,
+    perform_launcher_update,
+)
 from ichalaunch.game.launcher import install_game_stub, is_installed, launch_game, validate_install_location
 from ichalaunch.mods.installer import (
     ModUpdateCheckResult,
@@ -96,6 +103,8 @@ class MainWindow(QMainWindow):
         self._worker: Worker | None = None
         self._update_worker: Worker | None = None
         self._mod_update_worker: Worker | None = None
+        self._launcher_update_worker: Worker | None = None
+        self._latest_launcher_release: LauncherReleaseInfo | None = None
         self._drag_pos: QPoint | None = None
         self._checking_addons = False
         self._checking_mods = False
@@ -238,6 +247,8 @@ class MainWindow(QMainWindow):
 
         self._refresh_play_button()
         self._nav(0)
+        # Always lightly check for a newer IchaLaunch release (one API call).
+        self._check_launcher_update(silent=True)
         if is_installed():
             self._resync(silent=True)
             if settings.check_updates_on_startup():
@@ -441,7 +452,14 @@ class MainWindow(QMainWindow):
             self.settings_page.refresh()
         # Addons page keeps its current list until filters/rescan change
 
+    def _launcher_update_pending(self) -> bool:
+        info = self._latest_launcher_release
+        return bool(info and info.update_available)
+
     def _refresh_play_button(self) -> None:
+        if self._launcher_update_pending():
+            self.play_btn.setText("UPDATE")
+            return
         if is_installed():
             self.play_btn.setText("PLAY")
         else:
@@ -525,10 +543,77 @@ class MainWindow(QMainWindow):
         themed.error(self, "Error", msg)
 
     def _on_play_or_install(self) -> None:
+        if self._launcher_update_pending():
+            self._apply_launcher_update()
+            return
         if is_installed():
             self._play()
         else:
             self._install_or_browse()
+
+    def _check_launcher_update(self, silent: bool = False) -> None:
+        """Background check for a newer IchaLaunch GitHub release."""
+        if self._launcher_update_worker and self._launcher_update_worker.isRunning():
+            if not silent:
+                self.status_lbl.setText("Launcher update check already running…")
+            return
+
+        if not silent:
+            self.status_lbl.setText("Checking for launcher updates…")
+
+        worker = Worker(check_latest_launcher_release)
+
+        def done(result):
+            self._launcher_update_worker = None
+            if isinstance(result, LauncherReleaseInfo) and result.update_available:
+                self._latest_launcher_release = result
+                self.status_lbl.setText(f"Launcher update available: v{result.version}")
+                self._refresh_play_button()
+                return
+            self._latest_launcher_release = None
+            self._refresh_play_button()
+            if not silent:
+                if result is None:
+                    self.status_lbl.setText("No launcher release asset found")
+                else:
+                    self.status_lbl.setText("Launcher is up to date")
+
+        def fail(msg: str):
+            self._launcher_update_worker = None
+            self._latest_launcher_release = None
+            self._refresh_play_button()
+            brief = msg[:80] if msg else "unknown error"
+            if silent:
+                log.warning("Launcher update check failed: %s", msg)
+                # Quiet status only — do not steal focus from addon/mod checks.
+                if "rate limit" in brief.lower():
+                    self.status_lbl.setText(RATE_LIMIT_STATUS)
+                else:
+                    self.status_lbl.setText(f"Launcher update check failed: {brief}")
+            else:
+                themed.error(self, "Launcher update check failed", msg)
+
+        worker.finished_ok.connect(done)
+        worker.failed.connect(fail)
+        self._launcher_update_worker = worker
+        worker.start()
+
+    def _apply_launcher_update(self) -> None:
+        info = self._latest_launcher_release
+        if not info or not info.update_available:
+            return
+
+        def on_ok(staged):
+            try:
+                apply_windows_self_replace(staged)
+            except Exception as exc:  # noqa: BLE001
+                themed.error(self, "Update failed", str(exc))
+                return
+            # Helper waits for this process to exit, then swaps the EXE and relaunches.
+            QApplication.instance().quit()
+
+        worker = Worker(perform_launcher_update, info)
+        self._busy(f"Downloading launcher v{info.version}…", worker, on_ok=on_ok)
 
     def _play(self) -> None:
         try:
