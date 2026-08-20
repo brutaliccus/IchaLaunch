@@ -63,25 +63,22 @@ QPushButton:pressed {
     background-color: rgba(74, 47, 122, 0.45);
 }
 
+/* Play / Install / Update — painted by LaunchButton (chrome PNG + gold label).
+   Keep QSS transparent so the custom paintEvent is not overridden. */
 QPushButton#PlayButton {
-    background-color: #4a2f7a;
-    color: #ffffff;
-    border: 2px solid #F1C22D;
-    border-radius: 10px;
-    font-size: 18px;
-    font-weight: 700;
-    letter-spacing: 2px;
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    color: transparent;
 }
 
-QPushButton#PlayButton:hover {
-    background-color: #7c5cc4;
-    border-color: #FF7757;
-}
-
+QPushButton#PlayButton:hover,
+QPushButton#PlayButton:pressed,
 QPushButton#PlayButton:disabled {
-    background-color: #2a2428;
-    color: #666;
-    border-color: rgba(150, 131, 158, 0.2);
+    background: transparent;
+    border: none;
+    color: transparent;
 }
 
 /* Eye-catching Update / Update All (RavenCraft purple primary) */

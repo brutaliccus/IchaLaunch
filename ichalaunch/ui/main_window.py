@@ -69,6 +69,7 @@ from ichalaunch.ui.pages.addons import AddonsPage
 from ichalaunch.ui.pages.client import ClientPage
 from ichalaunch.ui.pages.home import HomePage
 from ichalaunch.ui.pages.settings import SettingsPage
+from ichalaunch.ui.widgets.launch_button import LaunchButton
 
 
 class Worker(QThread):
@@ -205,9 +206,7 @@ class MainWindow(QMainWindow):
         prog_wrap.addWidget(self.status_lbl)
         prog_wrap.addWidget(self.progress)
 
-        self.play_btn = QPushButton("PLAY")
-        self.play_btn.setObjectName("PlayButton")
-        self.play_btn.setFixedSize(180, 54)
+        self.play_btn = LaunchButton("PLAY")
         self.play_btn.clicked.connect(self._on_play_or_install)
 
         grip = QSizeGrip(bottom)
