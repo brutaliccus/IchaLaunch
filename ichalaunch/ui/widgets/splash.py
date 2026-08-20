@@ -1,4 +1,4 @@
-"""Lightweight startup splash — soft-edged icon with a gentle breathe pulse."""
+"""Lightweight startup splash — soft-edged *square* icon with a gentle breathe pulse."""
 
 from __future__ import annotations
 
@@ -13,25 +13,33 @@ from PySide6.QtCore import (
     QTimer,
 )
 from PySide6.QtGui import (
-    QBrush,
     QColor,
     QGuiApplication,
+    QImage,
     QPainter,
     QPixmap,
-    QRadialGradient,
 )
 from PySide6.QtWidgets import QWidget
 
 # Warm dark pad behind the icon (RavenCraft-adjacent, not purple glow).
-_PAD = QColor(18, 16, 14, 210)
+_PAD = QColor(18, 16, 14, 200)
 _ICON_PX = 200
 _WINDOW_PX = 280
-_FEATHER = 0.38
+# Fraction of the square side used as a soft border fade (not a radial circle).
+_EDGE_FEATHER = 0.14
 _MAX_LIFETIME_MS = 45_000
 
 
-def soft_edge_icon(source: QPixmap, size: int = _ICON_PX, feather: float = _FEATHER) -> QPixmap:
-    """Scale icon and feather alpha toward the edges (no hard square)."""
+def _smoothstep(t: float) -> float:
+    t = max(0.0, min(1.0, t))
+    return t * t * (3.0 - 2.0 * t)
+
+
+def soft_edge_icon(source: QPixmap, size: int = _ICON_PX, feather: float = _EDGE_FEATHER) -> QPixmap:
+    """Scale icon to a square and feather alpha along the *square* edges only.
+
+    Uses distance-to-nearest-edge falloff so the icon stays square (not a circular crop).
+    """
     if source.isNull():
         return QPixmap()
 
@@ -50,17 +58,42 @@ def soft_edge_icon(source: QPixmap, size: int = _ICON_PX, feather: float = _FEAT
     x = (size - scaled.width()) // 2
     y = (size - scaled.height()) // 2
     painter.drawPixmap(x, y, scaled)
-
-    radius = size * 0.5
-    solid = max(0.05, 1.0 - feather)
-    grad = QRadialGradient(size * 0.5, size * 0.5, radius)
-    grad.setColorAt(0.0, QColor(0, 0, 0, 255))
-    grad.setColorAt(solid, QColor(0, 0, 0, 255))
-    grad.setColorAt(1.0, QColor(0, 0, 0, 0))
-    painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
-    painter.fillRect(out.rect(), QBrush(grad))
     painter.end()
-    return out
+
+    feather_px = max(1.0, size * max(0.02, min(0.45, feather)))
+    img = out.toImage().convertToFormat(QImage.Format.Format_ARGB32)
+    last = size - 1
+    for py in range(size):
+        for px in range(size):
+            dist = min(px, py, last - px, last - py)
+            if dist >= feather_px:
+                continue
+            factor = _smoothstep(dist / feather_px)
+            c = img.pixelColor(px, py)
+            if c.alpha() == 0:
+                continue
+            c.setAlpha(int(c.alpha() * factor))
+            img.setPixelColor(px, py, c)
+    return QPixmap.fromImage(img)
+
+
+def soft_square_pad(size: int, color: QColor = _PAD, feather: float = _EDGE_FEATHER) -> QPixmap:
+    """Warm dark square with the same edge feather (backdrop for the icon)."""
+    img = QImage(size, size, QImage.Format.Format_ARGB32)
+    img.fill(Qt.GlobalColor.transparent)
+    feather_px = max(1.0, size * max(0.02, min(0.45, feather)))
+    last = size - 1
+    for py in range(size):
+        for px in range(size):
+            dist = min(px, py, last - px, last - py)
+            if dist <= 0:
+                a = 0
+            elif dist >= feather_px:
+                a = color.alpha()
+            else:
+                a = int(color.alpha() * _smoothstep(dist / feather_px))
+            img.setPixelColor(px, py, QColor(color.red(), color.green(), color.blue(), a))
+    return QPixmap.fromImage(img)
 
 
 class SplashScreen(QWidget):
@@ -78,6 +111,7 @@ class SplashScreen(QWidget):
         self.setFixedSize(_WINDOW_PX, _WINDOW_PX)
 
         self._icon = soft_edge_icon(pixmap) if not pixmap.isNull() else QPixmap()
+        self._pad = soft_square_pad(int(_ICON_PX * 1.12))
         self._breathe_t = 0.0
         self._scale = 1.0
         self._opacity = 0.88
@@ -133,14 +167,15 @@ class SplashScreen(QWidget):
 
         cx = self.width() * 0.5
         cy = self.height() * 0.5
-        pad_r = min(self.width(), self.height()) * 0.48
-        pad_grad = QRadialGradient(cx, cy, pad_r)
-        pad_grad.setColorAt(0.0, _PAD)
-        pad_grad.setColorAt(0.55, QColor(_PAD.red(), _PAD.green(), _PAD.blue(), 120))
-        pad_grad.setColorAt(1.0, QColor(_PAD.red(), _PAD.green(), _PAD.blue(), 0))
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(pad_grad))
-        painter.drawEllipse(QRectF(cx - pad_r, cy - pad_r, pad_r * 2, pad_r * 2))
+
+        if not self._pad.isNull():
+            pw = self._pad.width() * self._scale
+            ph = self._pad.height() * self._scale
+            painter.drawPixmap(
+                QRectF(cx - pw * 0.5, cy - ph * 0.5, pw, ph),
+                self._pad,
+                QRectF(self._pad.rect()),
+            )
 
         if self._icon.isNull():
             return

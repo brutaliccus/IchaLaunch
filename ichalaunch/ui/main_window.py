@@ -48,7 +48,7 @@ _MOA_LOGO_WIDTH = 290
 # Soft haze padding — wide enough that “M” / last letter aren’t clipped; short vertically.
 _MOA_GLOW_PAD_X = 56
 _MOA_GLOW_PAD_Y = 12
-# Quiet re-check while the launcher stays open (addons / mods / self-update).
+# Quiet launcher self-update re-check while the app stays open (addons/client: launch only).
 _PERIODIC_UPDATE_MS = 5 * 60 * 1000
 # Let the window finish laying out / detecting game path before the first network scan.
 _STARTUP_UPDATE_DELAY_MS = 1500
@@ -765,19 +765,11 @@ class MainWindow(QMainWindow):
         self._check_mod_updates(silent=True, force=True)
 
     def _periodic_update_check(self) -> None:
-        """Recurring quiet update detection while the launcher remains open."""
+        """Recurring silent launcher self-update only (addons/client: launch scan)."""
         if self._worker and self._worker.isRunning():
             return
+        # Do not re-scan addons/client here — that runs once at startup (force).
         self._check_launcher_update(silent=True)
-        if not is_installed():
-            self._refresh_nav_badges()
-            return
-        if rate_limit_exhausted():
-            log.info("Skipping periodic addon/mod checks — GitHub rate limit low")
-            self._refresh_nav_badges()
-            return
-        self._check_updates(silent=True, periodic=True)
-        self._check_mod_updates(silent=True, periodic=True)
 
     def _refresh_play_button(self) -> None:
         if self._launcher_update_pending():
@@ -906,7 +898,11 @@ class MainWindow(QMainWindow):
             self._install_or_browse()
 
     def _check_launcher_update(self, silent: bool = False) -> None:
-        """Background check for a newer IchaLaunch GitHub release."""
+        """Background check for a newer IchaLaunch GitHub release.
+
+        Silent/startup/periodic checks never touch the bottom progress bar or
+        busy PLAY state — only real download/install via ``_apply_launcher_update``.
+        """
         if self._launcher_update_worker and self._launcher_update_worker.isRunning():
             if not silent:
                 self.status_lbl.setText("Launcher update check already running…")
@@ -921,7 +917,11 @@ class MainWindow(QMainWindow):
             self._launcher_update_worker = None
             if isinstance(result, LauncherReleaseInfo) and result.update_available:
                 self._latest_launcher_release = result
-                self.status_lbl.setText(f"Launcher update available: v{result.version}")
+                if not silent:
+                    self.status_lbl.setText(f"Launcher update available: v{result.version}")
+                else:
+                    # Quiet: badge + PLAY→UPDATE only; leave status for other work.
+                    log.info("Launcher update available: v%s", result.version)
                 self._refresh_play_button()
                 return
             self._latest_launcher_release = None
@@ -939,14 +939,13 @@ class MainWindow(QMainWindow):
             brief = msg[:80] if msg else "unknown error"
             if silent:
                 log.warning("Launcher update check failed: %s", msg)
-                # Quiet status only — do not steal focus from addon/mod checks.
+                # Rate-limit is worth surfacing; other silent failures stay in the log.
                 if "rate limit" in brief.lower():
                     self.status_lbl.setText(RATE_LIMIT_STATUS)
-                else:
-                    self.status_lbl.setText(f"Launcher update check failed: {brief}")
             else:
                 themed.error(self, "Launcher update check failed", msg)
 
+        # Dedicated worker — do not use ``_busy`` / progress bar for the check itself.
         worker.finished_ok.connect(done)
         worker.failed.connect(fail)
         self._launcher_update_worker = worker

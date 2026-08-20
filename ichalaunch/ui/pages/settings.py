@@ -90,7 +90,8 @@ class SettingsPage(QWidget):
         self.cb_auto_updates.setChecked(settings.check_updates_on_startup())
         self.cb_auto_updates.setToolTip(
             "When enabled, quietly checks launcher, addon, and client mod updates "
-            "shortly after launch, then every 5 minutes while open."
+            "shortly after launch. While open, only the launcher self-update "
+            "re-checks every 5 minutes (no progress bar)."
         )
         self.cb_auto_updates.toggled.connect(settings.set_check_updates_on_startup)
         self.cb_auto_updates.setMinimumHeight(28)
