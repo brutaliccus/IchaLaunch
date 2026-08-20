@@ -53,14 +53,42 @@ def download_bytes_cb(progress: Any) -> BytesProgressCb | None:
     return cb if callable(cb) else None
 
 
-def download_file(url: str, dest: Path, progress: ProgressCb | None = None, timeout: int = 120) -> Path:
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    headers = {
+def _download_headers() -> dict[str, str]:
+    return {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
         )
     }
+
+
+def download_bytes(url: str, progress: ProgressCb | None = None, timeout: int = 120) -> bytes:
+    """Download into memory (avoids Windows AV locking certain zip names on disk)."""
+    headers = _download_headers()
+    chunks: list[bytes] = []
+    with requests.get(url, stream=True, timeout=timeout, headers=headers) as r:
+        r.raise_for_status()
+        ctype = (r.headers.get("Content-Type") or "").lower()
+        if "text/html" in ctype and "drive.google" in url:
+            raise RuntimeError(
+                "Google Drive returned an HTML page instead of the file. "
+                "Try again later or download manually."
+            )
+        total = int(r.headers.get("Content-Length") or 0)
+        done = 0
+        for chunk in r.iter_content(chunk_size=1024 * 256):
+            if not chunk:
+                continue
+            chunks.append(chunk)
+            done += len(chunk)
+            if progress:
+                progress(done, total)
+    return b"".join(chunks)
+
+
+def download_file(url: str, dest: Path, progress: ProgressCb | None = None, timeout: int = 120) -> Path:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    headers = _download_headers()
     with requests.get(url, stream=True, timeout=timeout, headers=headers) as r:
         r.raise_for_status()
         # Google Drive sometimes returns an HTML interstitial; reject clearly

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import io
+import re
 import shutil
 import zipfile
 from pathlib import Path
@@ -15,6 +17,42 @@ PROTECTED_HINTS = (
     "downloads",
     "documents",
 )
+
+# Windows CreateFile rejects these in a file name component.
+_WIN_INVALID_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+_WIN_RESERVED = {
+    "con",
+    "prn",
+    "aux",
+    "nul",
+    *(f"com{i}" for i in range(1, 10)),
+    *(f"lpt{i}" for i in range(1, 10)),
+}
+
+
+def sanitize_filename(name: str, *, fallback: str = "download.bin") -> str:
+    """Make a download basename safe for Windows paths.
+
+    Strips Content-Disposition quoting, whitespace/newlines, path segments,
+    and characters that trigger ``[Errno 22] Invalid argument``.
+    """
+    raw = (name or "").strip().strip("\"'")
+    # RFC 5987 / path leftovers
+    if "filename*" in raw.lower() or "filename=" in raw.lower():
+        m = re.search(r"filename\*?=(?:UTF-8''|\"?)([^\";]+)", raw, re.I)
+        if m:
+            raw = m.group(1).strip().strip("\"'")
+    raw = raw.replace("\\", "/").split("/")[-1]
+    raw = raw.split("?")[0].split("#")[0]
+    raw = raw.strip().strip("\"'")
+    raw = _WIN_INVALID_CHARS.sub("_", raw)
+    raw = raw.rstrip(" .")
+    if not raw or raw in (".", ".."):
+        return fallback
+    stem = Path(raw).stem
+    if stem.lower() in _WIN_RESERVED:
+        raw = f"_{raw}"
+    return raw
 
 
 def is_protected_path(path: str | Path) -> bool:
@@ -38,9 +76,34 @@ def sha256_file(path: Path, chunk: int = 1024 * 1024) -> str:
     return h.hexdigest()
 
 
-def extract_zip(zip_path: Path, dest: Path) -> Path:
+def extract_zip(zip_source: Path | bytes | bytearray, dest: Path) -> Path:
+    """Extract a zip from a path or in-memory bytes.
+
+    Prefer ``bytes`` for archives that Windows Defender may quarantine on disk
+    (e.g. VanillaFixes.zip containing injector-style DLLs) — writing the zip
+    then reopening it can fail with ``[Errno 22]`` / WinError 225.
+    """
     ensure_dir(dest)
-    with zipfile.ZipFile(zip_path, "r") as zf:
+    if isinstance(zip_source, (bytes, bytearray)):
+        opener = zipfile.ZipFile(io.BytesIO(zip_source), "r")
+    else:
+        try:
+            opener = zipfile.ZipFile(zip_source, "r")
+        except OSError as e:
+            winerr = getattr(e, "winerror", None)
+            if e.errno == 22 or winerr == 225:
+                raise OSError(
+                    e.errno,
+                    (
+                        f"Windows blocked reading {getattr(zip_source, 'name', zip_source)} "
+                        "(often Defender quarantining the archive). "
+                        "IchaLaunch now extracts sensitive zips from memory; "
+                        "update the launcher if you still see this."
+                    ),
+                    str(zip_source),
+                ) from e
+            raise
+    with opener as zf:
         zf.extractall(dest)
     children = [c for c in dest.iterdir()]
     if len(children) == 1 and children[0].is_dir():

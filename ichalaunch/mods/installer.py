@@ -32,10 +32,11 @@ from ichalaunch.core.filesystem import (
     extract_zip,
     find_toc_roots,
     safe_remove,
+    sanitize_filename,
     update_dlls_txt,
 )
 from ichalaunch.core.logging_setup import log
-from ichalaunch.core.process import download_bytes_cb, download_file, google_drive_url
+from ichalaunch.core.process import download_bytes, download_bytes_cb, download_file, google_drive_url
 from ichalaunch.game.launcher import detect_game
 
 ProgressCb = Callable[[str], None]
@@ -479,29 +480,51 @@ def _pick_release_asset(
     return min(candidates, key=lambda a: (len(a.get("name") or ""), a.get("name") or ""))
 
 
-def _download_source(source: dict[str, Any], work: Path, progress: ProgressCb | None) -> Path:
+def _looks_like_zip(filename: str, stype: str | None = None) -> bool:
+    if stype in ("raw_zip", "github_zip"):
+        return True
+    return sanitize_filename(filename).lower().endswith(".zip")
+
+
+def _is_zip_artifact(artifact: Path | bytes, source: dict[str, Any] | None = None) -> bool:
+    """True when ``artifact`` should be treated as a zip (path, bytes, or source type)."""
+    if isinstance(artifact, (bytes, bytearray)):
+        return True
+    if source and source.get("type") in ("raw_zip", "github_zip"):
+        return True
+    return artifact.suffix.lower() == ".zip"
+
+
+def _download_source(source: dict[str, Any], work: Path, progress: ProgressCb | None) -> Path | bytes:
+    """Download a catalog source.
+
+    Zip archives are kept in memory so Windows Defender cannot quarantine the
+    tempfile between download and ``ZipFile`` open (VanillaFixes.exe / patcher
+    DLLs commonly trip WinError 225 / Errno 22).
+    """
     stype = source.get("type")
     if progress:
         progress(f"Downloading ({stype})...")
     bytes_cb = download_bytes_cb(progress)
+    timeout = int(source.get("timeout") or (300 if stype == "google_drive" else 120))
     if stype == "google_drive":
         file_id = source["id"]
-        filename = source.get("filename") or f"{file_id}.bin"
+        filename = sanitize_filename(source.get("filename") or f"{file_id}.bin")
+        url = google_drive_url(file_id)
+        if _looks_like_zip(filename, stype):
+            return download_bytes(url, progress=bytes_cb, timeout=timeout)
         dest = work / filename
-        download_file(
-            google_drive_url(file_id),
-            dest,
-            progress=bytes_cb,
-            timeout=int(source.get("timeout") or 300),
-        )
+        download_file(url, dest, progress=bytes_cb, timeout=timeout)
         return dest
     if stype in ("raw", "github_release", "github_zip", "raw_zip"):
         url = source["url"]
-        filename = source.get("filename") or url.split("/")[-1].split("?")[0]
-        dest = work / filename
-        download_file(
-            url, dest, progress=bytes_cb, timeout=int(source.get("timeout") or 120)
+        filename = sanitize_filename(
+            source.get("filename") or url.split("/")[-1].split("?")[0]
         )
+        if _looks_like_zip(filename, stype):
+            return download_bytes(url, progress=bytes_cb, timeout=timeout)
+        dest = work / filename
+        download_file(url, dest, progress=bytes_cb, timeout=timeout)
         return dest
     if stype == "github_release_latest":
         repo = source["repo"]
@@ -520,8 +543,12 @@ def _download_source(source: dict[str, Any], work: Path, progress: ProgressCb | 
             if source.get("asset_not_contains"):
                 detail = f"{needle} (excluding {source['asset_not_contains']})"
             raise FileNotFoundError(f"No release asset matching {detail} for {repo}")
-        dest = work / asset["name"]
-        download_file(asset["browser_download_url"], dest, progress=bytes_cb)
+        filename = sanitize_filename(asset.get("name") or "release.bin")
+        url = asset["browser_download_url"]
+        if _looks_like_zip(filename, stype):
+            return download_bytes(url, progress=bytes_cb, timeout=timeout)
+        dest = work / filename
+        download_file(url, dest, progress=bytes_cb, timeout=timeout)
         return dest
     raise ValueError(f"Unknown source type: {stype}")
 
@@ -960,10 +987,11 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
             assert source
             artifact = _download_source(source, work, progress)
             search_root = work
-            if artifact.suffix.lower() == ".zip" or source.get("type") in ("raw_zip", "github_zip"):
+            if _is_zip_artifact(artifact, source):
                 search_root = extract_zip(artifact, work / "extract")
             else:
                 # single dll
+                assert isinstance(artifact, Path)
                 dest_name = source.get("filename") or artifact.name
                 shutil.copy2(artifact, game / dest_name)
 
@@ -981,9 +1009,10 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
             addon_src = mod.get("addon_source")
             if addon_src:
                 a = _download_source(addon_src, work / "addon", progress)
-                if a.suffix.lower() == ".zip" or addon_src.get("type") in ("raw_zip", "github_zip"):
+                if _is_zip_artifact(a, addon_src):
                     aroot = extract_zip(a, work / "addon_extract")
                 else:
+                    assert isinstance(a, Path)
                     aroot = a.parent
                 _install_addon_folder(aroot, game, preferred_name=addon_src.get("folder"))
 
@@ -997,7 +1026,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
             assert source
             artifact = _download_source(source, work, progress)
             # Zip sources (e.g. Darker Nights archive) — extract and pick the MPQ
-            if artifact.suffix.lower() == ".zip" or source.get("type") in ("raw_zip", "github_zip"):
+            if _is_zip_artifact(artifact, source):
                 extracted = extract_zip(artifact, work / "extract")
                 needle = (source.get("mpq_match") or Path(mod.get("destination") or "").name or ".mpq").lower()
                 prefer = (source.get("mpq_prefer_path") or "").replace("\\", "/").lower()
@@ -1011,6 +1040,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 if not candidates:
                     raise FileNotFoundError(f"No .mpq found in archive for {mod_id}")
                 artifact = candidates[0]
+            assert isinstance(artifact, Path)
             dest_rel = mod.get("destination") or f"Data/{source.get('filename') or artifact.name}"
             dest = game / dest_rel
             dest.parent.mkdir(parents=True, exist_ok=True)
@@ -1073,6 +1103,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
         if kind == "dxvk_cursor":
             assert source
             artifact = _download_source(source, work, progress)
+            assert isinstance(artifact, Path)
             shutil.copy2(artifact, game / "d3d9.dll")
             conf = game / "dxvk.conf"
             text = conf.read_text(encoding="utf-8", errors="ignore") if conf.exists() else ""

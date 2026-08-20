@@ -149,6 +149,54 @@ def test_multi_folder_pack_grouping():
     print("OK multi-folder pack grouping")
 
 
+def test_sanitize_filename():
+    from ichalaunch.core.filesystem import sanitize_filename
+
+    assert sanitize_filename('vanillafixes-1.5.3.zip') == "vanillafixes-1.5.3.zip"
+    assert sanitize_filename('"vanillafixes-1.5.3.zip"') == "vanillafixes-1.5.3.zip"
+    assert sanitize_filename("vanillafixes-1.5.3.zip\n") == "vanillafixes-1.5.3.zip"
+    assert sanitize_filename("vanillafixes-1.5.3.zip\r\n") == "vanillafixes-1.5.3.zip"
+    assert "*" not in sanitize_filename("bad*name?.zip")
+    assert sanitize_filename("") == "download.bin"
+    assert sanitize_filename('attachment; filename="pack.zip"') == "pack.zip"
+    print("OK sanitize filename")
+
+
+def test_vanillafixes_zip_in_memory():
+    """Windows Defender may quarantine vanillafixes-*.zip on disk; memory extract must work."""
+    import tempfile
+
+    from ichalaunch.mods.installer import _download_source, get_mod
+    from ichalaunch.core.filesystem import extract_zip
+
+    mod = get_mod("vanillafixes")
+    assert mod and mod["source"]["asset_not_contains"] == "dxvk"
+    source = dict(mod["source"])
+    with tempfile.TemporaryDirectory(prefix="ichalaunch_") as tmp:
+        work = Path(tmp)
+        artifact = _download_source(source, work, None)
+        assert isinstance(artifact, (bytes, bytearray)), type(artifact)
+        assert artifact[:2] == b"PK"
+        # Disk write of this zip is often blocked on Windows — prove memory path works
+        root = extract_zip(artifact, work / "extract")
+        names = {p.name.lower() for p in root.rglob("*") if p.is_file()}
+        assert "vanillafixes.exe" in names, names
+        assert "vfpatcher.dll" in names, names
+        # Confirm on-disk zip would be the failure mode we fixed
+        bad = work / "vanillafixes-1.5.3.zip"
+        try:
+            bad.write_bytes(artifact)
+            try:
+                with open(bad, "rb") as f:
+                    f.read(4)
+                disk_ok = True
+            except OSError:
+                disk_ok = False
+        except OSError:
+            disk_ok = False
+        print(f"OK vanillafixes in-memory extract (disk zip readable={disk_ok})")
+
+
 def main():
     test_catalogs()
     test_github_parse()
@@ -158,6 +206,8 @@ def main():
     test_discover_game_path_near_launcher()
     test_status_progress_bytes()
     test_multi_folder_pack_grouping()
+    test_sanitize_filename()
+    test_vanillafixes_zip_in_memory()
     print("\nAll smoke tests passed.")
 
 
