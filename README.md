@@ -1,5 +1,7 @@
 # IchaLaunch
 
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/jeb32411u)
+
 **IchaLaunch** is the desktop launcher for **[RavenCraft](https://ravencraft.io/)** — a Turtle WoW–compatible 1.18 client experience. It installs and updates addons, manages client mods and visual packs, keeps itself up to date, and launches the game with one click.
 
 Download the latest build from **[Releases](https://github.com/brutaliccus/IchaLaunch/releases/latest)**.
