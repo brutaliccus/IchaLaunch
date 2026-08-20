@@ -632,7 +632,6 @@ class MainWindow(QMainWindow):
         def on_ok(_result):
             self.addons.clear_pending_update(folder)
             self.status_lbl.setText(f"Updated {folder}")
-            QMessageBox.information(self, "Updated", f"Updated {folder}")
 
         self._busy(f"Updating {folder}…", worker, on_ok=on_ok)
 
