@@ -18,6 +18,7 @@ from ichalaunch.config.settings import settings
 from ichalaunch.game.launcher import detect_game
 from ichalaunch.mods.installer import detect_actual_state, load_mod_catalog, plan_changes
 from ichalaunch.ui.widgets.common import ModCheckRow, status_with_stamp
+from ichalaunch.ui.widgets.dialogs import prompt_text
 
 CATEGORY_ORDER = [
     "Performance & Fixes",
@@ -34,6 +35,7 @@ class ClientPage(QWidget):
     update_mod_requested = Signal(str)
     reinstall_mod_requested = Signal(str)
     update_all_mods_requested = Signal()
+    custom_dll_import_requested = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -54,16 +56,20 @@ class ClientPage(QWidget):
         self.update_all_btn.setObjectName("UpdateAllButton")
         self.update_all_btn.setEnabled(False)
         self.update_all_btn.clicked.connect(self.update_all_mods_requested.emit)
+        self.add_dll_btn = QPushButton("Add DLL from GitHub")
+        self.add_dll_btn.clicked.connect(self._open_custom_dll_dialog)
         apply_btn = QPushButton("Apply Changes")
         apply_btn.clicked.connect(self.apply_clicked.emit)
         header.addWidget(self.rescan_btn)
         header.addWidget(self.check_btn)
         header.addWidget(self.update_all_btn)
+        header.addWidget(self.add_dll_btn)
         header.addWidget(apply_btn)
         root.addLayout(header)
 
         hint = QLabel(
-            "Select a category on the left. Checkboxes reflect desired state; Rescan syncs from disk."
+            "Select a category on the left. Checkboxes reflect desired state; Rescan syncs from disk. "
+            "Use Add DLL from GitHub for a custom release (.dll / .zip)."
         )
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
@@ -102,6 +108,10 @@ class ClientPage(QWidget):
         self.rows: dict[str, ModCheckRow] = {}
         self._pending_updates: dict[str, dict] = {}
         self._client_mods_scan_done = False
+        self._cat_hosts: dict[str, QVBoxLayout] = {}
+        self._cat_index: dict[str, int] = {}
+        self._side_layout = side_l
+        self._side_stretch_added = False
 
         by_cat: dict[str, list] = {}
         for mod in load_mod_catalog():
@@ -109,47 +119,10 @@ class ClientPage(QWidget):
         cats = [c for c in CATEGORY_ORDER if c in by_cat] + [c for c in by_cat if c not in CATEGORY_ORDER]
 
         for i, cat in enumerate(cats):
-            btn = QPushButton(cat)
-            btn.setObjectName("CatNavButton")
-            btn.setCheckable(True)
-            btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.clicked.connect(lambda checked=False, idx=i: self._show_cat(idx))
-            side_l.addWidget(btn)
-            self.cat_btns.append(btn)
-
-            page = QWidget()
-            page_l = QVBoxLayout(page)
-            page_l.setContentsMargins(0, 0, 0, 0)
-            scroll = QScrollArea()
-            scroll.setWidgetResizable(True)
-            host = QWidget()
-            host_l = QVBoxLayout(host)
-            host_l.setContentsMargins(4, 0, 4, 0)
-            host_l.setSpacing(8)
-            for mod in by_cat[cat]:
-                note = mod.get("note") or ""
-                desc = mod.get("description", "")
-                if note:
-                    desc = f"{desc}  ({note})"
-                if mod.get("kind") == "manual_link":
-                    desc = f"[Manual download] {desc}"
-                row = ModCheckRow(
-                    mod["id"],
-                    mod["name"],
-                    desc,
-                    checked=bool(settings.desired_mods.get(mod["id"], False)),
-                )
-                row.toggled.connect(self._on_toggle)
-                row.update_clicked.connect(self.update_mod_requested.emit)
-                row.reinstall_clicked.connect(self.reinstall_mod_requested.emit)
-                host_l.addWidget(row)
-                self.rows[mod["id"]] = row
-            host_l.addStretch(1)
-            scroll.setWidget(host)
-            page_l.addWidget(scroll)
-            self.cat_stack.addWidget(page)
+            self._add_category_page(cat, by_cat[cat], i)
 
         side_l.addStretch(1)
+        self._side_stretch_added = True
         body.addWidget(side)
         body.addWidget(self.cat_stack, 1)
         root.addLayout(body, 1)
@@ -162,6 +135,104 @@ class ClientPage(QWidget):
         if self.cat_btns:
             self._show_cat(0)
         self.refresh_from_settings()
+
+    def _add_category_page(self, cat: str, mods: list[dict], index: int) -> None:
+        btn = QPushButton(cat)
+        btn.setObjectName("CatNavButton")
+        btn.setCheckable(True)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.clicked.connect(lambda checked=False, idx=index: self._show_cat(idx))
+        if self._side_stretch_added:
+            # Insert before the trailing stretch spacer
+            self._side_layout.insertWidget(self._side_layout.count() - 1, btn)
+        else:
+            self._side_layout.addWidget(btn)
+        self.cat_btns.append(btn)
+        self._cat_index[cat] = index
+
+        page = QWidget()
+        page_l = QVBoxLayout(page)
+        page_l.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        host = QWidget()
+        host_l = QVBoxLayout(host)
+        host_l.setContentsMargins(4, 0, 4, 0)
+        host_l.setSpacing(8)
+        self._cat_hosts[cat] = host_l
+        for mod in mods:
+            self._add_mod_row(mod, host_l)
+        host_l.addStretch(1)
+        scroll.setWidget(host)
+        page_l.addWidget(scroll)
+        self.cat_stack.addWidget(page)
+
+    def _add_mod_row(self, mod: dict, host_l: QVBoxLayout | None = None) -> ModCheckRow:
+        mid = mod["id"]
+        if mid in self.rows:
+            return self.rows[mid]
+        note = mod.get("note") or ""
+        desc = mod.get("description", "")
+        if note:
+            desc = f"{desc}  ({note})"
+        if mod.get("kind") == "manual_link":
+            desc = f"[Manual download] {desc}"
+        if mod.get("user_defined"):
+            desc = f"[Custom] {desc}"
+        row = ModCheckRow(
+            mid,
+            mod["name"],
+            desc,
+            checked=bool(settings.desired_mods.get(mid, False)),
+        )
+        row.toggled.connect(self._on_toggle)
+        row.update_clicked.connect(self.update_mod_requested.emit)
+        row.reinstall_clicked.connect(self.reinstall_mod_requested.emit)
+        cat = mod.get("category") or "Client Enhancements"
+        layout = host_l or self._cat_hosts.get(cat)
+        if layout is not None:
+            # Insert before trailing stretch
+            insert_at = max(0, layout.count() - 1)
+            layout.insertWidget(insert_at, row)
+        self.rows[mid] = row
+        return row
+
+    def ensure_mod_row(self, mod: dict) -> None:
+        """Ensure a catalog (or newly registered user) mod has a checkbox row."""
+        mid = mod.get("id")
+        if not mid:
+            return
+        if mid not in self.rows:
+            cat = mod.get("category") or "Client Enhancements"
+            if cat not in self._cat_hosts:
+                idx = len(self.cat_btns)
+                self._add_category_page(cat, [mod], idx)
+            else:
+                self._add_mod_row(mod)
+        self.refresh_from_settings()
+
+    def sync_catalog_rows(self) -> None:
+        """Add rows for any catalog/user mods that appeared since page construction."""
+        for mod in load_mod_catalog():
+            mid = mod.get("id")
+            if not mid or mid in self.rows:
+                continue
+            cat = mod.get("category") or "Client Enhancements"
+            if cat not in self._cat_hosts:
+                self._add_category_page(cat, [mod], len(self.cat_btns))
+            else:
+                self._add_mod_row(mod)
+
+    def _open_custom_dll_dialog(self) -> None:
+        url = prompt_text(
+            self,
+            "Add DLL from GitHub",
+            "Paste a GitHub repository URL that publishes a .dll (or .zip) release asset:",
+            placeholder="https://github.com/owner/dll-repo",
+            accept_text="Install",
+        )
+        if url:
+            self.custom_dll_import_requested.emit(url)
 
     @property
     def pending_updates(self) -> list[dict]:
@@ -210,6 +281,7 @@ class ClientPage(QWidget):
         self.refresh_plan()
 
     def refresh_from_settings(self) -> None:
+        self.sync_catalog_rows()
         desired = settings.desired_mods
         installed_meta = settings.installed_mods
         game = detect_game()

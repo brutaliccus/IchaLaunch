@@ -108,6 +108,10 @@ def mod_companion_index() -> dict[str, dict[str, Any]]:
             sources.append((match_folder, ""))
         for folder_name, raw_url in sources:
             repo = _github_page_url(raw_url) if raw_url else ""
+            if not repo:
+                addon_repo = (addon_src.get("repo") or "").strip()
+                if addon_repo and "/" in addon_repo:
+                    repo = f"https://github.com/{addon_repo}"
             entry = {
                 "name": mod.get("name") or folder_name,
                 "folder": folder_name,

@@ -61,8 +61,18 @@
     "category": "Client Enhancements",
     "description": "Spell queuing and casting QoL that works around vanilla cast acknowledgement lag.",
     "detect": {"any_files": ["nampower.dll"]},
-    "source": {"type": "raw", "url": "https://raw.githubusercontent.com/RetroCro/TurtleWoW-Mods/refs/heads/main/Archive/DLL%20BACKUP/nampower.dll", "filename": "nampower.dll"},
-    "addon_source": {"type": "raw_zip", "url": "https://raw.githubusercontent.com/RetroCro/TurtleWoW-Mods/refs/heads/main/Archive/DLL%20BACKUP/NampowerSettings.zip", "folder": "nampowersettings"},
+    "source": {
+      "type": "github_release_latest",
+      "repo": "brues-code/nampower",
+      "asset_contains": "nampower.dll"
+    },
+    "addon_source": {
+      "type": "github_release_latest",
+      "repo": "brues-code/NampowerSettings",
+      "asset_contains": ".zip",
+      "folder": "NampowerSettings"
+    },
+    "files": [{"match": "nampower.dll", "destination": "nampower.dll"}],
     "dlls_txt": {"add": ["nampower.dll"]},
     "kind": "dll_file",
     "dependencies": [],
@@ -74,11 +84,54 @@
     "category": "Client Enhancements",
     "description": "Better nameplates, LoS helpers, camera and network tweaks.",
     "detect": {"any_files": ["UnitXP_SP3.dll"]},
-    "source": {"type": "raw_zip", "url": "https://raw.githubusercontent.com/RetroCro/TurtleWoW-Mods/refs/heads/main/Archive/DLL%20BACKUP/UnitXP_SP3%20v87.zip"},
+    "source": {
+      "type": "github_release_latest",
+      "repo": "brues-code/UnitXP_SP3",
+      "asset_contains": "UnitXP_SP3.dll"
+    },
     "files": [{"match": "UnitXP_SP3.dll", "destination": "UnitXP_SP3.dll"}],
-    "addon_folder_match": "UnitXP_SP3_Addon",
+    "addon_source": {
+      "type": "github_release_latest",
+      "repo": "brues-code/UnitXP_SP3_Addon",
+      "asset_contains": ".zip",
+      "folder": "UnitXP_SP3_Addon"
+    },
     "dlls_txt": {"add": ["UnitXP_SP3.dll"]},
     "kind": "dll_bundle",
+    "dependencies": [],
+    "conflicts": []
+  },
+  {
+    "id": "auction_query_throttle",
+    "name": "Auction Query Throttle",
+    "category": "Performance & Fixes",
+    "description": "Throttles auction-house queries to reduce client freezes when browsing the AH.",
+    "detect": {"any_files": ["AuctionQueryThrottle.dll"]},
+    "source": {
+      "type": "github_release_latest",
+      "repo": "brues-code/AuctionQueryThrottle",
+      "asset_contains": "AuctionQueryThrottle.dll"
+    },
+    "files": [{"match": "AuctionQueryThrottle.dll", "destination": "AuctionQueryThrottle.dll"}],
+    "dlls_txt": {"add": ["AuctionQueryThrottle.dll"]},
+    "kind": "dll_file",
+    "dependencies": [],
+    "conflicts": []
+  },
+  {
+    "id": "classic_api",
+    "name": "ClassicAPI",
+    "category": "Client Enhancements",
+    "description": "Classic-era Lua API shims and helpers for vanilla 1.12 clients.",
+    "detect": {"any_files": ["ClassicAPI.dll"]},
+    "source": {
+      "type": "github_release_latest",
+      "repo": "brues-code/ClassicAPI",
+      "asset_contains": "ClassicAPI.dll"
+    },
+    "files": [{"match": "ClassicAPI.dll", "destination": "ClassicAPI.dll"}],
+    "dlls_txt": {"add": ["ClassicAPI.dll"]},
+    "kind": "dll_file",
     "dependencies": [],
     "conflicts": []
   },
@@ -131,9 +184,9 @@
     "id": "vanilla_helpers",
     "name": "VanillaHelpers (required for HD)",
     "category": "HD Graphics",
-    "description": "Mandatory DLL for Project Reforged HD patches. Without it, HD MPQs will crash.",
+    "description": "Mandatory DLL for Project Reforged HD patches. Without it, HD MPQs will crash. (Upstream releases from isfir; brues-code fork has no binaries yet.)",
     "detect": {"any_files": ["VanillaHelpers.dll"]},
-    "source": {"type": "github_release_latest", "repo": "isfir/VanillaHelpers", "asset_contains": ".dll"},
+    "source": {"type": "github_release_latest", "repo": "isfir/VanillaHelpers", "asset_contains": "VanillaHelpers.dll"},
     "files": [{"match": "VanillaHelpers.dll", "destination": "VanillaHelpers.dll"}],
     "dlls_txt": {"add": ["VanillaHelpers.dll"]},
     "kind": "dll_bundle",

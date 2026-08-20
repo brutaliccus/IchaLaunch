@@ -7701,5 +7701,41 @@
     "description": "A pfUI fork, Complete UI Replacement, that instead aims to preserve the blizzard look/design but with a modern touch and with some nice features added [Img1] [Img2]",
     "source": "turtle_wiki",
     "folder": "zUI"
+  },
+  {
+    "name": "Aegis SBR",
+    "repo": "https://github.com/Torchlite-bit/Aegis_SBR",
+    "category": "Aegis",
+    "description": "Single-button rotation for Turtle/1.18.1 — evaluates class, resources, and procs each press (requires SuperWoW + Nampower).",
+    "source": "manual",
+    "folder": "Aegis_SBR",
+    "installable": true
+  },
+  {
+    "name": "Aegis Courier",
+    "repo": "https://github.com/Torchlite-bit/Aegis_Courier",
+    "category": "Aegis",
+    "description": "Mailbox companion / TurtleMail replacement with auction-mail support and optional Aegis Exchange integration.",
+    "source": "manual",
+    "folder": "Aegis_Courier",
+    "installable": true
+  },
+  {
+    "name": "Aegis Exchange",
+    "repo": "https://github.com/Torchlite-bit/Aegis_Exchange",
+    "category": "Aegis",
+    "description": "Clean, fast auction house UI for vanilla 1.12 with pricing, craft value, and gold tracking.",
+    "source": "manual",
+    "folder": "Aegis_Exchange",
+    "installable": true
+  },
+  {
+    "name": "Aegis RallyPower",
+    "repo": "https://github.com/Torchlite-bit/Aegis_RallyPower",
+    "category": "Aegis",
+    "description": "All-class raid buff coordination — PallyPower grid for Paladins plus matching buff bars for other classes.",
+    "source": "manual",
+    "folder": "Aegis_RallyPower",
+    "installable": true
   }
 ]

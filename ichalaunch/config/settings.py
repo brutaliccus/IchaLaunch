@@ -46,6 +46,7 @@ DEFAULTS: dict[str, Any] = {
     },
     "installed_addons": {},
     "installed_mods": {},
+    "user_mods": [],
     "window_geometry": None,
 }
 
@@ -73,6 +74,11 @@ class Settings:
                     im = dict(DEFAULTS.get("installed_mods") or {})
                     im.update(loaded.get("installed_mods") or {})
                     merged["installed_mods"] = im
+                    um = loaded.get("user_mods")
+                    if isinstance(um, list):
+                        merged["user_mods"] = um
+                    else:
+                        merged["user_mods"] = list(DEFAULTS.get("user_mods") or [])
                     # Migrate older dual startup toggles into one setting.
                     if "check_updates_on_startup" not in loaded:
                         addon_on = bool(loaded.get("check_addon_updates_on_startup", True))
@@ -153,6 +159,24 @@ class Settings:
         mods = self.installed_mods
         mods.pop(mod_id, None)
         self.set("installed_mods", mods)
+
+    @property
+    def user_mods(self) -> list[dict[str, Any]]:
+        raw = self._data.get("user_mods") or []
+        return [dict(m) for m in raw if isinstance(m, dict) and m.get("id")]
+
+    def set_user_mod(self, mod: dict[str, Any]) -> None:
+        """Insert or replace a user-defined client mod entry by id."""
+        mid = mod.get("id")
+        if not mid:
+            raise ValueError("user mod requires id")
+        mods = [m for m in self.user_mods if m.get("id") != mid]
+        mods.append(dict(mod))
+        self.set("user_mods", mods)
+
+    def remove_user_mod(self, mod_id: str) -> None:
+        mods = [m for m in self.user_mods if m.get("id") != mod_id]
+        self.set("user_mods", mods)
 
 
 # singleton

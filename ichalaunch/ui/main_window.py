@@ -72,6 +72,7 @@ from ichalaunch.mods.installer import (
     ModUpdateCheckResult,
     apply_desired_state,
     check_mod_updates,
+    install_custom_dll_from_github,
     recently_checked_mod_updates,
     update_mod,
     update_mods,
@@ -246,6 +247,7 @@ class MainWindow(QMainWindow):
         content = QWidget()
         content.setObjectName("ContentPanel")
         content.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self._content_panel = content
         content_l = QVBoxLayout(content)
         content_l.setContentsMargins(0, 0, 0, 0)
         content_l.setSpacing(0)
@@ -298,7 +300,7 @@ class MainWindow(QMainWindow):
         outer.addWidget(content, 1)
         outer.addWidget(bottom)
 
-        # Mysteries of Azeroth wordmark — floats over tab strip (click-through).
+        # Mysteries of Azeroth wordmark — straddles ContentPanel top border (click-through).
         self._moa_logo = MoaFloatingLogo(root)
         self._moa_logo.raise_()
 
@@ -314,6 +316,7 @@ class MainWindow(QMainWindow):
         self.client.update_mod_requested.connect(self._update_client_mod)
         self.client.reinstall_mod_requested.connect(self._reinstall_client_mod)
         self.client.update_all_mods_requested.connect(self._update_all_client_mods)
+        self.client.custom_dll_import_requested.connect(self._custom_dll_import)
         self.addons.install_requested.connect(self._install_catalog_addon)
         self.addons.update_requested.connect(self._update_addon)
         self.addons.reinstall_requested.connect(self._reinstall_addon)
@@ -401,18 +404,23 @@ class MainWindow(QMainWindow):
             self.unsetCursor()
 
     def _position_moa_logo(self) -> None:
-        """Center logo between SETTINGS tab and the right edge; half off the top."""
+        """Center logo on ContentPanel top border, between SETTINGS and panel right."""
         logo = getattr(self, "_moa_logo", None)
         root = self.centralWidget()
-        if logo is None or root is None or not self.nav_btns or logo.isHidden():
+        content = getattr(self, "_content_panel", None)
+        if logo is None or root is None or content is None or not self.nav_btns or logo.isHidden():
             return
         settings_btn = self.nav_btns[-1]
+        # Horizontal: between SETTINGS tab's right edge and the content panel's right edge
+        # (not the transparent tab-strip overhang / full window width).
         left = settings_btn.mapTo(root, QPoint(settings_btn.width(), 0)).x()
-        right = root.width()
+        content_origin = content.mapTo(root, QPoint(0, 0))
+        right = content_origin.x() + content.width()
         cx = (left + right) / 2.0
         x = int(round(cx - logo.width() / 2.0))
-        # Wordmark vertical center sits on the top edge → half clipped above.
-        y = -(logo.logo_offset_y + logo.logo_height // 2)
+        # Vertical: wordmark center on ContentPanel top purple border (half above / half below).
+        content_top = content_origin.y()
+        y = int(round(content_top - (logo.logo_offset_y + logo.logo_height / 2.0)))
         logo.move(x, y)
         logo.raise_()
 
@@ -868,6 +876,28 @@ class MainWindow(QMainWindow):
                 self, "Installed from GitHub", f"Installed from GitHub: {name}"
             ),
         )
+
+    def _custom_dll_import(self, url: str) -> None:
+        if not is_installed():
+            themed.warning(self, "No game", "Set a valid game path first.")
+            return
+
+        def on_ok(mod):
+            if isinstance(mod, dict):
+                self.client.ensure_mod_row(mod)
+                name = mod.get("name") or mod.get("id") or "DLL"
+                dlls = (mod.get("dlls_txt") or {}).get("add") or []
+                extra = f"\nRegistered in dlls.txt: {', '.join(dlls)}" if dlls else ""
+                themed.info(
+                    self,
+                    "Custom DLL installed",
+                    f"Installed {name} and saved it as a Client checkbox.{extra}",
+                )
+            else:
+                themed.info(self, "Custom DLL installed", "DLL installed from GitHub.")
+
+        worker = Worker(install_custom_dll_from_github, url)
+        self._busy("Installing custom DLL from GitHub…", worker, on_ok=on_ok)
 
     def _update_addon(self, entry: dict) -> None:
         folder = entry.get("folder") or entry.get("name")

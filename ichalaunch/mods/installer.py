@@ -59,7 +59,15 @@ def _data_path() -> Path:
 
 
 def load_mod_catalog() -> list[dict[str, Any]]:
-    return json.loads(_data_path().read_text(encoding="utf-8"))
+    catalog = json.loads(_data_path().read_text(encoding="utf-8"))
+    seen = {m["id"] for m in catalog if m.get("id")}
+    for mod in settings.user_mods:
+        mid = mod.get("id")
+        if not mid or mid in seen:
+            continue
+        catalog.append(dict(mod))
+        seen.add(mid)
+    return catalog
 
 
 def get_mod(mod_id: str) -> dict[str, Any] | None:
@@ -67,6 +75,221 @@ def get_mod(mod_id: str) -> dict[str, Any] | None:
         if m["id"] == mod_id:
             return m
     return None
+
+
+def builtin_mod_ids() -> set[str]:
+    return {m["id"] for m in json.loads(_data_path().read_text(encoding="utf-8")) if m.get("id")}
+
+
+def _slug_mod_id(repo_name: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "_", repo_name.lower()).strip("_")
+    return slug or "custom_dll"
+
+
+def _pick_dll_asset(assets: list[dict[str, Any]], *, prefer: str | None = None) -> dict[str, Any] | None:
+    dlls = [
+        a
+        for a in assets
+        if (a.get("name") or "").lower().endswith(".dll")
+        and not (a.get("name") or "").lower().endswith(".pdb")
+    ]
+    if not dlls:
+        return None
+    if prefer:
+        needle = prefer.lower()
+        ranked = [a for a in dlls if needle in (a.get("name") or "").lower()]
+        if ranked:
+            return ranked[0]
+    # Prefer shortest name (base package over variants)
+    return min(dlls, key=lambda a: (len(a.get("name") or ""), a.get("name") or ""))
+
+
+def _pick_zip_asset(assets: list[dict[str, Any]], *, prefer: str | None = None) -> dict[str, Any] | None:
+    zips = [a for a in assets if (a.get("name") or "").lower().endswith(".zip")]
+    if not zips:
+        return None
+    if prefer:
+        needle = prefer.lower()
+        ranked = [a for a in zips if needle in (a.get("name") or "").lower()]
+        if ranked:
+            return ranked[0]
+    return min(zips, key=lambda a: (len(a.get("name") or ""), a.get("name") or ""))
+
+
+def _companion_addon_source(owner: str, repo_name: str, assets: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Detect a companion settings/addon zip in the same release or a sibling repo."""
+    companion_zips = [
+        a
+        for a in assets
+        if (a.get("name") or "").lower().endswith(".zip")
+        and any(tok in (a.get("name") or "").lower() for tok in ("settings", "addon", "config"))
+    ]
+    if companion_zips:
+        asset = companion_zips[0]
+        folder_guess = Path(asset["name"]).stem
+        folder_guess = re.sub(r"[-_]?v?\d+(?:\.\d+)*$", "", folder_guess, flags=re.IGNORECASE).strip("-_")
+        return {
+            "type": "github_release_latest",
+            "repo": f"{owner}/{repo_name}",
+            "asset_contains": asset["name"],
+            "folder": folder_guess or "Addon",
+        }
+
+    candidates = [
+        f"{repo_name}Settings",
+        f"{repo_name}_Settings",
+        f"{repo_name}Addon",
+        f"{repo_name}_Addon",
+        f"{repo_name}-Addon",
+    ]
+    for name in candidates:
+        repo = f"{owner}/{name}"
+        try:
+            r = github_get(f"https://api.github.com/repos/{repo}/releases/latest")
+        except Exception:
+            continue
+        sibling_assets = r.json().get("assets") or []
+        zip_asset = _pick_zip_asset(sibling_assets)
+        if not zip_asset:
+            continue
+        folder = name
+        return {
+            "type": "github_release_latest",
+            "repo": repo,
+            "asset_contains": ".zip",
+            "folder": folder,
+        }
+    return None
+
+
+def resolve_github_dll_mod(url: str) -> dict[str, Any]:
+    """Inspect a GitHub repo's latest release and build a client-mod catalog entry."""
+    parsed = parse_github_url(url)
+    if not parsed:
+        raise ValueError("Not a valid GitHub repository URL. Example: https://github.com/owner/repo")
+    owner, repo_name = parsed
+    repo = f"{owner}/{repo_name}"
+    try:
+        r = github_get(f"https://api.github.com/repos/{repo}/releases/latest")
+    except GitHubRateLimitError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise FileNotFoundError(
+            f"No latest release found for {repo}. Publish a release with a .dll or .zip asset."
+        ) from exc
+    data = r.json()
+    assets = data.get("assets") or []
+    if not assets:
+        raise FileNotFoundError(f"Release for {repo} has no downloadable assets.")
+
+    # Reuse a built-in catalog entry that already points at this repo.
+    for existing in json.loads(_data_path().read_text(encoding="utf-8")):
+        src = existing.get("source") or {}
+        if (src.get("repo") or "").lower() == repo.lower():
+            return dict(existing)
+
+    dll_asset = _pick_dll_asset(assets, prefer=repo_name)
+    zip_asset = _pick_zip_asset(assets, prefer=repo_name) if not dll_asset else None
+    if not dll_asset and not zip_asset:
+        raise FileNotFoundError(
+            f"No .dll or .zip asset on the latest release of {repo}."
+        )
+
+    if dll_asset:
+        dll_name = dll_asset["name"]
+        source: dict[str, Any] = {
+            "type": "github_release_latest",
+            "repo": repo,
+            "asset_contains": dll_name,
+        }
+        kind = "dll_file"
+        files = [{"match": dll_name, "destination": dll_name}]
+    else:
+        assert zip_asset
+        source = {
+            "type": "github_release_latest",
+            "repo": repo,
+            "asset_contains": zip_asset["name"],
+        }
+        kind = "dll_bundle"
+        # Placeholder — install_custom_dll_from_github probes the zip for the real name.
+        dll_name = f"{repo_name}.dll"
+        files = [{"match": dll_name, "destination": dll_name}]
+
+    mid = _slug_mod_id(repo_name)
+    if mid in builtin_mod_ids():
+        mid = f"custom_{mid}"
+
+    display = repo_name.replace("_", " ").replace("-", " ")
+    mod: dict[str, Any] = {
+        "id": mid,
+        "name": display,
+        "category": "Client Enhancements",
+        "description": f"User-defined DLL from {repo}",
+        "detect": {"any_files": [dll_name]},
+        "source": source,
+        "files": files,
+        "dlls_txt": {"add": [dll_name]},
+        "kind": kind,
+        "dependencies": [],
+        "conflicts": [],
+        "user_defined": True,
+        "repo_url": f"https://github.com/{repo}",
+    }
+
+    addon_src = _companion_addon_source(owner, repo_name, assets)
+    if addon_src:
+        mod["addon_source"] = addon_src
+
+    return mod
+
+
+def register_user_mod(mod: dict[str, Any]) -> dict[str, Any]:
+    """Persist a user mod entry and enable it in desired_mods."""
+    if not mod.get("id"):
+        raise ValueError("mod requires id")
+    settings.set_user_mod(mod)
+    settings.set_desired_mod(mod["id"], True)
+    return mod
+
+
+def install_custom_dll_from_github(url: str, progress: ProgressCb | None = None) -> dict[str, Any]:
+    """Resolve, register, and install a DLL (and optional companion addon) from GitHub."""
+    mod = resolve_github_dll_mod(url)
+    source = mod.get("source") or {}
+    asset_needle = (source.get("asset_contains") or "").lower()
+    # Probe zip-only custom entries for the real DLL name before persisting.
+    if (
+        mod.get("user_defined")
+        and source.get("type") == "github_release_latest"
+        and asset_needle.endswith(".zip")
+    ):
+        with tempfile.TemporaryDirectory(prefix="ichalaunch_probe_") as tmp:
+            work = Path(tmp)
+            artifact = _download_source(source, work, progress)
+            extracted = extract_zip(artifact, work / "extract")
+            prefer = (_slug_mod_id((parse_github_url(url) or ("", ""))[1]) or "").replace("_", "")
+            dlls = [p for p in extracted.rglob("*.dll") if p.is_file()]
+            if not dlls:
+                raise FileNotFoundError("Release zip contains no .dll files.")
+            chosen = None
+            if prefer:
+                for p in dlls:
+                    if prefer in re.sub(r"[^a-z0-9]+", "", p.stem.lower()):
+                        chosen = p
+                        break
+            chosen = chosen or min(dlls, key=lambda p: (len(p.name), p.name.lower()))
+            dll_name = chosen.name
+            mod["detect"] = {"any_files": [dll_name]}
+            mod["files"] = [{"match": dll_name, "destination": dll_name}]
+            mod["dlls_txt"] = {"add": [dll_name]}
+            mod["kind"] = "dll_bundle"
+    if mod.get("user_defined"):
+        register_user_mod(mod)
+    else:
+        settings.set_desired_mod(mod["id"], True)
+    install_mod(mod["id"], progress=progress, prefer_latest=True)
+    return mod
 
 
 def _detect_mod(game_path: Path, mod: dict[str, Any]) -> bool:
@@ -926,6 +1149,8 @@ def remove_mod(mod_id: str, progress: ProgressCb | None = None) -> None:
     dlls = (mod.get("dlls_txt") or {}).get("add") or []
     if dlls:
         update_dlls_txt(game, remove=dlls)
+        for dll in dlls:
+            safe_remove(game / dll)
 
     # Optional addon folders
     folder = (mod.get("addon_source") or {}).get("folder") or mod.get("addon_folder_match")
