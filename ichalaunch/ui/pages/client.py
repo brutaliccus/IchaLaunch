@@ -51,6 +51,7 @@ class ClientPage(QWidget):
         self.check_btn = QPushButton("Check Updates")
         self.check_btn.clicked.connect(self.check_updates_requested.emit)
         self.update_all_btn = QPushButton("Update All")
+        self.update_all_btn.setObjectName("UpdateAllButton")
         self.update_all_btn.setEnabled(False)
         self.update_all_btn.clicked.connect(self.update_all_mods_requested.emit)
         apply_btn = QPushButton("Apply Changes")

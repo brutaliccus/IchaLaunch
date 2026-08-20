@@ -84,6 +84,43 @@ QPushButton#PlayButton:disabled {
     border-color: rgba(150, 131, 158, 0.2);
 }
 
+/* Eye-catching Update / Update All (RavenCraft purple primary) */
+QPushButton#UpdateButton,
+QPushButton#UpdateAllButton {
+    background-color: #4a2f7a;
+    color: #ffffff;
+    border: 1px solid #F1C22D;
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+}
+
+QPushButton#UpdateButton:hover,
+QPushButton#UpdateAllButton:hover {
+    background-color: #7c5cc4;
+    border-color: #FF7757;
+    color: #ffffff;
+}
+
+QPushButton#UpdateButton:pressed,
+QPushButton#UpdateAllButton:pressed {
+    background-color: #3a2460;
+    border-color: #F1C22D;
+}
+
+QPushButton#UpdateButton:disabled,
+QPushButton#UpdateAllButton:disabled {
+    background-color: #2a2428;
+    color: #666;
+    border-color: rgba(150, 131, 158, 0.2);
+}
+
+QPushButton#UpdateButton {
+    padding: 4px 12px;
+    min-height: 22px;
+}
+
 /* Folder-tab strip — sits above the content “folder body”; host stays transparent */
 QWidget#TopNav {
     background: transparent;

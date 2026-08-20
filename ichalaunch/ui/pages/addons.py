@@ -66,6 +66,7 @@ class AddonsPage(QWidget):
         check_btn.clicked.connect(self.check_updates_requested.emit)
         self.check_btn = check_btn
         update_all_btn = QPushButton("Update All")
+        update_all_btn.setObjectName("UpdateAllButton")
         update_all_btn.clicked.connect(self.update_all_requested.emit)
         rescan_btn = QPushButton("Rescan Disk")
         rescan_btn.clicked.connect(self.rescan_requested.emit)

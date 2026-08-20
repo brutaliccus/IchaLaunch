@@ -182,9 +182,9 @@ class ModCheckRow(QWidget):
         self.status_lbl.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
 
         self.update_btn = QPushButton("Update")
+        self.update_btn.setObjectName("UpdateButton")
         self.update_btn.setVisible(False)
-        # Compact padding + min size so global QPushButton padding doesn't clip the label.
-        self.update_btn.setStyleSheet("padding: 4px 12px;")
+        # Compact min size so global QPushButton padding doesn't clip the label.
         self.update_btn.setMinimumSize(76, 28)
         self.update_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.update_btn.clicked.connect(lambda: self.update_clicked.emit(self.mod_id))
@@ -264,6 +264,7 @@ class AddonRow(QWidget):
         if is_installed:
             if status.startswith("Update"):
                 btn_u = QPushButton("Update")
+                btn_u.setObjectName("UpdateButton")
                 btn_u.clicked.connect(lambda: self.update_clicked.emit(entry))
                 layout.addWidget(btn_u)
             # Reinstall for any installed row that has a GitHub source
