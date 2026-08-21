@@ -51,6 +51,18 @@ def _github_page_url(raw: str) -> str:
     text = (raw or "").strip()
     if not text:
         return ""
+    # git@github.com:owner/repo(.git)
+    m = re.match(r"git@github\.com:([^/]+)/([^/#?\s]+?)(?:\.git)?/?$", text, re.I)
+    if m:
+        return f"https://github.com/{m.group(1)}/{m.group(2)}"
+    # ssh://git@github.com/owner/repo(.git)
+    m = re.match(
+        r"ssh://git@github\.com/([^/]+)/([^/#?\s]+?)(?:\.git)?/?$",
+        text,
+        re.I,
+    )
+    if m:
+        return f"https://github.com/{m.group(1)}/{m.group(2)}"
     # SuperAPI-style: .../SuperAPI/archive/refs/heads/master.zip
     m = re.match(
         r"https?://github\.com/([^/]+)/([^/#?]+?)(?:\.git)?(?:/|$)",
@@ -67,6 +79,79 @@ def _github_page_url(raw: str) -> str:
     if parsed:
         return f"https://github.com/{parsed[0]}/{parsed[1]}"
     return ""
+
+
+def _git_config_path(addon_folder: Path) -> Path | None:
+    """Resolve ``.git/config`` for a folder (handles ``.git`` file gitdir redirects)."""
+    git_entry = addon_folder / ".git"
+    try:
+        if git_entry.is_file():
+            text = git_entry.read_text(encoding="utf-8", errors="replace")
+            for line in text.splitlines():
+                stripped = line.strip()
+                if stripped.lower().startswith("gitdir:"):
+                    gitdir = stripped.split(":", 1)[1].strip()
+                    if not gitdir:
+                        return None
+                    base = Path(gitdir)
+                    if not base.is_absolute():
+                        base = (addon_folder / base).resolve()
+                    cfg = base / "config"
+                    return cfg if cfg.is_file() else None
+            return None
+        if git_entry.is_dir():
+            cfg = git_entry / "config"
+            return cfg if cfg.is_file() else None
+    except OSError:
+        return None
+    return None
+
+
+def read_git_origin_url(addon_folder: str | Path) -> str | None:
+    """Return normalized origin remote URL from ``addon_folder/.git/config``, if any.
+
+    Used when an AddOns folder was cloned/copied outside the launcher zip flow and
+    catalog/settings lack a repo URL. Strips a trailing ``.git``; prefers
+    ``https://github.com/owner/repo`` when the remote is a GitHub URL.
+    """
+    folder = Path(addon_folder)
+    cfg = _git_config_path(folder)
+    if cfg is None:
+        return None
+    try:
+        text = cfg.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+    in_origin = False
+    raw_url = ""
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith(("#", ";")):
+            continue
+        if stripped.startswith("[") and stripped.endswith("]"):
+            section = stripped[1:-1].strip().lower()
+            in_origin = section == 'remote "origin"' or section == "remote 'origin'"
+            continue
+        if not in_origin:
+            continue
+        if "=" not in stripped:
+            continue
+        key, _, value = stripped.partition("=")
+        if key.strip().lower() == "url":
+            raw_url = value.strip().strip("\"'")
+            break
+
+    if not raw_url:
+        return None
+    page = _github_page_url(raw_url)
+    if page:
+        return page
+    # Non-GitHub remotes: still normalize by dropping a trailing .git
+    cleaned = raw_url.rstrip("/")
+    if cleaned.lower().endswith(".git"):
+        cleaned = cleaned[:-4]
+    return cleaned or None
 
 
 def _index_put(idx: dict[str, dict[str, Any]], key: str, entry: dict[str, Any]) -> None:
@@ -492,9 +577,12 @@ def sync_installed_addons_from_disk() -> dict[str, Any]:
     """
     Detect addons on disk and merge into settings.installed_addons.
     Keeps existing GitHub tracking metadata when present; fills gaps from catalog.
+    When catalog/settings lack a repo URL, reads ``.git/config`` origin if present
+    (manual clones) — never overwrites zip-installed / already-tracked URLs.
     Groups multi-folder packs (shared repo / prefix modules) under one primary entry.
     """
     folders = scan_installed_addon_folders()
+    addons_dir = resolve_addons_dir(create=False)
     idx = catalog_index()
     # Overlay mod companion folders (SuperAPI, nampowersettings, …)
     for k, v in mod_companion_index().items():
@@ -511,7 +599,20 @@ def sync_installed_addons_from_disk() -> dict[str, Any]:
         prev_pair = current_by_lower.get(folder.lower())
         prev = dict(prev_pair[1]) if prev_pair else {}
         cat, kind = resolve_catalog_entry(folder, idx, include_mods=False)
-        merged[folder] = merge_addon_meta(folder, prev, cat, match_kind=kind or "exact")
+        meta = merge_addon_meta(folder, prev, cat, match_kind=kind or "exact")
+        # Fill missing repo from local git clone metadata only — do not clobber
+        # launcher zip installs or prior Open-in-Git / update tracking URLs.
+        if addons_dir and not _nonempty(meta.get("url"), meta.get("repository")):
+            origin = read_git_origin_url(addons_dir / folder)
+            if origin:
+                page = _github_page_url(origin) or origin
+                meta["url"] = page
+                repo = _repository_from_url(page)
+                if repo:
+                    meta["repository"] = repo
+                if str(meta.get("source") or "").strip().lower() in ("", "detected"):
+                    meta["source"] = "github"
+        merged[folder] = meta
 
     merged = group_multi_folder_addons(merged)
     settings.set("installed_addons", merged)

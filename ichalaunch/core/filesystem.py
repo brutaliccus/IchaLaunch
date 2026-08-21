@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import io
+import os
 import re
 import shutil
+import stat
+import sys
+import time
 import zipfile
 from pathlib import Path
 
@@ -111,9 +115,95 @@ def extract_zip(zip_source: Path | bytes | bytearray, dest: Path) -> Path:
     return dest
 
 
+def _make_writable(path: Path) -> None:
+    """Clear the Windows read-only bit so deletes can succeed (common under .git)."""
+    try:
+        mode = path.stat().st_mode
+        if not (mode & stat.S_IWRITE):
+            os.chmod(path, mode | stat.S_IWRITE)
+    except OSError:
+        pass
+
+
+def _make_tree_writable(root: Path) -> None:
+    if not root.exists():
+        return
+    if root.is_file():
+        _make_writable(root)
+        return
+    for dirpath, dirnames, filenames in os.walk(root):
+        for name in filenames:
+            _make_writable(Path(dirpath) / name)
+        for name in dirnames:
+            _make_writable(Path(dirpath) / name)
+    _make_writable(root)
+
+
+def _rmtree_clear_readonly(func, path, _exc=None) -> None:  # noqa: ANN001
+    """``shutil.rmtree`` onerror/onexc: clear read-only and retry once."""
+    _make_writable(Path(path))
+    func(path)
+
+def _remove_error_message(path: Path, exc: BaseException) -> str:
+    text = str(path).replace("/", "\\").lower()
+    if "\\.git\\" in text or text.endswith("\\.git"):
+        tip = (
+            " That folder contains a .git directory (git clone or leftover repo). "
+            "Close Git/IDE tools using it, then retry — or delete the addon folder manually."
+        )
+    else:
+        tip = (
+            " Another program may be locking files (antivirus, indexer, or the game). "
+            "Close them and retry, or delete the folder manually."
+        )
+    return f"Could not remove {path}: {exc}.{tip}"
+
+
+def robust_rmtree(path: Path, *, retries: int = 4, delay: float = 0.2) -> None:
+    """Remove a directory tree, clearing read-only bits and retrying brief locks.
+
+    Windows often denies delete of ``.git/objects/pack/*.idx`` when files are
+    read-only or briefly locked (Explorer, Defender, Git, IDE).
+    """
+    if not path.exists():
+        return
+    if not path.is_dir():
+        _make_writable(path)
+        path.unlink()
+        return
+
+    last_exc: BaseException | None = None
+    for attempt in range(retries):
+        try:
+            _make_tree_writable(path)
+            kwargs: dict = {}
+            if sys.version_info >= (3, 12):
+                kwargs["onexc"] = _rmtree_clear_readonly
+            else:
+                kwargs["onerror"] = _rmtree_clear_readonly
+            shutil.rmtree(path, **kwargs)
+            return
+        except OSError as exc:
+            last_exc = exc
+            if attempt + 1 < retries:
+                time.sleep(delay * (attempt + 1))
+                continue
+            raise OSError(
+                getattr(exc, "errno", None) or 13,
+                _remove_error_message(path, exc),
+                str(path),
+            ) from exc
+    if last_exc is not None:
+        raise OSError(
+            getattr(last_exc, "errno", None) or 13,
+            _remove_error_message(path, last_exc),
+            str(path),
+        ) from last_exc
+
+
 def copy_tree(src: Path, dest: Path) -> None:
     if dest.exists():
-        shutil.rmtree(dest)
+        robust_rmtree(dest)
     shutil.copytree(src, dest)
 
 
@@ -121,8 +211,9 @@ def safe_remove(path: Path) -> None:
     if not path.exists():
         return
     if path.is_dir():
-        shutil.rmtree(path)
+        robust_rmtree(path)
     else:
+        _make_writable(path)
         path.unlink()
 
 

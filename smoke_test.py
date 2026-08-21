@@ -179,6 +179,44 @@ def test_multi_folder_pack_grouping():
     print("OK multi-folder pack grouping")
 
 
+def test_read_git_origin_url():
+    import tempfile
+    from pathlib import Path
+
+    from ichalaunch.core.detect import read_git_origin_url
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        assert read_git_origin_url(root) is None
+
+        git = root / ".git"
+        git.mkdir()
+        (git / "config").write_text(
+            "[core]\n\trepositoryformatversion = 0\n"
+            '[remote "origin"]\n'
+            "\turl = https://github.com/USS-Enterprise-Guild/1701-Random-Mount.git\n"
+            "\tfetch = +refs/heads/*:refs/remotes/origin/*\n",
+            encoding="utf-8",
+        )
+        assert (
+            read_git_origin_url(root)
+            == "https://github.com/USS-Enterprise-Guild/1701-Random-Mount"
+        )
+
+        (git / "config").write_text(
+            '[remote "origin"]\n'
+            "\turl = git@github.com:shagu/ShaguTweaks.git\n",
+            encoding="utf-8",
+        )
+        assert read_git_origin_url(root) == "https://github.com/shagu/ShaguTweaks"
+
+        # Existing zip-style folder without .git stays None
+        bare = root / "BareAddon"
+        bare.mkdir()
+        assert read_git_origin_url(bare) is None
+    print("OK read_git_origin_url")
+
+
 def test_sanitize_filename():
     from ichalaunch.core.filesystem import sanitize_filename
 
@@ -190,6 +228,35 @@ def test_sanitize_filename():
     assert sanitize_filename("") == "download.bin"
     assert sanitize_filename('attachment; filename="pack.zip"') == "pack.zip"
     print("OK sanitize filename")
+
+
+def test_robust_rmtree_readonly_git_pack():
+    """Addon reinstall must clear Windows read-only bits under leftover .git trees."""
+    import os
+    import stat
+
+    from ichalaunch.core.filesystem import robust_rmtree, safe_remove
+
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td) / "IchaTaunt"
+        pack = root / ".git" / "objects" / "pack"
+        pack.mkdir(parents=True)
+        idx = pack / "pack-5c013da7e4e1ddcca1d841ae2654929d8e3e5f3f.idx"
+        idx.write_bytes(b"fake-idx")
+        os.chmod(idx, stat.S_IREAD)
+        assert not (idx.stat().st_mode & stat.S_IWRITE)
+        safe_remove(root)
+        assert not root.exists()
+    # Error message mentions .git when removal still fails (message helper path)
+    from ichalaunch.core.filesystem import _remove_error_message
+
+    msg = _remove_error_message(
+        Path(r"C:\Games\RavenCraft\Interface\AddOns\IchaTaunt\.git\objects\pack\x.idx"),
+        OSError(5, "Access is denied"),
+    )
+    assert ".git" in msg.lower()
+    assert "manually" in msg.lower()
+    print("OK robust rmtree readonly git pack")
 
 
 def test_vanillafixes_zip_in_memory():
@@ -237,7 +304,9 @@ def main():
     test_addons_path_defaults()
     test_status_progress_bytes()
     test_multi_folder_pack_grouping()
+    test_read_git_origin_url()
     test_sanitize_filename()
+    test_robust_rmtree_readonly_git_pack()
     test_vanillafixes_zip_in_memory()
     print("\nAll smoke tests passed.")
 

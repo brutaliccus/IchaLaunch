@@ -14,6 +14,7 @@ from PySide6.QtGui import (
     QPainterPath,
     QPixmap,
     QRegion,
+    QTransform,
 )
 from PySide6.QtWidgets import (
     QAbstractButton,
@@ -77,6 +78,28 @@ _MIST_WASH = QColor(16, 13, 12, 110)
 _CURSOR_POINT_NAME = "cursor_point.png"
 _CURSOR_POINT_EXTERNAL = Path(r"F:\wow-ui-textures\CURSOR\Point.PNG")
 _CURSOR_POINT_HOTSPOT = (0, 0)
+
+# Bottom main-frame corner ornaments (bundled left_corners.png bottom crop + H-flip).
+_SIDE_CORNERS_NAME = "left_corners.png"
+_SIDE_CORNERS_SRC_H = 920
+# Bottom-left L in the tall strip (top ornament unused — no top corners).
+_BOTTOM_CORNER_SRC_Y = 765
+_BOTTOM_CORNER_SRC_H = _SIDE_CORNERS_SRC_H - _BOTTOM_CORNER_SRC_Y  # 155
+# Inner edge of the L-stem in source px — aligned to the purple stroke.
+_SIDE_CORNERS_INNER_X = 20
+_SIDE_CORNERS_INNER_Y = 20
+# Vertical: restore previous hang (shared inward was 6 before the outward scoot).
+_BOTTOM_CORNERS_INWARD_Y = 6
+# Horizontal: scoot L/R outward from that prior pose by this many px (not 6).
+_BOTTOM_CORNERS_OUTWARD_X = 6
+# Extra draw height on BL/BR (width stays aspect-scaled; height ignores AR).
+_BOTTOM_CORNERS_STRETCH_Y = 6
+# Paint inset X kept at the prior shared inward so only hang_x moves art ~OUTWARD_X.
+_BOTTOM_CORNERS_PAINT_INSET_X = _BOTTOM_CORNERS_INWARD_Y
+# Root gutter so out-set corners are not clipped at the window edge.
+_FRAME_OUTSET_MARGIN = 24
+# Chrome pad for −/X (bottom corners no longer crowd the top-right).
+_CHROME_FRAME_PAD = 14
 
 from ichalaunch import __version__
 from ichalaunch.core.paths import theme_file
@@ -227,6 +250,121 @@ class RavenCraftFloatingLogo(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
         painter.drawPixmap(_RC_GLOW_PAD_X, _RC_GLOW_PAD_Y, self._pix)
+
+
+class SideCornersOverlay(QWidget):
+    """Main-app bottom corners from left_corners.png (no top ornaments).
+
+    Uses the source bottom-left L as-is; bottom-right is a horizontal mirror so it
+    stays a BR corner (not a rotated top piece). Drawn along the bottom of the
+    folder body (ContentPanel→BottomBar). Vertical hang matches the prior inward=6
+    pose; horizontal hang adds a small outward scoot. Click-through for
+    resize/drag/page input. Must stack above the purple frame stroke.
+    """
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setObjectName("SideCornersOverlay")
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self._left = QPixmap()
+        self._right = QPixmap()
+        self._frame_h = 0
+        self._scaled_left = QPixmap()
+        self._scaled_right = QPixmap()
+        self._hang_x = 0
+        self._hang_y = 0
+        self._piece_h = 0
+        path = theme_file(_SIDE_CORNERS_NAME)
+        if path.is_file():
+            src = QPixmap(str(path))
+            if not src.isNull():
+                # Tall strip is left-side TL+BL; keep only the bottom L (no top corners).
+                # Equivalent bottom-edge layout to rotate(-90°)+flipV of the full strip.
+                y0 = min(_BOTTOM_CORNER_SRC_Y, max(0, src.height() - 1))
+                h = min(_BOTTOM_CORNER_SRC_H, max(1, src.height() - y0))
+                bl = src.copy(0, y0, src.width(), h)
+                self._left = bl
+                # H-flip → true bottom-right (not a misplaced top ornament).
+                self._right = bl.transformed(
+                    QTransform().scale(-1, 1),
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+
+    @staticmethod
+    def _scale_for_frame_height(frame_h: int) -> float:
+        """Match prior side-strip thickness (full 920px strip vs frame height)."""
+        h = max(int(frame_h), 1)
+        denom = float(_SIDE_CORNERS_SRC_H - 2 * _SIDE_CORNERS_INNER_Y)
+        hang_y_full = int(round(_SIDE_CORNERS_INNER_Y * h / denom)) if denom > 1 else 0
+        return (h + 2 * hang_y_full) / float(_SIDE_CORNERS_SRC_H)
+
+    @classmethod
+    def hang_for_frame_height(cls, frame_h: int) -> tuple[int, int]:
+        """Out-set (x, y): prior Y inward hang; X = that hang plus outward scoot."""
+        scale = cls._scale_for_frame_height(frame_h)
+        hang_x = max(
+            0,
+            int(round(_SIDE_CORNERS_INNER_X * scale))
+            - _BOTTOM_CORNERS_INWARD_Y
+            + _BOTTOM_CORNERS_OUTWARD_X,
+        )
+        hang_y = max(0, int(round(_SIDE_CORNERS_INNER_Y * scale)) - _BOTTOM_CORNERS_INWARD_Y)
+        return hang_x, hang_y
+
+    def prepare_for_frame(self, frame_h: int) -> tuple[int, int]:
+        """Cache scaled BL/BR pixmaps for this frame height; return (hang_x, hang_y)."""
+        h = max(int(frame_h), 1)
+        hang_x, hang_y = self.hang_for_frame_height(h)
+        scale = self._scale_for_frame_height(h)
+        if (
+            self._scaled_left.isNull()
+            or self._frame_h != h
+            or self._hang_x != hang_x
+            or self._hang_y != hang_y
+        ):
+            if not self._left.isNull():
+                # Width: normal scale. Height: same scale then +STRETCH_Y (IgnoreAspectRatio).
+                draw_w = max(1, int(round(self._left.width() * scale)))
+                draw_h = max(
+                    1,
+                    int(round(self._left.height() * scale)) + _BOTTOM_CORNERS_STRETCH_Y,
+                )
+                self._scaled_left = self._left.scaled(
+                    draw_w,
+                    draw_h,
+                    Qt.AspectRatioMode.IgnoreAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+                self._scaled_right = self._right.scaled(
+                    draw_w,
+                    draw_h,
+                    Qt.AspectRatioMode.IgnoreAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+                self._piece_h = self._scaled_left.height()
+            self._frame_h = h
+            self._hang_x = hang_x
+            self._hang_y = hang_y
+        return hang_x, hang_y
+
+    def opaque_inset_x(self) -> int:
+        """Chrome clearance — bottom corners do not crowd −/X; keep a modest pad."""
+        return _CHROME_FRAME_PAD
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        if self._left.isNull() or self.width() <= 0 or self.height() <= 0:
+            return
+        left = self._scaled_left
+        right = self._scaled_right
+        if left.isNull() or right.isNull():
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        # Prior paint inset (inward=6 era); horizontal scoot comes from hang_x only.
+        inset = _BOTTOM_CORNERS_PAINT_INSET_X
+        painter.drawPixmap(inset, 0, left)
+        painter.drawPixmap(self.width() - right.width() - inset, 0, right)
 
 
 class ContentPanel(QWidget):
@@ -432,7 +570,10 @@ class MainWindow(QMainWindow):
         if app is not None:
             app.installEventFilter(self)
         outer = QVBoxLayout(root)
-        outer.setContentsMargins(0, 0, 0, 0)
+        # Gutter so out-set corner ornaments are not clipped at the window edge.
+        outer.setContentsMargins(
+            _FRAME_OUTSET_MARGIN, 0, _FRAME_OUTSET_MARGIN, _FRAME_OUTSET_MARGIN
+        )
         outer.setSpacing(0)
 
         # ---- Folder tabs (top chrome) ----
@@ -534,13 +675,20 @@ class MainWindow(QMainWindow):
         outer.addWidget(self._nav_bottom_banner)
         outer.addWidget(bottom)
 
+        # Bottom-left + mirrored bottom-right corner ornaments (content→play bar).
+        # Stack above ContentPanel / BottomBar purple stroke (raised again after layout).
+        self._side_corners = SideCornersOverlay(root)
+        self._side_corners.raise_()
+
         # RavenCraft crest — straddles ContentPanel top border (click-through).
         self._rc_logo = RavenCraftFloatingLogo(root)
         self._rc_logo.raise_()
 
         self._update_window_mask()
+        self._position_side_corners()
         self._position_rc_logo()
         self._position_chrome_buttons()
+        self._raise_side_corners()
 
         # Wire
         self.home.play_clicked.connect(self._on_play_or_install)
@@ -663,16 +811,52 @@ class MainWindow(QMainWindow):
         for w in self.findChildren(QPlainTextEdit):
             w.setCursor(Qt.CursorShape.IBeamCursor)
 
+    def _raise_side_corners(self) -> None:
+        """Keep BL/BR ornaments above ContentPanel / BottomBar purple stroke and chrome."""
+        overlay = getattr(self, "_side_corners", None)
+        if overlay is None:
+            return
+        overlay.raise_()
+        overlay.update()
+
+    def _position_side_corners(self) -> None:
+        """Pin bottom BL/BR corner art out-set from the folder body (overlap purple stroke)."""
+        overlay = getattr(self, "_side_corners", None)
+        content = getattr(self, "_content_panel", None)
+        bottom = getattr(self, "_bottom_bar", None)
+        root = self.centralWidget()
+        if overlay is None or content is None or bottom is None or root is None:
+            return
+        origin = content.mapTo(root, QPoint(0, 0))
+        bottom_br = bottom.mapTo(root, QPoint(0, bottom.height()))
+        frame_w = max(content.width(), 1)
+        frame_h = max(bottom_br.y() - origin.y(), 1)
+        hang_x, hang_y = overlay.prepare_for_frame(frame_h)
+        piece_h = max(overlay._piece_h, 1)
+        # Bottom strip only: hang below / beside the purple frame; no top corners.
+        overlay.setGeometry(
+            origin.x() - hang_x,
+            bottom_br.y() - piece_h + hang_y,
+            frame_w + 2 * hang_x,
+            piece_h,
+        )
+        overlay.show()
+        self._raise_side_corners()
+
     def _position_chrome_buttons(self) -> None:
-        """Pin minimize/close to ContentPanel top-right, inside the purple stroke."""
+        """Pin minimize/close to ContentPanel top-right (bottom corners stay clear)."""
         content = getattr(self, "_content_panel", None)
         btn_min = getattr(self, "_btn_minimize", None)
         btn_close = getattr(self, "_btn_close", None)
         root = self.centralWidget()
         if content is None or btn_min is None or btn_close is None or root is None:
             return
-        # Past the 1px purple stroke; stay clear of the rounded window-mask corner.
+        overlay = getattr(self, "_side_corners", None)
         inset_x = 10
+        if overlay is not None:
+            inset_x = max(inset_x, overlay.opaque_inset_x())
+        else:
+            inset_x = max(inset_x, _CHROME_FRAME_PAD)
         inset_y = 10
         gap = 6
         origin = content.mapTo(root, QPoint(0, 0))
@@ -686,6 +870,8 @@ class MainWindow(QMainWindow):
         btn_close.raise_()
         btn_min.show()
         btn_close.show()
+        # Corners must stay above the purple frame even after chrome raise.
+        self._raise_side_corners()
 
     def _position_rc_logo(self) -> None:
         """Center RavenCraft crest on ContentPanel top border, between SETTINGS and panel right."""
@@ -705,8 +891,9 @@ class MainWindow(QMainWindow):
         for btn in (getattr(self, "_btn_minimize", None), getattr(self, "_btn_close", None)):
             if btn is not None:
                 chrome_w += btn.width() + 6
+        frame_inset = _CHROME_FRAME_PAD + 16
         if chrome_w:
-            right = min(right, content_origin.x() + content.width() - chrome_w - 16)
+            right = min(right, content_origin.x() + content.width() - chrome_w - frame_inset)
         cx = (left + right) / 2.0
         x = int(round(cx - logo.width() / 2.0))
         # Keep the crest pixmap fully inside the zone — avoid rounded-mask / edge clip
@@ -737,8 +924,10 @@ class MainWindow(QMainWindow):
         super().showEvent(event)
         self._fit_to_screen()
         self._update_window_mask()
+        self._position_side_corners()
         self._position_rc_logo()
         self._position_chrome_buttons()
+        self._raise_side_corners()
         # Reliable initial scan shortly after the UI is visible (not only on the 5‑min timer).
         if not self._startup_checks_scheduled:
             self._startup_checks_scheduled = True
@@ -747,8 +936,10 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._update_window_mask()
+        self._position_side_corners()
         self._position_rc_logo()
         self._position_chrome_buttons()
+        self._raise_side_corners()
 
     def closeEvent(self, event):
         app = QApplication.instance()
@@ -796,7 +987,10 @@ class MainWindow(QMainWindow):
     def eventFilter(self, obj, event):
         """Edge-resize on border; drag window from non-interactive chrome."""
         if obj is getattr(self, "_content_panel", None) and event.type() == QEvent.Type.Resize:
+            self._position_side_corners()
             self._position_chrome_buttons()
+            self._position_rc_logo()
+            self._raise_side_corners()
         if isinstance(obj, QWidget) and obj.window() is self:
             et = event.type()
             if et == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:

@@ -15,7 +15,7 @@ from typing import Any, Callable
 import requests
 
 from ichalaunch.config.settings import settings
-from ichalaunch.core.filesystem import copy_tree, extract_zip, find_toc_roots
+from ichalaunch.core.filesystem import copy_tree, extract_zip, find_toc_roots, safe_remove
 from ichalaunch.core.logging_setup import log
 from ichalaunch.core.process import download_bytes, download_bytes_cb
 from ichalaunch.game.launcher import detect_game, ensure_addons_dir, resolve_addons_dir
@@ -658,7 +658,7 @@ def install_from_github(url: str, folder_name: str | None = None, progress: Prog
                 name = repo
             dest = addons_dir / name
             if dest.exists():
-                shutil.rmtree(dest)
+                safe_remove(dest)
             copy_tree(root, dest)
             installed.append(name)
 
@@ -670,7 +670,7 @@ def install_from_github(url: str, folder_name: str | None = None, progress: Prog
                 src = addons_dir / only
                 dest = addons_dir / wanted
                 if dest.exists():
-                    shutil.rmtree(dest)
+                    safe_remove(dest)
                 src.rename(dest)
                 installed = [wanted]
 
@@ -881,7 +881,7 @@ def uninstall_addon(folder: str) -> None:
     for name in folders:
         path = addons_dir / name
         if path.exists():
-            shutil.rmtree(path)
+            safe_remove(path)
         settings.remove_installed_addon(name)
     # Ensure primary key cleared even if not in folders list
     settings.remove_installed_addon(target)
