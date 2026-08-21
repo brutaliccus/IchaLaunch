@@ -9,8 +9,8 @@ QMainWindow {
 }
 
 QWidget#Root {
-    /* Transparent tab-strip host — no outer outline above/around floating tabs.
-       ContentPanel / BottomBar carry the folder-body frame. */
+    /* Transparent host — FolderFrameStroke paints the purple folder outline.
+       TopNavStrip / ContentPanel / BottomBar carry the fills. */
     background-color: transparent;
     color: #e6e0ee;
     border: none;
@@ -251,7 +251,7 @@ QPushButton#ApplyReadyButtonPulse {
     background-color: #5a3a90;
 }
 
-/* Folder-tab strip — sits above the content “folder body”; host stays transparent */
+/* Folder-tab strip — gutters transparent; Necrolord floor is per-tab paint */
 QWidget#TopNav {
     background: transparent;
     border: none;
@@ -268,7 +268,8 @@ QPushButton#TopNavButton {
     border-top-right-radius: 9px;
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
-    background-color: #12100e;
+    /* Floor tiles painted in NavTabButton; QSS stays clear so tiles show. */
+    background-color: transparent;
     font-size: 12px;
     font-weight: 700;
     letter-spacing: 1.2px;
@@ -279,48 +280,40 @@ QPushButton#TopNavButton {
 
 QPushButton#TopNavButton:hover {
     color: #e6e0ee;
-    background-color: #1a1614;
-    border-color: rgba(124, 92, 196, 0.50);
+    background-color: rgba(26, 22, 20, 0.28);
+    border-color: rgba(150, 131, 158, 0.40);
 }
 
+/* Selected: gold label on the tab floor; body shelf stroke stays closed */
 QPushButton#TopNavButton:checked {
     color: #F1C22D;
-    background-color: #1c1816;
-    border: 1px solid rgba(241, 194, 45, 0.55);
-    border-bottom: 1px solid #1c1816;
+    background-color: transparent;
+    border: 1px solid rgba(124, 92, 196, 0.55);
+    border-bottom: none;
     margin-top: 0;
     padding-top: 12px;
     padding-bottom: 6px;
     min-height: 32px;
 }
 
-/* Folder body — opaque RavenCraft base; floor tiles layered in ContentPanel.paintEvent. */
+/* Folder body — floor + Mechagon top rail in ContentPanel.paintEvent.
+   Closed purple shelf/sides/bottom via FolderFrameStroke (not QSS). */
 QWidget#ContentPanel {
-    background-color: #181412;
-    border-top: 1px solid rgba(124, 92, 196, 0.45);
-    border-left: 1px solid rgba(124, 92, 196, 0.45);
-    border-right: 1px solid rgba(124, 92, 196, 0.45);
-    border-bottom: none;
+    background-color: transparent;
+    border: none;
     border-radius: 0;
 }
 
-/* RavenCraft nav strip between content and play bar — painted via NavBottomBanner.
-   Side borders must stay visible: paintEvent insets fill/pixmap by 1px L/R. */
+/* RavenCraft nav strip between content and play bar — painted via NavBottomBanner. */
 QWidget#NavBottomBanner {
-    background-color: #100d0c;
-    border-left: 1px solid rgba(124, 92, 196, 0.45);
-    border-right: 1px solid rgba(124, 92, 196, 0.45);
-    border-top: none;
-    border-bottom: none;
+    background-color: transparent;
+    border: none;
 }
 
-/* Play strip — opaque dark base; mist tiles layered in BottomBar.paintEvent. */
+/* Play strip — mist in BottomBar.paintEvent; purple stroke via FolderFrameStroke. */
 QWidget#BottomBar {
-    background-color: #100d0c;
-    border-top: none;
-    border-left: 1px solid rgba(124, 92, 196, 0.45);
-    border-right: 1px solid rgba(124, 92, 196, 0.45);
-    border-bottom: 1px solid rgba(124, 92, 196, 0.45);
+    background-color: transparent;
+    border: none;
     border-bottom-left-radius: 14px;
     border-bottom-right-radius: 14px;
 }
@@ -494,17 +487,31 @@ QLineEdit:focus {
     border-color: #F1C22D;
 }
 
-QLineEdit#ClientSearch {
-    background-color: rgba(120, 100, 150, 0.12);
-    border: 1px solid rgba(124, 92, 196, 0.40);
-    border-radius: 8px;
-    padding: 8px 12px;
+/* CastingBarSearchEdit — chrome painted in Python (CastingBar border). */
+QLineEdit#CastingBarSearch,
+QLineEdit#ClientSearch,
+QLineEdit#SettingsGamePath,
+QLineEdit#SettingsAddonsPath,
+QLineEdit#SettingsGithubToken {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0;
     color: #e6e0ee;
 }
 
-QLineEdit#ClientSearch:focus {
-    border-color: #F1C22D;
-    background-color: rgba(124, 92, 196, 0.16);
+QLineEdit#CastingBarSearch:hover,
+QLineEdit#CastingBarSearch:focus,
+QLineEdit#ClientSearch:hover,
+QLineEdit#ClientSearch:focus,
+QLineEdit#SettingsGamePath:hover,
+QLineEdit#SettingsGamePath:focus,
+QLineEdit#SettingsAddonsPath:hover,
+QLineEdit#SettingsAddonsPath:focus,
+QLineEdit#SettingsGithubToken:hover,
+QLineEdit#SettingsGithubToken:focus {
+    background: transparent;
+    border: none;
 }
 
 QComboBox {

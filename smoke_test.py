@@ -25,8 +25,27 @@ def test_catalogs():
 
 
 def test_github_parse():
-    assert parse_github_url("https://github.com/shagu/ShaguTweaks") == ("shagu", "ShaguTweaks")
-    assert parse_github_url("https://github.com/shagu/ShaguTweaks.git") == ("shagu", "ShaguTweaks")
+    assert parse_github_url("https://github.com/shagu/ShaguTweaks") == (
+        "shagu",
+        "ShaguTweaks",
+        None,
+    )
+    assert parse_github_url("https://github.com/shagu/ShaguTweaks.git") == (
+        "shagu",
+        "ShaguTweaks",
+        None,
+    )
+    tagged = parse_github_url(
+        "https://github.com/The-Kludge-Bureau/Bagshui/releases/tag/1.5.16"
+    )
+    assert tagged is not None
+    assert tagged.owner == "The-Kludge-Bureau"
+    assert tagged.repo == "Bagshui"
+    assert tagged.tag == "1.5.16"
+    dl = parse_github_url(
+        "https://github.com/The-Kludge-Bureau/Bagshui/releases/download/1.5.16/Bagshui.zip"
+    )
+    assert dl is not None and dl.tag == "1.5.16"
     assert parse_github_url("not-a-url") is None
     print("OK github parse")
 
@@ -183,7 +202,7 @@ def test_read_git_origin_url():
     import tempfile
     from pathlib import Path
 
-    from ichalaunch.core.detect import read_git_origin_url
+    from ichalaunch.core.detect import merge_addon_meta, overlay_git_origin, read_git_origin_url
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -214,7 +233,316 @@ def test_read_git_origin_url():
         bare = root / "BareAddon"
         bare.mkdir()
         assert read_git_origin_url(bare) is None
+
+        # .git origin must beat catalog / preloaded settings URLs
+        origin = read_git_origin_url(root)
+        merged = merge_addon_meta(
+            "ShaguTweaks",
+            prev={"url": "https://github.com/wrong/catalog-preload", "repository": "wrong/catalog-preload"},
+            cat={"repo": "wrong/from-catalog", "name": "ShaguTweaks"},
+            git_origin=origin,
+        )
+        assert merged["url"] == "https://github.com/shagu/ShaguTweaks"
+        assert merged["repository"] == "shagu/ShaguTweaks"
+
+        # Zip install (no git_origin): catalog / prev still used
+        zip_meta = merge_addon_meta(
+            "BareAddon",
+            prev={},
+            cat={"repo": "https://github.com/owner/BareAddon", "name": "BareAddon"},
+            git_origin=None,
+        )
+        assert zip_meta["url"] == "https://github.com/owner/BareAddon"
+        assert zip_meta["repository"] == "owner/BareAddon"
+
+        overlaid_ok = overlay_git_origin(
+            root.name,
+            {"url": "https://github.com/wrong/x", "repository": "wrong/x"},
+            addons_dir=root.parent,
+        )
+        assert overlaid_ok["url"] == "https://github.com/shagu/ShaguTweaks"
+        assert overlaid_ok["repository"] == "shagu/ShaguTweaks"
+
+        bare_overlaid = overlay_git_origin(
+            "BareAddon",
+            {"url": "https://github.com/owner/BareAddon", "repository": "owner/BareAddon"},
+            addons_dir=root,
+        )
+        assert bare_overlaid["url"] == "https://github.com/owner/BareAddon"
+        assert bare_overlaid["repository"] == "owner/BareAddon"
     print("OK read_git_origin_url")
+
+
+def test_write_git_origin():
+    """Zip/catalog install must leave a .git origin that the update checker reads."""
+    from ichalaunch.core.detect import overlay_git_origin, read_git_origin_url, write_git_origin
+    from ichalaunch.core.filesystem import is_protected_path
+
+    with tempfile.TemporaryDirectory() as tmp:
+        addon = Path(tmp) / "ShaguTweaks"
+        addon.mkdir()
+        toc = addon / "ShaguTweaks.toc"
+        toc.write_text("## Title: ShaguTweaks\n", encoding="utf-8")
+
+        assert not is_protected_path(addon)
+        write_git_origin(addon, "https://github.com/shagu/ShaguTweaks")
+        assert read_git_origin_url(addon) == "https://github.com/shagu/ShaguTweaks"
+        assert (addon / ".git" / "config").is_file()
+        assert toc.is_file()
+
+        # Same origin (with/without .git) must not wipe addon files
+        write_git_origin(addon, "https://github.com/shagu/ShaguTweaks.git")
+        assert read_git_origin_url(addon) == "https://github.com/shagu/ShaguTweaks"
+        assert toc.read_text(encoding="utf-8").startswith("## Title:")
+
+        # Different repo: replace .git only, no prompt, keep addon files
+        write_git_origin(addon, "https://github.com/other/ShaguTweaks")
+        assert read_git_origin_url(addon) == "https://github.com/other/ShaguTweaks"
+        assert toc.is_file()
+        cfg = (addon / ".git" / "config").read_text(encoding="utf-8")
+        assert "other/ShaguTweaks" in cfg
+        assert "shagu/ShaguTweaks" not in cfg
+
+        overlaid = overlay_git_origin(
+            "ShaguTweaks",
+            {"url": "https://github.com/shagu/ShaguTweaks", "repository": "shagu/ShaguTweaks"},
+            addons_dir=addon.parent,
+        )
+        assert overlaid["url"] == "https://github.com/other/ShaguTweaks"
+        assert overlaid["repository"] == "other/ShaguTweaks"
+    print("OK write_git_origin")
+
+
+def test_addon_loadstate():
+    from ichalaunch.addons.loadstate import (
+        UNLOADED_SIBLING,
+        addon_disk_path,
+        addon_is_loaded,
+        set_addon_loaded,
+    )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        iface = Path(tmp) / "Interface"
+        addons = iface / "AddOns"
+        unloaded = iface / UNLOADED_SIBLING
+        pack = addons / "FooPack"
+        child = addons / "FooPack_Bar"
+        pack.mkdir(parents=True)
+        child.mkdir()
+        (pack / "FooPack.toc").write_text("## Title: Foo\n", encoding="utf-8")
+        (child / "FooPack_Bar.toc").write_text("## Title: Bar\n", encoding="utf-8")
+        installed = {
+            "FooPack": {"folders": ["FooPack", "FooPack_Bar"], "loaded": True},
+            "FooPack_Bar": {"managed_by": "FooPack", "loaded": True},
+        }
+        set_addon_loaded(
+            "FooPack",
+            False,
+            addons_dir=addons,
+            unloaded_dir=unloaded,
+            installed=installed,
+        )
+        assert not (addons / "FooPack").exists()
+        assert (unloaded / "FooPack" / "FooPack.toc").is_file()
+        assert (unloaded / "FooPack_Bar" / "FooPack_Bar.toc").is_file()
+        assert installed["FooPack"]["loaded"] is False
+        assert addon_disk_path("FooPack", addons_dir=addons, unloaded_dir=unloaded) == (
+            unloaded / "FooPack"
+        )
+        assert not addon_is_loaded("FooPack", addons_dir=addons)
+
+        set_addon_loaded(
+            "FooPack",
+            True,
+            addons_dir=addons,
+            unloaded_dir=unloaded,
+            installed=installed,
+        )
+        assert (addons / "FooPack" / "FooPack.toc").is_file()
+        assert (addons / "FooPack_Bar").is_dir()
+        assert installed["FooPack"]["loaded"] is True
+    print("OK addon loadstate")
+
+
+def test_robust_move_tree_and_lock_message():
+    import os
+
+    from ichalaunch.addons.loadstate import (
+        GAME_LOCK_MESSAGE,
+        GENERIC_LOCK_MESSAGE,
+        addon_move_error_text,
+    )
+    from ichalaunch.core.filesystem import robust_move_tree
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        src = root / "AddOns" / "Foo"
+        dest_parent = root / "AddOnsUnloaded"
+        dest = dest_parent / "Foo"
+        src.mkdir(parents=True)
+        (src / "Foo.toc").write_text("## Title: Foo\n", encoding="utf-8")
+        leftover = dest
+        leftover.mkdir(parents=True)
+        (leftover / "stale.txt").write_text("old", encoding="utf-8")
+        used = robust_move_tree(src, dest)
+        assert used in ("rename", "shutil.move", "copytree")
+        assert dest.is_dir()
+        assert (dest / "Foo.toc").is_file()
+        assert not src.exists()
+        assert not (dest / "stale.txt").exists()
+
+        src2 = root / "AddOns" / "Bar"
+        dest2 = dest_parent / "Bar"
+        src2.mkdir(parents=True)
+        (src2 / "Bar.toc").write_text("## Title: Bar\n", encoding="utf-8")
+        real_rename = os.rename
+
+        def deny_rename(a, b):
+            raise OSError(5, "Access is denied")
+
+        os.rename = deny_rename
+        try:
+            used = robust_move_tree(src2, dest2)
+        finally:
+            os.rename = real_rename
+        assert used in ("shutil.move", "copytree")
+        assert (dest2 / "Bar.toc").is_file()
+        assert not src2.exists()
+
+    denied = PermissionError(13, "Access is denied")
+    denied.winerror = 5  # type: ignore[attr-defined]
+    import ichalaunch.addons.loadstate as ls
+
+    orig_wow = ls.wow_exe_running
+    ls.wow_exe_running = lambda: True
+    try:
+        assert addon_move_error_text(denied) == GAME_LOCK_MESSAGE
+    finally:
+        ls.wow_exe_running = orig_wow
+    ls.wow_exe_running = lambda: False
+    try:
+        text = addon_move_error_text(denied)
+        assert text == GENERIC_LOCK_MESSAGE
+        assert "WinError" not in text
+        assert "Access is denied" not in text
+    finally:
+        ls.wow_exe_running = orig_wow
+    print("OK robust move tree and lock message")
+
+
+def test_repair_missing_addon_git():
+    """Update-check pass must write missing .git from known repo and emit status."""
+    from ichalaunch.addons.github import GIT_REPAIR_STATUS, repair_missing_addon_git_origins
+    from ichalaunch.core.detect import read_git_origin_url
+    from ichalaunch.core.filesystem import is_protected_path
+
+    assert GIT_REPAIR_STATUS == "Adding missing git folder structure..."
+
+    class Capture:
+        def __init__(self) -> None:
+            self.msgs: list[str] = []
+
+        def __call__(self, msg: str) -> None:
+            self.msgs.append(msg)
+
+        def on_count(self, done: int, total: int, msg: str | None = None) -> None:
+            if msg:
+                self.msgs.append(msg)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        missing = root / "NeedsGit"
+        missing.mkdir()
+        (missing / "NeedsGit.toc").write_text("## Title: NeedsGit\n", encoding="utf-8")
+
+        already = root / "HasGit"
+        already.mkdir()
+        (already / "HasGit.toc").write_text("## Title: HasGit\n", encoding="utf-8")
+        (already / ".git").mkdir()
+        (already / ".git" / "config").write_text(
+            '[remote "origin"]\n\turl = https://github.com/keep/HasGit.git\n',
+            encoding="utf-8",
+        )
+
+        skipped_never = root / "NeverGit"
+        skipped_never.mkdir()
+        (skipped_never / "NeverGit.toc").write_text("## Title: NeverGit\n", encoding="utf-8")
+
+        skipped_norepo = root / "NoRepo"
+        skipped_norepo.mkdir()
+        (skipped_norepo / "NoRepo.toc").write_text("## Title: NoRepo\n", encoding="utf-8")
+
+        installed = {
+            "NeedsGit": {
+                "url": "https://github.com/owner/NeedsGit",
+                "repository": "owner/NeedsGit",
+            },
+            "HasGit": {
+                "url": "https://github.com/other/HasGit",
+                "repository": "other/HasGit",
+            },
+            "NeverGit": {
+                "url": "https://github.com/owner/NeverGit",
+                "never_update": True,
+            },
+            "NoRepo": {"source": "detected"},
+        }
+
+        progress = Capture()
+        n = repair_missing_addon_git_origins(
+            progress,
+            addons_dir=root,
+            installed=installed,
+        )
+        assert n == 1
+        assert progress.msgs == [GIT_REPAIR_STATUS]
+        assert read_git_origin_url(missing) == "https://github.com/owner/NeedsGit"
+        # Existing .git left alone (not overwritten by settings url)
+        assert read_git_origin_url(already) == "https://github.com/keep/HasGit"
+        assert not (skipped_never / ".git").exists()
+        assert not (skipped_norepo / ".git").exists()
+
+        # Second pass: nothing to repair, do not re-emit status
+        progress2 = Capture()
+        n2 = repair_missing_addon_git_origins(
+            progress2,
+            addons_dir=root,
+            installed=installed,
+        )
+        assert n2 == 0
+        assert progress2.msgs == []
+
+        # Catalog repo is enough when settings have no url/repository
+        catalog_addon = root / "ShaguTweaks"
+        catalog_addon.mkdir()
+        (catalog_addon / "ShaguTweaks.toc").write_text("## Title: ShaguTweaks\n", encoding="utf-8")
+        n_cat = repair_missing_addon_git_origins(
+            None,
+            addons_dir=root,
+            installed={"ShaguTweaks": {"source": "detected"}},
+        )
+        assert n_cat == 1
+        assert read_git_origin_url(catalog_addon) == "https://github.com/shagu/ShaguTweaks"
+
+        # Protected locations (Desktop / Documents / …) must not get a .git write
+        prot_root = root / "Desktop"
+        prot = prot_root / "ProtAddon"
+        prot.mkdir(parents=True)
+        (prot / "ProtAddon.toc").write_text("## Title: Prot\n", encoding="utf-8")
+        assert is_protected_path(prot)
+        n_prot = repair_missing_addon_git_origins(
+            None,
+            addons_dir=prot_root,
+            installed={
+                "ProtAddon": {
+                    "url": "https://github.com/owner/ProtAddon",
+                    "repository": "owner/ProtAddon",
+                },
+            },
+        )
+        assert n_prot == 0
+        assert not (prot / ".git").exists()
+    print("OK repair_missing_addon_git")
 
 
 def test_sanitize_filename():
@@ -305,6 +633,10 @@ def main():
     test_status_progress_bytes()
     test_multi_folder_pack_grouping()
     test_read_git_origin_url()
+    test_write_git_origin()
+    test_addon_loadstate()
+    test_robust_move_tree_and_lock_message()
+    test_repair_missing_addon_git()
     test_sanitize_filename()
     test_robust_rmtree_readonly_git_pack()
     test_vanillafixes_zip_in_memory()

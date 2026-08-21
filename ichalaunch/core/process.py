@@ -134,6 +134,33 @@ def google_drive_url(file_id: str) -> str:
         f"?id={file_id}&export=download&confirm=t"
     )
 
+def wow_exe_running() -> bool:
+    """True when WoW.exe (or VanillaFixes.exe) is running. Windows-only; no admin."""
+    import sys
+
+    if sys.platform != "win32":
+        return False
+    names = ("WoW.exe", "VanillaFixes.exe")
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    try:
+        for name in names:
+            proc = subprocess.run(
+                ["tasklist", "/FI", f"IMAGENAME eq {name}", "/NH"],
+                capture_output=True,
+                text=True,
+                timeout=8,
+                creationflags=flags,
+            )
+            out = (proc.stdout or "").lower()
+            if "no tasks" in out:
+                continue
+            if name.lower() in out:
+                return True
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return False
+
+
 def launch_exe(path: Path, cwd: Path | None = None) -> subprocess.Popen:
     if not path.exists():
         raise FileNotFoundError(str(path))

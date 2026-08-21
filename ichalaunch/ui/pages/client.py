@@ -6,7 +6,6 @@ from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QProgressBar,
     QPushButton,
     QStackedWidget,
@@ -17,9 +16,11 @@ from PySide6.QtWidgets import (
 from ichalaunch.config.settings import settings
 from ichalaunch.game.launcher import detect_game
 from ichalaunch.mods.installer import detect_actual_state, load_mod_catalog, plan_changes
+from ichalaunch.ui.widgets.casting_bar_search_edit import CastingBarSearchEdit
 from ichalaunch.ui.widgets.common import ModCheckRow, mod_git_url, open_url_in_browser, status_with_stamp
 from ichalaunch.ui.widgets.cursors import apply_open_hand
 from ichalaunch.ui.widgets.dialogs import github_import_dialog
+from ichalaunch.ui.widgets.glue_panel_button import GluePanelButton
 from ichalaunch.ui.widgets.marble_bg import MarblePanel, MarbleScrollArea
 
 CATEGORY_ORDER = [
@@ -55,7 +56,7 @@ class ClientPage(QWidget):
 
         hint = QLabel(
             "Select a category on the left. Checkboxes reflect desired state; Rescan syncs from disk. "
-            "Use Add DLL from GitHub for a custom release (.dll / .zip)."
+            "Use + Git Repo for a custom release (.dll / .zip)."
         )
         hint.setObjectName("Muted")
         hint.setWordWrap(True)
@@ -137,17 +138,19 @@ class ClientPage(QWidget):
 
         # Actions sit at the bottom near the play bar (avoids MoA logo collision)
         actions = QHBoxLayout()
-        self.rescan_btn = QPushButton("Rescan")
+        self.rescan_btn = GluePanelButton("Rescan")
         self.rescan_btn.clicked.connect(self.rescan_clicked.emit)
-        self.check_btn = QPushButton("Check Updates")
+        self.check_btn = GluePanelButton("Check Updates")
         self.check_btn.clicked.connect(self.check_updates_requested.emit)
-        self.update_all_btn = QPushButton("Update All")
-        self.update_all_btn.setObjectName("UpdateAllButton")
+        self.update_all_btn = GluePanelButton("Update All", role="primary")
         self.update_all_btn.setEnabled(False)
         self.update_all_btn.clicked.connect(self.update_all_mods_requested.emit)
-        self.add_dll_btn = QPushButton("Add DLL from GitHub")
+        self.add_dll_btn = GluePanelButton("+ Git Repo")
+        self.add_dll_btn.setToolTip("Add a client DLL from a GitHub release")
         self.add_dll_btn.clicked.connect(self._open_custom_dll_dialog)
-        self.apply_btn = QPushButton("Apply Changes")
+        self.apply_btn = GluePanelButton("Apply Changes", role="standard")
+        self.apply_btn.setEnabled(False)
+        self.apply_btn.setToolTip("No pending client mod changes")
         self.apply_btn.clicked.connect(self.apply_clicked.emit)
         self._apply_pulse = False
         self._apply_pulse_timer = QTimer(self)
@@ -164,11 +167,9 @@ class ClientPage(QWidget):
         # Cross-category search (bottom of Client tab)
         search_row = QHBoxLayout()
         search_row.setSpacing(8)
-        self.search = QLineEdit()
-        self.search.setObjectName("ClientSearch")
+        self.search = CastingBarSearchEdit(object_name="ClientSearch")
         self.search.setPlaceholderText("Search all client fixes, tweaks & patches…")
         self.search.setClearButtonEnabled(True)
-        self.search.setMinimumHeight(34)
         self._search_timer = QTimer(self)
         self._search_timer.setSingleShot(True)
         self._search_timer.setInterval(160)
@@ -244,6 +245,7 @@ class ClientPage(QWidget):
             mod["name"],
             desc,
             checked=bool(settings.desired_mods.get(mid, False)),
+            parent=host_l.parentWidget() if host_l is not None else self,
         )
         row.toggled.connect(self._on_toggle)
         row.update_clicked.connect(self.update_mod_requested.emit)
@@ -464,13 +466,12 @@ class ClientPage(QWidget):
             lbl.style().polish(lbl)
 
     def _pulse_apply_btn(self) -> None:
-        if self.apply_btn.objectName() not in ("ApplyReadyButton", "ApplyReadyButtonPulse"):
+        if not isinstance(self.apply_btn, GluePanelButton):
+            return
+        if not self._apply_pending:
             return
         self._apply_pulse = not self._apply_pulse
-        name = "ApplyReadyButtonPulse" if self._apply_pulse else "ApplyReadyButton"
-        self.apply_btn.setObjectName(name)
-        self.apply_btn.style().unpolish(self.apply_btn)
-        self.apply_btn.style().polish(self.apply_btn)
+        self.apply_btn.set_pulse(self._apply_pulse)
 
     def _set_apply_pending(self, pending: bool) -> None:
         """Highlight Apply Changes when installs/removes are pending; mute when clean."""
@@ -478,10 +479,9 @@ class ClientPage(QWidget):
         changed = pending != self._apply_pending
         self._apply_pending = pending
         if pending:
-            if self.apply_btn.objectName() not in ("ApplyReadyButton", "ApplyReadyButtonPulse"):
-                self.apply_btn.setObjectName("ApplyReadyButton")
-                self.apply_btn.style().unpolish(self.apply_btn)
-                self.apply_btn.style().polish(self.apply_btn)
+            if isinstance(self.apply_btn, GluePanelButton):
+                self.apply_btn.set_role("primary")
+                self.apply_btn.set_pulse(False)
             self.apply_btn.setEnabled(True)
             self.apply_btn.setToolTip("Pending client mod changes — click to apply")
             if not self._apply_pulse_timer.isActive():
@@ -490,10 +490,9 @@ class ClientPage(QWidget):
         else:
             self._apply_pulse_timer.stop()
             self._apply_pulse = False
-            if self.apply_btn.objectName():
-                self.apply_btn.setObjectName("")
-                self.apply_btn.style().unpolish(self.apply_btn)
-                self.apply_btn.style().polish(self.apply_btn)
+            if isinstance(self.apply_btn, GluePanelButton):
+                self.apply_btn.set_role("standard")
+                self.apply_btn.set_pulse(False)
             self.apply_btn.setEnabled(False)
             self.apply_btn.setToolTip("No pending client mod changes")
         if changed:

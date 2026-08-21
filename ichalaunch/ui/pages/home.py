@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from PySide6.QtCore import QEvent, QPoint, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, QRect, Qt, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -39,12 +39,16 @@ DRAWER_MAX_W = 320
 _SIDE_PAD_PX = 16
 # Gap between mods Card bottom border and NavBottomBanner diamond strip.
 _MODS_BANNER_GAP_PX = 16
-# Gap above Register Here — match left_l spacing below the button (symmetric).
-# MainWindow drops content chrome inset on Home so this is under the purple stroke
-# (min/close stay top-right; left column can sit flush to the panel top).
-_HOME_TOP_PAD = 10
+# Gap above Register Here — clear the Mechagon rail (15px at ContentPanel y=0)
+# plus a few px so the button sits below the top art, not under it.
+_HOME_TOP_PAD = 23
 # Small inset from ContentPanel top / side when filling the brand rect.
-_ART_TOP_PAD_PX = 6
+# Must clear the purple shelf stroke (1px) so art never paints into the tab strip.
+_ART_TOP_PAD_PX = 8
+_ART_SIDE_INSET_PX = 2
+_ART_BOTTOM_INSET_PX = 0
+# Hide the hard art / black fringe under the grey banner bar (not into spike valleys).
+_ART_BANNER_TUCK_PX = 8
 # MoA wordmark prefer width along art bottom (right of countdown).
 _MOA_ART_LOGO_W = 190  # ~5% under prior 200px prefer width
 # Gap between countdown right edge and MoA left edge.
@@ -242,6 +246,9 @@ class HomePage(QWidget):
         self.talent_bg.setVisible(visible)
         self.logo.setVisible(visible)
         self.countdown.setVisible(visible)
+        banner = self._nav_bottom_banner()
+        if banner is not None:
+            banner.update()
 
     def _sync_brand_layout(self) -> None:
         """Fill brand rect with official art; MoA + countdown along art bottom.
@@ -272,44 +279,64 @@ class HomePage(QWidget):
         rc = getattr(win, "_rc_logo", None)
         bottom_bar = getattr(win, "_bottom_bar", None)
 
-        # Exact diamond-strip top in Root space (sibling under ContentPanel).
+        # Layout flush = diamond-strip TOP. Paint tucks only to the PNG midline
+        # (under the grey bar) so art never pokes out through the spikes.
+        banner_mid: int | None = None
         if banner is not None and banner.isVisible():
-            art_bottom = banner.mapTo(host, QPoint(0, 0)).y()
+            banner_top = banner.mapTo(host, QPoint(0, 0)).y()
+            banner_mid = banner_top + max(1, banner.height() // 2)
+            art_bottom = banner_top
         elif panel is not None:
             art_bottom = panel.mapTo(host, QPoint(0, panel.height())).y()
         else:
             art_bottom = host.height()
 
-        # Keep art inside the folder body (below top tabs).
+        # Keep art inside the folder body (below top tabs / purple shelf stroke).
         if panel is not None:
             content_top = panel.mapTo(host, QPoint(0, 0)).y()
             content_right = panel.mapTo(host, QPoint(panel.width(), 0)).x()
+            content_left = panel.mapTo(host, QPoint(0, 0)).x()
         else:
             content_top = 0
             content_right = host.width()
+            content_left = 0
 
         if art_bottom <= content_top:
             return
 
+        # Interior of purple stroke (ContentPanel inset), not the stroke itself.
+        interior_top = content_top + _ART_TOP_PAD_PX
+        interior_left = content_left + _ART_SIDE_INSET_PX
+        interior_right = content_right - _ART_SIDE_INSET_PX
+        interior_bottom = art_bottom - _ART_BOTTOM_INSET_PX
+
         mods_right = mods.mapTo(host, QPoint(mods.width(), 0)).x()
-        art_left = mods_right + side_pad
-        art_right = content_right - side_pad
+        art_left = max(interior_left, mods_right + side_pad)
+        art_right = min(interior_right, content_right - side_pad)
         avail_w = art_right - art_left
         if avail_w < 64:
-            art_left = side_pad
-            art_right = content_right - side_pad
+            art_left = interior_left + side_pad
+            art_right = interior_right - side_pad
             avail_w = max(64, art_right - art_left)
 
         # Fill available brand rect (priority over prior 16:9 clamp).
         art_x = art_left
-        art_y = content_top + _ART_TOP_PAD_PX
+        art_y = interior_top
         art_w = max(64, avail_w)
-        art_h = max(64, art_bottom - art_y)
-        if art_y + art_h > art_bottom:
-            art_h = max(64, art_bottom - art_y)
+        layout_h = max(64, interior_bottom - art_y)
+        if art_y + layout_h > interior_bottom:
+            layout_h = max(64, interior_bottom - art_y)
+        # Countdown/MoA use layout_h (ends at banner top). talent_bg tucks a few
+        # px under the grey bar so the hard/black art edge is hidden.
+        paint_h = layout_h
+        if banner is not None and banner.isVisible():
+            tuck = _ART_BANNER_TUCK_PX
+            if banner_mid is not None:
+                tuck = min(tuck, max(0, banner_mid - art_bottom))
+            paint_h = layout_h + tuck
 
-        self.talent_bg.set_frame(art_x, art_y, art_w, art_h)
-        art = self.talent_bg.geometry()
+        self.talent_bg.set_frame(art_x, art_y, art_w, paint_h)
+        art = QRect(art_x, art_y, art_w, layout_h)
 
         # --- Countdown + MoA along art BOTTOM (above diamond strip) ---
         # MoA sits immediately right of countdown; pair right-aligned in the art.
@@ -354,15 +381,18 @@ class HomePage(QWidget):
         self._set_chrome_visible(True)
 
         # Z-order (back → front on Root):
-        #   art → MoA → countdown → banner → bottom bar → −/X → RC crest
-        # Art is mouse-transparent and sits above ContentPanel so it paints over
-        # the opaque floor, but the brand column starts at mods_right + side_pad
-        # so the drawer / Register / card never sit under the art pixmap.
+        #   art → MoA → countdown → purple stroke → banner → bottom → −/X → RC crest
+        # Art must stay UNDER FolderFrameStroke so it never paints over/above the
+        # purple shelf into the tab strip (behind RAVENCRAFT).
         self.talent_bg.raise_()
         self.logo.raise_()
         self.countdown.raise_()
+        stroke = getattr(win, "_frame_stroke", None)
+        if isinstance(stroke, QWidget):
+            stroke.raise_()
         if banner is not None:
             banner.raise_()
+            banner.update()
         if isinstance(bottom_bar, QWidget):
             bottom_bar.raise_()
         # −/X are Root siblings (see MainWindow) — keep them above the art.
@@ -374,6 +404,9 @@ class HomePage(QWidget):
                 btn = getattr(win, name, None)
                 if isinstance(btn, QWidget):
                     btn.raise_()
+        corners = getattr(win, "_side_corners", None)
+        if isinstance(corners, QWidget):
+            corners.raise_()
         if isinstance(rc, QWidget):
             rc.raise_()
 

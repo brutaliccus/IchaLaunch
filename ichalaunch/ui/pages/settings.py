@@ -7,7 +7,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QPushButton,
     QScrollArea,
     QSizePolicy,
     QVBoxLayout,
@@ -16,6 +15,11 @@ from PySide6.QtWidgets import (
 
 from ichalaunch import __version__
 from ichalaunch.config.settings import settings
+from ichalaunch.ui.widgets.casting_bar_search_edit import (
+    SETTINGS_MIN_H,
+    CastingBarSearchEdit,
+)
+from ichalaunch.ui.widgets.glue_panel_button import GluePanelButton
 from ichalaunch.ui.widgets.marble_bg import MarbleCard
 from ichalaunch.ui.widgets.theme_checkbox import ThemeCheckBox
 
@@ -67,12 +71,16 @@ class SettingsPage(QWidget):
         game_card.body.addWidget(game_title)
         row = QHBoxLayout()
         row.setSpacing(8)
-        self.path_edit = QLineEdit(settings.game_path)
-        self.path_edit.setReadOnly(True)
-        self.path_edit.setMinimumHeight(36)
-        browse = QPushButton("Browse…")
+        self.path_edit = CastingBarSearchEdit(
+            object_name="SettingsGamePath",
+            read_only=True,
+            clear_button=False,
+            minimum_height=SETTINGS_MIN_H,
+        )
+        self.path_edit.setText(settings.game_path)
+        browse = GluePanelButton("Browse…")
         browse.clicked.connect(self.browse_clicked.emit)
-        verify = QPushButton("Verify")
+        verify = GluePanelButton("Verify")
         verify.clicked.connect(self.verify_clicked.emit)
         row.addWidget(self.path_edit, 1)
         row.addWidget(browse)
@@ -90,12 +98,16 @@ class SettingsPage(QWidget):
         addons_card.body.addWidget(addons_title)
         addons_row = QHBoxLayout()
         addons_row.setSpacing(8)
-        self.addons_edit = QLineEdit(settings.resolved_addons_path())
-        self.addons_edit.setReadOnly(True)
-        self.addons_edit.setMinimumHeight(36)
-        browse_addons = QPushButton("Browse…")
+        self.addons_edit = CastingBarSearchEdit(
+            object_name="SettingsAddonsPath",
+            read_only=True,
+            clear_button=False,
+            minimum_height=SETTINGS_MIN_H,
+        )
+        self.addons_edit.setText(settings.resolved_addons_path())
+        browse_addons = GluePanelButton("Browse…")
         browse_addons.clicked.connect(self.browse_addons_clicked.emit)
-        reset_addons = QPushButton("Reset to default")
+        reset_addons = GluePanelButton("Reset to default")
         reset_addons.setToolTip("Use {game folder}\\Interface\\AddOns")
         reset_addons.clicked.connect(self.reset_addons_clicked.emit)
         addons_row.addWidget(self.addons_edit, 1)
@@ -155,10 +167,15 @@ class SettingsPage(QWidget):
         gh_card.body.addWidget(gh_title)
         token_row = QHBoxLayout()
         token_row.setSpacing(8)
-        self.token_edit = QLineEdit(str(settings.get("github_token") or ""))
+        self.token_edit = CastingBarSearchEdit(
+            object_name="SettingsGithubToken",
+            read_only=False,
+            clear_button=False,
+            minimum_height=SETTINGS_MIN_H,
+        )
+        self.token_edit.setText(str(settings.get("github_token") or ""))
         self.token_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self.token_edit.setPlaceholderText("Personal access token (optional)")
-        self.token_edit.setMinimumHeight(36)
         self.token_edit.setMinimumWidth(280)
         self.token_edit.setToolTip("Saved automatically when you leave the field or click Save")
         self._token_save_timer = QTimer(self)
@@ -167,8 +184,7 @@ class SettingsPage(QWidget):
         self._token_save_timer.timeout.connect(self._save_github_token)
         self.token_edit.textChanged.connect(lambda: self._token_save_timer.start())
         self.token_edit.editingFinished.connect(self._save_github_token)
-        token_save = QPushButton("Save")
-        token_save.setMinimumHeight(36)
+        token_save = GluePanelButton("Save")
         token_save.clicked.connect(lambda: self._save_github_token(force_feedback=True))
         self.token_status = QLabel("")
         self.token_status.setObjectName("Muted")

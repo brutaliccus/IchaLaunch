@@ -209,7 +209,7 @@ def resolve_github_dll_mod(url: str) -> dict[str, Any]:
     parsed = parse_github_url(url)
     if not parsed:
         raise ValueError("Not a valid GitHub repository URL. Example: https://github.com/owner/repo")
-    owner, repo_name = parsed
+    owner, repo_name = parsed.owner, parsed.repo
     repo = f"{owner}/{repo_name}"
 
     # Reuse a built-in / already-registered entry that points at this repo.
@@ -297,7 +297,7 @@ def preview_github_dll_mod(url: str) -> dict[str, Any]:
     readme_base = ""
     readme_cache = ""
     if parsed:
-        owner, repo = parsed
+        owner, repo = parsed.owner, parsed.repo
         branch = "main"
         try:
             meta = github_get(f"https://api.github.com/repos/{owner}/{repo}").json()

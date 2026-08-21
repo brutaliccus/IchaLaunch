@@ -201,6 +201,107 @@ def robust_rmtree(path: Path, *, retries: int = 4, delay: float = 0.2) -> None:
         ) from last_exc
 
 
+def is_access_denied(exc: BaseException) -> bool:
+    """True for Windows ERROR_ACCESS_DENIED (5) / POSIX EACCES/EPERM."""
+    if getattr(exc, "winerror", None) == 5:
+        return True
+    if isinstance(exc, PermissionError):
+        return True
+    return getattr(exc, "errno", None) in (5, 13)
+
+
+def _park_or_remove(dest: Path) -> None:
+    """Clear *dest* so a move can use that name. Parks to a unique sibling if delete fails."""
+    if not dest.exists():
+        return
+    try:
+        robust_rmtree(dest)
+        return
+    except OSError:
+        parked = dest.with_name(f".{dest.name}.__old_{os.getpid()}_{time.time_ns()}")
+        shutil.move(str(dest), str(parked))
+        try:
+            robust_rmtree(parked)
+        except OSError:
+            pass
+
+
+def _copy_then_remove(src: Path, dest: Path) -> None:
+    if dest.exists():
+        _park_or_remove(dest)
+    shutil.copytree(src, dest)
+    robust_rmtree(src)
+
+
+def robust_move_tree(
+    src: Path,
+    dest: Path,
+    *,
+    retries: int = 3,
+    delay: float = 0.15,
+) -> str:
+    """Move a directory tree. Returns the strategy that succeeded.
+
+    Fallback chain (each attempt): ``rename`` → ``shutil.move`` → copytree+rmtree.
+    Retries the chain on access-denied (WinError 5) after clearing read-only bits.
+    """
+    import gc
+
+    src = Path(src)
+    dest = Path(dest)
+    if not src.is_dir():
+        raise FileNotFoundError(f"Source folder not found: {src}")
+    try:
+        if src.resolve() == dest.resolve():
+            return "already"
+    except OSError:
+        pass
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    gc.collect()
+
+    last_exc: BaseException | None = None
+    for attempt in range(max(1, retries)):
+        _make_tree_writable(src)
+        try:
+            _park_or_remove(dest)
+        except OSError as exc:
+            last_exc = exc
+            if attempt + 1 < retries:
+                time.sleep(delay)
+                continue
+            raise
+
+        strategies = (
+            ("rename", lambda: src.rename(dest)),
+            ("shutil.move", lambda: shutil.move(str(src), str(dest))),
+            ("copytree", lambda: _copy_then_remove(src, dest)),
+        )
+        for strategy, fn in strategies:
+            if not src.is_dir():
+                break
+            if dest.exists() and strategy != "copytree":
+                try:
+                    _park_or_remove(dest)
+                except OSError as exc:
+                    last_exc = exc
+                    continue
+            try:
+                fn()
+            except OSError as exc:
+                last_exc = exc
+                continue
+            if dest.exists() and not src.exists():
+                return strategy
+
+        if attempt + 1 < retries:
+            time.sleep(delay)
+
+    if last_exc is not None:
+        raise last_exc
+    raise OSError("Could not move folder")
+
+
 def copy_tree(src: Path, dest: Path) -> None:
     if dest.exists():
         robust_rmtree(dest)

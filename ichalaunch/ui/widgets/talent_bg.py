@@ -33,7 +33,7 @@ _BASE_OPACITY = 0.82
 # Soft L/R + top falloff. Bottom stays hard so art still sits flush on the
 # diamond strip (any bottom feather reads as a mid-page gap).
 _EDGE_FEATHER = 0.04
-_EDGE_FEATHER_TOP = 0.12
+_EDGE_FEATHER_TOP = 0.26
 _EDGE_FEATHER_BOTTOM = 0.0
 # Strip only fully-transparent padding (legacy talent PNGs were square canvases).
 _PAD_ALPHA_MIN = 1

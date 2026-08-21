@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, NamedTuple
 
 import requests
 
@@ -25,9 +25,21 @@ UA = {"User-Agent": "IchaLaunch/0.1", "Accept": "application/vnd.github+json"}
 
 RATE_LIMIT_STATUS = "GitHub rate limit hit — add a token in Settings or try later"
 STARTUP_CHECK_COOLDOWN_SEC = 30 * 60
+_URL_REACH_CACHE_TTL_SEC = 10 * 60
+_URL_REACH_TIMEOUT_SEC = 2.5
 
 # Updated after each GitHub API response (None if header missing).
 _last_rate_remaining: int | None = None
+# url -> (monotonic_ts, reachable)
+_url_reach_cache: dict[str, tuple[float, bool]] = {}
+
+
+class ParsedGitHubUrl(NamedTuple):
+    """owner/repo plus optional release tag from /releases/tag/ or /releases/download/."""
+
+    owner: str
+    repo: str
+    tag: str | None = None
 
 
 def iso_date_today() -> str:
@@ -97,14 +109,112 @@ def github_get(url: str, *, timeout: int = 30) -> requests.Response:
     return r
 
 
-def parse_github_url(url: str) -> tuple[str, str] | None:
-    url = url.strip().rstrip("/")
-    if url.endswith(".git"):
-        url = url[:-4]
-    m = re.match(r"https?://github\.com/([^/]+)/([^/#?]+)", url)
+def parse_github_url(url: str) -> ParsedGitHubUrl | None:
+    """Parse github.com owner/repo, optionally a release tag.
+
+    Supports:
+    - ``https://github.com/owner/repo``
+    - ``https://github.com/owner/repo/releases/tag/1.5.16``
+    - ``https://github.com/owner/repo/releases/download/TAG/asset.zip``
+    - ``https://github.com/owner/repo/archive/refs/tags/TAG.zip``
+    """
+    raw = (url or "").strip()
+    if not raw:
+        return None
+    # Keep path for tag extraction before stripping .git / trailing slash
+    m = re.match(
+        r"https?://github\.com/([^/]+)/([^/#?]+?)(?:\.git)?(?:/|$)",
+        raw,
+        re.I,
+    )
     if not m:
         return None
-    return m.group(1), m.group(2)
+    owner, repo = m.group(1), m.group(2)
+    tag: str | None = None
+    tm = re.search(r"/releases/tag/([^/#?]+)", raw, re.I)
+    if tm:
+        tag = tm.group(1)
+    else:
+        dm = re.search(r"/releases/download/([^/]+)/", raw, re.I)
+        if dm:
+            tag = dm.group(1)
+        else:
+            am = re.search(r"/archive/refs/tags/([^/#?]+?)(?:\.zip|\.tar\.gz)?(?:$|[?#])", raw, re.I)
+            if am:
+                tag = am.group(1)
+    if tag:
+        # URL-decode common encodings; leave exotic tags as-is
+        try:
+            from urllib.parse import unquote
+
+            tag = unquote(tag)
+        except Exception:  # noqa: BLE001
+            pass
+        tag = tag.strip().rstrip("/") or None
+    return ParsedGitHubUrl(owner, repo, tag)
+
+
+def github_browse_url(owner: str, repo: str) -> str:
+    return f"https://github.com/{owner}/{repo}"
+
+
+def github_tag_archive_url(owner: str, repo: str, tag: str) -> str:
+    """Source zip for a git tag (same as the green Code → Download ZIP at a tag)."""
+    return f"https://github.com/{owner}/{repo}/archive/refs/tags/{tag}.zip"
+
+
+def github_tag_page_url(owner: str, repo: str, tag: str) -> str:
+    return f"https://github.com/{owner}/{repo}/releases/tag/{tag}"
+
+
+def github_url_reachable_cached(url: str) -> bool | None:
+    """Return cached reachability or None if unknown / expired."""
+    key = (url or "").strip().rstrip("/").lower()
+    if not key:
+        return False
+    hit = _url_reach_cache.get(key)
+    if not hit:
+        return None
+    ts, ok = hit
+    if (time.monotonic() - ts) > _URL_REACH_CACHE_TTL_SEC:
+        return None
+    return ok
+
+
+def github_url_reachable(url: str, *, timeout: float = _URL_REACH_TIMEOUT_SEC) -> bool:
+    """Lightweight HEAD/GET probe for a browse URL. Results are cached briefly."""
+    text = (url or "").strip()
+    if not text:
+        return False
+    key = text.rstrip("/").lower()
+    cached = github_url_reachable_cached(text)
+    if cached is not None:
+        return cached
+
+    headers = {
+        "User-Agent": "IchaLaunch/0.1",
+        "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
+    }
+    ok = False
+    try:
+        r = requests.head(text, headers=headers, timeout=timeout, allow_redirects=True)
+        if r.status_code == 405 or r.status_code == 403:
+            r = requests.get(
+                text,
+                headers={**headers, "Range": "bytes=0-0"},
+                timeout=timeout,
+                allow_redirects=True,
+                stream=True,
+            )
+            try:
+                r.close()
+            except Exception:  # noqa: BLE001
+                pass
+        ok = 200 <= r.status_code < 400
+    except requests.RequestException:
+        ok = False
+    _url_reach_cache[key] = (time.monotonic(), ok)
+    return ok
 
 
 def github_latest_commit(owner: str, repo: str, branch: str | None = None) -> dict[str, Any]:
@@ -410,22 +520,29 @@ def preview_addon_repo(url: str) -> dict[str, Any]:
     """Fetch GitHub repo metadata for an Add-from-GitHub confirmation preview.
 
     Does not download the zip or install anything.
+    When the URL includes a release tag, README still comes from the repo;
+    install will use the tagged archive.
     """
     parsed = parse_github_url(url)
     if not parsed:
-        raise ValueError("Not a valid GitHub repository URL. Example: https://github.com/owner/repo")
-    owner, repo = parsed
+        raise ValueError(
+            "Not a valid GitHub repository URL. "
+            "Example: https://github.com/owner/repo or …/releases/tag/1.2.3"
+        )
+    owner, repo, tag = parsed.owner, parsed.repo, parsed.tag
     full = f"{owner}/{repo}"
     r = github_get(f"https://api.github.com/repos/{full}")
     data = r.json()
     branch = data.get("default_branch") or "main"
-    commit = github_latest_commit(owner, repo, branch=branch)
+    # Resolve commit for the tag when pinned; otherwise default branch tip.
+    commit_ref = tag or branch
+    commit = github_latest_commit(owner, repo, branch=commit_ref)
 
     catalog_hit = None
     for entry in load_catalog():
         repo_url = str(entry.get("repo") or entry.get("url") or "")
         other = parse_github_url(repo_url)
-        if other and other[0].lower() == owner.lower() and other[1].lower() == repo.lower():
+        if other and other.owner.lower() == owner.lower() and other.repo.lower() == repo.lower():
             catalog_hit = entry
             break
 
@@ -438,7 +555,7 @@ def preview_addon_repo(url: str) -> dict[str, Any]:
             installed_meta = {"folder": folder, **meta}
             break
         ou = parse_github_url(str(meta.get("url") or ""))
-        if ou and ou[0].lower() == owner.lower() and ou[1].lower() == repo.lower():
+        if ou and ou.owner.lower() == owner.lower() and ou.repo.lower() == repo.lower():
             installed_meta = {"folder": folder, **meta}
             break
 
@@ -448,15 +565,23 @@ def preview_addon_repo(url: str) -> dict[str, Any]:
         date = date.split("T", 1)[0]
     msg = str(commit.get("message") or "").strip().splitlines()[0] if commit.get("message") else ""
 
-    readme = fetch_repo_readme(owner, repo, branch=branch)
+    # README from default branch for preview; try tag ref first when pinned
+    readme = None
+    if tag:
+        readme = fetch_repo_readme(owner, repo, branch=tag)
+    if not readme:
+        readme = fetch_repo_readme(owner, repo, branch=branch)
+
+    install_url = github_tag_page_url(owner, repo, tag) if tag else github_browse_url(owner, repo)
 
     return {
         "kind": "addon",
-        "url": f"https://github.com/{full}",
+        "url": install_url,
         "full_name": data.get("full_name") or full,
         "description": (data.get("description") or "").strip() or "(no description)",
         "stars": int(data.get("stargazers_count") or 0),
         "default_branch": branch,
+        "tag": tag or "",
         "commit_sha": sha[:7] if sha else "",
         "commit_date": date,
         "commit_message": msg[:120],
@@ -472,12 +597,17 @@ def preview_addon_repo(url: str) -> dict[str, Any]:
 
 def format_addon_preview(info: dict[str, Any]) -> str:
     """Short summary above the README in the addon GitHub confirm dialog."""
+    tag = str(info.get("tag") or "").strip()
+    ref_line = (
+        f"Tag {tag} @ {info.get('commit_sha') or '?'}"
+        if tag
+        else f"Branch {info.get('default_branch')} @ {info.get('commit_sha') or '?'}"
+    )
     lines = [
         f"{info.get('full_name')}  ·  ★ {info.get('stars', 0)}",
         f"{info.get('url')}",
         f"{info.get('description')}",
-        f"Branch {info.get('default_branch')} @ {info.get('commit_sha') or '?'}"
-        + (f" ({info.get('commit_date')})" if info.get("commit_date") else ""),
+        ref_line + (f" ({info.get('commit_date')})" if info.get("commit_date") else ""),
     ]
     if info.get("commit_message"):
         lines.append(f"Latest: {info['commit_message']}")
@@ -490,10 +620,16 @@ def format_addon_preview(info: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def normalize_addon_name(name: str) -> str:
+def normalize_addon_name(name: str, tag: str | None = None) -> str:
     for suffix in ("-master", "-main", "-dev"):
         if name.endswith(suffix):
             name = name[: -len(suffix)]
+    if tag:
+        # GitHub tag zips extract as ``Repo-1.5.16`` (slashes → hyphens)
+        tag_suffix = "-" + str(tag).replace("/", "-").replace("\\", "-")
+        if name.endswith(tag_suffix):
+            name = name[: -len(tag_suffix)]
+        # Also strip trailing ``-v1.2.3`` when tag is ``v1.2.3`` already handled above
     return name
 
 
@@ -507,6 +643,7 @@ def _addon_install_meta(
     url: str,
     commit_date: str = "",
     match_kind: str = "exact",
+    tag: str | None = None,
 ) -> dict[str, Any]:
     """Build metadata for a successful install/update, preserving installed_at."""
     from ichalaunch.core.detect import merge_addon_meta, resolve_catalog_entry
@@ -521,7 +658,11 @@ def _addon_install_meta(
         "url": url,
         "updated_at": today,
         "installed_at": prev.get("installed_at") or today,
+        "loaded": True,
     }
+    if tag:
+        payload["tag"] = tag
+        payload["version"] = tag
     if commit_date:
         # Store YYYY-MM-DD when possible
         payload["commit_date"] = str(commit_date)[:10]
@@ -530,11 +671,28 @@ def _addon_install_meta(
     kind = match_kind if match_kind else (kind or "exact")
     enriched = merge_addon_meta(folder, {**prev, **payload}, cat, match_kind=kind)
     # Prefer github tracking fields from this install
-    for key in ("repository", "branch", "installed_commit", "url", "updated_at", "installed_at", "commit_date", "source"):
+    for key in (
+        "repository",
+        "branch",
+        "installed_commit",
+        "url",
+        "updated_at",
+        "installed_at",
+        "commit_date",
+        "source",
+        "tag",
+        "version",
+    ):
         if payload.get(key):
             enriched[key] = payload[key]
+    if not tag:
+        # Fresh branch install should not keep a stale pin from a prior tagged install
+        enriched.pop("tag", None)
+        if enriched.get("version") == prev.get("tag"):
+            enriched.pop("version", None)
     # Successful install/update clears Never Update (same as Reinstall / choosing Update)
     enriched.pop("never_update", None)
+    enriched["loaded"] = True
     return enriched
 
 
@@ -548,6 +706,7 @@ def _record_pack_install(
     url: str,
     commit_date: str,
     preferred_primary: str | None = None,
+    tag: str | None = None,
 ) -> str:
     """Write settings for a multi-folder (or single) GitHub install as one managed pack."""
     from ichalaunch.core.detect import pick_pack_primary
@@ -584,6 +743,7 @@ def _record_pack_install(
             url=url,
             commit_date=commit_date,
             match_kind=kind,
+            tag=tag,
         )
         if len(installed) > 1:
             if name == primary:
@@ -606,11 +766,12 @@ def _record_pack_install(
         settings.set_installed_addon(name, meta)
 
     log.info(
-        "Installed addon pack %s (%s) from %s/%s",
+        "Installed addon pack %s (%s) from %s/%s%s",
         primary,
         ", ".join(sorted(installed)),
         owner,
         repo,
+        f"@{tag}" if tag else "",
     )
     return primary if len(installed) == 1 else f"{primary} ({len(installed)} modules)"
 
@@ -619,22 +780,36 @@ def install_from_github(url: str, folder_name: str | None = None, progress: Prog
     parsed = parse_github_url(url)
     if not parsed:
         raise ValueError("Not a valid GitHub repository URL")
-    owner, repo = parsed
+    owner, repo, tag = parsed.owner, parsed.repo, parsed.tag
+    # Prefer tag stored on a prior install when reinstall URL was stripped to repo root
+    if not tag and folder_name:
+        prev = settings.installed_addons.get(folder_name) or {}
+        tag = str(prev.get("tag") or "").strip() or None
     game = detect_game()
     if not game:
         raise FileNotFoundError("Game path not set")
 
     if progress:
         progress("Fetching repository info...")
-    meta = github_latest_commit(owner, repo)
-    branch = meta["branch"]
-    commit_date = meta.get("date") or ""
-    zip_url = f"https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.zip"
+    if tag:
+        meta = github_latest_commit(owner, repo, branch=tag)
+        branch = str(meta.get("branch") or tag)
+        commit_date = meta.get("date") or ""
+        zip_url = github_tag_archive_url(owner, repo, tag)
+        store_url = github_tag_page_url(owner, repo, tag)
+        label = f"{owner}/{repo}@{tag}"
+    else:
+        meta = github_latest_commit(owner, repo)
+        branch = meta["branch"]
+        commit_date = meta.get("date") or ""
+        zip_url = f"https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.zip"
+        store_url = github_browse_url(owner, repo)
+        label = f"{owner}/{repo}@{branch}"
 
     with tempfile.TemporaryDirectory(prefix="icha_addon_") as tmp:
         work = Path(tmp)
         if progress:
-            progress(f"Downloading {owner}/{repo}@{branch}...")
+            progress(f"Downloading {label}...")
         data = download_bytes(zip_url, progress=download_bytes_cb(progress))
         extracted = extract_zip(data, work / "extract")
         roots = find_toc_roots(extracted)
@@ -653,7 +828,7 @@ def install_from_github(url: str, folder_name: str | None = None, progress: Prog
         # Always keep each TOC root's real folder name — never rename children to catalog folder.
         installed: list[str] = []
         for root in roots:
-            name = normalize_addon_name(root.name)
+            name = normalize_addon_name(root.name, tag=tag)
             if name.lower() in ("master", "main"):
                 name = repo
             dest = addons_dir / name
@@ -665,7 +840,7 @@ def install_from_github(url: str, folder_name: str | None = None, progress: Prog
         # Single-root installs may use catalog folder_name as the destination name
         if len(installed) == 1 and folder_name:
             only = installed[0]
-            wanted = normalize_addon_name(folder_name)
+            wanted = normalize_addon_name(folder_name, tag=tag)
             if wanted and wanted.lower() != only.lower():
                 src = addons_dir / only
                 dest = addons_dir / wanted
@@ -676,9 +851,25 @@ def install_from_github(url: str, folder_name: str | None = None, progress: Prog
 
         preferred = None
         if folder_name:
-            preferred = normalize_addon_name(folder_name)
-        elif any(normalize_addon_name(n).lower() == repo.lower() for n in installed):
-            preferred = next(n for n in installed if normalize_addon_name(n).lower() == repo.lower())
+            preferred = normalize_addon_name(folder_name, tag=tag)
+        elif any(normalize_addon_name(n, tag=tag).lower() == repo.lower() for n in installed):
+            preferred = next(
+                n for n in installed if normalize_addon_name(n, tag=tag).lower() == repo.lower()
+            )
+
+        # Zip/release extract has no .git — record origin so Check Updates / Update
+        # and a later import of a *different* repo for the same folder can use it.
+        from ichalaunch.core.detect import write_git_origin
+
+        origin_url = github_browse_url(owner, repo)
+        for name in installed:
+            dest = addons_dir / name
+            if not dest.is_dir():
+                continue
+            try:
+                write_git_origin(dest, origin_url)
+            except (OSError, ValueError) as exc:
+                log.warning("Could not write .git origin for %s: %s", name, exc)
 
         return _record_pack_install(
             installed=installed,
@@ -686,10 +877,14 @@ def install_from_github(url: str, folder_name: str | None = None, progress: Prog
             repo=repo,
             branch=branch,
             sha=meta["sha"],
-            url=url,
+            url=store_url,
             commit_date=commit_date,
             preferred_primary=preferred,
+            tag=tag,
         )
+
+GIT_REPAIR_STATUS = "Adding missing git folder structure..."
+
 
 def _addon_has_repo(meta: dict[str, Any]) -> bool:
     repo = meta.get("repository")
@@ -697,6 +892,134 @@ def _addon_has_repo(meta: dict[str, Any]) -> bool:
         return True
     url = meta.get("url") or ""
     return bool(parse_github_url(str(url)))
+
+
+def _addon_git_exists(addon_dir: Path) -> bool:
+    git_entry = addon_dir / ".git"
+    return git_entry.exists() or git_entry.is_symlink()
+
+
+def _never_update_meta(folder: str, meta: dict[str, Any], installed: dict[str, Any]) -> bool:
+    if meta.get("never_update"):
+        return True
+    managed_by = str(meta.get("managed_by") or "").strip()
+    if managed_by:
+        parent = installed.get(managed_by) or {}
+        if parent.get("never_update"):
+            return True
+    return False
+
+
+def _known_repo_url_for_repair(
+    folder: str,
+    meta: dict[str, Any],
+    installed: dict[str, Any],
+) -> str:
+    """Resolve a GitHub browse URL from settings, pack parent, or catalog."""
+    from ichalaunch.core.detect import resolve_catalog_entry
+
+    url = str(meta.get("url") or "").strip()
+    parsed = parse_github_url(url)
+    if parsed:
+        return github_browse_url(parsed.owner, parsed.repo)
+    repo = str(meta.get("repository") or "").strip()
+    if "/" in repo:
+        owner, name = repo.split("/", 1)
+        owner, name = owner.strip(), name.strip()
+        if owner and name:
+            return github_browse_url(owner, name)
+    managed_by = str(meta.get("managed_by") or "").strip()
+    if managed_by and managed_by in installed:
+        inherited = _known_repo_url_for_repair(managed_by, installed[managed_by], installed)
+        if inherited:
+            return inherited
+    cat, _kind = resolve_catalog_entry(folder)
+    if cat:
+        raw = str(cat.get("repo") or cat.get("url") or "").strip()
+        parsed = parse_github_url(raw)
+        if parsed:
+            return github_browse_url(parsed.owner, parsed.repo)
+    return ""
+
+
+def repair_missing_addon_git_origins(
+    progress: Any = None,
+    *,
+    addons_dir: Path | None = None,
+    installed: dict[str, Any] | None = None,
+) -> int:
+    """Write ``.git`` for tracked addons that have a known repo but no origin on disk.
+
+    Called from the update-check pass (not a separate button). Existing ``.git``
+    folders are left alone. Returns the number of folders repaired.
+    """
+    from ichalaunch.addons.loadstate import addon_disk_path, resolve_unloaded_addons_dir
+    from ichalaunch.core.detect import write_git_origin
+    from ichalaunch.core.filesystem import is_protected_path
+    from ichalaunch.game.launcher import resolve_addons_dir
+
+    root = addons_dir if addons_dir is not None else resolve_addons_dir(create=False)
+    if root is None or not root.is_dir():
+        return 0
+    tracked = installed if installed is not None else settings.installed_addons
+    off = None if addons_dir is not None else resolve_unloaded_addons_dir(create=False)
+
+    names: set[str] = set()
+    for p in root.iterdir():
+        if p.is_dir():
+            names.add(p.name)
+    if off is not None and off.is_dir():
+        for p in off.iterdir():
+            if p.is_dir():
+                names.add(p.name)
+    for key in tracked:
+        names.add(str(key))
+
+    to_repair: list[tuple[Path, str]] = []
+    for name in sorted(names, key=str.lower):
+        dest = addon_disk_path(name, addons_dir=root, unloaded_dir=off) or (root / name)
+        if not dest.is_dir():
+            continue
+        if is_protected_path(dest):
+            continue
+        if _addon_git_exists(dest):
+            continue
+        meta = tracked.get(name) or {}
+        if not meta:
+            for key, val in tracked.items():
+                if str(key).lower() == name.lower() and isinstance(val, dict):
+                    meta = val
+                    break
+        if _never_update_meta(name, meta, tracked):
+            continue
+        origin = _known_repo_url_for_repair(name, meta, tracked)
+        if not origin:
+            continue
+        to_repair.append((dest, origin))
+
+    if not to_repair:
+        return 0
+
+    if progress is not None:
+        if callable(progress):
+            progress(GIT_REPAIR_STATUS)
+        else:
+            on_status = getattr(progress, "on_status", None)
+            if callable(on_status):
+                on_status(GIT_REPAIR_STATUS)
+
+    repaired = 0
+    for dest, origin in to_repair:
+        if _addon_git_exists(dest):
+            continue
+        try:
+            write_git_origin(dest, origin)
+        except (OSError, ValueError) as exc:
+            log.warning("Could not repair .git origin for %s: %s", dest.name, exc)
+            continue
+        if _addon_git_exists(dest):
+            repaired += 1
+    return repaired
 
 
 def recently_checked_addon_updates(cooldown_sec: int = STARTUP_CHECK_COOLDOWN_SEC) -> bool:
@@ -733,12 +1056,20 @@ def check_addon_updates(
     checked = 0
     rate_limited = False
 
+    from ichalaunch.core.detect import overlay_git_origin
+
+    repair_missing_addon_git_origins(progress)
+
     to_check: list[tuple[str, dict[str, Any], str, str, str]] = []
     for folder, meta in settings.installed_addons.items():
         if meta.get("managed_by"):
             continue
         if meta.get("never_update"):
             continue
+        # Pinned release-tag installs: reinstall re-fetches the same tag; skip branch tip checks
+        if str(meta.get("tag") or "").strip():
+            continue
+        meta = overlay_git_origin(folder, meta)
         if not _addon_has_repo(meta):
             continue
         repo = meta.get("repository")
@@ -746,7 +1077,7 @@ def check_addon_updates(
             parsed = parse_github_url(str(meta.get("url") or ""))
             if not parsed:
                 continue
-            owner, name = parsed
+            owner, name = parsed.owner, parsed.repo
             repo = f"{owner}/{name}"
         else:
             owner, name = str(repo).split("/", 1)
@@ -856,7 +1187,20 @@ def update_addon(folder: str, progress: ProgressCb | None = None) -> None:
     if managed_by:
         folder = managed_by
         meta = settings.installed_addons.get(folder) or meta
-    url = meta.get("url") or f"https://github.com/{meta['repository']}"
+    from ichalaunch.core.detect import overlay_git_origin
+
+    meta = overlay_git_origin(folder, meta)
+    tag = str(meta.get("tag") or "").strip()
+    repo = str(meta.get("repository") or "").strip()
+    if tag and "/" in repo:
+        owner, name = repo.split("/", 1)
+        url = github_tag_page_url(owner, name, tag)
+    else:
+        url = meta.get("url") or (f"https://github.com/{repo}" if repo else "")
+        # Recover tag from stored URL if present
+        parsed = parse_github_url(str(url))
+        if parsed and parsed.tag:
+            url = github_tag_page_url(parsed.owner, parsed.repo, parsed.tag)
     # Pass primary folder name only as preferred primary — install keeps all module names
     install_from_github(url, folder_name=folder, progress=progress)
 
@@ -878,10 +1222,16 @@ def uninstall_addon(folder: str) -> None:
     addons_dir = resolve_addons_dir(create=False)
     if addons_dir is None:
         raise FileNotFoundError("AddOns path not set")
+    from ichalaunch.addons.loadstate import resolve_unloaded_addons_dir
+
+    unloaded_dir = resolve_unloaded_addons_dir(create=False)
     for name in folders:
-        path = addons_dir / name
-        if path.exists():
-            safe_remove(path)
+        for root in (addons_dir, unloaded_dir):
+            if root is None:
+                continue
+            path = root / name
+            if path.exists():
+                safe_remove(path)
         settings.remove_installed_addon(name)
     # Ensure primary key cleared even if not in folders list
     settings.remove_installed_addon(target)

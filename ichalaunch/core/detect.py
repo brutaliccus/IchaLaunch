@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
 from ichalaunch.addons.github import load_catalog, parse_github_url
 from ichalaunch.config.settings import settings
+from ichalaunch.core.filesystem import robust_rmtree
 from ichalaunch.game.launcher import detect_game, resolve_addons_dir
 from ichalaunch.mods.installer import detect_actual_state, load_mod_catalog
 
@@ -15,30 +19,44 @@ from ichalaunch.mods.installer import detect_actual_state, load_mod_catalog
 BLIZZARD_PREFIXES = ("Blizzard_", "Turtle_")
 
 
-def scan_installed_addon_folders(game_path: Path | None = None) -> list[str]:
-    """List TOC addon folders under the configured AddOns path.
-
-    When ``game_path`` is passed and settings have no ``addons_path`` override,
-    scan ``{game_path}/Interface/AddOns`` (tests / one-offs). Otherwise use
-    ``resolve_addons_dir()``.
-    """
-    if game_path is not None and not settings.addons_path.strip():
-        addons_dir = Path(game_path) / "Interface" / "AddOns"
-    else:
-        addons_dir = resolve_addons_dir(create=False)
+def _scan_toc_dir(addons_dir: Path | None, *, skip_blizzard: bool) -> list[str]:
     if not addons_dir or not addons_dir.is_dir():
         return []
     folders = []
     for p in sorted(addons_dir.iterdir()):
         if not p.is_dir():
             continue
-        if p.name.startswith(BLIZZARD_PREFIXES):
+        if skip_blizzard and p.name.startswith(BLIZZARD_PREFIXES):
             continue
-        # must have a .toc somewhere at root
         if not any(p.glob("*.toc")):
             continue
         folders.append(p.name)
     return folders
+
+
+def scan_installed_addon_folders(game_path: Path | None = None) -> list[str]:
+    """List TOC addon folders under AddOns **and** AddOnsUnloaded.
+
+    Unloaded packs stay on the Addons tab; vanilla only scans ``Interface/AddOns``.
+    When ``game_path`` is passed and settings have no ``addons_path`` override,
+    scan ``{game_path}/Interface/AddOns`` (tests / one-offs). Otherwise use
+    ``resolve_addons_dir()``.
+    """
+    if game_path is not None and not settings.addons_path.strip():
+        addons_dir = Path(game_path) / "Interface" / "AddOns"
+        unloaded_dir = addons_dir.parent / "AddOnsUnloaded"
+    else:
+        from ichalaunch.addons.loadstate import resolve_unloaded_addons_dir
+
+        addons_dir = resolve_addons_dir(create=False)
+        unloaded_dir = resolve_unloaded_addons_dir(create=False)
+    loaded = _scan_toc_dir(addons_dir, skip_blizzard=True)
+    seen = {n.lower() for n in loaded}
+    for name in _scan_toc_dir(unloaded_dir, skip_blizzard=False):
+        if name.lower() not in seen:
+            loaded.append(name)
+            seen.add(name.lower())
+    return loaded
 
 
 def normalize_addon_key(value: str) -> str:
@@ -110,8 +128,9 @@ def _git_config_path(addon_folder: Path) -> Path | None:
 def read_git_origin_url(addon_folder: str | Path) -> str | None:
     """Return normalized origin remote URL from ``addon_folder/.git/config``, if any.
 
-    Used when an AddOns folder was cloned/copied outside the launcher zip flow and
-    catalog/settings lack a repo URL. Strips a trailing ``.git``; prefers
+    When present, this wins over catalog/preloaded repo URLs for Open in Git,
+    update checks, and reinstall. Zip installs without ``.git`` return ``None``
+    so callers fall back to catalog. Strips a trailing ``.git``; prefers
     ``https://github.com/owner/repo`` when the remote is a GitHub URL.
     """
     folder = Path(addon_folder)
@@ -152,6 +171,158 @@ def read_git_origin_url(addon_folder: str | Path) -> str | None:
     if cleaned.lower().endswith(".git"):
         cleaned = cleaned[:-4]
     return cleaned or None
+
+
+def _origin_urls_match(left: str, right: str) -> bool:
+    """True when two remotes are the same GitHub owner/repo (or identical URL)."""
+    a = (_github_page_url(left) or left).rstrip("/").lower()
+    b = (_github_page_url(right) or right).rstrip("/").lower()
+    if a.endswith(".git"):
+        a = a[:-4]
+    if b.endswith(".git"):
+        b = b[:-4]
+    return bool(a) and a == b
+
+
+def _canonical_git_remote_url(origin_url: str) -> str:
+    """URL stored in ``remote.origin.url`` (GitHub pages get a trailing ``.git``)."""
+    raw = (origin_url or "").strip()
+    if not raw:
+        return ""
+    page = _github_page_url(raw)
+    if page:
+        return page + ".git"
+    cleaned = raw.rstrip("/")
+    return cleaned
+
+
+def _remove_addon_git(addon_folder: Path) -> None:
+    """Delete only ``addon_folder/.git`` (file or directory), never the addon root."""
+    git_entry = addon_folder / ".git"
+    if not git_entry.exists() and not git_entry.is_symlink():
+        return
+    # Never treat the addon folder itself as the removal target.
+    try:
+        if git_entry.resolve() == addon_folder.resolve():
+            return
+    except OSError:
+        return
+    if git_entry.is_file() or git_entry.is_symlink():
+        git_entry.unlink(missing_ok=True)
+        return
+    robust_rmtree(git_entry)
+
+
+def _git_run(git: str, args: list[str], *, cwd: Path) -> subprocess.CompletedProcess[bytes]:
+    kwargs: dict[str, Any] = {
+        "cwd": str(cwd),
+        "capture_output": True,
+        "timeout": 30,
+        "check": False,
+    }
+    if sys.platform == "win32":
+        kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    return subprocess.run([git, *args], **kwargs)
+
+
+def _git_init_with_origin(addon_folder: Path, remote_url: str) -> bool:
+    git = shutil.which("git")
+    if not git:
+        return False
+    try:
+        init = _git_run(git, ["init"], cwd=addon_folder)
+        if init.returncode != 0:
+            return False
+        got = _git_run(git, ["remote", "get-url", "origin"], cwd=addon_folder)
+        if got.returncode == 0:
+            set_url = _git_run(git, ["remote", "set-url", "origin", remote_url], cwd=addon_folder)
+            return set_url.returncode == 0
+        added = _git_run(git, ["remote", "add", "origin", remote_url], cwd=addon_folder)
+        return added.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def _write_minimal_git_config(addon_folder: Path, remote_url: str) -> None:
+    git_dir = addon_folder / ".git"
+    git_dir.mkdir(parents=True, exist_ok=True)
+    (git_dir / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    (git_dir / "config").write_text(
+        "[core]\n"
+        "\trepositoryformatversion = 0\n"
+        "\tfilemode = false\n"
+        "\tbare = false\n"
+        '[remote "origin"]\n'
+        f"\turl = {remote_url}\n"
+        "\tfetch = +refs/heads/*:refs/remotes/origin/*\n",
+        encoding="utf-8",
+    )
+
+
+def write_git_origin(addon_folder: str | Path, origin_url: str) -> None:
+    """Create or replace ``addon_folder/.git`` so ``read_git_origin_url`` returns *origin_url*.
+
+    Zip/catalog installs do not clone the repo; this writes a real ``git init`` +
+    ``remote add origin`` when ``git`` is on PATH, otherwise a minimal
+    ``.git/config`` that the existing origin parser already understands.
+
+    If a previous origin points at a *different* repo, ``.git`` is removed and
+    rewritten (no prompt). Addon files are not deleted. Same-repo reinstalls
+    keep an existing origin that already matches. Only ``addon_folder/.git`` is
+    removed — never the addon tree.
+    """
+    folder = Path(addon_folder)
+    if not folder.is_dir():
+        raise FileNotFoundError(f"Addon folder not found: {folder}")
+    remote = _canonical_git_remote_url(origin_url)
+    if not remote:
+        raise ValueError(f"Not a usable git origin URL: {origin_url!r}")
+
+    existing = read_git_origin_url(folder)
+    if existing and _origin_urls_match(existing, remote):
+        return
+
+    if (folder / ".git").exists() or (folder / ".git").is_symlink():
+        _remove_addon_git(folder)
+
+    if _git_init_with_origin(folder, remote):
+        return
+    _write_minimal_git_config(folder, remote)
+
+
+def overlay_git_origin(
+    folder: str,
+    meta: dict[str, Any] | None = None,
+    *,
+    addons_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Return a copy of *meta* with ``.git`` origin overriding catalog/settings URLs.
+
+    No-op when the folder has no parseable origin (zip installs keep catalog URLs).
+    """
+    out = dict(meta or {})
+    root = addons_dir if addons_dir is not None else resolve_addons_dir(create=False)
+    if not root or not folder:
+        return out
+    from ichalaunch.addons.loadstate import UNLOADED_SIBLING, addon_disk_path
+
+    disk = addon_disk_path(
+        folder,
+        addons_dir=root,
+        unloaded_dir=root.parent / UNLOADED_SIBLING,
+    )
+    origin = read_git_origin_url(disk) if disk is not None else read_git_origin_url(Path(root) / folder)
+    if not origin:
+        return out
+    page = _github_page_url(origin) or origin
+    out["url"] = page
+    repo = _repository_from_url(page)
+    if repo:
+        out["repository"] = repo
+    src = str(out.get("source") or "").strip().lower()
+    if src in ("", "detected", "turtle_wiki"):
+        out["source"] = "github"
+    return out
 
 
 def _index_put(idx: dict[str, dict[str, Any]], key: str, entry: dict[str, Any]) -> None:
@@ -328,10 +499,18 @@ def merge_addon_meta(
     cat: dict[str, Any] | None = None,
     *,
     match_kind: str = "exact",
+    git_origin: str | None = None,
 ) -> dict[str, Any]:
     """
     Merge disk/settings metadata with catalog entry. Never wipe good existing fields;
     fill gaps from catalog (url/repo, description, name, category).
+
+    Repo URL precedence when resolving Open in Git / updates / reinstall:
+    1. ``git_origin`` from local ``.git/config`` remote.origin.url (if parseable)
+    2. Previous settings / installed meta
+    3. Catalog / preloaded ``repo`` / ``url``
+
+    Zip installs without ``.git`` leave ``git_origin`` empty and keep catalog URLs.
 
     Prefix matches inherit url/repo (and description/category when empty) but keep
     the real disk folder name — never rename Bongos_ActionBar to "Bongos".
@@ -339,13 +518,22 @@ def merge_addon_meta(
     prev = dict(prev or {})
     cat = dict(cat or {})
     cat_repo = _nonempty(cat.get("repo"), cat.get("url"))
-    url = _nonempty(prev.get("url"), cat_repo)
+    origin = _nonempty(git_origin)
+    if origin:
+        origin = _github_page_url(origin) or origin
+    # Local clone origin beats catalog/preloaded (and prior catalog-filled settings).
+    url = _nonempty(origin, prev.get("url"), cat_repo)
     if url:
         url = _github_page_url(url) or url
 
-    repository = _nonempty(prev.get("repository"), _repository_from_url(url))
+    repository = _nonempty(
+        _repository_from_url(origin) if origin else "",
+        prev.get("repository") if not origin else "",
+        _repository_from_url(url),
+    )
     has_catalog = bool(cat)
     source = _nonempty(
+        "github" if origin else "",
         prev.get("source"),
         cat.get("source"),
         "turtle_wiki" if has_catalog and cat_repo else ("detected" if not url else "github"),
@@ -399,6 +587,8 @@ def merge_addon_meta(
     folders = prev.get("folders")
     if isinstance(folders, list) and folders:
         meta["folders"] = [str(f) for f in folders if f]
+    if "loaded" in prev:
+        meta["loaded"] = bool(prev.get("loaded"))
     return meta
 
 
@@ -576,9 +766,11 @@ def group_multi_folder_addons(merged: dict[str, Any]) -> dict[str, Any]:
 def sync_installed_addons_from_disk() -> dict[str, Any]:
     """
     Detect addons on disk and merge into settings.installed_addons.
-    Keeps existing GitHub tracking metadata when present; fills gaps from catalog.
-    When catalog/settings lack a repo URL, reads ``.git/config`` origin if present
-    (manual clones) — never overwrites zip-installed / already-tracked URLs.
+
+    When a folder has a parseable ``.git/config`` ``remote.origin.url``, that URL
+    wins over catalog/preloaded repo fields (Open in Git, update checks, reinstall).
+    Zip installs without ``.git`` keep catalog/settings URLs unchanged.
+
     Groups multi-folder packs (shared repo / prefix modules) under one primary entry.
     """
     folders = scan_installed_addon_folders()
@@ -599,19 +791,20 @@ def sync_installed_addons_from_disk() -> dict[str, Any]:
         prev_pair = current_by_lower.get(folder.lower())
         prev = dict(prev_pair[1]) if prev_pair else {}
         cat, kind = resolve_catalog_entry(folder, idx, include_mods=False)
-        meta = merge_addon_meta(folder, prev, cat, match_kind=kind or "exact")
-        # Fill missing repo from local git clone metadata only — do not clobber
-        # launcher zip installs or prior Open-in-Git / update tracking URLs.
-        if addons_dir and not _nonempty(meta.get("url"), meta.get("repository")):
+        from ichalaunch.addons.loadstate import addon_disk_path, addon_is_loaded
+
+        disk = addon_disk_path(folder, addons_dir=addons_dir) if addons_dir else None
+        origin = read_git_origin_url(disk) if disk is not None else None
+        if addons_dir and origin is None:
             origin = read_git_origin_url(addons_dir / folder)
-            if origin:
-                page = _github_page_url(origin) or origin
-                meta["url"] = page
-                repo = _repository_from_url(page)
-                if repo:
-                    meta["repository"] = repo
-                if str(meta.get("source") or "").strip().lower() in ("", "detected"):
-                    meta["source"] = "github"
+        meta = merge_addon_meta(
+            folder,
+            prev,
+            cat,
+            match_kind=kind or "exact",
+            git_origin=origin,
+        )
+        meta["loaded"] = addon_is_loaded(folder, addons_dir=addons_dir)
         merged[folder] = meta
 
     merged = group_multi_folder_addons(merged)

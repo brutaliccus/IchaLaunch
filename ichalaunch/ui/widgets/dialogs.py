@@ -162,6 +162,8 @@ class GitHubImportDialog(QDialog):
         hint: str = "Paste a GitHub repository URL:",
         placeholder: str = "https://github.com/owner/repo",
         accept_text: str = "Add",
+        view_only: bool = False,
+        initial_url: str = "",
     ):
         super().__init__(parent)
         self.setObjectName("ThemedDialog")
@@ -177,6 +179,7 @@ class GitHubImportDialog(QDialog):
         self._cache_dir = ""
         self._fetch_gen = 0
         self._preview_mode = False
+        self._view_only = bool(view_only)
         self._worker: _PreviewFetchThread | None = None
         self._debounce = QTimer(self)
         self._debounce.setSingleShot(True)
@@ -237,10 +240,11 @@ class GitHubImportDialog(QDialog):
         cancel_btn.setObjectName("ThemedDialogSecondary")
         apply_open_hand(cancel_btn)
         cancel_btn.clicked.connect(lambda: self._finish(DialogResult.Cancel))
+        cancel_btn.setVisible(not self._view_only)
         self.accept_btn = QPushButton(accept_text)
         self.accept_btn.setObjectName("ThemedDialogPrimary")
         apply_open_hand(self.accept_btn)
-        self.accept_btn.setEnabled(False)
+        self.accept_btn.setEnabled(bool(self._view_only))
         self.accept_btn.clicked.connect(lambda: self._finish(DialogResult.Yes))
         self._default_accept = accept_text
         row.addWidget(cancel_btn)
@@ -248,7 +252,13 @@ class GitHubImportDialog(QDialog):
         body.addLayout(row)
 
         root.addWidget(card)
+        if initial_url.strip():
+            self.url_edit.blockSignals(True)
+            self.url_edit.setText(initial_url.strip())
+            self.url_edit.blockSignals(False)
         self._enter_compact()
+        if self._view_only and initial_url.strip():
+            QTimer.singleShot(0, self._start_fetch)
         self.setStyleSheet(
             "QDialog#ThemedDialog { background: transparent; }"
             "QWidget#ThemedDialogCard {"
@@ -318,7 +328,7 @@ class GitHubImportDialog(QDialog):
     def _enter_compact(self) -> None:
         """Fit title / hint / URL / status / buttons only (no preview chrome)."""
         self._preview_mode = False
-        self._set_url_bar_visible(True)
+        self._set_url_bar_visible(not self._view_only)
         self.setMinimumSize(420, 160)
         self.setMaximumHeight(280)
         self.resize(self._COMPACT_W, self._COMPACT_H)
@@ -354,7 +364,8 @@ class GitHubImportDialog(QDialog):
         cleanup_readme_cache(self._cache_dir)
         self._cache_dir = ""
         self._info = None
-        self.accept_btn.setEnabled(False)
+        if not self._view_only:
+            self.accept_btn.setEnabled(False)
         self.status_lbl.setText("Loading preview…")
         self.meta_host.setVisible(False)
         self.browser.setVisible(False)
@@ -385,7 +396,7 @@ class GitHubImportDialog(QDialog):
             if gen != self._fetch_gen:
                 return
             self.status_lbl.setText(msg or "Preview failed.")
-            self.accept_btn.setEnabled(False)
+            self.accept_btn.setEnabled(self._view_only)
             if self._preview_mode:
                 self._enter_compact()
 
@@ -404,7 +415,7 @@ class GitHubImportDialog(QDialog):
         self.meta_host.setVisible(False)
         self.browser.setVisible(False)
         self._clear_meta()
-        self.accept_btn.setEnabled(False)
+        self.accept_btn.setEnabled(self._view_only)
         self.accept_btn.setText(self._default_accept)
         self._enter_compact()
 
@@ -468,11 +479,18 @@ class GitHubImportDialog(QDialog):
             stars = QLabel(f"★  {info.get('stars', 0)}")
             stars.setObjectName("PreviewMetaLine")
             stats.addWidget(stars)
-            branch = QLabel(
-                f"Branch  {info.get('default_branch') or '?'}  @  "
-                f"{info.get('commit_sha') or '?'}"
-                + (f"  ·  {info.get('commit_date')}" if info.get("commit_date") else "")
-            )
+            tag = str(info.get("tag") or "").strip()
+            if tag:
+                branch = QLabel(
+                    f"Tag  {tag}  @  {info.get('commit_sha') or '?'}"
+                    + (f"  ·  {info.get('commit_date')}" if info.get("commit_date") else "")
+                )
+            else:
+                branch = QLabel(
+                    f"Branch  {info.get('default_branch') or '?'}  @  "
+                    f"{info.get('commit_sha') or '?'}"
+                    + (f"  ·  {info.get('commit_date')}" if info.get("commit_date") else "")
+                )
             branch.setObjectName("PreviewMetaLine")
             branch.setWordWrap(True)
             stats.addWidget(branch, 1)
@@ -516,7 +534,9 @@ class GitHubImportDialog(QDialog):
         else:
             self.browser.setPlainText("(No README found for this repository.)")
         self.browser.setVisible(True)
-        self.status_lbl.setText("Preview ready — confirm to continue.")
+        self.status_lbl.setText(
+            "Preview ready." if self._view_only else "Preview ready — confirm to continue."
+        )
         self.accept_btn.setEnabled(True)
         self._enter_preview()
 
@@ -874,11 +894,30 @@ def github_import_dialog(
             parent,
             kind="addon",
             title="Add from GitHub",
-            hint="Paste a GitHub repository URL. The README loads automatically.",
-            placeholder="https://github.com/owner/addon-repo",
+            hint="Paste a GitHub repository URL (or a releases/tag link). "
+            "The README loads automatically.",
+            placeholder="https://github.com/owner/addon-repo or …/releases/tag/1.2.3",
             accept_text="Add",
         )
     if dlg.exec() != QDialog.DialogCode.Accepted:
         return None
     url = dlg.selected_url()
     return url or None
+
+
+def github_preview_dialog(parent: QWidget | None, url: str) -> None:
+    """Show the GitHub README preview for *url* (no URL prompt, no install)."""
+    text = (url or "").strip()
+    if not text:
+        return
+    dlg = GitHubImportDialog(
+        parent,
+        kind="addon",
+        title="Addon preview",
+        hint="",
+        placeholder="",
+        accept_text="Close",
+        view_only=True,
+        initial_url=text,
+    )
+    dlg.exec()
