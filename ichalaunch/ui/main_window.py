@@ -462,7 +462,9 @@ class MainWindow(QMainWindow):
         self._content_panel = content
         content.installEventFilter(self)
         content_l = QVBoxLayout(content)
+        self._content_l = content_l
         # Top inset: stack/pages clip below −/X; floor still paints full panel behind.
+        # Home uses 0 (see _nav) so Register Here can sit ~10px under the purple stroke.
         content_l.setContentsMargins(0, _CONTENT_TOP_CHROME, 0, 0)
         content_l.setSpacing(0)
 
@@ -921,6 +923,10 @@ class MainWindow(QMainWindow):
         self.stack.setCurrentIndex(idx)
         for i, b in enumerate(self.nav_btns):
             b.setChecked(i == idx)
+        # Home: no chrome inset (left Register near panel top; −/X are top-right).
+        # Other pages: keep inset so scroll content stays clear of −/X.
+        top = 0 if idx == 0 else _CONTENT_TOP_CHROME
+        self._content_l.setContentsMargins(0, top, 0, 0)
         # Lightweight page updates only — never rebuild huge addon lists on switch
         if idx == 0:
             self.home.refresh()

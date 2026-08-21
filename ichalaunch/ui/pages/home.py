@@ -39,11 +39,10 @@ DRAWER_MAX_W = 320
 _SIDE_PAD_PX = 16
 # Gap between mods Card bottom border and NavBottomBanner diamond strip.
 _MODS_BANNER_GAP_PX = 16
-# ContentPanel keeps a ~44px top chrome inset for min/close (right). Home cancels
-# that inset so Register Here sits just under the panel top border.
-_CONTENT_TOP_CHROME = 44
-# Effective gap under the purple top stroke (negative cancel → pull Register up).
-_HOME_TOP_PAD = 0
+# Gap above Register Here — match left_l spacing below the button (symmetric).
+# MainWindow drops content chrome inset on Home so this is under the purple stroke
+# (min/close stay top-right; left column can sit flush to the panel top).
+_HOME_TOP_PAD = 10
 # Small inset from ContentPanel top / side when filling the brand rect.
 _ART_TOP_PAD_PX = 6
 # MoA wordmark prefer width along art bottom (right of countdown).
@@ -80,9 +79,8 @@ class HomePage(QWidget):
         body.setStyleSheet("background: transparent;")
         root = QHBoxLayout(body)
         root.setSpacing(24)
-        # Negative top pulls under ContentPanel chrome inset so Register Here
-        # lands ~_HOME_TOP_PAD below the purple top border (not a double gap).
-        root.setContentsMargins(28, _HOME_TOP_PAD - _CONTENT_TOP_CHROME, 28, 0)
+        # No body top pad — only the left drawer insets Register (right stays flush).
+        root.setContentsMargins(28, 0, 28, 0)
 
         # --- Left: fixed-ish side drawer of categorized mods ---
         left = QWidget()
@@ -92,8 +90,8 @@ class HomePage(QWidget):
         left.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         self._mods_drawer = left
         left_l = QVBoxLayout(left)
-        # Lift Card off NavBottomBanner — art still flushes to the diamond strip.
-        left_l.setContentsMargins(0, 0, 0, _MODS_BANNER_GAP_PX)
+        # Top = Register clearance; bottom lifts Card off NavBottomBanner.
+        left_l.setContentsMargins(0, _HOME_TOP_PAD, 0, _MODS_BANNER_GAP_PX)
         left_l.setSpacing(10)
 
         self.register_btn = LaunchButton("REGISTER HERE")
