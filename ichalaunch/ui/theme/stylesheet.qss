@@ -97,6 +97,7 @@ QPushButton#PlayButton:disabled {
 
 /* Eye-catching Update / Update All / Apply-when-pending (RavenCraft purple primary) */
 QPushButton#UpdateButton,
+QPushButton#UpdateButtonLead,
 QPushButton#UpdateAllButton,
 QPushButton#ApplyReadyButton,
 QPushButton#ApplyReadyButtonPulse {
@@ -110,6 +111,7 @@ QPushButton#ApplyReadyButtonPulse {
 }
 
 QPushButton#UpdateButton:hover,
+QPushButton#UpdateButtonLead:hover,
 QPushButton#UpdateAllButton:hover,
 QPushButton#ApplyReadyButton:hover,
 QPushButton#ApplyReadyButtonPulse:hover {
@@ -119,6 +121,7 @@ QPushButton#ApplyReadyButtonPulse:hover {
 }
 
 QPushButton#UpdateButton:pressed,
+QPushButton#UpdateButtonLead:pressed,
 QPushButton#UpdateAllButton:pressed,
 QPushButton#ApplyReadyButton:pressed,
 QPushButton#ApplyReadyButtonPulse:pressed {
@@ -127,6 +130,7 @@ QPushButton#ApplyReadyButtonPulse:pressed {
 }
 
 QPushButton#UpdateButton:disabled,
+QPushButton#UpdateButtonLead:disabled,
 QPushButton#UpdateAllButton:disabled {
     background-color: #2a2428;
     color: #666;
@@ -138,11 +142,49 @@ QPushButton#UpdateButton {
     min-height: 22px;
 }
 
+QPushButton#UpdateButtonLead {
+    padding: 4px 12px;
+    min-height: 22px;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
 /* Match Update compact padding so "Reinstall" is not clipped by global 8/14 padding. */
 QPushButton#ReinstallButton {
     padding: 4px 12px;
     min-width: 100px;
     min-height: 22px;
+}
+
+QPushButton#OpenGitButton {
+    padding: 4px 10px;
+    min-width: 88px;
+    min-height: 22px;
+}
+
+QToolButton#UpdateMenuButton {
+    background-color: #4a2f7a;
+    color: #ffffff;
+    border: 1px solid #F1C22D;
+    border-left: none;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
+    padding: 4px 6px;
+    min-width: 22px;
+    min-height: 22px;
+    font-weight: 700;
+}
+
+QToolButton#UpdateMenuButton:hover {
+    background-color: #7c5cc4;
+    border-color: #FF7757;
+}
+
+QToolButton#UpdateMenuButton::menu-indicator {
+    image: none;
+    width: 0;
 }
 
 /* Gold border pulse when Apply Changes has pending installs/removes */
@@ -239,7 +281,13 @@ QStackedWidget#ClientCatStack {
     color: #e6e0ee;
 }
 
-QScrollArea#SettingsScroll,
+/* Settings: let ContentPanel stone floor show through (same as Home/Addons).
+   Client category scroll keeps a subtle framed panel. */
+QScrollArea#SettingsScroll {
+    background: transparent;
+    border: none;
+}
+
 QScrollArea#ClientCatScroll {
     background-color: #181412;
     border: 1px solid rgba(150, 131, 158, 0.18);
@@ -248,6 +296,10 @@ QScrollArea#ClientCatScroll {
 
 QScrollArea#SettingsScroll > QWidget > QWidget,
 QScrollArea#ClientCatScroll > QWidget > QWidget {
+    background: transparent;
+}
+
+QScrollArea#SettingsScroll QWidget#qt_scrollarea_viewport {
     background: transparent;
 }
 

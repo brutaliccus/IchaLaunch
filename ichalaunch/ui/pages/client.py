@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 from ichalaunch.config.settings import settings
 from ichalaunch.game.launcher import detect_game
 from ichalaunch.mods.installer import detect_actual_state, load_mod_catalog, plan_changes
-from ichalaunch.ui.widgets.common import ModCheckRow, status_with_stamp
+from ichalaunch.ui.widgets.common import ModCheckRow, mod_git_url, open_url_in_browser, status_with_stamp
 from ichalaunch.ui.widgets.dialogs import prompt_text
 
 CATEGORY_ORDER = [
@@ -38,6 +38,7 @@ class ClientPage(QWidget):
     update_all_mods_requested = Signal()
     custom_dll_import_requested = Signal(str)
     badge_state_changed = Signal()
+    open_git_requested = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -228,6 +229,8 @@ class ClientPage(QWidget):
         row.toggled.connect(self._on_toggle)
         row.update_clicked.connect(self.update_mod_requested.emit)
         row.reinstall_clicked.connect(self.reinstall_mod_requested.emit)
+        row.open_git_clicked.connect(self.open_git_requested.emit)
+        row.set_git_url(mod_git_url(mod))
         cat = mod.get("category") or "Client Enhancements"
         self._row_meta[mid] = {
             "category": cat,
@@ -384,6 +387,7 @@ class ClientPage(QWidget):
             row.cb.setChecked(bool(desired.get(mid, False)))
             row.cb.blockSignals(False)
             can_ri = self._mod_can_reinstall(catalog.get(mid) or {})
+            row.set_git_url(mod_git_url(catalog.get(mid) or {}))
             pending = self._pending_updates.get(mid)
             if pending:
                 detail = f"{pending.get('local', '?')} → {pending.get('remote', '?')}"

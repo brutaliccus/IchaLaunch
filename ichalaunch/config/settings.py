@@ -196,6 +196,38 @@ class Settings:
         addons[folder] = merged
         self.set("installed_addons", addons)
 
+    def is_addon_never_update(self, folder: str) -> bool:
+        """True when this pack is excluded from update checks / Update All."""
+        meta = self.installed_addons.get(folder) or {}
+        if meta.get("never_update"):
+            return True
+        for key, val in self.installed_addons.items():
+            if key.lower() == str(folder or "").lower() and isinstance(val, dict):
+                return bool(val.get("never_update"))
+        return False
+
+    def set_addon_never_update(self, folder: str, enabled: bool) -> None:
+        """Persist Never Update on the pack primary (case-insensitive key match)."""
+        addons = self.installed_addons
+        key = folder
+        if key not in addons:
+            for existing in addons:
+                if existing.lower() == str(folder or "").lower():
+                    key = existing
+                    break
+        meta = dict(addons.get(key) or {})
+        # Resolve to pack primary when this is a child module
+        managed_by = str(meta.get("managed_by") or "").strip()
+        if managed_by:
+            key = managed_by
+            meta = dict(addons.get(key) or meta)
+        if enabled:
+            meta["never_update"] = True
+        else:
+            meta.pop("never_update", None)
+        addons[key] = meta
+        self.set("installed_addons", addons)
+
     def remove_installed_addon(self, folder: str) -> None:
         addons = self.installed_addons
         addons.pop(folder, None)

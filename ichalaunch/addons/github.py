@@ -172,6 +172,8 @@ def _addon_install_meta(
     for key in ("repository", "branch", "installed_commit", "url", "updated_at", "installed_at", "commit_date", "source"):
         if payload.get(key):
             enriched[key] = payload[key]
+    # Successful install/update clears Never Update (same as Reinstall / choosing Update)
+    enriched.pop("never_update", None)
     return enriched
 
 
@@ -373,6 +375,8 @@ def check_addon_updates(
     to_check: list[tuple[str, dict[str, Any], str, str, str]] = []
     for folder, meta in settings.installed_addons.items():
         if meta.get("managed_by"):
+            continue
+        if meta.get("never_update"):
             continue
         if not _addon_has_repo(meta):
             continue

@@ -29,6 +29,9 @@ class SettingsPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setObjectName("SettingsPage")
+        self.setStyleSheet("QWidget#SettingsPage { background: transparent; }")
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -40,10 +43,15 @@ class SettingsPage(QWidget):
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         scroll.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        scroll.setStyleSheet(
+            "QScrollArea#SettingsScroll, QScrollArea#SettingsScroll > QWidget > QWidget,"
+            " QScrollArea#SettingsScroll QWidget#qt_scrollarea_viewport { background: transparent; border: none; }"
+        )
 
         host = QWidget()
         host.setObjectName("SettingsHost")
         host.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        host.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         host.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         layout = QVBoxLayout(host)
         layout.setContentsMargins(24, 24, 24, 24)

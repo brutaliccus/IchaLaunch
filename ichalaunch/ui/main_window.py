@@ -531,6 +531,7 @@ class MainWindow(QMainWindow):
         self.addons.rescan_requested.connect(self._resync)
         self.addons.badge_state_changed.connect(self._refresh_nav_badges)
         self.client.badge_state_changed.connect(self._refresh_nav_badges)
+        self.client.open_git_requested.connect(self._open_mod_git)
         self.settings_page.browse_clicked.connect(self._browse_game)
         self.settings_page.browse_addons_clicked.connect(self._browse_addons)
         self.settings_page.reset_addons_clicked.connect(self._reset_addons_path)
@@ -1380,7 +1381,11 @@ class MainWindow(QMainWindow):
     def _update_all_addons(self) -> None:
         pending = self.addons.pending_updates
         folders = [u.get("folder") or u.get("name") for u in pending]
-        folders = [f for f in folders if f]
+        folders = [
+            f
+            for f in folders
+            if f and not settings.is_addon_never_update(str(f))
+        ]
         if not folders:
             self.status_lbl.setText("No updates available — run Check Updates first.")
             return
@@ -1576,6 +1581,17 @@ class MainWindow(QMainWindow):
 
         worker = Worker(update_mod, mod_id)
         self._busy(f"Reinstalling {mod_id}…", worker, on_ok=on_ok)
+
+    def _open_mod_git(self, mod_id: str) -> None:
+        from ichalaunch.mods.installer import load_mod_catalog
+        from ichalaunch.ui.widgets.common import mod_git_url, open_url_in_browser
+
+        catalog = {m["id"]: m for m in load_mod_catalog()}
+        url = mod_git_url(catalog.get(mod_id) or {})
+        if not url:
+            self.status_lbl.setText(f"No git link for {mod_id}")
+            return
+        open_url_in_browser(url)
 
     def _update_all_client_mods(self) -> None:
         pending = self.client.pending_updates

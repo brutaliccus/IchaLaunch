@@ -26,7 +26,7 @@ from ichalaunch.core.detect import (
     resolve_catalog_entry,
     scan_installed_addon_folders,
 )
-from ichalaunch.ui.widgets.common import AddonRow, status_with_stamp
+from ichalaunch.ui.widgets.common import AddonRow, open_url_in_browser, status_with_stamp
 from ichalaunch.ui.widgets.dialogs import prompt_text
 
 PAGE_SIZE = 80
@@ -43,6 +43,7 @@ class AddonsPage(QWidget):
     check_updates_requested = Signal()
     rescan_requested = Signal()
     badge_state_changed = Signal()
+    open_git_requested = Signal(dict)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -73,7 +74,7 @@ class AddonsPage(QWidget):
         # QListWidget always scrolls inside its viewport — won't stretch the window
         self.installed_list = QListWidget()
         self.installed_list.setSpacing(2)
-        self.installed_list.setUniformItemSizes(True)
+        self.installed_list.setUniformItemSizes(False)
         self.installed_list.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self.installed_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.installed_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -189,15 +190,43 @@ class AddonsPage(QWidget):
             self.github_import_requested.emit(url)
 
     def set_updates(self, updates: list[dict]) -> None:
-        self._pending_updates = updates
+        # Drop Never Update packs (and any stale pending entries for them)
+        filtered = [
+            u
+            for u in updates
+            if u.get("folder") and not settings.is_addon_never_update(str(u.get("folder")))
+        ]
+        self._pending_updates = filtered
         self._addons_scan_done = True
-        if updates:
-            self.updates_lbl.setText(f"{len(updates)} update(s) available")
+        if filtered:
+            self.updates_lbl.setText(f"{len(filtered)} update(s) available")
         else:
             self.updates_lbl.setText("")
         self.mark_dirty()
         self.refresh()
         self.badge_state_changed.emit()
+
+    def set_never_update(self, entry: dict, enabled: bool) -> None:
+        folder = entry.get("folder") or entry.get("name")
+        if not folder:
+            return
+        settings.set_addon_never_update(str(folder), bool(enabled))
+        if enabled:
+            self.clear_pending_update(str(folder))
+        self.mark_dirty()
+        self.refresh()
+        self.badge_state_changed.emit()
+
+    def open_git(self, entry: dict) -> None:
+        from ichalaunch.ui.widgets.common import github_repo_browse_url
+
+        url = github_repo_browse_url(
+            entry.get("repo"),
+            entry.get("url"),
+            entry.get("repository"),
+        )
+        if url:
+            open_url_in_browser(url)
 
     def reset_scan_done(self) -> None:
         """Clear update-check completion (e.g. disk rescan is not an update scan)."""
@@ -242,6 +271,7 @@ class AddonsPage(QWidget):
         for entry in chunk:
             row = AddonRow(entry, status="available")
             row.install_clicked.connect(self.install_requested.emit)
+            row.open_git_clicked.connect(self.open_git)
             item = QListWidgetItem()
             item.setData(Qt.ItemDataRole.UserRole, entry)
             item.setSizeHint(QSize(0, INSTALLED_ROW_H))
@@ -309,21 +339,19 @@ class AddonsPage(QWidget):
                     if f and f.lower() != p.lower():
                         child_of_pack.add(f.lower())
 
-            for folder in sorted(installed_folders, key=str.lower):
+            rows_to_show: list[tuple[int, str, dict, str, list[str], bool]] = []
+            for folder in installed_folders:
                 if mode == "Update Available" and folder not in update_map:
                     continue
-                # Case-insensitive settings lookup + live catalog gap-fill for display
                 meta = installed_meta.get(folder) or {}
                 if not meta:
                     for key, val in installed_meta.items():
                         if key.lower() == folder.lower():
                             meta = val
                             break
-                # Collapse multi-module packs: hide child folders
                 if meta.get("managed_by") or folder.lower() in child_of_pack:
                     continue
                 cat, kind = resolve_catalog_entry(folder, cat_idx)
-                # Prefix module (Bongos_ActionBar) when parent folder is also installed
                 if kind == "prefix" and cat:
                     parent_name = (cat.get("folder") or cat.get("name") or "").strip()
                     if parent_name and any(f.lower() == parent_name.lower() for f in installed_folders):
@@ -333,7 +361,6 @@ class AddonsPage(QWidget):
                 desc = meta.get("description") or meta.get("repository") or "Detected in Interface/AddOns"
                 pack_folders = meta.get("folders") if isinstance(meta.get("folders"), list) else None
                 if not pack_folders:
-                    # Children may only be linked via managed_by
                     pack_folders = [
                         folder,
                         *[
@@ -342,7 +369,6 @@ class AddonsPage(QWidget):
                             if str(m.get("managed_by") or "").lower() == folder.lower()
                         ],
                     ]
-                    # Also include disk modules that prefix-match this catalog parent
                     if cat and kind == "exact":
                         base = (cat.get("folder") or cat.get("name") or folder).strip()
                         base_l = base.lower()
@@ -354,19 +380,15 @@ class AddonsPage(QWidget):
                                 if disk_f not in pack_folders:
                                     pack_folders.append(disk_f)
                 pack_folders = sorted({f for f in pack_folders if f}, key=str.lower)
-                if len(pack_folders) > 1:
-                    modules = [f for f in pack_folders if f.lower() != folder.lower()]
-                    mod_note = f"{len(pack_folders)} modules: {', '.join(modules)}"
-                    if len(mod_note) > 90:
-                        shown = modules[:4]
-                        extra = len(modules) - len(shown)
-                        mod_note = f"{len(pack_folders)} modules: {', '.join(shown)}"
-                        if extra > 0:
-                            mod_note += f", +{extra} more"
-                    desc = mod_note
+                modules = (
+                    [f for f in pack_folders if f.lower() != folder.lower()]
+                    if len(pack_folders) > 1
+                    else []
+                )
                 category = meta.get("category") or "Installed"
                 repo_url = meta.get("url") or (cat or {}).get("repo") or ""
-                if not matches(name, desc, category, folder):
+                search_blob = f"{desc} {' '.join(modules)}"
+                if not matches(name, search_blob, category, folder):
                     continue
                 entry = {
                     "name": name,
@@ -374,20 +396,43 @@ class AddonsPage(QWidget):
                     "description": desc,
                     "category": category,
                     "repo": repo_url,
+                    "repository": meta.get("repository") or "",
+                    "url": repo_url,
                     "source": meta.get("source", "detected"),
                 }
-                if folder in update_map:
+                never_u = bool(meta.get("never_update")) or settings.is_addon_never_update(folder)
+                if never_u:
+                    status = "Never update"
+                elif folder in update_map:
                     status = "Update available"
                 elif self._addons_scan_done:
                     status = status_with_stamp("Up to date", meta)
                 else:
                     status = "Not checked"
-                row = AddonRow(entry, status=status)
+                if status.startswith("Update"):
+                    sort_pri = 0
+                elif never_u:
+                    sort_pri = 2
+                else:
+                    sort_pri = 1
+                rows_to_show.append((sort_pri, name.lower(), entry, status, modules, never_u))
+
+            rows_to_show.sort(key=lambda t: (t[0], t[1]))
+            for _pri, _name, entry, status, modules, never_u in rows_to_show:
+                row = AddonRow(entry, status=status, modules=modules, never_update=never_u)
                 row.update_clicked.connect(self.update_requested.emit)
                 row.reinstall_clicked.connect(self.reinstall_requested.emit)
                 row.remove_clicked.connect(self.remove_requested.emit)
+                row.open_git_clicked.connect(self.open_git)
+                row.never_update_changed.connect(self.set_never_update)
                 item = QListWidgetItem()
-                item.setSizeHint(QSize(0, INSTALLED_ROW_H))
+                item.setSizeHint(QSize(0, row.preferred_height()))
+
+                def _on_height(r=row, it=item) -> None:
+                    it.setSizeHint(QSize(0, r.preferred_height()))
+                    self.installed_list.doItemsLayout()
+
+                row.height_changed.connect(_on_height)
                 self.installed_list.addItem(item)
                 self.installed_list.setItemWidget(item, row)
                 shown_installed += 1
