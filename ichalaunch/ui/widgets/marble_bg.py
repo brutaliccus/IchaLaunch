@@ -31,7 +31,7 @@ from ichalaunch.ui.widgets.common import Card
 _BUNDLED_NAME = "UI-Background-Marble.PNG"
 _EXTERNAL = Path(r"F:\wow-ui-textures\FrameGeneral\UI-Background-Marble.PNG")
 
-_BASE = QColor("#181412")
+_BASE = QColor("#181315")
 _TILE_OPACITY = 0.50
 _BORDER = QColor(124, 92, 196, 76)
 _BORDER_GREY = QColor(150, 131, 158, 46)
@@ -135,9 +135,17 @@ class MarblePanel(QWidget):
     def resizeEvent(self, event: QResizeEvent) -> None:  # noqa: N802
         super().resizeEvent(event)
         # Clip children (nav highlights) to the rounded purple frame.
+        # Never apply an empty mask — on a translucent MainWindow that punches
+        # a desktop hole through the whole panel.
+        r = self.rect()
+        if r.width() <= 0 or r.height() <= 0:
+            return
         path = QPainterPath()
-        path.addRoundedRect(QRectF(self.rect()), self._radius, self._radius)
-        self.setMask(QRegion(path.toFillPolygon().toPolygon()))
+        path.addRoundedRect(QRectF(r), self._radius, self._radius)
+        poly = path.toFillPolygon().toPolygon()
+        if poly.isEmpty():
+            return
+        self.setMask(QRegion(poly))
 
     def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802
         del event

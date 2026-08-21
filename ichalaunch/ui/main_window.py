@@ -73,12 +73,12 @@ _TOP_RAIL_EXTERNAL = Path(r"C:\Users\jeb32\Downloads\UIFrameMechagonVertical.PNG
 _TOP_RAIL_DRAW_H = 15
 
 # Main ContentPanel floor — opaque RavenCraft base, then tiles + wash on top.
-_FLOOR_BASE = QColor("#181412")
+_FLOOR_BASE = QColor("#181315")
 _FLOOR_NAME = "UIFrameNecrolordBackground.PNG"
 _FLOOR_EXTERNAL = Path(r"F:\wow-ui-textures\FrameGeneral\UIFrameNecrolordBackground.PNG")
 # Soft floor: subtle darken vs first Necrolord preview (0.22/90 → slight nudge).
 _FLOOR_TILE_OPACITY = 0.19
-_FLOOR_WASH = QColor(24, 20, 18, 105)
+_FLOOR_WASH = QColor(24, 19, 21, 105)
 
 # BottomBar mist FX — one row, bottom-left, tiled horizontally only.
 _MIST_BASE = QColor("#100d0c")
@@ -1658,6 +1658,13 @@ class MainWindow(QMainWindow):
         self.stack.setCurrentIndex(idx)
         for i, b in enumerate(self.nav_btns):
             b.setChecked(i == idx)
+        # HOME art/logo/countdown live on Root (not HomePage). Hide them whenever
+        # we leave HOME so they cannot cover CLIENT / ADDONS / SETTINGS.
+        if idx != 0:
+            home = getattr(self, "home", None)
+            hide_chrome = getattr(home, "_set_chrome_visible", None)
+            if callable(hide_chrome):
+                hide_chrome(False)
         # Home: no chrome inset (left Register near panel top; −/X are top-right).
         # Other pages: keep inset so scroll content stays clear of −/X.
         top = 0 if idx == 0 else _CONTENT_TOP_CHROME

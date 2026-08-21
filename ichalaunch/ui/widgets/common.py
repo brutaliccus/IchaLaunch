@@ -283,9 +283,10 @@ class ModCheckRow(QWidget):
     open_git_clicked = Signal(str)
     def __init__(self, mod_id: str, title: str, description: str, checked: bool = False, parent=None):
         super().__init__(parent)
-        self.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        # Layout child (not a QListWidget item) — must stay visible. AddonRow uses
+        # WA_DontShowOnScreen + hide() because lists reveal via _reveal_item_widgets;
+        # CLIENT has no such path, so those flags left an empty category panel.
         self.setAttribute(Qt.WidgetAttribute.WA_DontCreateNativeAncestors, True)
-        self.hide()
         self.mod_id = mod_id
         self._full_desc = (description or "").replace("\n", " ").strip()
         self._desc_expanded = False

@@ -40,14 +40,14 @@ QLabel#Muted {
 }
 
 QFrame#Card, QFrame.Card {
-    background-color: #181412;
+    background-color: #181315;
     border: 1px solid rgba(124, 92, 196, 0.28);
     border-radius: 10px;
 }
 
 /* Installed-mods panel — opaque base; DarkForest art painted in HomeModsCard. */
 QFrame#HomeModsCard {
-    background-color: #181412;
+    background-color: #181315;
     border: 1px solid rgba(124, 92, 196, 0.28);
     border-radius: 10px;
 }
@@ -321,7 +321,7 @@ QWidget#BottomBar {
 /* Opaque base in QSS; marble tiles painted in MarblePanel.paintEvent (flush to stroke). */
 QWidget#ClientCatNav,
 QWidget#AddonsWindow {
-    background-color: #181412;
+    background-color: #181315;
     border: 1px solid rgba(124, 92, 196, 0.30);
     border-radius: 10px;
     padding: 0;
@@ -344,7 +344,7 @@ QScrollArea#SettingsScroll {
 
 /* Opaque base in QSS; marble tiles painted on the scroll frame (flush to stroke). */
 QScrollArea#ClientCatScroll {
-    background-color: #181412;
+    background-color: #181315;
     border: 1px solid rgba(150, 131, 158, 0.18);
     border-radius: 10px;
     padding: 0;
@@ -616,7 +616,7 @@ QAbstractScrollArea::viewport {
 
 /* RavenCraft scrollbars — thin dark track, purple thumb, gold on hover */
 QScrollBar:vertical {
-    background: #181412;
+    background: #181315;
     width: 9px;
     margin: 2px 1px 2px 1px;
     border: none;
@@ -654,7 +654,7 @@ QScrollBar::sub-page:vertical {
 }
 
 QScrollBar:horizontal {
-    background: #181412;
+    background: #181315;
     height: 9px;
     margin: 1px 2px 1px 2px;
     border: none;
@@ -692,7 +692,7 @@ QScrollBar::sub-page:horizontal {
 }
 
 QListWidget, QTreeWidget, QTableWidget {
-    background-color: #181412;
+    background-color: #181315;
     border: 1px solid rgba(124, 92, 196, 0.25);
     border-radius: 8px;
     color: #e6e0ee;
@@ -703,7 +703,7 @@ QListWidget, QTreeWidget, QTableWidget {
 /* Addon lists — viewport transparent so MarbleListWidget can tile marble.
    padding:0 so marble meets the purple stroke (global QListWidget has 4px pad). */
 QListWidget#MarbleList {
-    background-color: #181412;
+    background-color: #181315;
     padding: 0;
     border: 1px solid rgba(124, 92, 196, 0.25);
     border-radius: 8px;
@@ -763,7 +763,7 @@ QTabBar::tab {
 
 QTabBar::tab:selected {
     color: #F1C22D;
-    background: #181412;
+    background: #181315;
 }
 
 QMessageBox {

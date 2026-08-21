@@ -22,9 +22,9 @@ _BUNDLED_NAME = "darkforest_tree_011.png"
 _EXTERNAL = Path(r"F:\wow-ui-textures\GLUES\Models\UI_SCOURGE\DarkForest_Tree_011.PNG")
 
 # Soft enough that gold category labels / list text stay readable.
-_CARD_BASE = QColor("#181412")
+_CARD_BASE = QColor("#181315")
 _ART_OPACITY = 0.42
-_WASH = QColor(24, 20, 18, 168)
+_WASH = QColor(24, 19, 21, 168)
 _RADIUS = 10.0
 _EDGE_FEATHER = 0.10
 

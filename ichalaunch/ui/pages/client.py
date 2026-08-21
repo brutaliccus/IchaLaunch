@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtGui import QShowEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QProgressBar,
     QPushButton,
+    QSizePolicy,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -45,6 +47,7 @@ class ClientPage(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         root = QVBoxLayout(self)
         # Extra top padding clears the floating MoA logo overhang
         root.setContentsMargins(16, 28, 16, 12)
@@ -95,6 +98,9 @@ class ClientPage(QWidget):
         self.cat_stack = QStackedWidget()
         self.cat_stack.setObjectName("ClientCatStack")
         self.cat_stack.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.cat_stack.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
         self.rows: dict[str, ModCheckRow] = {}
         self._row_meta: dict[str, dict] = {}
         self._pending_updates: dict[str, dict] = {}
@@ -184,6 +190,7 @@ class ClientPage(QWidget):
         if self.cat_btns:
             self._show_cat(0)
         self.refresh_from_settings()
+        self._reveal_rows(kick=False)
 
     def _add_category_page(self, cat: str, mods: list[dict], index: int) -> None:
         btn = QPushButton(cat)
@@ -201,11 +208,13 @@ class ClientPage(QWidget):
         page = QWidget()
         page.setObjectName("ClientCatPanel")
         page.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        page.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         page_l = QVBoxLayout(page)
         page_l.setContentsMargins(0, 0, 0, 0)
         scroll = MarbleScrollArea()
         scroll.setObjectName("ClientCatScroll")
         scroll.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
@@ -262,6 +271,8 @@ class ClientPage(QWidget):
         if layout is not None:
             insert_at = max(0, layout.count() - 1)
             layout.insertWidget(insert_at, row)
+        row.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, False)
+        row.show()
         self.rows[mid] = row
         return row
 
@@ -399,6 +410,24 @@ class ClientPage(QWidget):
         self.update_all_btn.setEnabled(n > 0)
         self.refresh_from_settings()
         self.badge_state_changed.emit()
+
+    def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
+        super().showEvent(event)
+        self._reveal_rows(kick=True)
+
+    def _reveal_rows(self, *, kick: bool = False) -> None:
+        """Clear HWND-guard flags leftover from AddonRow and show catalog rows."""
+        q = self._search_q
+        for row in self.rows.values():
+            row.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, False)
+            if not q:
+                row.show()
+            if kick:
+                fn = getattr(row, "kick_git_visibility", None)
+                if callable(fn):
+                    fn()
+        if q:
+            self._apply_search()
 
     def _show_cat(self, idx: int) -> None:
         self.cat_stack.setCurrentIndex(idx)
