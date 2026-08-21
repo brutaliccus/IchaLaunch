@@ -351,7 +351,11 @@ def _mark_addon_update_check_time() -> None:
     settings.set("last_addon_update_check", time.time())
 
 
-def check_addon_updates(*, respect_cooldown: bool = False) -> AddonUpdateCheckResult:
+def check_addon_updates(
+    *,
+    respect_cooldown: bool = False,
+    progress: Any = None,
+) -> AddonUpdateCheckResult:
     """Check installed GitHub addons for newer commits.
 
     On rate limit (403/429 or X-RateLimit-Remaining=0), stops further API calls
@@ -366,6 +370,7 @@ def check_addon_updates(*, respect_cooldown: bool = False) -> AddonUpdateCheckRe
     checked = 0
     rate_limited = False
 
+    to_check: list[tuple[str, dict[str, Any], str, str, str]] = []
     for folder, meta in settings.installed_addons.items():
         if meta.get("managed_by"):
             continue
@@ -380,7 +385,20 @@ def check_addon_updates(*, respect_cooldown: bool = False) -> AddonUpdateCheckRe
             repo = f"{owner}/{name}"
         else:
             owner, name = str(repo).split("/", 1)
+        to_check.append((folder, meta, owner, name, str(repo)))
 
+    total = max(1, len(to_check))
+    on_count = getattr(progress, "on_count", None) if progress is not None else None
+    if callable(on_count):
+        on_count(0, total, "Checking addon updates…")
+
+    if not to_check:
+        _mark_addon_update_check_time()
+        if callable(on_count):
+            on_count(1, 1, "Checking addon updates…")
+        return AddonUpdateCheckResult(updates=updates)
+
+    for i, (folder, meta, owner, name, repo) in enumerate(to_check):
         if rate_limit_exhausted():
             rate_limited = True
             break
@@ -393,6 +411,8 @@ def check_addon_updates(*, respect_cooldown: bool = False) -> AddonUpdateCheckRe
             break
         except Exception as exc:  # noqa: BLE001
             log.warning("Update check failed for %s: %s", folder, exc)
+            if callable(on_count):
+                on_count(i + 1, total, f"Checking {folder}…")
             continue
 
         if remote["sha"] != meta.get("installed_commit"):
@@ -406,6 +426,9 @@ def check_addon_updates(*, respect_cooldown: bool = False) -> AddonUpdateCheckRe
                     "branch": remote["branch"],
                 }
             )
+
+        if callable(on_count):
+            on_count(i + 1, total, f"Checking {folder}…")
 
         if rate_limit_exhausted():
             rate_limited = True

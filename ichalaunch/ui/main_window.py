@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, Qt, QThread, QTimer, Signal
+from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, QRectF, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import (
     QColor,
     QGuiApplication,
@@ -27,7 +27,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMainWindow,
     QPlainTextEdit,
-    QProgressBar,
     QPushButton,
     QScrollBar,
     QSizeGrip,
@@ -54,9 +53,43 @@ _PERIODIC_UPDATE_MS = 5 * 60 * 1000
 _STARTUP_UPDATE_DELAY_MS = 1500
 _NAV_BOTTOM_BANNER_H = 30
 _GOLD = QColor("#F1C22D")
+_CORNER_RADIUS_F = float(_CORNER_RADIUS)
+
+# Main ContentPanel floor — opaque RavenCraft base, then tiles + wash on top.
+_FLOOR_BASE = QColor("#181412")
+_FLOOR_NAME = "jlo_BloodElf_floor_02.PNG"
+_FLOOR_EXTERNAL = Path(r"F:\wow-ui-textures\GLUES\Models\UI_VoidElf\jlo_BloodElf_floor_02.PNG")
+# Soft floor: low tile opacity over opaque base, then a light wash.
+_FLOOR_TILE_OPACITY = 0.22
+_FLOOR_WASH = QColor(24, 20, 18, 90)
+
+# BottomBar mist FX — one row, bottom-left, tiled horizontally only.
+_MIST_BASE = QColor("#100d0c")
+_MIST_NAME = "6TJ_Polluted_mist_Stormy.PNG"
+_MIST_EXTERNAL = Path(r"F:\wow-ui-textures\GLUES\Models\UI_Orc\6TJ_Polluted_mist_Stormy.PNG")
+_MIST_WASH = QColor(16, 13, 12, 110)
 
 from ichalaunch import __version__
 from ichalaunch.core.paths import theme_file
+
+
+def _resolve_theme_texture(bundled_name: str, external: Path) -> Path | None:
+    bundled = theme_file(bundled_name)
+    if bundled.is_file():
+        return bundled
+    if external.is_file():
+        return external
+    return None
+
+
+def _load_theme_texture(bundled_name: str, external: Path) -> QPixmap:
+    path = _resolve_theme_texture(bundled_name, external)
+    if path is None:
+        return QPixmap()
+    pm = QPixmap(str(path))
+    return pm if not pm.isNull() else QPixmap()
+
+
 from ichalaunch.addons.github import (
     AddonUpdateCheckResult,
     RATE_LIMIT_STATUS,
@@ -98,6 +131,7 @@ from ichalaunch.ui.pages.addons import AddonsPage
 from ichalaunch.ui.pages.client import ClientPage
 from ichalaunch.ui.pages.home import HomePage
 from ichalaunch.ui.pages.settings import SettingsPage
+from ichalaunch.ui.widgets.loading_bar import ThemeLoadingBar
 from ichalaunch.ui.widgets.chrome_buttons import ChromeGlyphButton
 from ichalaunch.ui.widgets.launch_button import LaunchButton
 
@@ -174,6 +208,99 @@ class RavenCraftFloatingLogo(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
         painter.drawPixmap(_RC_GLOW_PAD_X, _RC_GLOW_PAD_Y, self._pix)
+
+
+class ContentPanel(QWidget):
+    """Folder body — opaque RavenCraft base + tiled BloodElf floor + wash."""
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setObjectName("ContentPanel")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self._floor = _load_theme_texture(_FLOOR_NAME, _FLOOR_EXTERNAL)
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        # Borders from QSS first; opaque base + tiles drawn after with inset.
+        super().paintEvent(event)
+        if self.width() <= 0 or self.height() <= 0:
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        inset = 1
+        inner = self.rect().adjusted(inset, inset, -inset, 0)
+        # Opaque color scheme first — never see-through even if floor missing.
+        painter.fillRect(inner, _FLOOR_BASE)
+        if self._floor.isNull():
+            return
+        tw = self._floor.width()
+        th = self._floor.height()
+        if tw <= 0 or th <= 0:
+            return
+        painter.setOpacity(_FLOOR_TILE_OPACITY)
+        y = inner.top()
+        while y < inner.bottom():
+            x = inner.left()
+            while x < inner.right():
+                painter.drawPixmap(x, y, self._floor)
+                x += tw
+            y += th
+        painter.setOpacity(1.0)
+        painter.fillRect(inner, _FLOOR_WASH)
+
+
+class BottomBar(QWidget):
+    """Play/status strip — mist FX anchored bottom-left, tiled horizontally only."""
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setObjectName("BottomBar")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self._mist = _load_theme_texture(_MIST_NAME, _MIST_EXTERNAL)
+        self._mist_scaled = QPixmap()
+        self._mist_scaled_h = 0
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        # Borders / radius from QSS first; mist drawn after with inset.
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        inset = 1
+        inner = self.rect().adjusted(inset, 0, -inset, -inset)
+        clip = QPainterPath()
+        # Only round the bottom corners (top stays square under NavBottomBanner).
+        r = _CORNER_RADIUS_F
+        rect = QRectF(inner)
+        clip.moveTo(rect.left(), rect.top())
+        clip.lineTo(rect.right(), rect.top())
+        clip.lineTo(rect.right(), rect.bottom() - r)
+        clip.quadTo(rect.right(), rect.bottom(), rect.right() - r, rect.bottom())
+        clip.lineTo(rect.left() + r, rect.bottom())
+        clip.quadTo(rect.left(), rect.bottom(), rect.left(), rect.bottom() - r)
+        clip.closeSubpath()
+        painter.setClipPath(clip)
+
+        # Opaque dark base under mist so play area is never see-through.
+        painter.fillRect(inner, _MIST_BASE)
+        if self._mist.isNull() or inner.height() <= 0:
+            return
+        tile_h = inner.height()
+        if self._mist_scaled.isNull() or self._mist_scaled_h != tile_h:
+            self._mist_scaled = self._mist.scaledToHeight(
+                tile_h, Qt.TransformationMode.SmoothTransformation
+            )
+            self._mist_scaled_h = tile_h
+        tile = self._mist_scaled
+        tw = tile.width()
+        th = tile.height()
+        if tw <= 0 or th <= 0:
+            return
+        # One row only: bottom-left anchor, tile rightward (never stack Y).
+        y = inner.bottom() - th + 1
+        x = inner.left()
+        while x < inner.right():
+            painter.drawPixmap(x, y, tile)
+            x += tw
+        painter.fillRect(inner, _MIST_WASH)
 
 
 class NavBottomBanner(QWidget):
@@ -255,6 +382,8 @@ class MainWindow(QMainWindow):
         self._drag_pos: QPoint | None = None
         self._checking_addons = False
         self._checking_mods = False
+        self._check_addon_pct = 0
+        self._check_mod_pct = 0
         self._resize_edges: tuple[bool, bool, bool, bool] | None = None
         self._resize_origin: QPoint | None = None
         self._resize_geo: QRect | None = None
@@ -300,10 +429,8 @@ class MainWindow(QMainWindow):
             self.nav_btns.append(btn)
         nav_l.addStretch(1)
 
-        # ---- Folder body (pages) ----
-        content = QWidget()
-        content.setObjectName("ContentPanel")
-        content.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        # ---- Folder body (pages) — tiled floor via ContentPanel.paintEvent ----
+        content = ContentPanel()
         self._content_panel = content
         content.installEventFilter(self)
         content_l = QVBoxLayout(content)
@@ -311,11 +438,15 @@ class MainWindow(QMainWindow):
         content_l.setSpacing(0)
 
         self.stack = QStackedWidget()
+        self.stack.setObjectName("MainStack")
+        self.stack.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.stack.setStyleSheet("QStackedWidget#MainStack { background: transparent; }")
         self.home = HomePage()
         self.addons = AddonsPage()
         self.client = ClientPage()
         self.settings_page = SettingsPage()
         for page in (self.home, self.addons, self.client, self.settings_page):
+            page.setAutoFillBackground(False)
             self.stack.addWidget(page)
         # Stretch so page bottom meets NavBottomBanner top (no dead gap above the strip).
         content_l.addWidget(self.stack, 1)
@@ -329,29 +460,26 @@ class MainWindow(QMainWindow):
         self._btn_minimize.raise_()
         self._btn_close.raise_()
 
-        # ---- Bottom play bar ----
-        bottom = QWidget()
-        bottom.setObjectName("BottomBar")
-        bottom.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        # ---- Bottom play bar — mist FX via BottomBar.paintEvent ----
+        bottom = BottomBar()
+        self._bottom_bar = bottom
         bottom.setFixedHeight(78)
         bot_l = QHBoxLayout(bottom)
         bot_l.setContentsMargins(16, 12, 4, 4)
         bot_l.setSpacing(14)
 
-        prog_wrap = QVBoxLayout()
-        prog_wrap.setSpacing(4)
         self.status_lbl = QLabel("Ready")
         self.status_lbl.setObjectName("Muted")
-        self.progress = QProgressBar()
-        self.progress.setObjectName("BottomProgress")
-        self.progress.setRange(0, 100)
-        self.progress.setValue(0)
-        self.progress.setTextVisible(True)
-        self.progress.setFormat("%p%")
-        self.progress.setMinimumHeight(22)
-        self.progress.hide()
-        prog_wrap.addWidget(self.status_lbl)
-        prog_wrap.addWidget(self.progress)
+        self.status_lbl.setWordWrap(True)
+        self.status_lbl.setMinimumWidth(120)
+        self.status_lbl.setMaximumWidth(240)
+        self.status_lbl.setAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+
+        # Custom WoW loading bar — centered between status and PLAY.
+        self.progress = ThemeLoadingBar()
+        self.progress.setTextVisible(False)
 
         self.play_btn = LaunchButton("PLAY")
         self.play_btn.clicked.connect(self._on_play_or_install)
@@ -360,7 +488,10 @@ class MainWindow(QMainWindow):
         grip.setFixedSize(16, 16)
         grip.setToolTip("Drag to resize")
 
-        bot_l.addLayout(prog_wrap, 1)
+        bot_l.addWidget(self.status_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
+        bot_l.addStretch(1)
+        bot_l.addWidget(self.progress, 0, Qt.AlignmentFlag.AlignVCenter)
+        bot_l.addStretch(1)
         bot_l.addWidget(self.play_btn, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         bot_l.addWidget(grip, 0, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
 
@@ -833,7 +964,7 @@ class MainWindow(QMainWindow):
 
     def _on_progress_pct(self, pct: int) -> None:
         """Update bottom bar: determinate 0–100, or busy when pct < 0."""
-        if not self.progress.isVisible():
+        if self.progress.isHidden():
             return
         if pct < 0:
             self.progress.setRange(0, 0)
@@ -849,6 +980,7 @@ class MainWindow(QMainWindow):
 
         Does not flash the bottom bar for silent launcher-only periodic checks.
         Leaves an active download ``_busy`` UI alone.
+        Uses determinate 0–100% (per-item check progress), not indeterminate.
         """
         addon_busy = self._checking_addons
         mod_busy = self._checking_mods
@@ -869,6 +1001,8 @@ class MainWindow(QMainWindow):
             self.progress.setRange(0, 100)
             self.progress.setValue(0)
             self.progress.setFormat("%p%")
+            self._check_addon_pct = 0
+            self._check_mod_pct = 0
             # Keep the last status text from done/fail handlers; only restore Ready
             # when still showing a checking… message.
             current = (self.status_lbl.text() or "").strip().lower()
@@ -877,9 +1011,43 @@ class MainWindow(QMainWindow):
             return
 
         self.progress.show()
-        self.progress.setRange(0, 0)
-        self.progress.setFormat("")
+        self.progress.setRange(0, 100)
+        self.progress.setValue(self._combined_check_pct())
+        self.progress.setFormat("%p%")
         self.status_lbl.setText(msg)
+
+    def _combined_check_pct(self) -> int:
+        """Blend addon/mod check percents when both run together."""
+        if self._checking_addons and self._checking_mods:
+            return max(0, min(100, (self._check_addon_pct + self._check_mod_pct) // 2))
+        if self._checking_addons:
+            return max(0, min(100, self._check_addon_pct))
+        if self._checking_mods:
+            return max(0, min(100, self._check_mod_pct))
+        return 0
+
+    def _on_check_progress_pct(self, kind: str, pct: int) -> None:
+        """Determinate update-check progress from addon/mod workers."""
+        if self._worker_busy():
+            return
+        if pct < 0:
+            return
+        value = max(0, min(100, int(pct)))
+        if kind == "addons":
+            if not self._checking_addons:
+                return
+            self._check_addon_pct = value
+        elif kind == "mods":
+            if not self._checking_mods:
+                return
+            self._check_mod_pct = value
+        else:
+            return
+        if self.progress.isHidden():
+            self.progress.show()
+        self.progress.setRange(0, 100)
+        self.progress.setValue(self._combined_check_pct())
+        self.progress.setFormat("%p%")
 
     def _resync(self, silent: bool = False) -> None:
         if not is_installed():
@@ -1282,11 +1450,13 @@ class MainWindow(QMainWindow):
 
         self.status_lbl.setText("Checking addon updates…")
         self._checking_addons = True
+        self._check_addon_pct = 0
         self._refresh_check_loading()
         worker = Worker(check_addon_updates, respect_cooldown=False)
 
         def done(result):
             self._checking_addons = False
+            self._check_addon_pct = 100
             if isinstance(result, AddonUpdateCheckResult):
                 updates = result.updates
                 status = result.status_message
@@ -1313,6 +1483,7 @@ class MainWindow(QMainWindow):
             self._update_worker = None
             self._refresh_nav_badges()
 
+        worker.progress_pct.connect(lambda p: self._on_check_progress_pct("addons", p))
         worker.finished_ok.connect(done)
         worker.failed.connect(fail)
         self._update_worker = worker
@@ -1333,11 +1504,13 @@ class MainWindow(QMainWindow):
 
         self.status_lbl.setText("Checking client mod updates…")
         self._checking_mods = True
+        self._check_mod_pct = 0
         self._refresh_check_loading()
         worker = Worker(check_mod_updates, respect_cooldown=False)
 
         def done(result):
             self._checking_mods = False
+            self._check_mod_pct = 100
             if isinstance(result, ModUpdateCheckResult):
                 updates = result.updates
                 status = result.status_message
@@ -1369,6 +1542,7 @@ class MainWindow(QMainWindow):
             self._mod_update_worker = None
             self._refresh_nav_badges()
 
+        worker.progress_pct.connect(lambda p: self._on_check_progress_pct("mods", p))
         worker.finished_ok.connect(done)
         worker.failed.connect(fail)
         self._mod_update_worker = worker

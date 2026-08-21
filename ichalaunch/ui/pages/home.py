@@ -18,8 +18,8 @@ from PySide6.QtWidgets import (
 from ichalaunch.core.paths import theme_file
 from ichalaunch.game.launcher import detect_game, is_installed
 from ichalaunch.mods.installer import detect_actual_state, load_mod_catalog
-from ichalaunch.ui.widgets.common import Card
 from ichalaunch.ui.widgets.countdown import LaunchCountdown
+from ichalaunch.ui.widgets.mods_forest_bg import HomeModsCard
 from ichalaunch.ui.widgets.talent_bg import TalentFrameBackground
 
 log = logging.getLogger("ichalaunch")
@@ -85,7 +85,7 @@ class HomePage(QWidget):
         left_l.setContentsMargins(0, 0, 0, _MODS_BANNER_GAP_PX)
         left_l.setSpacing(0)
 
-        self.summary = Card()
+        self.summary = HomeModsCard()
         self.summary.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )

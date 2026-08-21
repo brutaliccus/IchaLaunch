@@ -35,6 +35,18 @@ class StatusProgress:
         # Status-only updates (install/extract) fall back to indeterminate.
         self._on_pct(-1)
 
+    def on_count(self, done: int, total: int, msg: str | None = None) -> None:
+        """Report determinate item progress (update checks, multi-step jobs)."""
+        if msg is not None:
+            self._label = (msg or "").strip()
+            if self._label:
+                self._on_status(self._label)
+        if total and total > 0:
+            pct = max(0, min(100, int(done * 100 / total)))
+            self._on_pct(pct)
+        else:
+            self._on_pct(0)
+
     def on_bytes(self, done: int, total: int) -> None:
         if total and total > 0:
             pct = max(0, min(100, int(done * 100 / total)))

@@ -45,6 +45,13 @@ QFrame#Card, QFrame.Card {
     border-radius: 10px;
 }
 
+/* Installed-mods panel — opaque base; DarkForest art painted in HomeModsCard. */
+QFrame#HomeModsCard {
+    background-color: #181412;
+    border: 1px solid rgba(124, 92, 196, 0.28);
+    border-radius: 10px;
+}
+
 QLabel#CardTitle {
     color: #F1C22D;
     font-size: 13px;
@@ -187,9 +194,9 @@ QPushButton#TopNavButton:checked {
     min-height: 32px;
 }
 
-/* Folder body the tabs attach to — framed sides/top; no chrome above tabs */
+/* Folder body — opaque RavenCraft base; floor tiles layered in ContentPanel.paintEvent. */
 QWidget#ContentPanel {
-    background-color: #1c1816;
+    background-color: #181412;
     border-top: 1px solid rgba(124, 92, 196, 0.45);
     border-left: 1px solid rgba(124, 92, 196, 0.45);
     border-right: 1px solid rgba(124, 92, 196, 0.45);
@@ -207,6 +214,7 @@ QWidget#NavBottomBanner {
     border-bottom: none;
 }
 
+/* Play strip — opaque dark base; mist tiles layered in BottomBar.paintEvent. */
 QWidget#BottomBar {
     background-color: #100d0c;
     border-top: none;
@@ -330,16 +338,14 @@ QLabel#StatusUpdate {
 }
 
 QProgressBar#BottomProgress {
-    background-color: rgba(120, 100, 150, 0.10);
-    border: 1px solid rgba(150, 131, 158, 0.15);
-    border-radius: 4px;
-    text-align: center;
-    color: #e6e0ee;
-    min-height: 22px;
+    background-color: transparent;
+    border: none;
+    min-height: 28px;
 }
 
+/* Legacy chunk styles unused by ThemeLoadingBar; kept harmless if QProgressBar returns. */
 QProgressBar#BottomProgress::chunk {
-    background-color: #F1C22D;
+    background-color: #7c5cc4;
     border-radius: 3px;
 }
 

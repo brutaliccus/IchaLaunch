@@ -767,7 +767,11 @@ def recently_checked_mod_updates(cooldown_sec: int = STARTUP_CHECK_COOLDOWN_SEC)
     return (time.time() - last) < cooldown_sec
 
 
-def check_mod_updates(*, respect_cooldown: bool = False) -> ModUpdateCheckResult:
+def check_mod_updates(
+    *,
+    respect_cooldown: bool = False,
+    progress: Any = None,
+) -> ModUpdateCheckResult:
     """Compare installed client mods against upstream where sources support it."""
     if respect_cooldown and recently_checked_mod_updates():
         return ModUpdateCheckResult(skipped_recent=True)
@@ -782,6 +786,7 @@ def check_mod_updates(*, respect_cooldown: bool = False) -> ModUpdateCheckResult
     skipped = 0
     rate_limited = False
 
+    to_check: list[dict[str, Any]] = []
     for mod in load_mod_catalog():
         mid = mod["id"]
         if not actual.get(mid):
@@ -791,6 +796,25 @@ def check_mod_updates(*, respect_cooldown: bool = False) -> ModUpdateCheckResult
         if kind in ("manual_link", "wdb_block", "config_script_memory") or not source:
             skipped += 1
             continue
+        to_check.append(mod)
+
+    total = max(1, len(to_check))
+    on_count = getattr(progress, "on_count", None) if progress is not None else None
+    if callable(on_count):
+        on_count(0, total, "Checking client mod updates…")
+
+    if not to_check:
+        settings.set("last_mod_update_check", time.time())
+        if callable(on_count):
+            on_count(1, 1, "Checking client mod updates…")
+        return ModUpdateCheckResult(updates=updates, checked=checked, skipped=skipped)
+
+    for i, mod in enumerate(to_check):
+        mid = mod["id"]
+        kind = mod.get("kind")
+        source = mod.get("source")
+        label = str(mod.get("name") or mid)
+
         if rate_limit_exhausted():
             rate_limited = True
             break
@@ -802,9 +826,13 @@ def check_mod_updates(*, respect_cooldown: bool = False) -> ModUpdateCheckResult
         except Exception as exc:  # noqa: BLE001
             log.warning("Mod update check failed for %s: %s", mid, exc)
             skipped += 1
+            if callable(on_count):
+                on_count(i + 1, total, f"Checking {label}…")
             continue
         if not remote:
             skipped += 1
+            if callable(on_count):
+                on_count(i + 1, total, f"Checking {label}…")
             continue
         checked += 1
         local = settings.installed_mods.get(mid) or {}
@@ -831,8 +859,10 @@ def check_mod_updates(*, respect_cooldown: bool = False) -> ModUpdateCheckResult
                         "local": pinned,
                         "remote": remote.get("display") or str(remote.get("key"))[:12],
                         "kind": remote.get("kind"),
-                    }
+                    },
                 )
+                if callable(on_count):
+                    on_count(i + 1, total, f"Checking {label}…")
                 continue
             # First check: baseline remote without flagging an update
             settings.set_installed_mod(
@@ -850,6 +880,8 @@ def check_mod_updates(*, respect_cooldown: bool = False) -> ModUpdateCheckResult
                     },
                 },
             )
+            if callable(on_count):
+                on_count(i + 1, total, f"Checking {label}…")
             continue
         if local_key != remote.get("key"):
             updates.append(
@@ -861,6 +893,8 @@ def check_mod_updates(*, respect_cooldown: bool = False) -> ModUpdateCheckResult
                     "kind": remote.get("kind"),
                 }
             )
+        if callable(on_count):
+            on_count(i + 1, total, f"Checking {label}…")
         if rate_limit_exhausted():
             rate_limited = True
             break
