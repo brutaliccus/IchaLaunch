@@ -480,10 +480,10 @@ class MainWindow(QMainWindow):
         # Stretch so page bottom meets NavBottomBanner top (no dead gap above the strip).
         content_l.addWidget(self.stack, 1)
 
-        # Minimize / close — children of ContentPanel so they sit inside the purple
-        # frame (below the top stroke), not in the tab strip above it.
-        self._btn_minimize = ChromeGlyphButton("minimize", content)
-        self._btn_close = ChromeGlyphButton("close", content)
+        # Minimize / close — Root children (like RC crest) so HOME art can stack
+        # under them while still sitting inside the ContentPanel frame visually.
+        self._btn_minimize = ChromeGlyphButton("minimize", root)
+        self._btn_close = ChromeGlyphButton("close", root)
         self._btn_minimize.clicked.connect(self.showMinimized)
         self._btn_close.clicked.connect(self.close)
         self._btn_minimize.raise_()
@@ -666,17 +666,20 @@ class MainWindow(QMainWindow):
         content = getattr(self, "_content_panel", None)
         btn_min = getattr(self, "_btn_minimize", None)
         btn_close = getattr(self, "_btn_close", None)
-        if content is None or btn_min is None or btn_close is None:
+        root = self.centralWidget()
+        if content is None or btn_min is None or btn_close is None or root is None:
             return
         # Past the 1px purple stroke; stay clear of the rounded window-mask corner.
         inset_x = 10
         inset_y = 10
         gap = 6
+        origin = content.mapTo(root, QPoint(0, 0))
         cw = max(content.width(), 1)
-        x_close = cw - inset_x - btn_close.width()
+        x_close = origin.x() + cw - inset_x - btn_close.width()
         x_min = x_close - gap - btn_min.width()
-        btn_min.move(max(inset_x, x_min), inset_y)
-        btn_close.move(max(inset_x, x_close), inset_y)
+        y = origin.y() + inset_y
+        btn_min.move(max(origin.x() + inset_x, x_min), y)
+        btn_close.move(max(origin.x() + inset_x, x_close), y)
         btn_min.raise_()
         btn_close.raise_()
         btn_min.show()
@@ -1424,6 +1427,7 @@ class MainWindow(QMainWindow):
         if not is_installed():
             themed.warning(self, "No game", "Set a valid game path first.")
             return
+
         worker = Worker(install_from_github, url)
 
         def on_ok(result_name):

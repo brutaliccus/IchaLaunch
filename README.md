@@ -11,8 +11,8 @@ Download the latest build from **[Releases](https://github.com/brutaliccus/IchaL
 ## Features
 
 - **Play / Install** — point at an existing game folder (or pick where to install), then launch with the metallic **PLAY** button
-- **Home** — RavenCraft branding, launch countdown, and a live list of installed client mods
-- **Addons** — browse the Turtle WoW wiki catalog, search and filter, install or reinstall, paste any GitHub addon repo, **Open in Git**, nested-module expand for multi-folder packs, and per-addon **Never Update** (skips checks / Update All)
+- **Home** — full-bleed official artworks scroll, Register Here, MoA + countdown along the art bottom, and a live list of installed client mods
+- **Addons** — browse the Turtle WoW wiki catalog, search and filter, install or reinstall, paste any GitHub addon repo (compact dialog grows into a README preview), **Open in Git**, nested-module expand for multi-folder packs, and per-addon **Never Update** (skips checks / Update All)
 - **Client** — turn RetroCro / TurtleWoW-style fixes and Visual/QoL packs on or off (VanillaFixes, SuperWoW, Nampower, UnitXP, DXVK, night sky, and more), search across categories, expand descriptions as needed, **Open in Git** when a repo link exists, then **Apply Changes**
 - **Settings** — game folder plus a configurable **AddOns** path (defaults to `Interface\AddOns` under the game folder); stone floor panel background matches other tabs
 - **Updates** — quiet checks for addon and client-mod updates on launch (status in the bottom progress bar), plus a silent launcher self-update re-check every few minutes, with gold badges on tabs when something needs attention

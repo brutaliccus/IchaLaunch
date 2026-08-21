@@ -19,7 +19,7 @@ from ichalaunch.game.launcher import detect_game
 from ichalaunch.mods.installer import detect_actual_state, load_mod_catalog, plan_changes
 from ichalaunch.ui.widgets.common import ModCheckRow, mod_git_url, open_url_in_browser, status_with_stamp
 from ichalaunch.ui.widgets.cursors import apply_open_hand
-from ichalaunch.ui.widgets.dialogs import prompt_text
+from ichalaunch.ui.widgets.dialogs import github_import_dialog
 from ichalaunch.ui.widgets.marble_bg import MarblePanel, MarbleScrollArea
 
 CATEGORY_ORDER = [
@@ -320,13 +320,7 @@ class ClientPage(QWidget):
                 self._add_mod_row(mod)
 
     def _open_custom_dll_dialog(self) -> None:
-        url = prompt_text(
-            self,
-            "Add DLL from GitHub",
-            "Paste a GitHub repository URL that publishes a .dll (or .zip) release asset:",
-            placeholder="https://github.com/owner/dll-repo",
-            accept_text="Install",
-        )
+        url = github_import_dialog(self, kind="dll")
         if url:
             self.custom_dll_import_requested.emit(url)
 

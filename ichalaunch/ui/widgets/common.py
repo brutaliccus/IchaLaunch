@@ -20,6 +20,135 @@ from PySide6.QtWidgets import (
 
 from ichalaunch.ui.widgets.cursors import apply_open_hand
 from ichalaunch.ui.widgets.theme_checkbox import ThemeCheckBox
+
+
+# Opaque fills — app QSS rgba often fails to paint on list-item buttons under the
+# frameless WA_TranslucentBackground MainWindow. Widget-local stylesheets win.
+_ROW_BTN_SECONDARY = """
+QPushButton {
+    background-color: #2c2632;
+    color: #e6e0ee;
+    border: 1px solid #7a6e88;
+    border-radius: 8px;
+    padding: 4px 12px;
+    min-height: 22px;
+    font-size: 13px;
+}
+QPushButton:hover {
+    background-color: #4a2f7a;
+    border-color: #7c5cc4;
+    color: #ffffff;
+}
+QPushButton:pressed {
+    background-color: #3a2460;
+    border-color: #F1C22D;
+}
+QPushButton:disabled {
+    background-color: #221e24;
+    color: #666666;
+    border-color: #3a3438;
+}
+"""
+
+_ROW_BTN_PRIMARY = """
+QPushButton {
+    background-color: #4a2f7a;
+    color: #ffffff;
+    border: 1px solid #F1C22D;
+    border-radius: 8px;
+    padding: 4px 12px;
+    min-height: 22px;
+    font-size: 13px;
+    font-weight: 700;
+}
+QPushButton:hover {
+    background-color: #7c5cc4;
+    border-color: #FF7757;
+    color: #ffffff;
+}
+QPushButton:pressed {
+    background-color: #3a2460;
+    border-color: #F1C22D;
+}
+QPushButton:disabled {
+    background-color: #2a2428;
+    color: #666666;
+    border-color: #3a3438;
+}
+"""
+
+_ROW_BTN_PRIMARY_LEAD = """
+QPushButton {
+    background-color: #4a2f7a;
+    color: #ffffff;
+    border: 1px solid #F1C22D;
+    border-right: none;
+    border-top-left-radius: 8px;
+    border-bottom-left-radius: 8px;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    padding: 4px 12px;
+    min-height: 22px;
+    font-size: 13px;
+    font-weight: 700;
+}
+QPushButton:hover {
+    background-color: #7c5cc4;
+    border-color: #FF7757;
+    color: #ffffff;
+}
+QPushButton:pressed {
+    background-color: #3a2460;
+    border-color: #F1C22D;
+}
+"""
+
+_ROW_BTN_MENU = """
+QPushButton {
+    background-color: #4a2f7a;
+    color: #ffffff;
+    border: 1px solid #F1C22D;
+    border-left: none;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
+    padding: 4px 6px;
+    min-width: 22px;
+    min-height: 22px;
+    font-weight: 700;
+}
+QPushButton:hover {
+    background-color: #7c5cc4;
+    border-color: #FF7757;
+}
+QPushButton:pressed {
+    background-color: #3a2460;
+    border-color: #F1C22D;
+}
+"""
+
+
+def polish_row_action_button(
+    btn: QPushButton,
+    *,
+    role: str = "secondary",
+) -> QPushButton:
+    """Force visible chrome on Addons/Client row action buttons."""
+    btn.setFlat(False)
+    btn.setAutoFillBackground(True)
+    btn.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+    btn.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
+    if role == "primary":
+        btn.setStyleSheet(_ROW_BTN_PRIMARY)
+    elif role == "primary_lead":
+        btn.setStyleSheet(_ROW_BTN_PRIMARY_LEAD)
+    elif role == "menu":
+        btn.setStyleSheet(_ROW_BTN_MENU)
+    else:
+        btn.setStyleSheet(_ROW_BTN_SECONDARY)
+    apply_open_hand(btn)
+    return btn
 def format_updated_stamp(meta: dict[str, Any] | None) -> str | None:
     """Human date from installed_addons / installed_mods metadata."""
     if not meta:
@@ -226,12 +355,14 @@ class ModCheckRow(QWidget):
         self.status_lbl.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         self.update_btn = QPushButton("Update")
         self.update_btn.setObjectName("UpdateButton")
+        polish_row_action_button(self.update_btn, role="primary")
         self.update_btn.setVisible(False)
         self.update_btn.setMinimumSize(76, 28)
         self.update_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.update_btn.clicked.connect(lambda: self.update_clicked.emit(self.mod_id))
         self.open_git_btn = QPushButton("Open in Git")
         self.open_git_btn.setObjectName("OpenGitButton")
+        polish_row_action_button(self.open_git_btn)
         self.open_git_btn.setVisible(False)
         self.open_git_btn.setMinimumSize(96, 28)
         self.open_git_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
@@ -239,6 +370,7 @@ class ModCheckRow(QWidget):
         self.open_git_btn.clicked.connect(self._emit_open_git)
         self.reinstall_btn = QPushButton("Reinstall")
         self.reinstall_btn.setObjectName("ReinstallButton")
+        polish_row_action_button(self.reinstall_btn)
         self.reinstall_btn.setVisible(False)
         self.reinstall_btn.setMinimumSize(104, 28)
         self.reinstall_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
@@ -396,13 +528,14 @@ class AddonRow(QWidget):
             show_update = self._update_available and not self._never_update
             self._update_btn = QPushButton("Update")
             self._update_btn.setObjectName("UpdateButtonLead")
+            polish_row_action_button(self._update_btn, role="primary_lead")
             self._update_btn.clicked.connect(self._on_update_clicked)
             self._update_btn.setVisible(show_update)
             # QPushButton + on-demand QMenu (no InstantPopup / setMenu) — avoids
             # orphan popup flashes when lists refresh and destroy rows.
             self._update_menu_btn = QPushButton("▾")
             self._update_menu_btn.setObjectName("UpdateMenuButton")
-            apply_open_hand(self._update_menu_btn)
+            polish_row_action_button(self._update_menu_btn, role="menu")
             self._update_menu_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             self._update_menu_btn.setToolTip(
                 "Never Update skips update checks and Update All. "
@@ -420,11 +553,15 @@ class AddonRow(QWidget):
             if git_url:
                 btn_git = QPushButton("Open in Git")
                 btn_git.setObjectName("OpenGitButton")
+                polish_row_action_button(btn_git)
                 btn_git.setToolTip(f"Open {git_url}")
                 btn_git.clicked.connect(lambda: self.open_git_clicked.emit(entry))
                 layout.addWidget(btn_git)
             if git_url or entry.get("source") == "github":
                 btn_ri = QPushButton("Reinstall")
+                btn_ri.setObjectName("ReinstallButton")
+                polish_row_action_button(btn_ri)
+                btn_ri.setMinimumWidth(100)
                 btn_ri.setToolTip(
                     "Re-download and overwrite installed files "
                     "(also clears Never Update for this addon)"
@@ -432,6 +569,8 @@ class AddonRow(QWidget):
                 btn_ri.clicked.connect(lambda: self.reinstall_clicked.emit(entry))
                 layout.addWidget(btn_ri)
             btn_r = QPushButton("Remove")
+            btn_r.setObjectName("RemoveButton")
+            polish_row_action_button(btn_r)
             btn_r.clicked.connect(lambda: self.remove_clicked.emit(entry.get("folder") or entry.get("name")))
             layout.addWidget(btn_r)
             self._refresh_never_update_ui()
@@ -439,11 +578,14 @@ class AddonRow(QWidget):
             self._update_btn = None
             self._update_menu_btn = None
             btn = QPushButton("Install")
+            btn.setObjectName("InstallButton")
+            polish_row_action_button(btn)
             btn.clicked.connect(lambda: self.install_clicked.emit(entry))
             layout.addWidget(btn)
             if git_url:
                 btn_git = QPushButton("Open in Git")
                 btn_git.setObjectName("OpenGitButton")
+                polish_row_action_button(btn_git)
                 btn_git.setToolTip(f"Open {git_url}")
                 btn_git.clicked.connect(lambda: self.open_git_clicked.emit(entry))
                 layout.addWidget(btn_git)

@@ -60,21 +60,23 @@ QLabel#CardTitle {
 }
 
 QPushButton {
-    background-color: rgba(120, 100, 150, 0.10);
+    background-color: #2c2632;
     color: #e6e0ee;
-    border: 1px solid rgba(150, 131, 158, 0.18);
+    border: 1px solid #7a6e88;
     border-radius: 8px;
     padding: 8px 14px;
     font-size: 13px;
 }
 
 QPushButton:hover {
-    background-color: rgba(124, 92, 196, 0.22);
+    background-color: #4a2f7a;
     border-color: #7c5cc4;
+    color: #ffffff;
 }
 
 QPushButton:pressed {
-    background-color: rgba(74, 47, 122, 0.45);
+    background-color: #3a2460;
+    border-color: #F1C22D;
 }
 
 /* Play / Install / Update — painted by LaunchButton (chrome PNG + gold label).
@@ -106,6 +108,7 @@ QPushButton#ApplyReadyButtonPulse {
     border: 1px solid #F1C22D;
     border-radius: 8px;
     padding: 6px 14px;
+    min-height: 22px;
     font-weight: 700;
     letter-spacing: 0.4px;
 }
@@ -138,27 +141,86 @@ QPushButton#UpdateAllButton:disabled {
 }
 
 QPushButton#UpdateButton {
+    background-color: #4a2f7a;
+    color: #ffffff;
+    border: 1px solid #F1C22D;
+    border-radius: 8px;
     padding: 4px 12px;
     min-height: 22px;
+    font-weight: 700;
 }
 
 QPushButton#UpdateButtonLead {
+    background-color: #4a2f7a;
+    color: #ffffff;
+    border: 1px solid #F1C22D;
+    border-right: none;
     padding: 4px 12px;
     min-height: 22px;
+    font-weight: 700;
     border-top-right-radius: 0;
     border-bottom-right-radius: 0;
 }
 
-/* Match Update compact padding so "Reinstall" is not clipped by global 8/14 padding. */
+/* Row secondary actions — opaque fills (rgba disappears on translucent MainWindow). */
+QPushButton#ReinstallButton,
+QPushButton#OpenGitButton,
+QPushButton#InstallButton,
+QPushButton#RemoveButton {
+    background-color: #2c2632;
+    color: #e6e0ee;
+    border: 1px solid #7a6e88;
+    border-radius: 8px;
+    padding: 4px 12px;
+    min-height: 22px;
+    font-size: 13px;
+}
+
+QPushButton#ReinstallButton:hover,
+QPushButton#OpenGitButton:hover,
+QPushButton#InstallButton:hover,
+QPushButton#RemoveButton:hover {
+    background-color: #4a2f7a;
+    border-color: #7c5cc4;
+    color: #ffffff;
+}
+
+QPushButton#ReinstallButton:pressed,
+QPushButton#OpenGitButton:pressed,
+QPushButton#InstallButton:pressed,
+QPushButton#RemoveButton:pressed {
+    background-color: #3a2460;
+    border-color: #F1C22D;
+}
+
 QPushButton#ReinstallButton {
+    background-color: #2c2632;
+    color: #e6e0ee;
+    border: 1px solid #7a6e88;
+    border-radius: 8px;
     padding: 4px 12px;
     min-width: 100px;
     min-height: 22px;
 }
 
 QPushButton#OpenGitButton {
+    background-color: #2c2632;
+    color: #e6e0ee;
+    border: 1px solid #7a6e88;
+    border-radius: 8px;
     padding: 4px 10px;
     min-width: 88px;
+    min-height: 22px;
+}
+
+QPushButton#InstallButton,
+QPushButton#RemoveButton {
+    background-color: #2c2632;
+    color: #e6e0ee;
+    border: 1px solid #7a6e88;
+    border-radius: 8px;
+    padding: 4px 12px;
+    min-width: 72px;
     min-height: 22px;
 }
 

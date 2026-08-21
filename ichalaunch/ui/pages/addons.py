@@ -26,7 +26,7 @@ from ichalaunch.core.detect import (
     scan_installed_addon_folders,
 )
 from ichalaunch.ui.widgets.common import AddonRow, open_url_in_browser, status_with_stamp
-from ichalaunch.ui.widgets.dialogs import prompt_text
+from ichalaunch.ui.widgets.dialogs import github_import_dialog
 from ichalaunch.ui.widgets.marble_bg import MarbleListWidget, MarblePanel
 
 PAGE_SIZE = 80
@@ -187,13 +187,7 @@ class AddonsPage(QWidget):
         self._dirty = True
 
     def _open_github_import_dialog(self) -> None:
-        url = prompt_text(
-            self,
-            "Add from GitHub",
-            "Paste a GitHub repository URL:",
-            placeholder="https://github.com/owner/addon-repo",
-            accept_text="Import",
-        )
+        url = github_import_dialog(self, kind="addon")
         if url:
             self.github_import_requested.emit(url)
 

@@ -1,4 +1,4 @@
-"""Rotating talent-frame backgrounds for the HOME brand pane."""
+"""Rotating official RavenCraft artworks for the HOME brand pane."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from PySide6.QtCore import (
     QRect,
     Qt,
     QTimer,
+    Signal,
 )
 from PySide6.QtGui import (
     QColor,
@@ -34,12 +35,15 @@ _BASE_OPACITY = 0.82
 _EDGE_FEATHER = 0.04
 _EDGE_FEATHER_TOP = 0.12
 _EDGE_FEATHER_BOTTOM = 0.0
-# Strip only fully-transparent padding (talent PNGs are square canvases with a
-# clear bottom pad). Never luma/content-crop — that destroyed the widescreen frame.
+# Strip only fully-transparent padding (legacy talent PNGs were square canvases).
 _PAD_ALPHA_MIN = 1
 
+_ART_DIR = "official_artworks"
+_LEGACY_DIR = "talent_bgs"
+_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 _EXTERNAL_DIR = Path(r"F:\wow-ui-textures\TALENTFRAME")
 
+# Fallback list if discovery finds nothing (legacy talent frames).
 TALENT_BG_NAMES: tuple[str, ...] = (
     "bg-warrior-protection.PNG",
     "bg-deathknight-blood.PNG",
@@ -83,10 +87,21 @@ def _smoothstep(t: float) -> float:
     return t * t * (3.0 - 2.0 * t)
 
 
+def _list_dir_images(folder: Path) -> list[str]:
+    if not folder.is_dir():
+        return []
+    return sorted(
+        p.name
+        for p in folder.iterdir()
+        if p.is_file() and p.suffix.lower() in _IMAGE_EXTS
+    )
+
+
 def _resolve_path(name: str) -> Path | None:
-    bundled = theme_file("talent_bgs", name)
-    if bundled.is_file():
-        return bundled
+    for folder in (_ART_DIR, _LEGACY_DIR):
+        bundled = theme_file(folder, name)
+        if bundled.is_file():
+            return bundled
     external = _EXTERNAL_DIR / name
     if external.is_file():
         return external
@@ -141,6 +156,9 @@ def _load_framed(name: str) -> QPixmap:
     """Full art with empty transparent canvas pad removed — keeps widescreen frame."""
     raw = _load_raw(name)
     if raw.isNull():
+        return raw
+    # Opaque JPEG/PNG artworks: skip expensive pad scan.
+    if name.lower().endswith((".jpg", ".jpeg")):
         return raw
     bounds = _transparent_pad_bounds(raw)
     if bounds.isEmpty() or bounds == QRect(0, 0, raw.width(), raw.height()):
@@ -206,7 +224,9 @@ def _edge_mask(
 
 
 class TalentFrameBackground(QWidget):
-    """Crossfading talent-frame texture; geometry is owned by HomePage."""
+    """Crossfading official artwork; geometry is owned by HomePage."""
+
+    frame_changed = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -232,10 +252,10 @@ class TalentFrameBackground(QWidget):
         self._discover()
 
     def _discover(self) -> None:
-        names: list[str] = []
-        for name in TALENT_BG_NAMES:
-            if _resolve_path(name) is not None:
-                names.append(name)
+        # Prefer official RavenCraft gallery (https://ravencraft.io/artworks).
+        names = _list_dir_images(theme_file(_ART_DIR))
+        if not names:
+            names = [n for n in TALENT_BG_NAMES if _resolve_path(n) is not None]
         self._paths = names
 
     def _pixmap(self, name: str) -> QPixmap:
@@ -336,7 +356,7 @@ class TalentFrameBackground(QWidget):
             scaled = src.scaled(
                 w,
                 h,
-                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
                 Qt.TransformationMode.SmoothTransformation,
             )
             x = (w - scaled.width()) // 2
@@ -390,6 +410,7 @@ class TalentFrameBackground(QWidget):
             self._nxt_opacity = 0.0
             self._fade = None
             self.update()
+            self.frame_changed.emit()
             self._timer.start(_HOLD_MS)
 
         group.finished.connect(_done)

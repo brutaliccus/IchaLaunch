@@ -157,8 +157,16 @@ class LaunchButton(QPushButton):
         font = QFont(self.font())
         font.setFamily("Segoe UI")
         font.setBold(True)
-        font.setPixelSize(20)
-        font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 2.5)
+        # Longer labels (e.g. REGISTER HERE) need a smaller size to fit chrome.
+        n = len(text.replace(" ", ""))
+        if n >= 12:
+            px, spacing = 13, 1.0
+        elif n >= 9:
+            px, spacing = 16, 1.6
+        else:
+            px, spacing = 20, 2.5
+        font.setPixelSize(px)
+        font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, spacing)
         painter.setFont(font)
 
         if not self.isEnabled():

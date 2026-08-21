@@ -19,6 +19,7 @@ from ichalaunch.addons.github import (
     GitHubRateLimitError,
     RATE_LIMIT_STATUS,
     STARTUP_CHECK_COOLDOWN_SEC,
+    fetch_repo_readme,
     github_get,
     github_headers,
     github_latest_commit,
@@ -285,6 +286,67 @@ def resolve_github_dll_mod(url: str) -> dict[str, Any]:
         mod["addon_source"] = addon_src
 
     return mod
+
+
+def preview_github_dll_mod(url: str) -> dict[str, Any]:
+    """Resolve a GitHub DLL/client-mod entry for confirmation (no install/persist)."""
+    mod = resolve_github_dll_mod(url)
+    source = mod.get("source") or {}
+    parsed = parse_github_url(str(mod.get("repo_url") or url))
+    readme_md = ""
+    readme_base = ""
+    readme_cache = ""
+    if parsed:
+        owner, repo = parsed
+        branch = "main"
+        try:
+            meta = github_get(f"https://api.github.com/repos/{owner}/{repo}").json()
+            branch = str(meta.get("default_branch") or "main")
+        except Exception:
+            pass
+        try:
+            readme = fetch_repo_readme(owner, repo, branch=branch)
+            if readme:
+                readme_md = readme.get("markdown") or ""
+                readme_base = readme.get("base_url") or ""
+                readme_cache = readme.get("cache_dir") or ""
+        except GitHubRateLimitError:
+            raise
+        except Exception as exc:
+            log.warning("DLL preview README skipped: %s", exc)
+    return {
+        "kind": "dll",
+        "url": str(mod.get("repo_url") or url).strip(),
+        "name": mod.get("name") or mod.get("id") or "DLL",
+        "id": mod.get("id"),
+        "category": mod.get("category") or "Custom",
+        "description": (mod.get("description") or "").strip() or "(no description)",
+        "asset": source.get("asset_contains") or "",
+        "matched_existing": bool(mod.get("matched_existing")),
+        "has_companion_addon": bool(mod.get("addon_source")),
+        "mod": mod,
+        "readme_markdown": readme_md,
+        "readme_base_url": readme_base,
+        "readme_cache_dir": readme_cache,
+    }
+
+
+def format_dll_preview(info: dict[str, Any]) -> str:
+    """Short summary above the README in the Add DLL confirm dialog."""
+    lines = [
+        f"{info.get('name')}  ·  {info.get('category')}",
+        f"{info.get('url')}",
+        f"{info.get('description')}",
+    ]
+    if info.get("asset"):
+        lines.append(f"Release asset: {info['asset']}")
+    if info.get("matched_existing"):
+        lines.append("Matched an existing catalog entry — will enable that mod.")
+    else:
+        lines.append("New custom entry — will be added under the Custom tab.")
+    if info.get("has_companion_addon"):
+        lines.append("Includes a companion addon package from the same release.")
+    return "\n".join(lines)
 
 
 def register_user_mod(mod: dict[str, Any]) -> dict[str, Any]:

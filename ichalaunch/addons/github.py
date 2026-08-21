@@ -129,6 +129,367 @@ def github_latest_commit(owner: str, repo: str, branch: str | None = None) -> di
     }
 
 
+_README_MAX_CHARS = 180_000
+_IMG_MD_RE = re.compile(
+    r"(!\[[^\]]*\]\()([^)\s]+)((?:\s+\"[^\"]*\")?\))",
+    re.MULTILINE,
+)
+_IMG_HTML_RE = re.compile(
+    r"<img\b[^>]*?\bsrc\s*=\s*([\"'])([^\"']+)\1[^>]*/?>",
+    re.IGNORECASE | re.DOTALL,
+)
+_REF_IMG_RE = re.compile(
+    r"^(\s*\[[^\]]+\]:\s*)(\S+)(.*)$",
+    re.MULTILINE,
+)
+
+
+def fetch_repo_readme(owner: str, repo: str, branch: str | None = None) -> dict[str, str] | None:
+    """Fetch README markdown for preview. Returns {markdown, base_url, cache_dir} or None."""
+    import base64
+
+    full = f"{owner}/{repo}"
+    url = f"https://api.github.com/repos/{full}/readme"
+    try:
+        r = requests.get(
+            url,
+            headers=github_headers(),
+            timeout=30,
+            params={"ref": branch} if branch else None,
+        )
+        _note_rate_headers(r)
+        if _looks_like_rate_limit(r):
+            raise GitHubRateLimitError(RATE_LIMIT_STATUS)
+        if r.status_code == 404:
+            return None
+        r.raise_for_status()
+        data = r.json()
+    except GitHubRateLimitError:
+        raise
+    except (requests.RequestException, ValueError, json.JSONDecodeError) as exc:
+        log.warning("README fetch failed for %s: %s", full, exc)
+        return None
+
+    try:
+        raw = base64.b64decode(data.get("content") or "")
+        text = raw.decode("utf-8", errors="replace")
+    except Exception as exc:
+        log.warning("README decode failed for %s: %s", full, exc)
+        return None
+    if not text.strip():
+        return None
+    if len(text) > _README_MAX_CHARS:
+        text = text[:_README_MAX_CHARS] + "\n\n… (README truncated for preview)"
+
+    path = str(data.get("path") or "README.md").replace("\\", "/")
+    parent = str(Path(path).parent).replace("\\", "/")
+    readme_dir = ""
+    if parent and parent != ".":
+        readme_dir = parent.strip("/") + "/"
+
+    use_branch = branch or "main"
+    base_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{use_branch}/{readme_dir}"
+    md = rewrite_readme_media(
+        text, owner=owner, repo=repo, branch=use_branch, readme_dir=readme_dir
+    )
+    cache_dir = Path(tempfile.mkdtemp(prefix="ichalaunch-readme-"))
+    md = localize_readme_images(md, cache_dir=cache_dir)
+    return {"markdown": md, "base_url": base_url, "cache_dir": str(cache_dir)}
+
+
+_IMG_URL_COLLECT_RE = re.compile(
+    r"!\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)"
+    r"|<img\b[^>]*?\bsrc\s*=\s*[\"']([^\"']+)[\"']",
+    re.IGNORECASE | re.DOTALL,
+)
+_MAX_README_IMAGES = 48
+_MAX_IMAGE_BYTES = 6 * 1024 * 1024
+_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp")
+
+
+def localize_readme_images(markdown: str, *, cache_dir: Path) -> str:
+    """Download README images to disk for QTextBrowser; drop broken/unsupported ones.
+
+    Qt's markdown viewer often cannot load remote HTTPS images (blank page icons).
+    Local ``file://`` paths work; SVG and failed downloads are pruned.
+    """
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    headers = {
+        "User-Agent": UA.get("User-Agent", "IchaLaunch/0.1"),
+        "Accept": "image/*,*/*;q=0.8",
+    }
+    token = (settings.get("github_token") or "").strip()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    url_map: dict[str, str | None] = {}  # remote -> local uri or None (prune)
+    found: list[str] = []
+    for m in _IMG_URL_COLLECT_RE.finditer(markdown or ""):
+        u = (m.group(1) or m.group(2) or "").strip()
+        if u and u not in found:
+            found.append(u)
+
+    for i, remote in enumerate(found[:_MAX_README_IMAGES]):
+        if remote.startswith("data:"):
+            url_map[remote] = remote
+            continue
+        if remote.startswith("file:"):
+            url_map[remote] = remote
+            continue
+        lower = remote.lower().split("?", 1)[0]
+        if lower.endswith(".svg") or lower.endswith(".mp4") or lower.endswith(".webm"):
+            url_map[remote] = None
+            continue
+        try:
+            resp = requests.get(remote, headers=headers, timeout=20, stream=True)
+            if resp.status_code != 200:
+                url_map[remote] = None
+                continue
+            ctype = (resp.headers.get("Content-Type") or "").lower()
+            if "svg" in ctype:
+                url_map[remote] = None
+                continue
+            ext = ".png"
+            for candidate in _IMAGE_EXTS:
+                if lower.endswith(candidate) or candidate[1:] in ctype:
+                    ext = candidate
+                    break
+            if "gif" in ctype:
+                ext = ".gif"
+            elif "webp" in ctype:
+                ext = ".webp"
+            elif "jpeg" in ctype or "jpg" in ctype:
+                ext = ".jpg"
+            data = resp.content
+            if not data or len(data) > _MAX_IMAGE_BYTES:
+                url_map[remote] = None
+                continue
+            dest = cache_dir / f"img_{i:03d}{ext}"
+            dest.write_bytes(data)
+            url_map[remote] = dest.resolve().as_uri()
+        except Exception as exc:
+            log.debug("README image fetch failed %s: %s", remote, exc)
+            url_map[remote] = None
+
+    # Mark remaining (over cap) for prune
+    for remote in found[_MAX_README_IMAGES:]:
+        url_map[remote] = None
+
+    def _replace_md(m: re.Match[str]) -> str:
+        url = m.group(2)
+        mapped = url_map.get(url, url)
+        if mapped is None:
+            return ""
+        if mapped == url and url.startswith(("http://", "https://", "//")):
+            # Never downloaded (shouldn't happen) — prune rather than blank icon
+            return ""
+        return m.group(1) + mapped + m.group(3)
+
+    def _replace_html(m: re.Match[str]) -> str:
+        url = m.group(2)
+        mapped = url_map.get(url, url)
+        if mapped is None:
+            return ""
+        if mapped == url and url.startswith(("http://", "https://", "//")):
+            return ""
+        return f'<img src="{mapped}" />'
+
+    def _replace_ref(m: re.Match[str]) -> str:
+        url = m.group(2)
+        if url not in url_map:
+            return m.group(0)
+        mapped = url_map[url]
+        if mapped is None:
+            return ""
+        return f"{m.group(1)}{mapped}{m.group(3)}"
+
+    out = _IMG_MD_RE.sub(_replace_md, markdown)
+    out = _IMG_HTML_RE.sub(_replace_html, out)
+    out = _REF_IMG_RE.sub(_replace_ref, out)
+    # Collapse leftover blank lines from pruned images
+    out = re.sub(r"\n{3,}", "\n\n", out)
+    return out
+
+
+def cleanup_readme_cache(cache_dir: str | Path | None) -> None:
+    if not cache_dir:
+        return
+    try:
+        shutil.rmtree(cache_dir, ignore_errors=True)
+    except Exception:
+        pass
+
+
+
+def _absolute_repo_media_url(
+    src: str,
+    *,
+    owner: str,
+    repo: str,
+    branch: str,
+    readme_dir: str = "",
+) -> str:
+    """Resolve README-relative / github.com blob paths to raw.githubusercontent.com."""
+    url = (src or "").strip()
+    if not url or url.startswith(("data:", "http://", "https://", "//")):
+        if url.startswith("//"):
+            return "https:" + url
+        # github.com/owner/repo/blob/branch/path → raw
+        m = re.match(
+            r"https?://github\.com/([^/]+)/([^/]+)/blob/([^/]+)/(.+)$",
+            url,
+            re.IGNORECASE,
+        )
+        if m:
+            return (
+                f"https://raw.githubusercontent.com/{m.group(1)}/{m.group(2)}/"
+                f"{m.group(3)}/{m.group(4)}"
+            )
+        return url
+    if url.startswith("#"):
+        return url
+    # Absolute path from repo root
+    if url.startswith("/"):
+        rel = url.lstrip("/")
+    else:
+        rel = f"{readme_dir}{url}"
+    # Normalize ./ and redundant segments lightly
+    parts: list[str] = []
+    for part in rel.replace("\\", "/").split("/"):
+        if part in ("", "."):
+            continue
+        if part == "..":
+            if parts:
+                parts.pop()
+            continue
+        parts.append(part)
+    return f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{'/'.join(parts)}"
+
+
+def rewrite_readme_media(
+    markdown: str,
+    *,
+    owner: str,
+    repo: str,
+    branch: str,
+    readme_dir: str = "",
+) -> str:
+    """Rewrite relative image/media URLs so the preview can load them."""
+
+    def _md_sub(m: re.Match[str]) -> str:
+        return m.group(1) + _absolute_repo_media_url(
+            m.group(2), owner=owner, repo=repo, branch=branch, readme_dir=readme_dir
+        ) + m.group(3)
+
+    def _html_sub(m: re.Match[str]) -> str:
+        abs_url = _absolute_repo_media_url(
+            m.group(2), owner=owner, repo=repo, branch=branch, readme_dir=readme_dir
+        )
+        # Rebuild a minimal img tag with the absolute URL
+        return f'<img src="{abs_url}" />'
+
+    def _ref_sub(m: re.Match[str]) -> str:
+        target = m.group(2)
+        # Only rewrite likely image / media refs (skip pure page links without extension)
+        lower = target.lower().split("?", 1)[0]
+        if lower.endswith(
+            (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".mp4", ".webm")
+        ) or not target.startswith(("http://", "https://", "//", "#", "mailto:")):
+            target = _absolute_repo_media_url(
+                target, owner=owner, repo=repo, branch=branch, readme_dir=readme_dir
+            )
+        return f"{m.group(1)}{target}{m.group(3)}"
+
+    out = _IMG_MD_RE.sub(_md_sub, markdown)
+    out = _IMG_HTML_RE.sub(_html_sub, out)
+    out = _REF_IMG_RE.sub(_ref_sub, out)
+    return out
+
+
+def preview_addon_repo(url: str) -> dict[str, Any]:
+    """Fetch GitHub repo metadata for an Add-from-GitHub confirmation preview.
+
+    Does not download the zip or install anything.
+    """
+    parsed = parse_github_url(url)
+    if not parsed:
+        raise ValueError("Not a valid GitHub repository URL. Example: https://github.com/owner/repo")
+    owner, repo = parsed
+    full = f"{owner}/{repo}"
+    r = github_get(f"https://api.github.com/repos/{full}")
+    data = r.json()
+    branch = data.get("default_branch") or "main"
+    commit = github_latest_commit(owner, repo, branch=branch)
+
+    catalog_hit = None
+    for entry in load_catalog():
+        repo_url = str(entry.get("repo") or entry.get("url") or "")
+        other = parse_github_url(repo_url)
+        if other and other[0].lower() == owner.lower() and other[1].lower() == repo.lower():
+            catalog_hit = entry
+            break
+
+    installed_meta = None
+    for folder, meta in (settings.installed_addons or {}).items():
+        if not isinstance(meta, dict):
+            continue
+        key = (meta.get("repository") or "").strip().lower()
+        if key == full.lower():
+            installed_meta = {"folder": folder, **meta}
+            break
+        ou = parse_github_url(str(meta.get("url") or ""))
+        if ou and ou[0].lower() == owner.lower() and ou[1].lower() == repo.lower():
+            installed_meta = {"folder": folder, **meta}
+            break
+
+    sha = str(commit.get("sha") or "")
+    date = str(commit.get("date") or "")
+    if "T" in date:
+        date = date.split("T", 1)[0]
+    msg = str(commit.get("message") or "").strip().splitlines()[0] if commit.get("message") else ""
+
+    readme = fetch_repo_readme(owner, repo, branch=branch)
+
+    return {
+        "kind": "addon",
+        "url": f"https://github.com/{full}",
+        "full_name": data.get("full_name") or full,
+        "description": (data.get("description") or "").strip() or "(no description)",
+        "stars": int(data.get("stargazers_count") or 0),
+        "default_branch": branch,
+        "commit_sha": sha[:7] if sha else "",
+        "commit_date": date,
+        "commit_message": msg[:120],
+        "catalog_name": (catalog_hit or {}).get("name"),
+        "catalog_folder": (catalog_hit or {}).get("folder"),
+        "already_installed": installed_meta is not None,
+        "installed_folder": (installed_meta or {}).get("folder"),
+        "readme_markdown": (readme or {}).get("markdown") or "",
+        "readme_base_url": (readme or {}).get("base_url") or "",
+        "readme_cache_dir": (readme or {}).get("cache_dir") or "",
+    }
+
+
+def format_addon_preview(info: dict[str, Any]) -> str:
+    """Short summary above the README in the addon GitHub confirm dialog."""
+    lines = [
+        f"{info.get('full_name')}  ·  ★ {info.get('stars', 0)}",
+        f"{info.get('url')}",
+        f"{info.get('description')}",
+        f"Branch {info.get('default_branch')} @ {info.get('commit_sha') or '?'}"
+        + (f" ({info.get('commit_date')})" if info.get("commit_date") else ""),
+    ]
+    if info.get("commit_message"):
+        lines.append(f"Latest: {info['commit_message']}")
+    if info.get("catalog_name"):
+        lines.append(f"Catalog match: {info['catalog_name']}")
+    if info.get("already_installed"):
+        lines.append(
+            f"Already installed as: {info.get('installed_folder') or '(tracked)'}"
+        )
+    return "\n".join(lines)
+
+
 def normalize_addon_name(name: str) -> str:
     for suffix in ("-master", "-main", "-dev"):
         if name.endswith(suffix):
