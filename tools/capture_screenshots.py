@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from ichalaunch.app import load_app_icon, load_stylesheet
+from ichalaunch.ui import main_window as main_window_mod
 from ichalaunch.ui.main_window import MainWindow
 from ichalaunch.ui.widgets.dialogs import ThemedDialog
 
@@ -25,6 +26,8 @@ _PAGE_PAUSE_MS = 350
 
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
+    # Avoid mid-scan progress chrome in docs screenshots.
+    main_window_mod._STARTUP_UPDATE_DELAY_MS = 24 * 60 * 60 * 1000
     app = QApplication(sys.argv)
     app.setApplicationName("IchaLaunch")
     load_stylesheet(app)

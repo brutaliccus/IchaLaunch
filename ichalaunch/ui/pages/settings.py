@@ -22,6 +22,8 @@ from ichalaunch.ui.widgets.common import Card
 
 class SettingsPage(QWidget):
     browse_clicked = Signal()
+    browse_addons_clicked = Signal()
+    reset_addons_clicked = Signal()
     verify_clicked = Signal()
 
     def __init__(self, parent=None):
@@ -72,6 +74,33 @@ class SettingsPage(QWidget):
         note.setObjectName("Muted")
         note.setWordWrap(True)
         game_card.body.addWidget(note)
+
+        addons_card = Card()
+        addons_card.body.setSpacing(10)
+        addons_title = QLabel("AddOns folder")
+        addons_title.setObjectName("CardTitle")
+        addons_card.body.addWidget(addons_title)
+        addons_row = QHBoxLayout()
+        addons_row.setSpacing(8)
+        self.addons_edit = QLineEdit(settings.resolved_addons_path())
+        self.addons_edit.setReadOnly(True)
+        self.addons_edit.setMinimumHeight(36)
+        browse_addons = QPushButton("Browse…")
+        browse_addons.clicked.connect(self.browse_addons_clicked.emit)
+        reset_addons = QPushButton("Reset to default")
+        reset_addons.setToolTip("Use {game folder}\\Interface\\AddOns")
+        reset_addons.clicked.connect(self.reset_addons_clicked.emit)
+        addons_row.addWidget(self.addons_edit, 1)
+        addons_row.addWidget(browse_addons)
+        addons_row.addWidget(reset_addons)
+        addons_card.body.addLayout(addons_row)
+        addons_note = QLabel(
+            "Defaults to Interface\\AddOns under the game folder when you set or change "
+            "the game path. Override only if your addons live elsewhere."
+        )
+        addons_note.setObjectName("Muted")
+        addons_note.setWordWrap(True)
+        addons_card.body.addWidget(addons_note)
 
         launch_card = Card()
         launch_card.body.setSpacing(10)
@@ -161,6 +190,7 @@ class SettingsPage(QWidget):
 
         layout.addWidget(title)
         layout.addWidget(game_card)
+        layout.addWidget(addons_card)
         layout.addWidget(launch_card)
         layout.addWidget(upd_card)
         layout.addWidget(gh_card)
@@ -184,6 +214,7 @@ class SettingsPage(QWidget):
 
     def refresh(self) -> None:
         self.path_edit.setText(settings.game_path)
+        self.addons_edit.setText(settings.resolved_addons_path())
         self.cb_auto_updates.blockSignals(True)
         self.cb_auto_updates.setChecked(settings.check_updates_on_startup())
         self.cb_auto_updates.blockSignals(False)

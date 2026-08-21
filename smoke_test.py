@@ -83,6 +83,36 @@ def test_discover_game_path_near_launcher():
     print("OK discover game path near launcher")
 
 
+def test_addons_path_defaults():
+    from ichalaunch.config.settings import Settings
+
+    s = Settings()
+    # Use an in-memory-ish path without wiping user's real settings file:
+    # exercise helpers via a temporary Settings instance methods only.
+    default = s.default_addons_path_for(r"D:\Games\RavenCraft")
+    assert default.replace("/", "\\").endswith(r"Interface\AddOns") or default.endswith(
+        "Interface/AddOns"
+    ), default
+    assert "RavenCraft" in default
+
+    old_game = s.game_path
+    old_addons = s.addons_path
+    try:
+        s.game_path = r"D:\Games\ClientA"
+        assert s.addons_path.replace("\\", "/").endswith("Interface/AddOns")
+        assert "ClientA" in s.addons_path
+        # Custom override should stick when game path changes
+        s.addons_path = r"E:\Custom\AddOns"
+        s.game_path = r"D:\Games\ClientB"
+        assert s.addons_path.replace("\\", "/") == "E:/Custom/AddOns" or s.addons_path == r"E:\Custom\AddOns"
+        s.reset_addons_path_to_default()
+        assert "ClientB" in s.addons_path
+    finally:
+        s.game_path = old_game
+        s.addons_path = old_addons
+    print("OK addons path defaults")
+
+
 def test_status_progress_bytes():
     from ichalaunch.core.process import StatusProgress, download_bytes_cb
 
@@ -204,6 +234,7 @@ def main():
     test_dlls_txt()
     test_detect_state()
     test_discover_game_path_near_launcher()
+    test_addons_path_defaults()
     test_status_progress_bytes()
     test_multi_folder_pack_grouping()
     test_sanitize_filename()

@@ -353,6 +353,27 @@ QLineEdit, QTextEdit, QPlainTextEdit {
     selection-background-color: #7c5cc4;
 }
 
+QLineEdit:hover {
+    border-color: rgba(124, 92, 196, 0.55);
+}
+
+QLineEdit:focus {
+    border-color: #F1C22D;
+}
+
+QLineEdit#ClientSearch {
+    background-color: rgba(120, 100, 150, 0.12);
+    border: 1px solid rgba(124, 92, 196, 0.40);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: #e6e0ee;
+}
+
+QLineEdit#ClientSearch:focus {
+    border-color: #F1C22D;
+    background-color: rgba(124, 92, 196, 0.16);
+}
+
 QComboBox {
     background-color: rgba(120, 100, 150, 0.10);
     color: #e6e0ee;

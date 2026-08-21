@@ -18,7 +18,7 @@ from ichalaunch.config.settings import settings
 from ichalaunch.core.filesystem import copy_tree, extract_zip, find_toc_roots
 from ichalaunch.core.logging_setup import log
 from ichalaunch.core.process import download_bytes, download_bytes_cb
-from ichalaunch.game.launcher import detect_game
+from ichalaunch.game.launcher import detect_game, ensure_addons_dir, resolve_addons_dir
 
 ProgressCb = Callable[[str], None]
 UA = {"User-Agent": "IchaLaunch/0.1", "Accept": "application/vnd.github+json"}
@@ -285,8 +285,7 @@ def install_from_github(url: str, folder_name: str | None = None, progress: Prog
         if not roots:
             raise FileNotFoundError("No .toc files found in repository")
 
-        addons_dir = game / "Interface" / "AddOns"
-        addons_dir.mkdir(parents=True, exist_ok=True)
+        addons_dir = ensure_addons_dir()
 
         # Always keep each TOC root's real folder name — never rename children to catalog folder.
         installed: list[str] = []
@@ -488,8 +487,11 @@ def uninstall_addon(folder: str) -> None:
     target = str(meta.get("managed_by") or folder).strip() or folder
     parent_meta = settings.installed_addons.get(target) or meta
     folders = _pack_folders(target, parent_meta)
+    addons_dir = resolve_addons_dir(create=False)
+    if addons_dir is None:
+        raise FileNotFoundError("AddOns path not set")
     for name in folders:
-        path = game / "Interface" / "AddOns" / name
+        path = addons_dir / name
         if path.exists():
             shutil.rmtree(path)
         settings.remove_installed_addon(name)

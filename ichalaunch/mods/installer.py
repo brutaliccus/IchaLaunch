@@ -37,7 +37,7 @@ from ichalaunch.core.filesystem import (
 )
 from ichalaunch.core.logging_setup import log
 from ichalaunch.core.process import download_bytes, download_bytes_cb, download_file, google_drive_url
-from ichalaunch.game.launcher import detect_game
+from ichalaunch.game.launcher import detect_game, resolve_addons_dir, ensure_addons_dir, resolve_addons_dir
 
 ProgressCb = Callable[[str], None]
 UA = {"User-Agent": "IchaLaunch/0.1"}
@@ -396,8 +396,11 @@ def plan_changes(desired: dict[str, bool] | None = None) -> list[dict[str, str]]
 
 
 def _install_addon_folder(src_root: Path, game: Path, preferred_name: str | None = None) -> None:
-    addons = game / "Interface" / "AddOns"
-    addons.mkdir(parents=True, exist_ok=True)
+    # Prefer configured AddOns path; fall back to game/Interface/AddOns.
+    addons = resolve_addons_dir(create=True)
+    if addons is None:
+        addons = game / "Interface" / "AddOns"
+        addons.mkdir(parents=True, exist_ok=True)
     roots = find_toc_roots(src_root)
     if preferred_name:
         match = next((r for r in roots if r.name == preferred_name or preferred_name in r.name), None)
@@ -1194,7 +1197,10 @@ def remove_mod(mod_id: str, progress: ProgressCb | None = None) -> None:
     # Optional addon folders
     folder = (mod.get("addon_source") or {}).get("folder") or mod.get("addon_folder_match")
     if folder:
-        safe_remove(game / "Interface" / "AddOns" / folder)
+        addons = resolve_addons_dir(create=False)
+        if addons is None:
+            addons = game / "Interface" / "AddOns"
+        safe_remove(addons / folder)
 
     if mod_id == "vanillafixes":
         for name in ("VanillaFixes.exe", "VfPatcher.dll"):

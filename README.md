@@ -13,8 +13,9 @@ Download the latest build from **[Releases](https://github.com/brutaliccus/IchaL
 - **Play / Install** — point at an existing game folder (or pick where to install), then launch with the metallic **PLAY** button
 - **Home** — RavenCraft branding, launch countdown, and a live list of installed client mods
 - **Addons** — browse the Turtle WoW wiki catalog, search and filter, install or reinstall, and paste any GitHub addon repo
-- **Client** — turn RetroCro / TurtleWoW-style fixes and Visual/QoL packs on or off (VanillaFixes, SuperWoW, Nampower, UnitXP, DXVK, night sky, and more), then **Apply Changes**
-- **Updates** — quiet checks for addon and client-mod updates on launch, plus a silent launcher self-update re-check every few minutes, with gold badges on tabs when something needs attention
+- **Client** — turn RetroCro / TurtleWoW-style fixes and Visual/QoL packs on or off (VanillaFixes, SuperWoW, Nampower, UnitXP, DXVK, night sky, and more), search across categories, then **Apply Changes**
+- **Settings** — game folder plus a configurable **AddOns** path (defaults to `Interface\AddOns` under the game folder)
+- **Updates** — quiet checks for addon and client-mod updates on launch (status in the bottom progress bar), plus a silent launcher self-update re-check every few minutes, with gold badges on tabs when something needs attention
 - **Self-update** — when a newer IchaLaunch is available, **PLAY** becomes **UPDATE**
 - **Backups** — copies of changed files live under `<your game>/.ichalaunch/backups/`
 

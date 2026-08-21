@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QProgressBar,
     QPushButton,
     QScrollArea,
@@ -89,6 +90,7 @@ class ClientPage(QWidget):
         self.cat_stack.setObjectName("ClientCatStack")
         self.cat_stack.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.rows: dict[str, ModCheckRow] = {}
+        self._row_meta: dict[str, dict] = {}
         self._pending_updates: dict[str, dict] = {}
         self._apply_pending = False
         self._client_mods_scan_done = False
@@ -96,6 +98,7 @@ class ClientPage(QWidget):
         self._cat_index: dict[str, int] = {}
         self._side_layout = side_l
         self._side_stretch_added = False
+        self._search_q = ""
 
         by_cat: dict[str, list] = {}
         for mod in load_mod_catalog():
@@ -141,6 +144,24 @@ class ClientPage(QWidget):
         actions.addStretch(1)
         actions.addWidget(self.apply_btn)
         root.addLayout(actions)
+
+        # Cross-category search (bottom of Client tab)
+        search_row = QHBoxLayout()
+        search_row.setSpacing(8)
+        self.search = QLineEdit()
+        self.search.setObjectName("ClientSearch")
+        self.search.setPlaceholderText("Search all client fixes, tweaks & patches…")
+        self.search.setClearButtonEnabled(True)
+        self.search.setMinimumHeight(34)
+        self._search_timer = QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(160)
+        self._search_timer.timeout.connect(self._apply_search)
+        self.search.textChanged.connect(lambda: self._search_timer.start())
+        self.search.returnPressed.connect(self._apply_search)
+        search_row.addWidget(self.search, 1)
+        root.addLayout(search_row)
+
         self.set_checking(False)
 
         if self.cat_btns:
@@ -154,7 +175,6 @@ class ClientPage(QWidget):
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.clicked.connect(lambda checked=False, idx=index: self._show_cat(idx))
         if self._side_stretch_added:
-            # Insert before the trailing stretch spacer
             self._side_layout.insertWidget(self._side_layout.count() - 1, btn)
         else:
             self._side_layout.addWidget(btn)
@@ -209,9 +229,14 @@ class ClientPage(QWidget):
         row.update_clicked.connect(self.update_mod_requested.emit)
         row.reinstall_clicked.connect(self.reinstall_mod_requested.emit)
         cat = mod.get("category") or "Client Enhancements"
+        self._row_meta[mid] = {
+            "category": cat,
+            "name": str(mod.get("name") or mid),
+            "description": str(mod.get("description") or ""),
+            "note": str(mod.get("note") or ""),
+        }
         layout = host_l or self._cat_hosts.get(cat)
         if layout is not None:
-            # Insert before trailing stretch
             insert_at = max(0, layout.count() - 1)
             layout.insertWidget(insert_at, row)
         self.rows[mid] = row
@@ -254,6 +279,38 @@ class ClientPage(QWidget):
         if url:
             self.custom_dll_import_requested.emit(url)
 
+    def _apply_search(self) -> None:
+        q = (self.search.text() or "").strip().lower()
+        self._search_q = q
+        if not q:
+            for row in self.rows.values():
+                row.setVisible(True)
+            return
+
+        matches: list[tuple[str, str]] = []
+        for mid, row in self.rows.items():
+            meta = self._row_meta.get(mid) or {}
+            hay = " ".join(
+                [
+                    mid,
+                    str(meta.get("name") or ""),
+                    str(meta.get("description") or ""),
+                    str(meta.get("note") or ""),
+                ]
+            ).lower()
+            hit = q in hay
+            row.setVisible(hit)
+            if hit:
+                matches.append((mid, str(meta.get("category") or "")))
+
+        if not matches:
+            return
+
+        cat = matches[0][1]
+        idx = self._cat_index.get(cat)
+        if idx is not None and self.cat_stack.currentIndex() != idx:
+            self._show_cat(idx)
+
     @property
     def pending_updates(self) -> list[dict]:
         return list(self._pending_updates.values())
@@ -263,9 +320,10 @@ class ClientPage(QWidget):
         return bool(self._pending_updates) or bool(self._apply_pending)
 
     def set_checking(self, busy: bool, msg: str = "Checking for updates…") -> None:
-        self.loading_lbl.setText(msg if busy else "")
-        self.loading_bar.setVisible(busy)
-        self.loading_lbl.setVisible(busy)
+        # Progress lives on the bottom bar; keep only the Check Updates button gated.
+        self.loading_lbl.setText("")
+        self.loading_lbl.setVisible(False)
+        self.loading_bar.setVisible(False)
         self.check_btn.setEnabled(not busy)
 
     def set_updates(self, updates: list[dict]) -> None:
@@ -347,6 +405,8 @@ class ClientPage(QWidget):
                 self._set_status_style(row.status_lbl, "StatusMuted")
                 row.set_update_available(False)
                 row.set_reinstall_visible(False)
+        if self._search_q:
+            self._apply_search()
         self.refresh_plan()
 
     @staticmethod

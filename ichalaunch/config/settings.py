@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any  # Path used by default_addons_path_for
 
 APP_DIR_NAME = "IchaLaunch"
 
@@ -21,6 +21,7 @@ def settings_path() -> Path:
 
 DEFAULTS: dict[str, Any] = {
     "game_path": "",
+    "addons_path": "",
     "vanillafixes_enabled": True,
     "minimize_on_launch": False,
     "close_on_launch": False,
@@ -111,13 +112,69 @@ class Settings:
         self._data[key] = value
         self.save()
 
+    @staticmethod
+    def default_addons_path_for(game_path: str | Path) -> str:
+        """Windows-style `{game}/Interface/AddOns` when game_path is set."""
+        gp = Path(str(game_path or "").strip())
+        if not str(gp):
+            return ""
+        return str(gp / "Interface" / "AddOns")
+
+    @staticmethod
+    def _norm_path(value: str) -> str:
+        text = (value or "").strip()
+        if not text:
+            return ""
+        try:
+            return str(Path(text).resolve())
+        except OSError:
+            return str(Path(text))
+
     @property
     def game_path(self) -> str:
         return str(self._data.get("game_path") or "")
 
     @game_path.setter
     def game_path(self, value: str) -> None:
-        self.set("game_path", value)
+        """Set game folder; keep AddOns path on the default when user hasn't overridden."""
+        new_game = str(value or "").strip()
+        old_game = self.game_path
+        old_addons = self.addons_path
+        old_default = self.default_addons_path_for(old_game) if old_game else ""
+        new_default = self.default_addons_path_for(new_game) if new_game else ""
+
+        self._data["game_path"] = new_game
+        # Empty / matching previous default → track the new game's default AddOns folder.
+        if not old_addons or (
+            old_default and self._norm_path(old_addons) == self._norm_path(old_default)
+        ):
+            self._data["addons_path"] = new_default
+        elif not new_game:
+            # Clearing game path without a custom override: clear default-style empty.
+            if self._norm_path(old_addons) == self._norm_path(old_default):
+                self._data["addons_path"] = ""
+        self.save()
+
+    @property
+    def addons_path(self) -> str:
+        return str(self._data.get("addons_path") or "")
+
+    @addons_path.setter
+    def addons_path(self, value: str) -> None:
+        self.set("addons_path", value)
+
+    def reset_addons_path_to_default(self) -> str:
+        """Reset AddOns folder to `{game_path}/Interface/AddOns`. Returns the path used."""
+        path = self.default_addons_path_for(self.game_path)
+        self.addons_path = path
+        return path
+
+    def resolved_addons_path(self) -> str:
+        """Stored addons_path, or default under game_path when empty."""
+        raw = self.addons_path.strip()
+        if raw:
+            return raw
+        return self.default_addons_path_for(self.game_path)
 
     @property
     def desired_mods(self) -> dict[str, bool]:

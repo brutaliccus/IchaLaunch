@@ -164,9 +164,10 @@ class AddonsPage(QWidget):
         self.refresh()
 
     def set_checking(self, busy: bool, msg: str = "Checking for updates…") -> None:
-        self.loading_lbl.setText(msg if busy else "")
-        self.loading_lbl.setVisible(busy)
-        self.loading_bar.setVisible(busy)
+        # Progress lives on the bottom bar; keep only the Check Updates button gated.
+        self.loading_lbl.setText("")
+        self.loading_lbl.setVisible(False)
+        self.loading_bar.setVisible(False)
         self.check_btn.setEnabled(not busy)
 
     @property

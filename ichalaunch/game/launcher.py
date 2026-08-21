@@ -30,6 +30,30 @@ def detect_game(path: str | Path | None = None) -> Path | None:
     return None
 
 
+def resolve_addons_dir(*, create: bool = False) -> Path | None:
+    """Return the configured Interface/AddOns folder (or default under game path).
+
+    When ``create`` is True, ensures the folder exists (mkdir parents).
+    Returns None if neither addons_path nor a valid game path is available.
+    """
+    raw = settings.resolved_addons_path()
+    if not raw:
+        return None
+    addons = Path(raw)
+    if create:
+        addons.mkdir(parents=True, exist_ok=True)
+        return addons
+    return addons
+
+
+def ensure_addons_dir() -> Path:
+    """Resolve AddOns dir and create it; raises if game/addons path cannot be determined."""
+    addons = resolve_addons_dir(create=True)
+    if addons is None:
+        raise FileNotFoundError("Game path not set — cannot resolve AddOns folder")
+    return addons
+
+
 def discover_game_path_near_launcher() -> Path | None:
     """Locate WoW.exe near the running launcher (EXE dir / cwd).
 

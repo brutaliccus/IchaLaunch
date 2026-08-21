@@ -98,6 +98,7 @@ from ichalaunch.ui.pages.addons import AddonsPage
 from ichalaunch.ui.pages.client import ClientPage
 from ichalaunch.ui.pages.home import HomePage
 from ichalaunch.ui.pages.settings import SettingsPage
+from ichalaunch.ui.widgets.chrome_buttons import ChromeGlyphButton
 from ichalaunch.ui.widgets.launch_button import LaunchButton
 
 
@@ -304,6 +305,7 @@ class MainWindow(QMainWindow):
         content.setObjectName("ContentPanel")
         content.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self._content_panel = content
+        content.installEventFilter(self)
         content_l = QVBoxLayout(content)
         content_l.setContentsMargins(0, 0, 0, 0)
         content_l.setSpacing(0)
@@ -317,6 +319,15 @@ class MainWindow(QMainWindow):
             self.stack.addWidget(page)
         # Stretch so page bottom meets NavBottomBanner top (no dead gap above the strip).
         content_l.addWidget(self.stack, 1)
+
+        # Minimize / close — children of ContentPanel so they sit inside the purple
+        # frame (below the top stroke), not in the tab strip above it.
+        self._btn_minimize = ChromeGlyphButton("minimize", content)
+        self._btn_close = ChromeGlyphButton("close", content)
+        self._btn_minimize.clicked.connect(self.showMinimized)
+        self._btn_close.clicked.connect(self.close)
+        self._btn_minimize.raise_()
+        self._btn_close.raise_()
 
         # ---- Bottom play bar ----
         bottom = QWidget()
@@ -367,6 +378,7 @@ class MainWindow(QMainWindow):
 
         self._update_window_mask()
         self._position_rc_logo()
+        self._position_chrome_buttons()
 
         # Wire
         self.home.play_clicked.connect(self._on_play_or_install)
@@ -389,6 +401,8 @@ class MainWindow(QMainWindow):
         self.addons.badge_state_changed.connect(self._refresh_nav_badges)
         self.client.badge_state_changed.connect(self._refresh_nav_badges)
         self.settings_page.browse_clicked.connect(self._browse_game)
+        self.settings_page.browse_addons_clicked.connect(self._browse_addons)
+        self.settings_page.reset_addons_clicked.connect(self._reset_addons_path)
         self.settings_page.verify_clicked.connect(self._verify_game)
 
         self._refresh_play_button()
@@ -474,6 +488,27 @@ class MainWindow(QMainWindow):
         else:
             self.unsetCursor()
 
+    def _position_chrome_buttons(self) -> None:
+        """Pin minimize/close to ContentPanel top-right, inside the purple stroke."""
+        content = getattr(self, "_content_panel", None)
+        btn_min = getattr(self, "_btn_minimize", None)
+        btn_close = getattr(self, "_btn_close", None)
+        if content is None or btn_min is None or btn_close is None:
+            return
+        # Past the 1px purple stroke; stay clear of the rounded window-mask corner.
+        inset_x = 10
+        inset_y = 10
+        gap = 6
+        cw = max(content.width(), 1)
+        x_close = cw - inset_x - btn_close.width()
+        x_min = x_close - gap - btn_min.width()
+        btn_min.move(max(inset_x, x_min), inset_y)
+        btn_close.move(max(inset_x, x_close), inset_y)
+        btn_min.raise_()
+        btn_close.raise_()
+        btn_min.show()
+        btn_close.show()
+
     def _position_rc_logo(self) -> None:
         """Center RavenCraft crest on ContentPanel top border, between SETTINGS and panel right."""
         logo = getattr(self, "_rc_logo", None)
@@ -487,6 +522,13 @@ class MainWindow(QMainWindow):
         left = settings_btn.mapTo(root, QPoint(settings_btn.width(), 0)).x()
         content_origin = content.mapTo(root, QPoint(0, 0))
         right = content_origin.x() + content.width()
+        # Reserve space for minimize/close chrome inside the framed panel.
+        chrome_w = 0
+        for btn in (getattr(self, "_btn_minimize", None), getattr(self, "_btn_close", None)):
+            if btn is not None:
+                chrome_w += btn.width() + 6
+        if chrome_w:
+            right = min(right, content_origin.x() + content.width() - chrome_w - 16)
         cx = (left + right) / 2.0
         x = int(round(cx - logo.width() / 2.0))
         # Keep the crest pixmap fully inside the zone — avoid rounded-mask / edge clip
@@ -511,12 +553,14 @@ class MainWindow(QMainWindow):
         x = max(2 - _RC_GLOW_PAD_X, min(x, root.width() - logo.width() + _RC_GLOW_PAD_X - 2))
         logo.move(x, y)
         logo.raise_()
+        self._position_chrome_buttons()
 
     def showEvent(self, event):
         super().showEvent(event)
         self._fit_to_screen()
         self._update_window_mask()
         self._position_rc_logo()
+        self._position_chrome_buttons()
         # Reliable initial scan shortly after the UI is visible (not only on the 5‑min timer).
         if not self._startup_checks_scheduled:
             self._startup_checks_scheduled = True
@@ -526,6 +570,7 @@ class MainWindow(QMainWindow):
         super().resizeEvent(event)
         self._update_window_mask()
         self._position_rc_logo()
+        self._position_chrome_buttons()
 
     def closeEvent(self, event):
         app = QApplication.instance()
@@ -552,6 +597,7 @@ class MainWindow(QMainWindow):
                     QPlainTextEdit,
                     QScrollBar,
                     QSizeGrip,
+                    ChromeGlyphButton,
                 ),
             ):
                 return True
@@ -571,6 +617,8 @@ class MainWindow(QMainWindow):
 
     def eventFilter(self, obj, event):
         """Edge-resize on border; drag window from non-interactive chrome."""
+        if obj is getattr(self, "_content_panel", None) and event.type() == QEvent.Type.Resize:
+            self._position_chrome_buttons()
         if isinstance(obj, QWidget) and obj.window() is self:
             et = event.type()
             if et == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
@@ -766,6 +814,9 @@ class MainWindow(QMainWindow):
             self.play_btn.setText("INSTALL")
         self._refresh_nav_badges()
 
+    def _worker_busy(self) -> bool:
+        return bool(self._worker and self._worker.isRunning())
+
     def _set_busy_ui(self, busy: bool, msg: str = "") -> None:
         self.play_btn.setEnabled(not busy)
         if busy:
@@ -794,18 +845,41 @@ class MainWindow(QMainWindow):
         self.progress.setFormat("%p%")
 
     def _refresh_check_loading(self) -> None:
+        """Show addon/client update-check status on the bottom progress area.
+
+        Does not flash the bottom bar for silent launcher-only periodic checks.
+        Leaves an active download ``_busy`` UI alone.
+        """
         addon_busy = self._checking_addons
         mod_busy = self._checking_mods
         self.addons.set_checking(addon_busy, "Checking for updates…")
         self.client.set_checking(mod_busy, "Checking for updates…")
+
+        if self._worker_busy():
+            return
+
         if addon_busy and mod_busy:
-            self.home.set_checking(True, "Checking addon & client updates…")
+            msg = "Checking addon & client updates…"
         elif addon_busy:
-            self.home.set_checking(True, "Checking addon updates…")
+            msg = "Checking addon updates…"
         elif mod_busy:
-            self.home.set_checking(True, "Checking client mod updates…")
+            msg = "Checking client mod updates…"
         else:
-            self.home.set_checking(False)
+            self.progress.hide()
+            self.progress.setRange(0, 100)
+            self.progress.setValue(0)
+            self.progress.setFormat("%p%")
+            # Keep the last status text from done/fail handlers; only restore Ready
+            # when still showing a checking… message.
+            current = (self.status_lbl.text() or "").strip().lower()
+            if current.startswith("checking"):
+                self.status_lbl.setText("Ready")
+            return
+
+        self.progress.show()
+        self.progress.setRange(0, 0)
+        self.progress.setFormat("")
+        self.status_lbl.setText(msg)
 
     def _resync(self, silent: bool = False) -> None:
         if not is_installed():
@@ -1012,6 +1086,27 @@ class MainWindow(QMainWindow):
         self._refresh_play_button()
         themed.info(self, "Saved", f"Game path set to:\n{path}")
 
+    def _browse_addons(self) -> None:
+        start = settings.resolved_addons_path() or settings.game_path or ""
+        path = QFileDialog.getExistingDirectory(self, "Select AddOns folder", start)
+        if not path:
+            return
+        settings.addons_path = path
+        self.settings_page.refresh()
+        if is_installed():
+            self._resync(silent=True)
+        themed.info(self, "Saved", f"AddOns path set to:\n{path}")
+
+    def _reset_addons_path(self) -> None:
+        path = settings.reset_addons_path_to_default()
+        self.settings_page.refresh()
+        if is_installed():
+            self._resync(silent=True)
+        if path:
+            themed.info(self, "Reset", f"AddOns path reset to:\n{path}")
+        else:
+            themed.warning(self, "Reset", "Set a game path first to restore the default AddOns folder.")
+
     def _verify_game(self) -> None:
         if is_installed():
             themed.info(self, "Verify", f"WoW.exe found at:\n{settings.game_path}")
@@ -1192,7 +1287,6 @@ class MainWindow(QMainWindow):
 
         def done(result):
             self._checking_addons = False
-            self._refresh_check_loading()
             if isinstance(result, AddonUpdateCheckResult):
                 updates = result.updates
                 status = result.status_message
@@ -1200,19 +1294,22 @@ class MainWindow(QMainWindow):
                 updates = result or []
                 status = None
             self.addons.set_updates(updates)
-            if status:
-                self.status_lbl.setText(status)
-            elif updates:
-                self.status_lbl.setText(f"{len(updates)} addon update(s) available")
-            else:
-                self.status_lbl.setText("Addons up to date")
+            if not self._checking_mods:
+                if status:
+                    self.status_lbl.setText(status)
+                elif updates:
+                    self.status_lbl.setText(f"{len(updates)} addon update(s) available")
+                else:
+                    self.status_lbl.setText("Addons up to date")
+            self._refresh_check_loading()
             self._update_worker = None
             self._refresh_nav_badges()
 
         def fail(msg: str):
             self._checking_addons = False
+            if not self._checking_mods:
+                self.status_lbl.setText(f"Update check failed: {msg[:80]}")
             self._refresh_check_loading()
-            self.status_lbl.setText(f"Update check failed: {msg[:80]}")
             self._update_worker = None
             self._refresh_nav_badges()
 
@@ -1241,11 +1338,11 @@ class MainWindow(QMainWindow):
 
         def done(result):
             self._checking_mods = False
-            self._refresh_check_loading()
             if isinstance(result, ModUpdateCheckResult):
                 updates = result.updates
                 status = result.status_message
                 if result.skipped_recent:
+                    self._refresh_check_loading()
                     self._mod_update_worker = None
                     self._refresh_nav_badges()
                     return
@@ -1253,19 +1350,22 @@ class MainWindow(QMainWindow):
                 updates = result or []
                 status = None
             self.client.set_updates(updates)
-            if status:
-                self.status_lbl.setText(status)
-            elif updates:
-                self.status_lbl.setText(f"{len(updates)} client mod update(s) available")
-            else:
-                self.status_lbl.setText("Client mods up to date")
+            if not self._checking_addons:
+                if status:
+                    self.status_lbl.setText(status)
+                elif updates:
+                    self.status_lbl.setText(f"{len(updates)} client mod update(s) available")
+                else:
+                    self.status_lbl.setText("Client mods up to date")
+            self._refresh_check_loading()
             self._mod_update_worker = None
             self._refresh_nav_badges()
 
         def fail(msg: str):
             self._checking_mods = False
+            if not self._checking_addons:
+                self.status_lbl.setText(f"Client mod check failed: {msg[:80]}")
             self._refresh_check_loading()
-            self.status_lbl.setText(f"Client mod check failed: {msg[:80]}")
             self._mod_update_worker = None
             self._refresh_nav_badges()
 

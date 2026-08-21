@@ -9,7 +9,6 @@ from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
-    QProgressBar,
     QScrollArea,
     QSizePolicy,
     QVBoxLayout,
@@ -132,23 +131,6 @@ class HomePage(QWidget):
         self._logo_src: QPixmap | None = None
         self._load_logo()
 
-        self.loading_wrap = QWidget(self)
-        self.loading_wrap.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-        load_l = QVBoxLayout(self.loading_wrap)
-        load_l.setContentsMargins(0, 0, 0, 0)
-        load_l.setSpacing(6)
-        load_l.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.loading_lbl = QLabel("Checking for updates…")
-        self.loading_lbl.setStyleSheet("color: #F1C22D;")
-        self.loading_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.loading_bar = QProgressBar()
-        self.loading_bar.setRange(0, 0)
-        self.loading_bar.setFixedSize(160, 6)
-        self.loading_bar.setTextVisible(False)
-        load_l.addWidget(self.loading_lbl)
-        load_l.addWidget(self.loading_bar, 0, Qt.AlignmentFlag.AlignCenter)
-        self.loading_wrap.setVisible(False)
-
         self.countdown = LaunchCountdown(self)
         self.countdown.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
@@ -183,7 +165,6 @@ class HomePage(QWidget):
         return (
             self.talent_bg,
             self.logo,
-            self.loading_wrap,
             self.countdown,
         )
 
@@ -243,9 +224,6 @@ class HomePage(QWidget):
         self.talent_bg.setVisible(visible)
         self.logo.setVisible(visible)
         self.countdown.setVisible(visible)
-        # loading_wrap keeps its own busy flag; only force-hide when leaving HOME.
-        if not visible:
-            self.loading_wrap.setVisible(False)
 
     def _sync_brand_layout(self) -> None:
         """Place talent art flush to NavBottomBanner; overlay MoA + countdown.
@@ -336,15 +314,6 @@ class HomePage(QWidget):
             logo_y = 2
         self.logo.setGeometry(logo_x, logo_y, logo_w, logo_h)
 
-        # --- Busy spinner under MoA (no “Powered by” / Ready meta) ---
-        if self.loading_wrap.isVisible():
-            load_hint = self.loading_wrap.sizeHint()
-            load_w = min(max(160, load_hint.width()), max(120, art.width() - 16))
-            load_h = max(load_hint.height(), 40)
-            load_x = art.x() + (art.width() - load_w) // 2
-            load_y = logo_y + logo_h + 6
-            self.loading_wrap.setGeometry(load_x, load_y, load_w, load_h)
-
         # --- Countdown overlaid on art BOTTOM (above diamond strip) ---
         cd = self.countdown
         cd_hint = cd.sizeHint()
@@ -361,7 +330,6 @@ class HomePage(QWidget):
         # Stacking: art under chrome; banner/strip stays above art; RC crest on top.
         rc = getattr(self.window(), "_rc_logo", None)
         self.talent_bg.raise_()
-        self.loading_wrap.raise_()
         self.logo.raise_()
         self.countdown.raise_()
         if banner is not None:
@@ -432,9 +400,8 @@ class HomePage(QWidget):
         self.logo.setObjectName("Brand")
 
     def set_checking(self, busy: bool, msg: str = "Checking for updates…") -> None:
-        self.loading_lbl.setText(msg if busy else "")
-        self.loading_wrap.setVisible(busy)
-        self._sync_brand_layout()
+        """No-op — update-check progress lives on the bottom bar (MainWindow)."""
+        return
 
     def _clear_summary(self) -> None:
         while self.summary_host.count():

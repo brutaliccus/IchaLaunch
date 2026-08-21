@@ -8,7 +8,7 @@ from typing import Any
 
 from ichalaunch.addons.github import load_catalog, parse_github_url
 from ichalaunch.config.settings import settings
-from ichalaunch.game.launcher import detect_game
+from ichalaunch.game.launcher import detect_game, resolve_addons_dir
 from ichalaunch.mods.installer import detect_actual_state, load_mod_catalog
 
 
@@ -16,11 +16,17 @@ BLIZZARD_PREFIXES = ("Blizzard_", "Turtle_")
 
 
 def scan_installed_addon_folders(game_path: Path | None = None) -> list[str]:
-    game = game_path or detect_game()
-    if not game:
-        return []
-    addons_dir = game / "Interface" / "AddOns"
-    if not addons_dir.is_dir():
+    """List TOC addon folders under the configured AddOns path.
+
+    When ``game_path`` is passed and settings have no ``addons_path`` override,
+    scan ``{game_path}/Interface/AddOns`` (tests / one-offs). Otherwise use
+    ``resolve_addons_dir()``.
+    """
+    if game_path is not None and not settings.addons_path.strip():
+        addons_dir = Path(game_path) / "Interface" / "AddOns"
+    else:
+        addons_dir = resolve_addons_dir(create=False)
+    if not addons_dir or not addons_dir.is_dir():
         return []
     folders = []
     for p in sorted(addons_dir.iterdir()):
