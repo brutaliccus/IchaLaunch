@@ -163,6 +163,46 @@ def _companion_addon_source(owner: str, repo_name: str, assets: list[dict[str, A
     return None
 
 
+def _github_keys_for_mod(mod: dict[str, Any]) -> set[str]:
+    """Normalized https://github.com/owner/repo keys for catalog matching."""
+    from ichalaunch.ui.widgets.common import github_repo_browse_url
+
+    src = mod.get("source") if isinstance(mod.get("source"), dict) else {}
+    addon_src = mod.get("addon_source") if isinstance(mod.get("addon_source"), dict) else {}
+    keys: set[str] = set()
+    for raw in (
+        mod.get("repo_url"),
+        mod.get("repo"),
+        mod.get("github"),
+        mod.get("url"),
+        mod.get("info_url"),
+        mod.get("repository"),
+        (src or {}).get("repo"),
+        (src or {}).get("url"),
+        (src or {}).get("github"),
+        (addon_src or {}).get("repo"),
+        (addon_src or {}).get("url"),
+    ):
+        page = github_repo_browse_url(raw)
+        if page:
+            keys.add(page.rstrip("/").lower())
+    return keys
+
+
+def find_mod_by_github_url(url: str) -> dict[str, Any] | None:
+    """Return an existing catalog/user mod whose repo matches ``url``, if any."""
+    from ichalaunch.ui.widgets.common import github_repo_browse_url
+
+    target = github_repo_browse_url(url)
+    if not target:
+        return None
+    target_l = target.rstrip("/").lower()
+    for existing in load_mod_catalog():
+        if target_l in _github_keys_for_mod(existing):
+            return dict(existing)
+    return None
+
+
 def resolve_github_dll_mod(url: str) -> dict[str, Any]:
     """Inspect a GitHub repo's latest release and build a client-mod catalog entry."""
     parsed = parse_github_url(url)
@@ -170,6 +210,13 @@ def resolve_github_dll_mod(url: str) -> dict[str, Any]:
         raise ValueError("Not a valid GitHub repository URL. Example: https://github.com/owner/repo")
     owner, repo_name = parsed
     repo = f"{owner}/{repo_name}"
+
+    # Reuse a built-in / already-registered entry that points at this repo.
+    matched = find_mod_by_github_url(url)
+    if matched:
+        matched["matched_existing"] = True
+        return matched
+
     try:
         r = github_get(f"https://api.github.com/repos/{repo}/releases/latest")
     except GitHubRateLimitError:
@@ -182,12 +229,6 @@ def resolve_github_dll_mod(url: str) -> dict[str, Any]:
     assets = data.get("assets") or []
     if not assets:
         raise FileNotFoundError(f"Release for {repo} has no downloadable assets.")
-
-    # Reuse a built-in catalog entry that already points at this repo.
-    for existing in json.loads(_data_path().read_text(encoding="utf-8")):
-        src = existing.get("source") or {}
-        if (src.get("repo") or "").lower() == repo.lower():
-            return dict(existing)
 
     dll_asset = _pick_dll_asset(assets, prefer=repo_name)
     zip_asset = _pick_zip_asset(assets, prefer=repo_name) if not dll_asset else None
@@ -225,7 +266,7 @@ def resolve_github_dll_mod(url: str) -> dict[str, Any]:
     mod: dict[str, Any] = {
         "id": mid,
         "name": display,
-        "category": "Client Enhancements",
+        "category": "Custom",
         "description": f"User-defined DLL from {repo}",
         "detect": {"any_files": [dll_name]},
         "source": source,
@@ -235,6 +276,7 @@ def resolve_github_dll_mod(url: str) -> dict[str, Any]:
         "dependencies": [],
         "conflicts": [],
         "user_defined": True,
+        "matched_existing": False,
         "repo_url": f"https://github.com/{repo}",
     }
 
@@ -257,11 +299,13 @@ def register_user_mod(mod: dict[str, Any]) -> dict[str, Any]:
 def install_custom_dll_from_github(url: str, progress: ProgressCb | None = None) -> dict[str, Any]:
     """Resolve, register, and install a DLL (and optional companion addon) from GitHub."""
     mod = resolve_github_dll_mod(url)
+    matched_existing = bool(mod.get("matched_existing"))
     source = mod.get("source") or {}
     asset_needle = (source.get("asset_contains") or "").lower()
     # Probe zip-only custom entries for the real DLL name before persisting.
     if (
         mod.get("user_defined")
+        and not matched_existing
         and source.get("type") == "github_release_latest"
         and asset_needle.endswith(".zip")
     ):
@@ -285,12 +329,18 @@ def install_custom_dll_from_github(url: str, progress: ProgressCb | None = None)
             mod["files"] = [{"match": dll_name, "destination": dll_name}]
             mod["dlls_txt"] = {"add": [dll_name]}
             mod["kind"] = "dll_bundle"
-    if mod.get("user_defined"):
+    if mod.get("user_defined") and not matched_existing:
+        # New custom entry — persist under Custom category via user_mods.
+        if not mod.get("category"):
+            mod["category"] = "Custom"
         register_user_mod(mod)
     else:
+        # Matched built-in (or prior custom): enable desired state, no duplicate.
         settings.set_desired_mod(mod["id"], True)
     install_mod(mod["id"], progress=progress, prefer_latest=True)
-    return mod
+    out = dict(mod)
+    out["matched_existing"] = matched_existing
+    return out
 
 
 def _detect_mod(game_path: Path, mod: dict[str, Any]) -> bool:

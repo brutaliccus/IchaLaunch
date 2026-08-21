@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QProgressBar,
     QPushButton,
-    QScrollArea,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -19,13 +18,16 @@ from ichalaunch.config.settings import settings
 from ichalaunch.game.launcher import detect_game
 from ichalaunch.mods.installer import detect_actual_state, load_mod_catalog, plan_changes
 from ichalaunch.ui.widgets.common import ModCheckRow, mod_git_url, open_url_in_browser, status_with_stamp
+from ichalaunch.ui.widgets.cursors import apply_open_hand
 from ichalaunch.ui.widgets.dialogs import prompt_text
+from ichalaunch.ui.widgets.marble_bg import MarblePanel, MarbleScrollArea
 
 CATEGORY_ORDER = [
     "Performance & Fixes",
     "Client Enhancements",
     "HD Graphics",
     "Visual / QoL",
+    "Custom",
 ]
 
 
@@ -79,12 +81,14 @@ class ClientPage(QWidget):
         body = QHBoxLayout()
         body.setSpacing(12)
 
-        # Left category tabs
-        side = QWidget()
+        # Left category tabs — marble panel under nav buttons
+        side = MarblePanel()
         side.setObjectName("ClientCatNav")
         side.setFixedWidth(200)
         side_l = QVBoxLayout(side)
-        side_l.setContentsMargins(0, 0, 0, 0)
+        # Inset so hover/checked fills sit inside the rounded purple frame
+        # (top item must not square-overflow the panel corner).
+        side_l.setContentsMargins(4, 4, 4, 4)
         side_l.setSpacing(2)
         self.cat_btns: list[QPushButton] = []
         self.cat_stack = QStackedWidget()
@@ -96,6 +100,7 @@ class ClientPage(QWidget):
         self._apply_pending = False
         self._client_mods_scan_done = False
         self._cat_hosts: dict[str, QVBoxLayout] = {}
+        self._cat_scrolls: dict[str, MarbleScrollArea] = {}
         self._cat_index: dict[str, int] = {}
         self._side_layout = side_l
         self._side_stretch_added = False
@@ -103,8 +108,18 @@ class ClientPage(QWidget):
 
         by_cat: dict[str, list] = {}
         for mod in load_mod_catalog():
-            by_cat.setdefault(mod.get("category") or "Other", []).append(mod)
-        cats = [c for c in CATEGORY_ORDER if c in by_cat] + [c for c in by_cat if c not in CATEGORY_ORDER]
+            cat = mod.get("category") or "Other"
+            # Legacy user_mods may still say Client Enhancements — keep Custom together.
+            if mod.get("user_defined") and cat != "Custom":
+                cat = "Custom"
+                mod = dict(mod)
+                mod["category"] = "Custom"
+            by_cat.setdefault(cat, []).append(mod)
+        # Always reserve Custom so Add DLL can land there even before first custom mod.
+        by_cat.setdefault("Custom", [])
+        cats = [c for c in CATEGORY_ORDER if c in by_cat] + [
+            c for c in by_cat if c not in CATEGORY_ORDER
+        ]
 
         for i, cat in enumerate(cats):
             self._add_category_page(cat, by_cat[cat], i)
@@ -173,7 +188,7 @@ class ClientPage(QWidget):
         btn = QPushButton(cat)
         btn.setObjectName("CatNavButton")
         btn.setCheckable(True)
-        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        apply_open_hand(btn)
         btn.clicked.connect(lambda checked=False, idx=index: self._show_cat(idx))
         if self._side_stretch_added:
             self._side_layout.insertWidget(self._side_layout.count() - 1, btn)
@@ -187,7 +202,7 @@ class ClientPage(QWidget):
         page.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         page_l = QVBoxLayout(page)
         page_l.setContentsMargins(0, 0, 0, 0)
-        scroll = QScrollArea()
+        scroll = MarbleScrollArea()
         scroll.setObjectName("ClientCatScroll")
         scroll.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         scroll.setWidgetResizable(True)
@@ -201,6 +216,7 @@ class ClientPage(QWidget):
         host_l.setContentsMargins(8, 8, 8, 8)
         host_l.setSpacing(8)
         self._cat_hosts[cat] = host_l
+        self._cat_scrolls[cat] = scroll
         for mod in mods:
             self._add_mod_row(mod, host_l)
         host_l.addStretch(1)
@@ -220,6 +236,9 @@ class ClientPage(QWidget):
             desc = f"[Manual download] {desc}"
         if mod.get("user_defined"):
             desc = f"[Custom] {desc}"
+            cat = "Custom"
+        else:
+            cat = mod.get("category") or "Client Enhancements"
         row = ModCheckRow(
             mid,
             mod["name"],
@@ -231,7 +250,6 @@ class ClientPage(QWidget):
         row.reinstall_clicked.connect(self.reinstall_mod_requested.emit)
         row.open_git_clicked.connect(self.open_git_requested.emit)
         row.set_git_url(mod_git_url(mod))
-        cat = mod.get("category") or "Client Enhancements"
         self._row_meta[mid] = {
             "category": cat,
             "name": str(mod.get("name") or mid),
@@ -252,12 +270,38 @@ class ClientPage(QWidget):
             return
         if mid not in self.rows:
             cat = mod.get("category") or "Client Enhancements"
+            if mod.get("user_defined"):
+                cat = "Custom"
+                mod = dict(mod)
+                mod["category"] = "Custom"
             if cat not in self._cat_hosts:
                 idx = len(self.cat_btns)
                 self._add_category_page(cat, [mod], idx)
             else:
                 self._add_mod_row(mod)
         self.refresh_from_settings()
+
+    def focus_mod(self, mod_id: str) -> None:
+        """Switch to the mod's category tab, scroll to the row, and flash-highlight it."""
+        row = self.rows.get(mod_id)
+        meta = self._row_meta.get(mod_id) or {}
+        cat = str(meta.get("category") or "")
+        if not cat and row is None:
+            return
+        idx = self._cat_index.get(cat)
+        if idx is not None:
+            self._show_cat(idx)
+
+        def _scroll_and_flash() -> None:
+            r = self.rows.get(mod_id)
+            if r is None:
+                return
+            scroll = self._cat_scrolls.get(cat)
+            if scroll is not None and scroll.widget() is not None:
+                scroll.ensureWidgetVisible(r, 24, 24)
+            r.flash_highlight()
+
+        QTimer.singleShot(40, _scroll_and_flash)
 
     def sync_catalog_rows(self) -> None:
         """Add rows for any catalog/user mods that appeared since page construction."""
@@ -266,6 +310,10 @@ class ClientPage(QWidget):
             if not mid or mid in self.rows:
                 continue
             cat = mod.get("category") or "Client Enhancements"
+            if mod.get("user_defined"):
+                cat = "Custom"
+                mod = dict(mod)
+                mod["category"] = "Custom"
             if cat not in self._cat_hosts:
                 self._add_category_page(cat, [mod], len(self.cat_btns))
             else:

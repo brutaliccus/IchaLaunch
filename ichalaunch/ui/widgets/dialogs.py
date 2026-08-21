@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ichalaunch.ui.widgets.cursors import apply_open_hand
+
 
 class DialogResult(Enum):
     Yes = auto()
@@ -80,7 +82,7 @@ class ThemedDialog(QDialog):
                 btn.setObjectName("ThemedDialogPrimary")
             else:
                 btn.setObjectName("ThemedDialogSecondary")
-            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            apply_open_hand(btn)
             btn.clicked.connect(lambda _checked=False, r=result: self._finish(r))
             row.addWidget(btn)
         body.addLayout(row)
@@ -169,11 +171,11 @@ class ThemedInputDialog(QDialog):
         row.addStretch(1)
         cancel_btn = QPushButton(cancel_text)
         cancel_btn.setObjectName("ThemedDialogSecondary")
-        cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        apply_open_hand(cancel_btn)
         cancel_btn.clicked.connect(self.reject)
         ok_btn = QPushButton(accept_text)
         ok_btn.setObjectName("ThemedDialogPrimary")
-        ok_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        apply_open_hand(ok_btn)
         ok_btn.clicked.connect(self.accept)
         row.addWidget(cancel_btn)
         row.addWidget(ok_btn)

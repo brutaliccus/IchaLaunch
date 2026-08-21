@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QListWidget,
     QListWidgetItem,
     QProgressBar,
     QPushButton,
@@ -28,6 +27,7 @@ from ichalaunch.core.detect import (
 )
 from ichalaunch.ui.widgets.common import AddonRow, open_url_in_browser, status_with_stamp
 from ichalaunch.ui.widgets.dialogs import prompt_text
+from ichalaunch.ui.widgets.marble_bg import MarbleListWidget, MarblePanel
 
 PAGE_SIZE = 80
 INSTALLED_ROW_H = 56
@@ -71,8 +71,8 @@ class AddonsPage(QWidget):
         self.installed_hdr = QLabel("Installed")
         self.installed_hdr.setObjectName("SectionTitle")
 
-        # QListWidget always scrolls inside its viewport — won't stretch the window
-        self.installed_list = QListWidget()
+        # MarbleListWidget scrolls inside its viewport — won't stretch the window
+        self.installed_list = MarbleListWidget()
         self.installed_list.setSpacing(2)
         self.installed_list.setUniformItemSizes(False)
         self.installed_list.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
@@ -83,7 +83,7 @@ class AddonsPage(QWidget):
         self.avail_hdr = QLabel("Available")
         self.avail_hdr.setObjectName("SectionTitle")
 
-        self.list = QListWidget()
+        self.list = MarbleListWidget()
         self.list.setSpacing(2)
         self.list.setUniformItemSizes(True)
         self.list.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
@@ -142,13 +142,21 @@ class AddonsPage(QWidget):
         tools.addWidget(update_all_btn)
         tools.addWidget(import_btn)
 
+        # Outer marble window holding installed + available lists (and headers).
+        addons_win = MarblePanel(radius=10.0)
+        addons_win.setObjectName("AddonsWindow")
+        win_l = QVBoxLayout(addons_win)
+        win_l.setContentsMargins(10, 10, 10, 10)
+        win_l.setSpacing(8)
+        win_l.addWidget(self.installed_hdr)
+        win_l.addWidget(self.installed_list, 1)
+        win_l.addWidget(self.avail_hdr)
+        win_l.addWidget(self.list, 2)
+        win_l.addLayout(action_row)
+
         layout.addLayout(self.loading_row)
         layout.addWidget(self.updates_lbl)
-        layout.addWidget(self.installed_hdr)
-        layout.addWidget(self.installed_list, 1)
-        layout.addWidget(self.avail_hdr)
-        layout.addWidget(self.list, 2)
-        layout.addLayout(action_row)
+        layout.addWidget(addons_win, 1)
         layout.addLayout(tools)
 
         self._pending_updates: list[dict] = []
@@ -213,6 +221,10 @@ class AddonsPage(QWidget):
         settings.set_addon_never_update(str(folder), bool(enabled))
         if enabled:
             self.clear_pending_update(str(folder))
+        # Defer rebuild so any transient Never Update menu can finish closing first.
+        QTimer.singleShot(0, self._finish_never_update_change)
+
+    def _finish_never_update_change(self) -> None:
         self.mark_dirty()
         self.refresh()
         self.badge_state_changed.emit()

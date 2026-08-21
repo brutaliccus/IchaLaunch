@@ -162,7 +162,8 @@ QPushButton#OpenGitButton {
     min-height: 22px;
 }
 
-QToolButton#UpdateMenuButton {
+/* Caret is a QPushButton (not InstantPopup QToolButton) to avoid orphan popup flashes. */
+QPushButton#UpdateMenuButton {
     background-color: #4a2f7a;
     color: #ffffff;
     border: 1px solid #F1C22D;
@@ -177,14 +178,9 @@ QToolButton#UpdateMenuButton {
     font-weight: 700;
 }
 
-QToolButton#UpdateMenuButton:hover {
+QPushButton#UpdateMenuButton:hover {
     background-color: #7c5cc4;
     border-color: #FF7757;
-}
-
-QToolButton#UpdateMenuButton::menu-indicator {
-    image: none;
-    width: 0;
 }
 
 /* Gold border pulse when Apply Changes has pending installs/removes */
@@ -267,10 +263,13 @@ QWidget#BottomBar {
     border-bottom-right-radius: 14px;
 }
 
-QWidget#ClientCatNav {
+/* Opaque base in QSS; marble tiles painted in MarblePanel.paintEvent (flush to stroke). */
+QWidget#ClientCatNav,
+QWidget#AddonsWindow {
     background-color: #181412;
     border: 1px solid rgba(124, 92, 196, 0.30);
     border-radius: 10px;
+    padding: 0;
 }
 
 QWidget#SettingsHost,
@@ -281,17 +280,19 @@ QStackedWidget#ClientCatStack {
     color: #e6e0ee;
 }
 
-/* Settings: let ContentPanel stone floor show through (same as Home/Addons).
+/* Settings: let ContentPanel Necrolord floor show through (same as Home/Addons).
    Client category scroll keeps a subtle framed panel. */
 QScrollArea#SettingsScroll {
     background: transparent;
     border: none;
 }
 
+/* Opaque base in QSS; marble tiles painted on the scroll frame (flush to stroke). */
 QScrollArea#ClientCatScroll {
     background-color: #181412;
     border: 1px solid rgba(150, 131, 158, 0.18);
     border-radius: 10px;
+    padding: 0;
 }
 
 QScrollArea#SettingsScroll > QWidget > QWidget,
@@ -299,8 +300,12 @@ QScrollArea#ClientCatScroll > QWidget > QWidget {
     background: transparent;
 }
 
-QScrollArea#SettingsScroll QWidget#qt_scrollarea_viewport {
+QScrollArea#SettingsScroll QWidget#qt_scrollarea_viewport,
+QScrollArea#ClientCatScroll QWidget#qt_scrollarea_viewport {
     background: transparent;
+    border: none;
+    margin: 0;
+    padding: 0;
 }
 
 QWidget#HomeBrandPane {
@@ -330,7 +335,7 @@ QPushButton#CatNavButton {
     text-align: left;
     padding: 12px 14px;
     border: none;
-    border-radius: 0;
+    border-radius: 8px;
     background: transparent;
     font-size: 13px;
     font-weight: 600;
@@ -340,18 +345,26 @@ QPushButton#CatNavButton {
 QPushButton#CatNavButton:hover {
     background-color: rgba(124, 92, 196, 0.16);
     color: #e6e0ee;
+    border-radius: 8px;
 }
 
 QPushButton#CatNavButton:checked {
     background-color: rgba(74, 47, 122, 0.35);
     color: #F1C22D;
     border-left: 3px solid #F1C22D;
+    border-radius: 8px;
 }
 
+/* Light wash so ClientCatScroll marble shows through row gaps / edges. */
 QWidget#ModCheckRow {
-    background-color: rgba(120, 100, 150, 0.07);
+    background-color: rgba(120, 100, 150, 0.045);
     border: 1px solid rgba(150, 131, 158, 0.14);
     border-radius: 8px;
+}
+
+QWidget#ModCheckRow[flashHighlight="true"] {
+    background-color: rgba(241, 194, 45, 0.16);
+    border: 1px solid #F1C22D;
 }
 
 QLabel#ModRowName {
@@ -481,24 +494,31 @@ QComboBox QAbstractItemView::item {
     padding: 4px 8px;
 }
 
+/* ThemeCheckBox is QAbstractButton — paint owns the indicator; no QCheckBox::indicator hover. */
+QAbstractButton#ThemeCheckBox {
+    background: transparent;
+    border: none;
+    color: #e6e0ee;
+    min-height: 28px;
+    padding: 0;
+    margin: 0;
+    spacing: 0;
+}
+
+/* Legacy QCheckBox rules kept harmless if any remain. */
 QCheckBox {
     spacing: 10px;
     color: #e6e0ee;
-    min-height: 24px;
-    padding: 2px 0;
+    min-height: 28px;
+    padding: 2px 0 2px 0;
+    margin: 0;
 }
 
 QCheckBox::indicator {
-    width: 18px;
-    height: 18px;
-    border: 1px solid rgba(150, 131, 158, 0.25);
-    border-radius: 4px;
-    background: rgba(120, 100, 150, 0.10);
-}
-
-QCheckBox::indicator:checked {
-    background-color: #F1C22D;
-    border-color: #F1C22D;
+    width: 22px;
+    height: 22px;
+    border: none;
+    background: transparent;
 }
 
 QProgressBar {
@@ -611,14 +631,41 @@ QListWidget, QTreeWidget, QTableWidget {
     padding: 4px;
 }
 
+/* Addon lists — viewport transparent so MarbleListWidget can tile marble.
+   padding:0 so marble meets the purple stroke (global QListWidget has 4px pad). */
+QListWidget#MarbleList {
+    background-color: #181412;
+    padding: 0;
+    border: 1px solid rgba(124, 92, 196, 0.25);
+    border-radius: 8px;
+}
+
+QListWidget#MarbleList QWidget#qt_scrollarea_viewport {
+    background: transparent;
+    border: none;
+    margin: 0;
+    padding: 0;
+}
+
 QListWidget::item, QTreeWidget::item {
     padding: 4px 6px;
     border-radius: 6px;
     color: #e6e0ee;
+    background: transparent;
+}
+
+/* Soft hover — avoid opaque item fills that fight marble + item widgets. */
+QListWidget#MarbleList::item:hover {
+    background-color: rgba(124, 92, 196, 0.10);
 }
 
 QListWidget::item:hover, QTreeWidget::item:hover {
     background-color: rgba(124, 92, 196, 0.18);
+}
+
+QListWidget#MarbleList::item:selected {
+    background-color: rgba(74, 47, 122, 0.35);
+    color: #ffffff;
 }
 
 QListWidget::item:selected, QTreeWidget::item:selected {

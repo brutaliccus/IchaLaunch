@@ -7,6 +7,7 @@ from PySide6.QtGui import QColor, QFont, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QPushButton, QSizePolicy
 
 from ichalaunch.core.paths import theme_file
+from ichalaunch.ui.widgets.cursors import apply_open_hand
 
 # RavenCraft palette
 _GOLD = QColor("#F1C22D")
@@ -26,7 +27,7 @@ class LaunchButton(QPushButton):
     def __init__(self, text: str = "PLAY", parent=None):
         super().__init__(text, parent)
         self.setObjectName("PlayButton")
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        apply_open_hand(self)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.setFixedSize(200, 56)

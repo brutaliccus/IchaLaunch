@@ -3,10 +3,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlparse
-from PySide6.QtCore import QPoint, QRect, QSize, Qt, QUrl, Signal
+from PySide6.QtCore import QPoint, QRect, QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
-    QCheckBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -15,10 +14,12 @@ from PySide6.QtWidgets import (
     QMenu,
     QPushButton,
     QSizePolicy,
-    QToolButton,
     QVBoxLayout,
     QWidget,
 )
+
+from ichalaunch.ui.widgets.cursors import apply_open_hand
+from ichalaunch.ui.widgets.theme_checkbox import ThemeCheckBox
 def format_updated_stamp(meta: dict[str, Any] | None) -> str | None:
     """Human date from installed_addons / installed_mods metadata."""
     if not meta:
@@ -48,6 +49,10 @@ def status_with_stamp(base: str, meta: dict[str, Any] | None = None) -> str:
         return base
     stamp = format_updated_stamp(meta)
     return f"{base} · {stamp}" if stamp else base
+# Hub for Turtle WoW client tweaks/patches that ship without a dedicated repo.
+TURTLEWOW_MODS_HUB = "https://github.com/RetroCro/TurtleWoW-Mods"
+
+
 def github_repo_browse_url(*candidates: Any) -> str | None:
     """Best-effort https://github.com/owner/repo from catalog/meta fields."""
     for raw in candidates:
@@ -65,7 +70,9 @@ def github_repo_browse_url(*candidates: Any) -> str | None:
                 return f"https://github.com/{parsed[0]}/{parsed[1]}"
         except Exception:  # noqa: BLE001
             pass
-        if "github.com" in text.lower():
+        lower = text.lower()
+        # github.com/... and raw.githubusercontent.com/owner/repo/...
+        if "github.com" in lower or "githubusercontent.com" in lower:
             try:
                 path = urlparse(text).path.strip("/")
                 parts = [p for p in path.split("/") if p]
@@ -74,19 +81,28 @@ def github_repo_browse_url(*candidates: Any) -> str | None:
             except Exception:  # noqa: BLE001
                 continue
     return None
+
+
 def mod_git_url(mod: dict[str, Any] | None) -> str | None:
-    """Public git/GitHub page for a client mod catalog entry, if any."""
+    """Public git page for a client mod — per-item repo, else TurtleWoW-Mods hub."""
     if not mod:
         return None
     src = mod.get("source") if isinstance(mod.get("source"), dict) else {}
-    return github_repo_browse_url(
+    found = github_repo_browse_url(
         mod.get("repo_url"),
+        mod.get("repo"),
+        mod.get("github"),
         mod.get("url"),
         mod.get("info_url"),
+        mod.get("repository"),
         (src or {}).get("repo"),
         (src or {}).get("url"),
-        mod.get("repository"),
+        (src or {}).get("github"),
     )
+    if found:
+        return found
+    # Catalog / ecosystem entries without a dedicated repo still link to the hub.
+    return TURTLEWOW_MODS_HUB
 def open_url_in_browser(url: str) -> bool:
     text = (url or "").strip()
     if not text:
@@ -185,7 +201,8 @@ class ModCheckRow(QWidget):
         row = QHBoxLayout()
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(6)
-        self.cb = QCheckBox()
+        self.cb = ThemeCheckBox()
+        self.cb.setFixedSize(22, 22)
         self.cb.setChecked(checked)
         self.cb.toggled.connect(lambda v: self.toggled.emit(self.mod_id, v))
         name_lbl = QLabel(title)
@@ -196,7 +213,7 @@ class ModCheckRow(QWidget):
         self.desc_toggle.setObjectName("DescToggle")
         self.desc_toggle.setFlat(True)
         self.desc_toggle.setFixedSize(18, 22)
-        self.desc_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
+        apply_open_hand(self.desc_toggle)
         self.desc_toggle.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.desc_toggle.setToolTip("Show description")
         self.desc_toggle.setVisible(bool(self._full_desc))
@@ -279,6 +296,21 @@ class ModCheckRow(QWidget):
             self.update_btn.setToolTip(detail or "Update available")
     def set_reinstall_visible(self, visible: bool) -> None:
         self.reinstall_btn.setVisible(visible)
+
+    def flash_highlight(self, ms: int = 2200) -> None:
+        """Brief gold flash so the user can find a newly selected/matched row."""
+        self.setProperty("flashHighlight", True)
+        self.style().unpolish(self)
+        self.style().polish(self)
+        self.update()
+
+        def _clear() -> None:
+            self.setProperty("flashHighlight", False)
+            self.style().unpolish(self)
+            self.style().polish(self)
+            self.update()
+
+        QTimer.singleShot(max(400, int(ms)), _clear)
 class AddonRow(QWidget):
     install_clicked = Signal(dict)
     update_clicked = Signal(dict)
@@ -322,7 +354,7 @@ class AddonRow(QWidget):
         self.modules_toggle.setObjectName("DescToggle")
         self.modules_toggle.setFlat(True)
         self.modules_toggle.setFixedSize(18, 20)
-        self.modules_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
+        apply_open_hand(self.modules_toggle)
         self.modules_toggle.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.modules_toggle.setVisible(len(self._modules) > 0)
         n_mod = len(self._modules)
@@ -361,22 +393,23 @@ class AddonRow(QWidget):
             or status.startswith("Never update")
         )
         if is_installed:
+            show_update = self._update_available and not self._never_update
             self._update_btn = QPushButton("Update")
             self._update_btn.setObjectName("UpdateButtonLead")
             self._update_btn.clicked.connect(self._on_update_clicked)
-            self._update_btn.setVisible(self._update_available and not self._never_update)
-            self._update_menu_btn = QToolButton()
+            self._update_btn.setVisible(show_update)
+            # QPushButton + on-demand QMenu (no InstantPopup / setMenu) — avoids
+            # orphan popup flashes when lists refresh and destroy rows.
+            self._update_menu_btn = QPushButton("▾")
             self._update_menu_btn.setObjectName("UpdateMenuButton")
-            self._update_menu_btn.setText("▾")
-            self._update_menu_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-            self._update_menu_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            apply_open_hand(self._update_menu_btn)
+            self._update_menu_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             self._update_menu_btn.setToolTip(
                 "Never Update skips update checks and Update All. "
-                "Clear by unchecking Never Update here, choosing Update, or using Reinstall."
+                "Clear later with Reinstall."
             )
-            self._build_update_menu()
-            # Show menu caret whenever this installed addon has a git source
-            self._update_menu_btn.setVisible(bool(git_url) or self._update_available or self._never_update)
+            self._update_menu_btn.clicked.connect(self._popup_never_update_menu)
+            self._update_menu_btn.setVisible(show_update)
             update_wrap = QWidget()
             update_l = QHBoxLayout(update_wrap)
             update_l.setContentsMargins(0, 0, 0, 0)
@@ -422,57 +455,44 @@ class AddonRow(QWidget):
         root.addWidget(self.modules_panel)
     def preferred_height(self) -> int:
         return max(56, self.sizeHint().height())
-    def _build_update_menu(self) -> None:
-        if self._update_menu_btn is None:
+
+    def _popup_never_update_menu(self) -> None:
+        if self._update_menu_btn is None or self._never_update:
             return
         menu = QMenu(self)
         act = menu.addAction("Never Update")
-        act.setCheckable(True)
-        act.setChecked(self._never_update)
         act.setToolTip(
             "Skip update checks and Update All for this addon. "
-            "Clear by unchecking, choosing Update, or Reinstall."
+            "Clear with Reinstall."
         )
-        act.toggled.connect(self._on_never_update_toggled)
-        self._update_menu_btn.setMenu(menu)
-        self._never_act = act
-    def _on_never_update_toggled(self, checked: bool) -> None:
-        if checked == self._never_update:
-            return
-        self._never_update = bool(checked)
-        self._refresh_never_update_ui()
-        self.never_update_changed.emit(self.entry, self._never_update)
-    def _on_update_clicked(self) -> None:
+        act.triggered.connect(self._on_never_update_chosen)
+        pos = self._update_menu_btn.mapToGlobal(self._update_menu_btn.rect().bottomLeft())
+        menu.exec(pos)
+
+    def _on_never_update_chosen(self) -> None:
+        """One-way: set Never Update (clear only via Reinstall)."""
         if self._never_update:
-            self._never_update = False
-            if getattr(self, "_never_act", None) is not None:
-                self._never_act.blockSignals(True)
-                self._never_act.setChecked(False)
-                self._never_act.blockSignals(False)
-            self._refresh_never_update_ui()
-            self.never_update_changed.emit(self.entry, False)
+            return
+        self._never_update = True
+        # Defer so the transient menu can finish closing before list rebuild.
+        QTimer.singleShot(0, lambda: self.never_update_changed.emit(self.entry, True))
+
+    def _on_update_clicked(self) -> None:
         self.update_clicked.emit(self.entry)
+
     def _refresh_never_update_ui(self) -> None:
+        show_update = self._update_available and not self._never_update
         if self._never_update:
             self.status_lbl.setText("Never update")
             self.status_lbl.setStyleSheet("color: #6e6678;")
-            if self._update_btn is not None:
-                self._update_btn.setVisible(False)
-            if self._update_menu_btn is not None:
-                self._update_menu_btn.setVisible(True)
-                self._update_menu_btn.setToolTip(
-                    "Never Update is on — skipped by Check Updates / Update All. "
-                    "Uncheck Never Update, choose Update, or Reinstall to clear."
-                )
         else:
             self.status_lbl.setText(self._status_text)
             self._apply_status_style(self._status_text)
-            if self._update_btn is not None:
-                self._update_btn.setVisible(self._update_available)
-            if self._update_menu_btn is not None:
-                self._update_menu_btn.setVisible(
-                    bool(self._git_url) or self._update_available
-                )
+        if self._update_btn is not None:
+            self._update_btn.setVisible(show_update)
+        if self._update_menu_btn is not None:
+            # Caret only beside a visible Update button — never on Never Update rows.
+            self._update_menu_btn.setVisible(show_update)
     def _apply_status_style(self, status: str) -> None:
         if status.startswith("Update"):
             self.status_lbl.setStyleSheet("color: #F1C22D;")

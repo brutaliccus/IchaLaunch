@@ -7,6 +7,7 @@ from pathlib import Path
 from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, QRectF, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import (
     QColor,
+    QCursor,
     QGuiApplication,
     QIcon,
     QPainter,
@@ -42,6 +43,9 @@ from ichalaunch.ui.widgets import dialogs as themed
 _RESIZE_MARGIN = 6
 _CORNER_RADIUS = 14
 _TAB_STRIP_HEIGHT = 44
+# ContentPanel top inset so page scroll clips below minimize/close (not under −/X).
+# Matches chrome: inset_y(10) + glyph(28) + small gap below.
+_CONTENT_TOP_CHROME = 44
 # RavenCraft crest at ContentPanel top (was MoA). Larger than MoA wordmark was.
 _RC_LOGO_WIDTH = 210
 # Optional outer pad around the crest (kept for layout math; no glow drawn).
@@ -57,17 +61,22 @@ _CORNER_RADIUS_F = float(_CORNER_RADIUS)
 
 # Main ContentPanel floor — opaque RavenCraft base, then tiles + wash on top.
 _FLOOR_BASE = QColor("#181412")
-_FLOOR_NAME = "jlo_BloodElf_floor_02.PNG"
-_FLOOR_EXTERNAL = Path(r"F:\wow-ui-textures\GLUES\Models\UI_VoidElf\jlo_BloodElf_floor_02.PNG")
-# Soft floor: low tile opacity over opaque base, then a light wash.
-_FLOOR_TILE_OPACITY = 0.22
-_FLOOR_WASH = QColor(24, 20, 18, 90)
+_FLOOR_NAME = "UIFrameNecrolordBackground.PNG"
+_FLOOR_EXTERNAL = Path(r"F:\wow-ui-textures\FrameGeneral\UIFrameNecrolordBackground.PNG")
+# Soft floor: subtle darken vs first Necrolord preview (0.22/90 → slight nudge).
+_FLOOR_TILE_OPACITY = 0.19
+_FLOOR_WASH = QColor(24, 20, 18, 105)
 
 # BottomBar mist FX — one row, bottom-left, tiled horizontally only.
 _MIST_BASE = QColor("#100d0c")
 _MIST_NAME = "6TJ_Polluted_mist_Stormy.PNG"
 _MIST_EXTERNAL = Path(r"F:\wow-ui-textures\GLUES\Models\UI_Orc\6TJ_Polluted_mist_Stormy.PNG")
 _MIST_WASH = QColor(16, 13, 12, 110)
+
+# Custom arrow cursor (WoW Point) — tip is top-left pixel of the 32×32 PNG.
+_CURSOR_POINT_NAME = "cursor_point.png"
+_CURSOR_POINT_EXTERNAL = Path(r"F:\wow-ui-textures\CURSOR\Point.PNG")
+_CURSOR_POINT_HOTSPOT = (0, 0)
 
 from ichalaunch import __version__
 from ichalaunch.core.paths import theme_file
@@ -88,6 +97,15 @@ def _load_theme_texture(bundled_name: str, external: Path) -> QPixmap:
         return QPixmap()
     pm = QPixmap(str(path))
     return pm if not pm.isNull() else QPixmap()
+
+
+def _load_point_cursor() -> QCursor | None:
+    """Bundled theme PNG with absolute WoW-texture fallback; hotspot at arrow tip."""
+    pm = _load_theme_texture(_CURSOR_POINT_NAME, _CURSOR_POINT_EXTERNAL)
+    if pm.isNull():
+        return None
+    hx, hy = _CURSOR_POINT_HOTSPOT
+    return QCursor(pm, hx, hy)
 
 
 from ichalaunch.addons.github import (
@@ -133,6 +151,7 @@ from ichalaunch.ui.pages.home import HomePage
 from ichalaunch.ui.pages.settings import SettingsPage
 from ichalaunch.ui.widgets.loading_bar import ThemeLoadingBar
 from ichalaunch.ui.widgets.chrome_buttons import ChromeGlyphButton
+from ichalaunch.ui.widgets.cursors import apply_open_hand
 from ichalaunch.ui.widgets.launch_button import LaunchButton
 
 
@@ -211,7 +230,7 @@ class RavenCraftFloatingLogo(QWidget):
 
 
 class ContentPanel(QWidget):
-    """Folder body — opaque RavenCraft base + tiled BloodElf floor + wash."""
+    """Folder body — opaque RavenCraft base + tiled Necrolord frame BG + wash."""
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
@@ -388,6 +407,9 @@ class MainWindow(QMainWindow):
         self._resize_origin: QPoint | None = None
         self._resize_geo: QRect | None = None
         self._pending_ok_handler = None
+        # Queued addon install/update/reinstall jobs: (title, worker, on_ok, dedupe_key)
+        self._addon_queue: list[tuple[str, Worker, object, str]] = []
+        self._busy_status_base = ""
         self._current_nav = -1
         self._fitted = False
         self._startup_checks_scheduled = False
@@ -395,10 +417,16 @@ class MainWindow(QMainWindow):
         self.setMouseTracking(True)
         self._fit_to_screen(initial=True)
 
+        self._point_cursor = _load_point_cursor()
+        if self._point_cursor is not None:
+            self.setCursor(self._point_cursor)
+
         root = QWidget()
         root.setObjectName("Root")
         root.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         root.setMouseTracking(True)
+        if self._point_cursor is not None:
+            root.setCursor(self._point_cursor)
         self.setCentralWidget(root)
         app = QApplication.instance()
         if app is not None:
@@ -423,7 +451,7 @@ class MainWindow(QMainWindow):
             btn = NavTabButton(label)
             btn.setObjectName("TopNavButton")
             btn.setCheckable(True)
-            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            apply_open_hand(btn)
             btn.clicked.connect(lambda checked=False, idx=i: self._nav(idx))
             nav_l.addWidget(btn, 0, Qt.AlignmentFlag.AlignBottom)
             self.nav_btns.append(btn)
@@ -434,7 +462,8 @@ class MainWindow(QMainWindow):
         self._content_panel = content
         content.installEventFilter(self)
         content_l = QVBoxLayout(content)
-        content_l.setContentsMargins(0, 0, 0, 0)
+        # Top inset: stack/pages clip below −/X; floor still paints full panel behind.
+        content_l.setContentsMargins(0, _CONTENT_TOP_CHROME, 0, 0)
         content_l.setSpacing(0)
 
         self.stack = QStackedWidget()
@@ -547,6 +576,7 @@ class MainWindow(QMainWindow):
         if is_installed():
             self._resync(silent=True)
         self._refresh_nav_badges()
+        self._apply_text_input_cursors()
 
         # Keep looking for updates while the app stays open (no reopen required).
         # First fire is deferred via singleShot in showEvent — timer only covers the interval.
@@ -617,8 +647,19 @@ class MainWindow(QMainWindow):
             self.setCursor(Qt.CursorShape.SizeHorCursor)
         elif top or bottom:
             self.setCursor(Qt.CursorShape.SizeVerCursor)
+        elif self._point_cursor is not None:
+            self.setCursor(self._point_cursor)
         else:
             self.unsetCursor()
+
+    def _apply_text_input_cursors(self) -> None:
+        """Keep I-beam on editable fields; Point inherits elsewhere from MainWindow/Root."""
+        for w in self.findChildren(QLineEdit):
+            w.setCursor(Qt.CursorShape.IBeamCursor)
+        for w in self.findChildren(QTextEdit):
+            w.setCursor(Qt.CursorShape.IBeamCursor)
+        for w in self.findChildren(QPlainTextEdit):
+            w.setCursor(Qt.CursorShape.IBeamCursor)
 
     def _position_chrome_buttons(self) -> None:
         """Pin minimize/close to ContentPanel top-right, inside the purple stroke."""
@@ -949,18 +990,31 @@ class MainWindow(QMainWindow):
     def _worker_busy(self) -> bool:
         return bool(self._worker and self._worker.isRunning())
 
+    def _format_busy_status(self, msg: str) -> str:
+        """Append ``· N in queue`` when addon jobs are waiting."""
+        base = (msg or "").strip() or "Working…"
+        n = len(self._addon_queue)
+        if n > 0:
+            return f"{base} · {n} in queue"
+        return base
+
+    def _set_busy_status(self, msg: str) -> None:
+        self._busy_status_base = (msg or "").strip()
+        self.status_lbl.setText(self._format_busy_status(self._busy_status_base or "Working…"))
+
     def _set_busy_ui(self, busy: bool, msg: str = "") -> None:
         self.play_btn.setEnabled(not busy)
         if busy:
             self.progress.show()
             self.progress.setRange(0, 0)  # indeterminate until bytes known
             self.progress.setFormat("")
-            self.status_lbl.setText(msg or "Working…")
+            self._set_busy_status(msg or "Working…")
         else:
             self.progress.hide()
             self.progress.setRange(0, 100)
             self.progress.setValue(0)
             self.progress.setFormat("%p%")
+            self._busy_status_base = ""
             self.status_lbl.setText(msg or "Ready")
 
     def _on_progress_pct(self, pct: int) -> None:
@@ -1072,12 +1126,41 @@ class MainWindow(QMainWindow):
                 f"Detected {len(result['addons'])} addon folder(s) and synced client mod checkboxes.",
             )
 
-    def _busy(self, title: str, worker: Worker, on_ok=None) -> None:
+    def _busy(
+        self,
+        title: str,
+        worker: Worker,
+        on_ok=None,
+        *,
+        queueable: bool = False,
+        queue_key: str = "",
+    ) -> None:
+        """Run a background job; optionally queue addon jobs when one is already running."""
         if self._worker and self._worker.isRunning():
+            if queueable:
+                self._enqueue_addon_job(title, worker, on_ok, queue_key)
+                return
             themed.info(self, "Busy", "Another task is already running.")
             return
+        self._start_busy_job(title, worker, on_ok)
+
+    def _enqueue_addon_job(
+        self,
+        title: str,
+        worker: Worker,
+        on_ok,
+        queue_key: str = "",
+    ) -> None:
+        key = (queue_key or title).strip().lower()
+        if key and any(item[3] == key for item in self._addon_queue):
+            self._set_busy_status(self._busy_status_base or title)
+            return
+        self._addon_queue.append((title, worker, on_ok, key))
+        self._set_busy_status(self._busy_status_base or title)
+
+    def _start_busy_job(self, title: str, worker: Worker, on_ok=None) -> None:
         self._set_busy_ui(True, title)
-        worker.status.connect(lambda m: self.status_lbl.setText(m))
+        worker.status.connect(lambda m: self._set_busy_status(m))
         worker.progress_pct.connect(self._on_progress_pct)
         worker.finished_ok.connect(self._on_worker_ok)
         worker.failed.connect(self._on_worker_fail)
@@ -1085,18 +1168,35 @@ class MainWindow(QMainWindow):
         self._pending_ok_handler = on_ok
         worker.start()
 
+    def _pump_addon_queue(self) -> bool:
+        """Start the next queued addon job. Returns True if a job was started."""
+        if self._worker and self._worker.isRunning():
+            return True
+        if not self._addon_queue:
+            return False
+        title, worker, on_ok, _key = self._addon_queue.pop(0)
+        self._start_busy_job(title, worker, on_ok)
+        return True
+
     def _on_worker_ok(self, result) -> None:
-        self._set_busy_ui(False, "Ready")
         handler = self._pending_ok_handler
         self._pending_ok_handler = None
         restarting = False
+        status_after = "Ready"
         if handler:
             try:
                 restarting = bool(handler(result))
+                status_after = (self.status_lbl.text() or "").strip() or "Ready"
+                # Strip any stale queue suffix left over from busy formatting.
+                if " · " in status_after and status_after.endswith("in queue"):
+                    status_after = status_after.rsplit(" · ", 1)[0].strip() or "Ready"
             except Exception as exc:  # noqa: BLE001
                 log.exception("Post-worker handler failed")
                 themed.error(self, "Error", str(exc))
                 self.status_lbl.setText(f"Failed: {str(exc)[:80]}")
+                if self._pump_addon_queue():
+                    return
+                self._set_busy_ui(False, f"Failed: {str(exc)[:80]}")
                 return
         # Self-update calls quit() — do not touch widgets afterward (causes crashes).
         app = QApplication.instance()
@@ -1109,11 +1209,15 @@ class MainWindow(QMainWindow):
         self.settings_page.refresh()
         self._refresh_play_button()
         self._refresh_nav_badges()
+        if self._pump_addon_queue():
+            return
+        self._set_busy_ui(False, status_after)
 
     def _on_worker_fail(self, msg: str) -> None:
-        self._set_busy_ui(False, "Failed")
         themed.error(self, "Error", msg)
-        self.status_lbl.setText(f"Failed: {msg[:80]}")
+        if self._pump_addon_queue():
+            return
+        self._set_busy_ui(False, f"Failed: {msg[:80]}")
 
     def _on_play_or_install(self) -> None:
         if self._launcher_update_pending():
@@ -1286,26 +1390,34 @@ class MainWindow(QMainWindow):
         if not is_installed():
             themed.warning(self, "No game", "Set a valid game path first.")
             return
+
+        def on_ok(result):
+            lines = result if isinstance(result, list) else []
+            detail = "; ".join(lines[:4]) if lines else "no changes"
+            more = f" (+{len(lines) - 4} more)" if len(lines) > 4 else ""
+            self.status_lbl.setText(f"Client mods applied: {detail}{more}")
+
         worker = Worker(apply_desired_state)
-        self._busy(
-            "Applying client mods…",
-            worker,
-            on_ok=lambda result: themed.info(
-                self, "Client updated", "Changes applied:\n" + ("\n".join(result) if result else "(none)")
-            ),
-        )
+        self._busy("Applying client mods…", worker, on_ok=on_ok)
 
     def _install_catalog_addon(self, entry: dict) -> None:
         if not is_installed():
             themed.warning(self, "No game", "Set a valid game path first.")
             return
         url = entry.get("repo")
-        folder = entry.get("folder")
+        folder = entry.get("folder") or entry.get("name") or ""
+        name = entry.get("name") or folder or "addon"
         worker = Worker(install_from_github, url, folder)
+
+        def on_ok(result_name):
+            self.status_lbl.setText(f"Installed {result_name or name}")
+
         self._busy(
-            f"Installing {entry.get('name')}…",
+            f"Installing {name}…",
             worker,
-            on_ok=lambda name: themed.info(self, "Installed", f"Installed: {name}"),
+            on_ok=on_ok,
+            queueable=True,
+            queue_key=f"install:{folder or url}",
         )
 
     def _github_import(self, url: str) -> None:
@@ -1313,12 +1425,16 @@ class MainWindow(QMainWindow):
             themed.warning(self, "No game", "Set a valid game path first.")
             return
         worker = Worker(install_from_github, url)
+
+        def on_ok(result_name):
+            self.status_lbl.setText(f"Installed from GitHub: {result_name}")
+
         self._busy(
             "Importing from GitHub…",
             worker,
-            on_ok=lambda name: themed.info(
-                self, "Installed from GitHub", f"Installed from GitHub: {name}"
-            ),
+            on_ok=on_ok,
+            queueable=True,
+            queue_key=f"github:{url.strip().lower()}",
         )
 
     def _custom_dll_import(self, url: str) -> None:
@@ -1329,16 +1445,17 @@ class MainWindow(QMainWindow):
         def on_ok(mod):
             if isinstance(mod, dict):
                 self.client.ensure_mod_row(mod)
-                name = mod.get("name") or mod.get("id") or "DLL"
-                dlls = (mod.get("dlls_txt") or {}).get("add") or []
-                extra = f"\nRegistered in dlls.txt: {', '.join(dlls)}" if dlls else ""
-                themed.info(
-                    self,
-                    "Custom DLL installed",
-                    f"Installed {name} and saved it as a Client checkbox.{extra}",
-                )
+                mid = mod.get("id")
+                if mid:
+                    self.client.focus_mod(str(mid))
+                name = mod.get("name") or mid or "DLL"
+                if mod.get("matched_existing"):
+                    cat = mod.get("category") or "Client"
+                    self.status_lbl.setText(f"Matched catalog mod: {name} ({cat})")
+                else:
+                    self.status_lbl.setText(f"Custom DLL installed: {name}")
             else:
-                themed.info(self, "Custom DLL installed", "DLL installed from GitHub.")
+                self.status_lbl.setText("Custom DLL installed")
 
         worker = Worker(install_custom_dll_from_github, url)
         self._busy("Installing custom DLL from GitHub…", worker, on_ok=on_ok)
@@ -1353,7 +1470,13 @@ class MainWindow(QMainWindow):
             self.addons.clear_pending_update(folder)
             self.status_lbl.setText(f"Updated {folder}")
 
-        self._busy(f"Updating {folder}…", worker, on_ok=on_ok)
+        self._busy(
+            f"Updating {folder}…",
+            worker,
+            on_ok=on_ok,
+            queueable=True,
+            queue_key=f"update:{folder}",
+        )
 
     def _reinstall_addon(self, entry: dict) -> None:
         """Force re-download/overwrite regardless of current commit."""
@@ -1376,7 +1499,13 @@ class MainWindow(QMainWindow):
             self.status_lbl.setText(f"Reinstalled {folder}")
 
         worker = Worker(install_from_github, url, folder)
-        self._busy(f"Reinstalling {folder}…", worker, on_ok=on_ok)
+        self._busy(
+            f"Reinstalling {folder}…",
+            worker,
+            on_ok=on_ok,
+            queueable=True,
+            queue_key=f"reinstall:{folder}",
+        )
 
     def _update_all_addons(self) -> None:
         pending = self.addons.pending_updates
@@ -1423,7 +1552,13 @@ class MainWindow(QMainWindow):
                 self.status_lbl.setText(f"Updated {n_ok} addon(s)")
 
         worker = Worker(run_all)
-        self._busy(f"Updating {total} addon(s)…", worker, on_ok=on_ok)
+        self._busy(
+            f"Updating {total} addon(s)…",
+            worker,
+            on_ok=on_ok,
+            queueable=True,
+            queue_key="update-all-addons",
+        )
 
     def _remove_addon(self, folder: str) -> None:
         if not themed.question(self, "Remove addon", f"Remove {folder}?"):

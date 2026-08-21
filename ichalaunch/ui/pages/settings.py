@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
-    QCheckBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -17,7 +16,8 @@ from PySide6.QtWidgets import (
 
 from ichalaunch import __version__
 from ichalaunch.config.settings import settings
-from ichalaunch.ui.widgets.common import Card
+from ichalaunch.ui.widgets.marble_bg import MarbleCard
+from ichalaunch.ui.widgets.theme_checkbox import ThemeCheckBox
 
 
 class SettingsPage(QWidget):
@@ -51,7 +51,7 @@ class SettingsPage(QWidget):
         host = QWidget()
         host.setObjectName("SettingsHost")
         host.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        host.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        host.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
         host.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         layout = QVBoxLayout(host)
         layout.setContentsMargins(24, 24, 24, 24)
@@ -60,7 +60,7 @@ class SettingsPage(QWidget):
         title = QLabel("Settings")
         title.setObjectName("SectionTitle")
 
-        game_card = Card()
+        game_card = MarbleCard()
         game_card.body.setSpacing(10)
         game_title = QLabel("Game location")
         game_title.setObjectName("CardTitle")
@@ -83,7 +83,7 @@ class SettingsPage(QWidget):
         note.setWordWrap(True)
         game_card.body.addWidget(note)
 
-        addons_card = Card()
+        addons_card = MarbleCard()
         addons_card.body.setSpacing(10)
         addons_title = QLabel("AddOns folder")
         addons_title.setObjectName("CardTitle")
@@ -110,30 +110,31 @@ class SettingsPage(QWidget):
         addons_note.setWordWrap(True)
         addons_card.body.addWidget(addons_note)
 
-        launch_card = Card()
+        launch_card = MarbleCard()
         launch_card.body.setSpacing(10)
         launch_title = QLabel("Launch")
         launch_title.setObjectName("CardTitle")
         launch_card.body.addWidget(launch_title)
-        self.cb_vf = QCheckBox("Launch through VanillaFixes.exe when available")
+        self.cb_vf = ThemeCheckBox("Launch through VanillaFixes.exe when available")
         self.cb_vf.setChecked(bool(settings.get("vanillafixes_enabled", True)))
         self.cb_vf.toggled.connect(lambda v: settings.set("vanillafixes_enabled", v))
-        self.cb_min = QCheckBox("Minimize launcher when game starts")
+        self.cb_min = ThemeCheckBox("Minimize launcher when game starts")
         self.cb_min.setChecked(bool(settings.get("minimize_on_launch", False)))
         self.cb_min.toggled.connect(lambda v: settings.set("minimize_on_launch", v))
-        self.cb_close = QCheckBox("Close launcher when game starts")
+        self.cb_close = ThemeCheckBox("Close launcher when game starts")
         self.cb_close.setChecked(bool(settings.get("close_on_launch", False)))
         self.cb_close.toggled.connect(lambda v: settings.set("close_on_launch", v))
         for cb in (self.cb_vf, self.cb_min, self.cb_close):
             cb.setMinimumHeight(28)
+            cb.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             launch_card.body.addWidget(cb)
 
-        upd_card = Card()
+        upd_card = MarbleCard()
         upd_card.body.setSpacing(10)
         upd_title = QLabel("Updates")
         upd_title.setObjectName("CardTitle")
         upd_card.body.addWidget(upd_title)
-        self.cb_auto_updates = QCheckBox("Automatically Check For Updates On Startup")
+        self.cb_auto_updates = ThemeCheckBox("Automatically Check For Updates On Startup")
         self.cb_auto_updates.setChecked(settings.check_updates_on_startup())
         self.cb_auto_updates.setToolTip(
             "When enabled, quietly checks launcher, addon, and client mod updates "
@@ -142,9 +143,12 @@ class SettingsPage(QWidget):
         )
         self.cb_auto_updates.toggled.connect(settings.set_check_updates_on_startup)
         self.cb_auto_updates.setMinimumHeight(28)
+        self.cb_auto_updates.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         upd_card.body.addWidget(self.cb_auto_updates)
 
-        gh_card = Card()
+        gh_card = MarbleCard()
         gh_card.body.setSpacing(10)
         gh_title = QLabel("GitHub API")
         gh_title.setObjectName("CardTitle")
@@ -184,7 +188,7 @@ class SettingsPage(QWidget):
         token_note.setWordWrap(True)
         gh_card.body.addWidget(token_note)
 
-        about = Card()
+        about = MarbleCard()
         about.body.setSpacing(10)
         about_title = QLabel(f"IchaLaunch {__version__}")
         about_title.setObjectName("CardTitle")
