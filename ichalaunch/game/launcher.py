@@ -2,21 +2,34 @@
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
+from typing import Any
 
 from ichalaunch.config.settings import settings
+from ichalaunch.core.filesystem import is_protected_path
 from ichalaunch.core.logging_setup import log
 from ichalaunch.core.process import launch_exe
-from ichalaunch.core.filesystem import is_protected_path
 
-# Placeholder until Ravencraft publishes official client mirrors.
-# Users can also point at an existing Turtle/Capybara client.
-GAME_DOWNLOAD_URL = ""  # filled later when host is available
+# Primary: Gofile folder page (CDN links expire — resolve at install time).
+# File metadata from the Gofile Properties dialog (do not bake signed CDN URLs).
+GAME_DOWNLOAD_URL = "https://gofile.io/d/zrTbjjv1"
+GOFILE_FILE_ID = "179cd45c-2ab4-4301-9f98-dcedbff07d07"
+GOFILE_FILE_NAME = "twmoa_1181.zip"
+GOFILE_STORE = "store-na-phx-4"
+GOFILE_EXPECTED_SIZE = 9_829_040_584
+GOFILE_MD5 = "b65fb26b56d09e3d45cb72b130a79080"
+# Last-resort only — much slower than Gofile when Gofile works.
+VIKINGFILE_ZIP_URL = "https://vikingfile.com/d/tnQwCPOJDA/twmoa_1181.zip"
+CLIENT_ZIP_MIRRORS: tuple[str, ...] = (
+    GAME_DOWNLOAD_URL,
+    VIKINGFILE_ZIP_URL,
+)
 GAME_DOWNLOAD_NOTE = (
-    "Official Ravencraft client download is not published yet. "
-    "Point IchaLaunch at an existing 1.18 client folder "
-    "(Turtle / Capybara / Ravencraft), or place WoW.exe in the chosen folder."
+    "INSTALL opens Gofile in your browser. Click Download for twmoa_1181.zip "
+    "(a VPN may be required); the launcher watches Downloads, then extracts "
+    "into the folder you choose. That folder becomes the game home and AddOns path."
 )
 
 
@@ -138,18 +151,75 @@ def launch_game() -> None:
     launch_exe(exe, cwd=game)
 
 
-def install_game_stub(dest: Path) -> str:
+def gofile_content_id(url: str) -> str | None:
+    """Return the Gofile share code from a /d/ URL, else None."""
+    m = re.search(r"gofile\.io/d/([^/?#]+)", url or "", re.I)
+    return m.group(1).strip() if m else None
+
+
+def gofile_file_link_from_payload(data: dict[str, Any]) -> tuple[str, str]:
+    """Pick the best downloadable file from a Gofile contents ``data`` object.
+
+    Prefers zip archives, then the largest file. Uses ``directLink`` when present.
     """
-    Until Ravencraft hosts a client zip, 'install' means:
-    create folder structure and instruct the user to place/copy client files,
-    or use Browse to pick an existing install.
-    """
-    dest.mkdir(parents=True, exist_ok=True)
-    ok, msg = validate_install_location(dest)
-    if not ok:
-        raise ValueError(msg)
-    settings.game_path = str(dest)
-    marker = dest / ".ichalaunch" / "install_pending.txt"
-    marker.parent.mkdir(parents=True, exist_ok=True)
-    marker.write_text(GAME_DOWNLOAD_NOTE + "\n", encoding="utf-8")
-    return GAME_DOWNLOAD_NOTE
+    files: list[dict[str, Any]] = []
+    if not isinstance(data, dict):
+        raise ValueError("Gofile payload is not an object")
+    if str(data.get("type") or "") == "file":
+        files.append(data)
+    children = data.get("children") or data.get("contents") or {}
+    if isinstance(children, dict):
+        files.extend(v for v in children.values() if isinstance(v, dict))
+    elif isinstance(children, list):
+        files.extend(v for v in children if isinstance(v, dict))
+    files = [f for f in files if str(f.get("type") or "file") == "file"]
+    if not files:
+        raise FileNotFoundError("Gofile folder has no files")
+
+    def _rank(item: dict[str, Any]) -> tuple[int, int]:
+        name = str(item.get("name") or "").lower()
+        is_zip = 1 if name.endswith(".zip") else 0
+        size = int(item.get("size") or 0)
+        return (is_zip, size)
+
+    best = max(files, key=_rank)
+    url = str(best.get("directLink") or best.get("link") or best.get("direct_link") or "").strip()
+    name = str(best.get("name") or "client.zip").strip() or "client.zip"
+    if not url:
+        raise FileNotFoundError("Gofile file has no download link")
+    return url, name
+
+
+def find_wow_exe_dir(root: Path) -> Path | None:
+    """Directory that actually contains WoW.exe under ``root`` (itself, one wrapper, or nested)."""
+    try:
+        base = root.resolve()
+    except OSError:
+        base = root
+    if not base.exists():
+        return None
+    if (base / "WoW.exe").is_file():
+        return base
+    try:
+        children = [c for c in base.iterdir() if c.name not in (".ichalaunch",)]
+    except OSError:
+        return None
+    dirs = [c for c in children if c.is_dir()]
+    if len(dirs) == 1 and (dirs[0] / "WoW.exe").is_file():
+        return dirs[0]
+    try:
+        for wow in base.rglob("WoW.exe"):
+            if wow.is_file():
+                return wow.parent
+    except OSError:
+        return None
+    return None
+
+
+def commit_game_home(game_dir: Path) -> Path:
+    """Persist ``game_path`` to the folder that contains WoW.exe and ensure AddOns exists."""
+    game = Path(game_dir)
+    settings.game_path = str(game)
+    ensure_addons_dir()
+    log.info("Game home set to %s (AddOns %s)", game, settings.resolved_addons_path())
+    return game

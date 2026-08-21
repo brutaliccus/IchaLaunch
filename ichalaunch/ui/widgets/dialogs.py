@@ -25,6 +25,7 @@ class DialogResult(Enum):
     No = auto()
     Ok = auto()
     Cancel = auto()
+    Browse = auto()
 
 
 class ThemedDialog(QDialog):
@@ -74,13 +75,15 @@ class ThemedDialog(QDialog):
 
         if buttons is None:
             buttons = [("OK", DialogResult.Ok)]
+        if len(buttons) >= 3:
+            self.setMinimumWidth(460)
 
         row = QHBoxLayout()
         row.setSpacing(10)
         row.addStretch(1)
         for label, result in buttons:
             btn = QPushButton(label)
-            if result in (DialogResult.Yes, DialogResult.Ok):
+            if result in (DialogResult.Yes, DialogResult.Ok, DialogResult.Browse):
                 btn.setObjectName("ThemedDialogPrimary")
             else:
                 btn.setObjectName("ThemedDialogSecondary")
@@ -111,7 +114,7 @@ class ThemedDialog(QDialog):
 
     def _finish(self, result: DialogResult) -> None:
         self._result = result
-        if result in (DialogResult.Yes, DialogResult.Ok):
+        if result in (DialogResult.Yes, DialogResult.Ok, DialogResult.Browse):
             self.accept()
         else:
             self.reject()
@@ -825,6 +828,18 @@ def question(parent: QWidget | None, title: str, text: str) -> bool:
         buttons=[("No", DialogResult.No), ("Yes", DialogResult.Yes)],
     )
     return result == DialogResult.Yes
+
+
+def choice(
+    parent: QWidget | None,
+    title: str,
+    text: str,
+    buttons: list[tuple[str, DialogResult]],
+    *,
+    kind: str = "question",
+) -> DialogResult:
+    """Blocking multi-button prompt. Returns the clicked ``DialogResult``."""
+    return _run(parent, title, text, kind=kind, buttons=buttons)
 
 
 def prompt_text(

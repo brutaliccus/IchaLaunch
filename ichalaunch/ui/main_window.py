@@ -158,16 +158,25 @@ from ichalaunch.config.settings import settings
 from ichalaunch.core.detect import full_resync
 from ichalaunch.core.filesystem import is_protected_path
 from ichalaunch.core.logging_setup import log
-from ichalaunch.core.process import StatusProgress
+from ichalaunch.core.process import StatusProgress, status_only
 from ichalaunch.core.self_update import (
     LauncherReleaseInfo,
     apply_windows_self_replace,
     check_latest_launcher_release,
     perform_launcher_update,
 )
+from ichalaunch.game.client_install import (
+    apply_bundled_realmlist,
+    client_watch_dirs,
+    install_client,
+    settle_ravencraft_home,
+    should_settle_existing,
+    wow_exe_here,
+)
 from ichalaunch.game.launcher import (
+    GAME_DOWNLOAD_URL,
+    GOFILE_FILE_NAME,
     ensure_game_path_from_launcher,
-    install_game_stub,
     is_installed,
     launch_game,
     validate_install_location,
@@ -217,9 +226,12 @@ class NavTabButton(QPushButton):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
         # Match QSS tab radii — rounded top, flush bottom onto the purple shelf.
+        # Extend 1px past the widget so antialiasing does not fringe the last
+        # row (a hairline leak on the translucent frameless window).
         tab = QPainterPath()
         tab.setFillRule(Qt.FillRule.WindingFill)
         rect = QRectF(self.rect())
+        rect.setBottom(rect.bottom() + 1.0)
         r = 9.0
         tab.moveTo(rect.left(), rect.bottom())
         tab.lineTo(rect.left(), rect.top() + r)
@@ -779,19 +791,30 @@ class ContentPanel(QWidget):
         self._frame_host = host
 
     def paintEvent(self, event) -> None:  # noqa: N802
-        # Opaque card: fill from just below the purple shelf (y=1) to the banner
-        # join. The Mechagon rail is painted on top of this fill — no holes around it.
+        # Opaque card including the purple shelf pixel (y=0). Fill sits *behind*
+        # the stroke overlay — clipping it to y=1 left a translucent hairline
+        # between the tabs and the body. Rail still paints at y=1 on top.
         if self.width() <= 0 or self.height() <= 0:
             return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
         inset = 1
-        inner = self.rect().adjusted(inset, inset, -inset, 0)
-        painter.setClipPath(
-            _interior_fill_clip(
-                self, inner, self._frame_host, pad_top=0.0, pad_bottom=0.0
-            )
+        inner = self.rect().adjusted(inset, 0, -inset, 0)
+        clip = _interior_fill_clip(
+            self, inner, self._frame_host, pad_top=0.0, pad_bottom=0.0
         )
+        # Folder path top is the 0.5px stroke center, so intersection drops
+        # pixel 0. Unite that row (L/R still inset) to keep the shelf opaque.
+        shelf = QPainterPath()
+        shelf_rect = QRectF(inner)
+        shelf_rect.setHeight(1.0)
+        shelf_rect.adjust(0.5, 0.0, -0.5, 0.0)
+        if shelf_rect.width() > 0.0:
+            shelf.addRect(shelf_rect)
+            shelf.setFillRule(Qt.FillRule.WindingFill)
+            clip = clip.united(shelf)
+            clip.setFillRule(Qt.FillRule.WindingFill)
+        painter.setClipPath(clip)
         _paint_floor_fill(painter, inner, self._floor, tile_origin=inner.topLeft())
 
 
@@ -1174,6 +1197,7 @@ class MainWindow(QMainWindow):
         self.settings_page.browse_clicked.connect(self._browse_game)
         self.settings_page.browse_addons_clicked.connect(self._browse_addons)
         self.settings_page.reset_addons_clicked.connect(self._reset_addons_path)
+        self.settings_page.reset_client_link_clicked.connect(self._reset_client_link)
         self.settings_page.verify_clicked.connect(self._verify_game)
 
         self._refresh_play_button()
@@ -1783,8 +1807,9 @@ class MainWindow(QMainWindow):
         if self.progress.isHidden():
             return
         if pct < 0:
-            self.progress.setRange(0, 0)
-            self.progress.setFormat("")
+            if self.progress.maximum() != 0:
+                self.progress.setRange(0, 0)
+                self.progress.setFormat("")
             return
         if self.progress.maximum() == 0:
             self.progress.setRange(0, 100)
@@ -1957,13 +1982,18 @@ class MainWindow(QMainWindow):
         self._pending_ok_handler = None
         restarting = False
         status_after = "Ready"
+        busy_text = (self.status_lbl.text() or "").strip()
         if handler:
             try:
+                # True is reserved for launcher self-update quit (skip widget teardown).
                 restarting = bool(handler(result))
-                status_after = (self.status_lbl.text() or "").strip() or "Ready"
-                # Strip any stale queue suffix left over from busy formatting.
-                if " · " in status_after and status_after.endswith("in queue"):
-                    status_after = status_after.rsplit(" · ", 1)[0].strip() or "Ready"
+                after = (self.status_lbl.text() or "").strip()
+                # Keep a handler-set completion line; do not persist busy ticks
+                # such as "Writing realmlist.wtf…".
+                if after and after != busy_text:
+                    status_after = after
+                    if " · " in status_after and status_after.endswith("in queue"):
+                        status_after = status_after.rsplit(" · ", 1)[0].strip() or "Ready"
             except Exception as exc:  # noqa: BLE001
                 log.exception("Post-worker handler failed")
                 themed.error(self, "Error", str(exc))
@@ -2089,7 +2119,11 @@ class MainWindow(QMainWindow):
             themed.error(self, "Launch failed", str(exc))
 
     def _install_or_browse(self) -> None:
-        path = QFileDialog.getExistingDirectory(self, "Choose Ravencraft install folder", "C:/Games")
+        path = QFileDialog.getExistingDirectory(
+            self,
+            "Choose parent folder (RavenCraft is created inside)",
+            "C:/Games",
+        )
         if not path:
             return
         p = Path(path)
@@ -2097,22 +2131,127 @@ class MainWindow(QMainWindow):
         if not ok:
             themed.warning(self, "Protected location", msg)
             return
-        if (p / "WoW.exe").exists():
-            settings.game_path = str(p)
+        # Cheap WoW.exe check only — never rglob the picked tree on the GUI thread.
+        existing = wow_exe_here(p)
+        if existing is not None:
+            if should_settle_existing(p, existing):
+                existing = settle_ravencraft_home(p, existing)
+            settings.game_path = str(existing)
+            apply_bundled_realmlist(existing)
             self._resync(silent=True)
-            themed.info(self, "Ready", f"Using existing client:\n{p}")
+            themed.info(self, "Ready", f"Using existing client:\n{existing}")
             self.home.refresh()
+            self.settings_page.refresh()
             self._refresh_play_button()
             return
-        note = install_game_stub(p)
-        themed.info(
+
+        # Zip discovery / magic / size / extract run in Worker after this dialog.
+        self.status_lbl.setText("Preparing…")
+        app = QApplication.instance()
+        if app is not None:
+            app.processEvents()
+        choice = themed.choice(
             self,
-            "Install folder ready",
-            f"{note}\n\nSelected folder:\n{p}\n\n"
-            "After copying client files (or browsing to an existing install), press PLAY.",
+            "Install client",
+            f"Your browser will open Gofile so you can download {GOFILE_FILE_NAME}.\n\n"
+            "Click Download on that page (a VPN may be required). "
+            "Leave this launcher open — it watches your Downloads folder and "
+            "extracts into a RavenCraft folder inside the location you chose.\n\n"
+            "If you already have the zip, choose Browse…",
+            buttons=[
+                ("Open Gofile", themed.DialogResult.Yes),
+                ("Browse…", themed.DialogResult.Browse),
+                ("Cancel", themed.DialogResult.Cancel),
+            ],
         )
-        self.home.refresh()
-        self._refresh_play_button()
+        if choice == themed.DialogResult.Cancel:
+            self.status_lbl.setText("Ready")
+            return
+        if choice == themed.DialogResult.Browse:
+            zipped = self._pick_client_zip()
+            if zipped is None:
+                self.status_lbl.setText("Ready")
+                return
+            self._begin_client_install(p, zip_path=zipped)
+            return
+
+        from ichalaunch.ui.widgets.common import open_url_in_browser
+
+        open_url_in_browser(GAME_DOWNLOAD_URL)
+        self._begin_client_install(p)
+
+    def _pick_client_zip(self) -> Path | None:
+        start = str(Path.home() / "Downloads")
+        dirs = client_watch_dirs()
+        if dirs:
+            start = str(dirs[0])
+        path, _filt = QFileDialog.getOpenFileName(
+            self,
+            f"Select {GOFILE_FILE_NAME}",
+            start,
+            "Zip archives (*.zip)",
+        )
+        if not path:
+            return None
+        return Path(path)
+
+    def _begin_client_install(self, dest: Path, **kwargs) -> None:
+        def on_ok(game_root):
+            if not game_root:
+                QTimer.singleShot(0, lambda d=dest: self._install_zip_fallback(d))
+                return False
+            root = Path(str(game_root or dest))
+            self._resync(silent=True)
+            self.home.refresh()
+            self.settings_page.refresh()
+            self._refresh_play_button()
+            self.status_lbl.setText("Ready")
+            # Defer the modal so _on_worker_ok can hide the busy bar first.
+            # Must not return True — that skips _set_busy_ui(False) (self-update quit).
+            QTimer.singleShot(
+                0,
+                lambda r=root: themed.info(
+                    self,
+                    "Install complete",
+                    f"Client ready at:\n{r}\n\nAddOns:\n{settings.resolved_addons_path()}",
+                ),
+            )
+            return False
+
+        if kwargs.get("zip_path"):
+            title = "Extracting…"
+        elif kwargs.get("auto_download"):
+            title = "Downloading client…"
+        else:
+            title = "Waiting for download…"
+        worker = Worker(install_client, dest, **kwargs)
+        self._busy(title, worker, on_ok=on_ok)
+
+    def _install_zip_fallback(self, dest: Path) -> None:
+        while True:
+            choice = themed.choice(
+                self,
+                "Download not found",
+                f"Could not find {GOFILE_FILE_NAME} in Downloads after waiting.\n\n"
+                "Browse to a zip you already have, try auto-download "
+                "(Gofile API / Vikingfile — often slow), or cancel.",
+                buttons=[
+                    ("Browse…", themed.DialogResult.Browse),
+                    ("Auto-download", themed.DialogResult.Ok),
+                    ("Cancel", themed.DialogResult.Cancel),
+                ],
+            )
+            if choice == themed.DialogResult.Cancel:
+                self.status_lbl.setText("Install cancelled")
+                return
+            if choice == themed.DialogResult.Ok:
+                self._begin_client_install(dest, auto_download=True)
+                return
+            zipped = self._pick_client_zip()
+            if zipped is None:
+                continue
+            self._begin_client_install(dest, zip_path=zipped)
+            return
 
     def _browse_game(self) -> None:
         path = QFileDialog.getExistingDirectory(self, "Select game folder (contains WoW.exe)")
@@ -2153,6 +2292,27 @@ class MainWindow(QMainWindow):
             themed.info(self, "Reset", f"AddOns path reset to:\n{path}")
         else:
             themed.warning(self, "Reset", "Set a game path first to restore the default AddOns folder.")
+
+    def _reset_client_link(self) -> None:
+        if not str(settings.game_path or "").strip():
+            themed.info(
+                self,
+                "Reset Client Link",
+                "No WoW folder is linked. Use INSTALL or Browse to pick a location.",
+            )
+            return
+        if not themed.question(
+            self,
+            "Reset Client Link",
+            "Clear the saved WoW folder from launcher settings?\n\n"
+            "PLAY will become INSTALL so you can choose a new install location. "
+            "This does not delete any files on disk.",
+        ):
+            return
+        settings.clear_client_link()
+        self.settings_page.refresh()
+        self.home.refresh()
+        self._refresh_play_button()
 
     def _verify_game(self) -> None:
         if is_installed():
@@ -2316,8 +2476,7 @@ class MainWindow(QMainWindow):
             ok: list[str] = []
             failed: list[tuple[str, str]] = []
             for i, folder in enumerate(folders, start=1):
-                if progress:
-                    progress(f"Updating {folder} ({i}/{total})…")
+                status_only(progress, f"Updating {folder} ({i}/{total})…")
                 try:
                     update_addon(folder, progress=progress)
                     ok.append(folder)

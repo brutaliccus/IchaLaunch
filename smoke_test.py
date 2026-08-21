@@ -133,7 +133,12 @@ def test_addons_path_defaults():
 
 
 def test_status_progress_bytes():
-    from ichalaunch.core.process import StatusProgress, download_bytes_cb
+    from ichalaunch.core.process import (
+        StatusProgress,
+        download_bytes_cb,
+        resolve_download_total,
+        status_only,
+    )
 
     statuses: list[str] = []
     pcts: list[int] = []
@@ -147,8 +152,27 @@ def test_status_progress_bytes():
     assert "42%" in statuses[-1]
     cb(50, 0)  # unknown total → indeterminate
     assert pcts[-1] == -1
+    p.set_status("still downloading")
+    assert statuses[-1] == "still downloading"
+    assert pcts[-1] == -1  # set_status must not change percent
+    status_only(p, "still downloading (status_only)")
+    assert statuses[-1] == "still downloading (status_only)"
+    assert pcts[-1] == -1
+    p.on_count(37, 100, "Downloading in browser… 37%")
+    assert pcts[-1] == 37
+    assert "37%" in statuses[-1]
+    status_only(p, "Extracting…")
+    assert pcts[-1] == 37  # status_only keeps determinate %
+    assert statuses[-1] == "Extracting…"
+    p.on_count(50, 100, "Downloading in browser… 50%")
+    assert pcts[-1] == 50
+    assert -1 not in pcts[-2:]  # on_count stays determinate
     assert download_bytes_cb(None) is None
     assert download_bytes_cb(lambda m: None) is None
+    assert resolve_download_total({"Content-Length": "4096"}) == 4096
+    assert resolve_download_total({}, known_total=1024) == 1024
+    assert resolve_download_total({"Content-Length": "0"}, known_total=2048) == 2048
+    assert resolve_download_total({}) == 0
     print("OK status progress bytes")
 
 
@@ -622,6 +646,348 @@ def test_vanillafixes_zip_in_memory():
         print(f"OK vanillafixes in-memory extract (disk zip readable={disk_ok})")
 
 
+def test_client_zip_mirrors_and_gofile_parse():
+    from ichalaunch.game.launcher import (
+        CLIENT_ZIP_MIRRORS,
+        GAME_DOWNLOAD_URL,
+        GOFILE_EXPECTED_SIZE,
+        GOFILE_FILE_ID,
+        GOFILE_FILE_NAME,
+        GOFILE_MD5,
+        GOFILE_STORE,
+        VIKINGFILE_ZIP_URL,
+        gofile_content_id,
+        gofile_file_link_from_payload,
+    )
+
+    assert "gofile.io/d/zrTbjjv1" in GAME_DOWNLOAD_URL
+    assert GOFILE_FILE_ID == "179cd45c-2ab4-4301-9f98-dcedbff07d07"
+    assert GOFILE_FILE_NAME == "twmoa_1181.zip"
+    assert GOFILE_STORE == "store-na-phx-4"
+    assert GOFILE_EXPECTED_SIZE == 9_829_040_584
+    assert GOFILE_MD5 == "b65fb26b56d09e3d45cb72b130a79080"
+    assert CLIENT_ZIP_MIRRORS[0] == GAME_DOWNLOAD_URL
+    assert VIKINGFILE_ZIP_URL in CLIENT_ZIP_MIRRORS
+    assert gofile_content_id(GAME_DOWNLOAD_URL) == "zrTbjjv1"
+    assert gofile_content_id("https://gofile.io/d/zrTbjjv1?foo=1") == "zrTbjjv1"
+    assert gofile_content_id("https://vikingfile.com/d/x") is None
+
+    payload = {
+        "type": "folder",
+        "children": {
+            "aaa": {
+                "type": "file",
+                "name": "readme.txt",
+                "size": 12,
+                "link": "https://store-1.gofile.io/download/web/aaa/readme.txt",
+            },
+            "bbb": {
+                "type": "file",
+                "name": "twmoa_1181.zip",
+                "size": 100,
+                "link": "https://store-9.gofile.io/download/web/bbb/twmoa_1181.zip",
+                "directLink": "https://store-9.gofile.io/download/direct/bbb/twmoa_1181.zip",
+            },
+        },
+    }
+    url, name = gofile_file_link_from_payload(payload)
+    assert name == "twmoa_1181.zip"
+    assert url.endswith("twmoa_1181.zip")
+    assert "direct" in url
+    print("OK client zip mirrors / gofile parse")
+
+
+def test_find_wow_exe_dir_and_extract():
+    import zipfile
+
+    from ichalaunch.core.filesystem import extract_zip
+    from ichalaunch.game.client_install import wow_exe_here
+    from ichalaunch.game.launcher import commit_game_home, find_wow_exe_dir
+
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        assert find_wow_exe_dir(root) is None
+        (root / "WoW.exe").write_bytes(b"MZ")
+        assert find_wow_exe_dir(root).resolve() == root.resolve()
+        assert wow_exe_here(root).resolve() == root.resolve()
+
+    with tempfile.TemporaryDirectory() as td:
+        picked = Path(td)
+        home = picked / "RavenCraft"
+        home.mkdir()
+        (home / "WoW.exe").write_bytes(b"MZ")
+        assert wow_exe_here(picked).resolve() == home.resolve()
+
+    with tempfile.TemporaryDirectory() as td:
+        picked = Path(td)
+        nested = picked / "other" / "deep"
+        nested.mkdir(parents=True)
+        (nested / "WoW.exe").write_bytes(b"MZ")
+        assert wow_exe_here(picked) is None
+        assert find_wow_exe_dir(picked).resolve() == nested.resolve()
+
+    with tempfile.TemporaryDirectory() as td:
+        inner = Path(td) / "twmoa_1181"
+        inner.mkdir()
+        (inner / "WoW.exe").write_bytes(b"MZ")
+        found = find_wow_exe_dir(Path(td))
+        assert found is not None
+        assert found.resolve() == inner.resolve()
+
+    with tempfile.TemporaryDirectory() as td:
+        dest = Path(td) / "home"
+        dest.mkdir()
+        zpath = Path(td) / "client.zip"
+        with zipfile.ZipFile(zpath, "w") as zf:
+            zf.writestr("twmoa_1181/WoW.exe", b"MZ")
+            zf.writestr("twmoa_1181/Data/dummy.mpq", b"x")
+        extracted = extract_zip(zpath, dest)
+        wow_dir = find_wow_exe_dir(extracted) or find_wow_exe_dir(dest)
+        assert wow_dir is not None
+        assert (wow_dir / "WoW.exe").is_file()
+        assert wow_dir.name == "twmoa_1181"
+
+    from ichalaunch.core.process import StatusProgress
+
+    with tempfile.TemporaryDirectory() as td:
+        dest = Path(td) / "home"
+        dest.mkdir()
+        zpath = Path(td) / "client.zip"
+        with zipfile.ZipFile(zpath, "w") as zf:
+            zf.writestr("a.bin", b"A" * 50)
+            zf.writestr("b.bin", b"B" * 50)
+        statuses: list[str] = []
+        pcts: list[int] = []
+        prog = StatusProgress(statuses.append, pcts.append)
+        extract_zip(zpath, dest, progress=prog)
+        assert pcts
+        assert pcts[0] == 0
+        assert pcts[-1] == 100
+        assert all(p >= 0 for p in pcts), pcts
+        assert any("Extracting" in s for s in statuses)
+
+    from ichalaunch.config.settings import settings as s
+
+    old_game = s.game_path
+    old_addons = s.addons_path
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            home = Path(td) / "GameRoot"
+            home.mkdir()
+            (home / "WoW.exe").write_bytes(b"MZ")
+            committed = commit_game_home(home)
+            assert Path(s.game_path).resolve() == committed.resolve()
+            addons = Path(s.resolved_addons_path())
+            assert addons.is_dir()
+            assert addons == committed / "Interface" / "AddOns"
+    finally:
+        s.game_path = old_game
+        s.addons_path = old_addons
+    print("OK find WoW.exe / extract / commit game home")
+
+
+def test_browser_zip_watch_and_install_from_zip():
+    import zipfile
+
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.game.client_install import (
+        GOFILE_FILE_NAME,
+        find_complete_client_zip,
+        install_client,
+        wait_for_browser_zip,
+        zip_looks_complete,
+    )
+
+    payload = b"PK" + (b"\x00" * 80)
+    with tempfile.TemporaryDirectory() as td:
+        folder = Path(td)
+        partial = folder / f"{GOFILE_FILE_NAME}.crdownload"
+        partial.write_bytes(payload)
+        assert find_complete_client_zip(dirs=[folder], expected_size=len(payload)) is None
+        assert not zip_looks_complete(partial, expected_size=len(payload))
+
+        zpath = folder / GOFILE_FILE_NAME
+        zpath.write_bytes(payload)
+        found = find_complete_client_zip(dirs=[folder], expected_size=len(payload))
+        assert found is not None
+        assert found.resolve() == zpath.resolve()
+        assert zip_looks_complete(zpath, expected_size=len(payload))
+
+        empty = folder / "empty"
+        empty.mkdir()
+        assert (
+            wait_for_browser_zip(
+                dirs=[empty],
+                timeout_sec=1,
+                poll_sec=0.1,
+                expected_size=len(payload),
+            )
+            is None
+        )
+        waited = wait_for_browser_zip(
+            dirs=[folder],
+            timeout_sec=2,
+            poll_sec=0.1,
+            expected_size=len(payload),
+        )
+        assert waited is not None
+        assert waited.resolve() == zpath.resolve()
+
+    from ichalaunch.core.process import StatusProgress
+    from ichalaunch.game.client_install import (
+        _is_partial_name,
+        _partial_downloads,
+        _report_partial_progress,
+        client_watch_dirs,
+    )
+
+    assert _is_partial_name("Unconfirmed 12345.crdownload", GOFILE_FILE_NAME)
+    assert _is_partial_name(f"{GOFILE_FILE_NAME}.partial", GOFILE_FILE_NAME)
+    assert _is_partial_name(f"{GOFILE_FILE_NAME}.crdownload", GOFILE_FILE_NAME)
+    assert not _is_partial_name(GOFILE_FILE_NAME, GOFILE_FILE_NAME)
+
+    watch = client_watch_dirs()
+    assert watch
+    joined = " ".join(str(p).lower() for p in watch)
+    assert "download" in joined or "desktop" in joined
+
+    with tempfile.TemporaryDirectory() as td:
+        folder = Path(td)
+        expected = 1_000_000
+        unconf = folder / "Unconfirmed 809132.crdownload"
+        unconf.write_bytes(b"a" * 370_000)
+        found = _partial_downloads(folder, GOFILE_FILE_NAME, expected)
+        assert any(p.name.startswith("Unconfirmed") for p in found)
+
+        edge = folder / f"{GOFILE_FILE_NAME}.partial"
+        edge.write_bytes(b"b" * 50_000)
+        found = _partial_downloads(folder, GOFILE_FILE_NAME, expected)
+        assert any(p.name.endswith(".partial") for p in found)
+
+        statuses: list[str] = []
+        pcts: list[int] = []
+        prog = StatusProgress(statuses.append, pcts.append)
+        _report_partial_progress(prog, unconf, expected)
+        assert pcts[-1] == 37
+        assert -1 not in pcts
+        assert "Downloading in browser" in statuses[-1]
+        assert "37%" in statuses[-1]
+
+        wait_status: list[str] = []
+        wait_pcts: list[int] = []
+        waiter = StatusProgress(wait_status.append, wait_pcts.append)
+        assert (
+            wait_for_browser_zip(
+                waiter,
+                dirs=[folder],
+                timeout_sec=1,
+                poll_sec=0.2,
+                expected_size=expected,
+            )
+            is None
+        )
+        assert wait_pcts[0] == -1  # initial "Waiting for download…"
+        determinate = [x for x in wait_pcts[1:] if x >= 0]
+        assert determinate, wait_pcts
+        assert all(x >= 0 for x in wait_pcts[1:]), wait_pcts
+        assert any("Downloading in browser" in s for s in wait_status)
+
+    old_game = s.game_path
+    old_addons = s.addons_path
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            dest = root / "Game"
+            dest.mkdir()
+            zpath = root / GOFILE_FILE_NAME
+            with zipfile.ZipFile(zpath, "w") as zf:
+                zf.writestr("twmoa_1181/WoW.exe", b"MZ")
+            assert zpath.stat().st_size >= 64
+            game = install_client(dest, zip_path=zpath, cleanup_watch_dirs=[])
+            assert game is not None
+            game_p = Path(game)
+            assert game_p.name == "RavenCraft"
+            assert game_p.parent.resolve() == dest.resolve()
+            assert (game_p / "WoW.exe").is_file()
+            assert not (dest / "twmoa_1181").exists()
+            assert not zpath.exists()
+            assert Path(s.game_path).resolve() == game_p.resolve()
+            assert Path(s.resolved_addons_path()) == game_p / "Interface" / "AddOns"
+
+            dest_rc = root / "RavenCraft"
+            dest_rc.mkdir()
+            z2 = root / "nested.zip"
+            with zipfile.ZipFile(z2, "w") as zf:
+                zf.writestr(
+                    "179cd45c-aaaa-4bbb-8ccc-ddddeeeeffff/"
+                    "abcd1234-aaaa-4bbb-8ccc-ddddeeeeffff/WoW.exe",
+                    b"MZ",
+                )
+                zf.writestr(
+                    "179cd45c-aaaa-4bbb-8ccc-ddddeeeeffff/"
+                    "abcd1234-aaaa-4bbb-8ccc-ddddeeeeffff/Data/dummy.mpq",
+                    b"x",
+                )
+            game2 = install_client(dest_rc, zip_path=z2, cleanup_watch_dirs=[])
+            assert game2 is not None
+            game2_p = Path(game2)
+            assert game2_p.resolve() == dest_rc.resolve()
+            assert (dest_rc / "WoW.exe").is_file()
+            assert (dest_rc / "Data" / "dummy.mpq").is_file()
+            assert not (dest_rc / "179cd45c-aaaa-4bbb-8ccc-ddddeeeeffff").exists()
+            assert not z2.exists()
+    finally:
+        s.game_path = old_game
+        s.addons_path = old_addons
+    print("OK browser zip watch / install from zip")
+
+
+def test_cleanup_client_zip():
+    from ichalaunch.game.client_install import (
+        GOFILE_FILE_NAME,
+        cleanup_client_zip,
+    )
+
+    with tempfile.TemporaryDirectory() as td:
+        dest = Path(td) / "Game"
+        home = dest / "RavenCraft"
+        staging = dest / ".ichalaunch"
+        watch = Path(td) / "Downloads"
+        home.mkdir(parents=True)
+        staging.mkdir(parents=True)
+        watch.mkdir()
+        (home / "WoW.exe").write_bytes(b"MZ")
+        extracted = watch / GOFILE_FILE_NAME
+        extracted.write_bytes(b"PK" + b"\x00" * 80)
+        leftover = watch / f"{GOFILE_FILE_NAME}.crdownload"
+        leftover.write_bytes(b"x")
+        staged = staging / GOFILE_FILE_NAME
+        staged.write_bytes(b"PK" + b"\x00" * 80)
+        other = watch / "other-mod.zip"
+        other.write_bytes(b"PK" + b"\x00" * 80)
+        cleanup_client_zip(dest, extracted, watch_dirs=[watch])
+        assert not extracted.exists()
+        assert not leftover.exists()
+        assert not staged.exists()
+        assert other.exists()
+        assert home.is_dir()
+        assert (home / "WoW.exe").is_file()
+    print("OK cleanup client zip leftovers")
+
+
+def test_zip_url_from_html():
+    from ichalaunch.core.process import zip_url_from_html
+
+    html = """
+    <html><a href="https://zo.vikingfile.com/download/abc/twmoa_1181.zip?md5=x">dl</a></html>
+    """
+    url = zip_url_from_html(html, "https://vikingfile.com/d/tnQwCPOJDA/twmoa_1181.zip")
+    assert url is not None
+    assert url.endswith(".zip") or ".zip?" in url
+    assert zip_url_from_html("<html>no file</html>", "https://example.com/") is None
+    print("OK zip url from html")
+
+
 def main():
     test_catalogs()
     test_github_parse()
@@ -640,6 +1006,11 @@ def main():
     test_sanitize_filename()
     test_robust_rmtree_readonly_git_pack()
     test_vanillafixes_zip_in_memory()
+    test_client_zip_mirrors_and_gofile_parse()
+    test_find_wow_exe_dir_and_extract()
+    test_browser_zip_watch_and_install_from_zip()
+    test_cleanup_client_zip()
+    test_zip_url_from_html()
     print("\nAll smoke tests passed.")
 
 

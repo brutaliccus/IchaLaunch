@@ -37,7 +37,7 @@ from ichalaunch.core.filesystem import (
     update_dlls_txt,
 )
 from ichalaunch.core.logging_setup import log
-from ichalaunch.core.process import download_bytes, download_bytes_cb, download_file, google_drive_url
+from ichalaunch.core.process import download_bytes, download_bytes_cb, download_file, google_drive_url, status_only
 from ichalaunch.game.launcher import detect_game, resolve_addons_dir, ensure_addons_dir, resolve_addons_dir
 
 ProgressCb = Callable[[str], None]
@@ -374,7 +374,7 @@ def install_custom_dll_from_github(url: str, progress: ProgressCb | None = None)
         with tempfile.TemporaryDirectory(prefix="ichalaunch_probe_") as tmp:
             work = Path(tmp)
             artifact = _download_source(source, work, progress)
-            extracted = extract_zip(artifact, work / "extract")
+            extracted = extract_zip(artifact, work / "extract", progress=progress)
             prefer = (_slug_mod_id((parse_github_url(url) or ("", ""))[1]) or "").replace("_", "")
             dlls = [p for p in extracted.rglob("*.dll") if p.is_file()]
             if not dlls:
@@ -618,8 +618,7 @@ def _download_source(source: dict[str, Any], work: Path, progress: ProgressCb | 
     DLLs commonly trip WinError 225 / Errno 22).
     """
     stype = source.get("type")
-    if progress:
-        progress(f"Downloading ({stype})...")
+    status_only(progress, f"Downloading ({stype})...")
     bytes_cb = download_bytes_cb(progress)
     timeout = int(source.get("timeout") or (300 if stype == "google_drive" else 120))
     if stype == "google_drive":
@@ -660,10 +659,18 @@ def _download_source(source: dict[str, Any], work: Path, progress: ProgressCb | 
             raise FileNotFoundError(f"No release asset matching {detail} for {repo}")
         filename = sanitize_filename(asset.get("name") or "release.bin")
         url = asset["browser_download_url"]
+        try:
+            asset_size = int(asset.get("size") or 0)
+        except (TypeError, ValueError):
+            asset_size = 0
         if _looks_like_zip(filename, stype):
-            return download_bytes(url, progress=bytes_cb, timeout=timeout)
+            return download_bytes(
+                url, progress=bytes_cb, timeout=timeout, known_total=asset_size
+            )
         dest = work / filename
-        download_file(url, dest, progress=bytes_cb, timeout=timeout)
+        download_file(
+            url, dest, progress=bytes_cb, timeout=timeout, known_total=asset_size
+        )
         return dest
     raise ValueError(f"Unknown source type: {stype}")
 
@@ -1032,8 +1039,7 @@ def update_mod(mod_id: str, progress: ProgressCb | None = None) -> None:
 def update_mods(mod_ids: list[str], progress: ProgressCb | None = None) -> list[str]:
     done: list[str] = []
     for mid in mod_ids:
-        if progress:
-            progress(f"Updating {mid}…")
+        status_only(progress, f"Updating {mid}…")
         install_mod(mid, progress=progress, prefer_latest=True)
         done.append(mid)
     return done
@@ -1082,15 +1088,14 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 safe_remove(wdb)
             if not wdb.exists():
                 wdb.write_text("", encoding="utf-8")
-            if progress:
-                progress("WDB block applied")
+            status_only(progress, "WDB block applied")
             _record_mod_install(mod_id, mod, source)
             return
 
         if kind == "exe_patch":
             assert source
             z = _download_source(source, work, progress)
-            extracted = extract_zip(z, work / "extract")
+            extracted = extract_zip(z, work / "extract", progress=progress)
             vt = next(extracted.rglob("vanilla-tweaks.exe"), None) or next(
                 extracted.rglob("vanilla_tweaks.exe"), None
             )
@@ -1100,8 +1105,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
             if not (game / "WoW-OriginalBackup.exe").exists():
                 shutil.copy2(wow, game / "WoW-OriginalBackup.exe")
             # Run patcher; creates WoW_tweaked.exe next to WoW.exe
-            if progress:
-                progress("Patching WoW.exe with Vanilla Tweaks...")
+            status_only(progress, "Patching WoW.exe with Vanilla Tweaks...")
             subprocess.run([str(vt), str(wow)], cwd=str(game), check=True)
             tweaked = game / "WoW_tweaked.exe"
             if tweaked.exists():
@@ -1113,7 +1117,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
         if kind == "zip_root":
             assert source
             z = _download_source(source, work, progress)
-            extracted = extract_zip(z, work / "extract")
+            extracted = extract_zip(z, work / "extract", progress=progress)
             # copy all files into game root
             for item in extracted.rglob("*"):
                 if item.is_file():
@@ -1137,7 +1141,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
             artifact = _download_source(source, work, progress)
             search_root = work
             if _is_zip_artifact(artifact, source):
-                search_root = extract_zip(artifact, work / "extract")
+                search_root = extract_zip(artifact, work / "extract", progress=progress)
             else:
                 # single dll
                 assert isinstance(artifact, Path)
@@ -1159,7 +1163,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
             if addon_src:
                 a = _download_source(addon_src, work / "addon", progress)
                 if _is_zip_artifact(a, addon_src):
-                    aroot = extract_zip(a, work / "addon_extract")
+                    aroot = extract_zip(a, work / "addon_extract", progress=progress)
                 else:
                     assert isinstance(a, Path)
                     aroot = a.parent
@@ -1176,7 +1180,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
             artifact = _download_source(source, work, progress)
             # Zip sources (e.g. Darker Nights archive) — extract and pick the MPQ
             if _is_zip_artifact(artifact, source):
-                extracted = extract_zip(artifact, work / "extract")
+                extracted = extract_zip(artifact, work / "extract", progress=progress)
                 needle = (source.get("mpq_match") or Path(mod.get("destination") or "").name or ".mpq").lower()
                 prefer = (source.get("mpq_prefer_path") or "").replace("\\", "/").lower()
                 candidates = [p for p in extracted.rglob("*.mpq") if p.is_file()]
@@ -1193,8 +1197,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
             dest_rel = mod.get("destination") or f"Data/{source.get('filename') or artifact.name}"
             dest = game / dest_rel
             dest.parent.mkdir(parents=True, exist_ok=True)
-            if progress:
-                progress(f"Installing {dest.name} (large file)...")
+            status_only(progress, f"Installing {dest.name} (large file)...")
             shutil.copy2(artifact, dest)
             _record_mod_install(mod_id, mod, source)
             return
@@ -1214,7 +1217,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
         if kind == "glue_autologin":
             assert source
             z = _download_source(source, work, progress)
-            extracted = extract_zip(z, work / "extract")
+            extracted = extract_zip(z, work / "extract", progress=progress)
             glue_src = next(extracted.rglob("GlueXML"), None)
             if not glue_src:
                 # repo layout Data/Interface/GlueXML
@@ -1280,8 +1283,7 @@ def remove_mod(mod_id: str, progress: ProgressCb | None = None) -> None:
     if not mod:
         raise KeyError(mod_id)
 
-    if progress:
-        progress(f"Removing {mod_id}...")
+    status_only(progress, f"Removing {mod_id}...")
 
     settings.remove_installed_mod(mod_id)
 

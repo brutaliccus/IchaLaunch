@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import urljoin
 
 import requests
 
@@ -33,7 +35,14 @@ class StatusProgress:
         self._label = (msg or "").strip()
         self._on_status(self._label)
         # Status-only updates (install/extract) fall back to indeterminate.
+        # Download tracking must use on_count / on_bytes — those keep a determinate %.
         self._on_pct(-1)
+
+    def set_status(self, msg: str) -> None:
+        """Update the status label without changing determinate/indeterminate percent."""
+        self._label = (msg or "").strip()
+        if self._label:
+            self._on_status(self._label)
 
     def on_count(self, done: int, total: int, msg: str | None = None) -> None:
         """Report determinate item progress (update checks, multi-step jobs)."""
@@ -54,7 +63,21 @@ class StatusProgress:
             base = self._label.rstrip(".…") or "Downloading"
             self._on_status(f"{base}… {pct}%")
         else:
+            # Unknown size: indeterminate is OK, but do not re-emit -1 every chunk
+            # (that restarts ThemeLoadingBar's pulse).
             self._on_pct(-1)
+
+
+def status_only(progress: Any, msg: str) -> None:
+    """Update the status label without forcing indeterminate (unlike ``progress()``)."""
+    if progress is None:
+        return
+    setter = getattr(progress, "set_status", None)
+    if callable(setter):
+        setter(msg)
+        return
+    if callable(progress):
+        progress(msg)
 
 
 def download_bytes_cb(progress: Any) -> BytesProgressCb | None:
@@ -63,6 +86,21 @@ def download_bytes_cb(progress: Any) -> BytesProgressCb | None:
         return None
     cb = getattr(progress, "on_bytes", None)
     return cb if callable(cb) else None
+
+
+def resolve_download_total(headers: Any, known_total: int = 0) -> int:
+    """Prefer Content-Length; fall back to an API/catalog size when the header is missing."""
+    try:
+        n = int((headers or {}).get("Content-Length") or 0)
+    except (TypeError, ValueError):
+        n = 0
+    if n > 0:
+        return n
+    try:
+        k = int(known_total or 0)
+    except (TypeError, ValueError):
+        k = 0
+    return k if k > 0 else 0
 
 
 def _download_headers() -> dict[str, str]:
@@ -74,7 +112,34 @@ def _download_headers() -> dict[str, str]:
     }
 
 
-def download_bytes(url: str, progress: ProgressCb | None = None, timeout: int = 120) -> bytes:
+def zip_url_from_html(html: str, base_url: str) -> str | None:
+    """Best-effort zip / download href from a file-host landing page."""
+    text = html or ""
+    for pat in (
+        r'href=["\']([^"\']+\.zip[^"\']*)["\']',
+        r'https?://[^\s"\'<>]+?\.zip(?:\?[^\s"\'<>]*)?',
+        r'href=["\']([^"\']+/download[^"\']*)["\']',
+        r'data-url=["\']([^"\']+)["\']',
+    ):
+        m = re.search(pat, text, re.I)
+        if not m:
+            continue
+        href = (m.group(1) if m.lastindex else m.group(0)).strip()
+        if href.startswith("//"):
+            return "https:" + href
+        if href.startswith("http"):
+            return href
+        if href.startswith("/") and base_url:
+            return urljoin(base_url, href)
+    return None
+
+
+def download_bytes(
+    url: str,
+    progress: ProgressCb | None = None,
+    timeout: int = 120,
+    known_total: int = 0,
+) -> bytes:
     """Download into memory (avoids Windows AV locking certain zip names on disk)."""
     headers = _download_headers()
     chunks: list[bytes] = []
@@ -86,7 +151,7 @@ def download_bytes(url: str, progress: ProgressCb | None = None, timeout: int = 
                 "Google Drive returned an HTML page instead of the file. "
                 "Try again later or download manually."
             )
-        total = int(r.headers.get("Content-Length") or 0)
+        total = resolve_download_total(r.headers, known_total)
         done = 0
         for chunk in r.iter_content(chunk_size=1024 * 256):
             if not chunk:
@@ -98,19 +163,54 @@ def download_bytes(url: str, progress: ProgressCb | None = None, timeout: int = 
     return b"".join(chunks)
 
 
-def download_file(url: str, dest: Path, progress: ProgressCb | None = None, timeout: int = 120) -> Path:
+def download_file(
+    url: str,
+    dest: Path,
+    progress: ProgressCb | None = None,
+    timeout: int | tuple[int, int] = 120,
+    extra_headers: dict[str, str] | None = None,
+    source_url: str | None = None,
+    known_total: int = 0,
+) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
     headers = _download_headers()
-    with requests.get(url, stream=True, timeout=timeout, headers=headers) as r:
+    if extra_headers:
+        headers.update(extra_headers)
+    origin = source_url or url
+    with requests.get(
+        url, stream=True, timeout=timeout, headers=headers, allow_redirects=True
+    ) as r:
         r.raise_for_status()
-        # Google Drive sometimes returns an HTML interstitial; reject clearly
         ctype = (r.headers.get("Content-Type") or "").lower()
-        if "text/html" in ctype and "drive.google" in url:
+        disp = (r.headers.get("Content-Disposition") or "").lower()
+        header_len = 0
+        try:
+            header_len = int(r.headers.get("Content-Length") or 0)
+        except (TypeError, ValueError):
+            header_len = 0
+        total = resolve_download_total(r.headers, known_total)
+        html_type = "text/html" in ctype and "attachment" not in disp
+        if html_type and (not header_len or header_len < 2_000_000):
+            body = b"".join(r.iter_content(chunk_size=1024 * 64))
+            if "drive.google" in url:
+                raise RuntimeError(
+                    "Google Drive returned an HTML page instead of the file. "
+                    "Try again later or download manually."
+                )
+            nxt = zip_url_from_html(body.decode("utf-8", "replace"), str(r.url))
+            if nxt and nxt != url:
+                return download_file(
+                    nxt,
+                    dest,
+                    progress=progress,
+                    timeout=timeout,
+                    extra_headers=extra_headers,
+                    source_url=origin,
+                    known_total=known_total,
+                )
             raise RuntimeError(
-                "Google Drive returned an HTML page instead of the file. "
-                "Try again later or download manually."
+                "Download returned a web page instead of a zip.\n" + origin
             )
-        total = int(r.headers.get("Content-Length") or 0)
         done = 0
         with dest.open("wb") as f:
             for chunk in r.iter_content(chunk_size=1024 * 256):
@@ -122,7 +222,8 @@ def download_file(url: str, dest: Path, progress: ProgressCb | None = None, time
                     progress(done, total)
     # Sanity-check MPQ magic when expecting an archive asset
     if dest.suffix.lower() == ".mpq" and dest.stat().st_size >= 4:
-        magic = dest.read_bytes()[:3]
+        with dest.open("rb") as f:
+            magic = f.read(3)
         if magic != b"MPQ":
             raise RuntimeError(f"Downloaded file is not a valid MPQ: {dest.name}")
     return dest

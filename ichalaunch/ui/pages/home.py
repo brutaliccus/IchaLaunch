@@ -550,8 +550,10 @@ class HomePage(QWidget):
         else:
             tip = QLabel(
                 "Ravencraft uses the Turtle 1.18 client.<br>"
-                "Click <b>INSTALL</b> in the bottom-right to pick a save location, or open "
-                "<b>Settings</b> to point at an existing game folder."
+                "Click <b>INSTALL</b> to choose a game home folder. Your browser will open "
+                "Gofile — click Download for <b>twmoa_1181.zip</b> (a VPN may be required). "
+                "The launcher grabs that file and extracts it, "
+                "or open <b>Settings</b> to point at an existing install."
             )
             tip.setWordWrap(True)
             tip.setObjectName("Muted")

@@ -169,6 +169,15 @@ class Settings:
         self.addons_path = path
         return path
 
+    def clear_client_link(self) -> None:
+        """Forget the saved WoW folder so INSTALL can pick a new location.
+
+        Does not delete any files on disk.
+        """
+        self._data["game_path"] = ""
+        self._data["addons_path"] = ""
+        self.save()
+
     def resolved_addons_path(self) -> str:
         """Stored addons_path, or default under game_path when empty."""
         raw = self.addons_path.strip()

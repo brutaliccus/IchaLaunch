@@ -22,7 +22,7 @@ from ichalaunch.addons.github import (
     rate_limit_exhausted,
 )
 from ichalaunch.core.logging_setup import log
-from ichalaunch.core.process import download_bytes_cb
+from ichalaunch.core.process import download_bytes_cb, resolve_download_total, status_only
 
 ProgressCb = Callable[[str], None]
 
@@ -40,6 +40,7 @@ class LauncherReleaseInfo:
     update_available: bool
     html_url: str = ""
     asset_id: int | None = None
+    asset_size: int = 0
 
 
 def normalize_version(raw: str) -> str:
@@ -154,6 +155,10 @@ def check_latest_launcher_release(
     asset_id = asset.get("id")
     if not download_url and asset_id is not None:
         download_url = f"https://api.github.com/repos/{repo}/releases/assets/{asset_id}"
+    try:
+        asset_size = int(asset.get("size") or 0)
+    except (TypeError, ValueError):
+        asset_size = 0
 
     return LauncherReleaseInfo(
         tag=tag,
@@ -164,6 +169,7 @@ def check_latest_launcher_release(
         update_available=bool(version) and is_newer(version, local),
         html_url=str(data.get("html_url") or ""),
         asset_id=int(asset_id) if asset_id is not None else None,
+        asset_size=asset_size,
     )
 
 
@@ -174,6 +180,7 @@ def _download_asset(
     asset_id: int | None = None,
     repo: str = LAUNCHER_REPO,
     progress: Callable[[int, int], None] | None = None,
+    known_total: int = 0,
 ) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
     headers = github_headers()
@@ -184,7 +191,7 @@ def _download_asset(
         headers["Accept"] = "application/octet-stream"
 
     def _write_stream(resp: requests.Response) -> None:
-        total = int(resp.headers.get("Content-Length") or 0)
+        total = resolve_download_total(resp.headers, known_total)
         done = 0
         with dest.open("wb") as f:
             for chunk in resp.iter_content(chunk_size=1024 * 256):
@@ -276,8 +283,7 @@ def download_and_stage_update(
     """Download release EXE to a temp file and return its path."""
     if not info.download_url and info.asset_id is None:
         raise ValueError("Release has no download URL")
-    if progress:
-        progress(f"Downloading {info.asset_name} ({info.tag})…")
+    status_only(progress, f"Downloading {info.asset_name} ({info.tag})…")
     tmp = Path(tempfile.gettempdir()) / f"IchaLaunch_update_{info.version}.exe"
     if tmp.exists():
         try:
@@ -289,10 +295,10 @@ def download_and_stage_update(
         tmp,
         asset_id=info.asset_id,
         progress=download_bytes_cb(progress),
+        known_total=info.asset_size,
     )
     _validate_pe_exe(tmp)
-    if progress:
-        progress("Preparing installer…")
+    status_only(progress, "Preparing installer…")
     return tmp
 
 

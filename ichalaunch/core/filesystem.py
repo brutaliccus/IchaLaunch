@@ -12,6 +12,7 @@ import sys
 import time
 import zipfile
 from pathlib import Path
+from typing import Any
 
 
 PROTECTED_HINTS = (
@@ -80,12 +81,57 @@ def sha256_file(path: Path, chunk: int = 1024 * 1024) -> str:
     return h.hexdigest()
 
 
-def extract_zip(zip_source: Path | bytes | bytearray, dest: Path) -> Path:
+def _zip_member_is_safe(dest: Path, filename: str) -> bool:
+    """Reject zip entries that would extract outside *dest* (zip-slip)."""
+    rel = (filename or "").replace("\\", "/")
+    if not rel or rel.startswith("/") or rel.startswith("../") or "/../" in f"/{rel}":
+        dest_res = dest.resolve()
+        target = (dest / rel.lstrip("/")).resolve()
+        try:
+            target.relative_to(dest_res)
+        except ValueError:
+            return False
+        return True
+    dest_res = dest.resolve()
+    target = (dest / rel).resolve()
+    try:
+        target.relative_to(dest_res)
+        return True
+    except ValueError:
+        return False
+
+
+def _report_extract_progress(progress: Any | None, done: int, total: int) -> None:
+    """Determinate extract percent. Never call progress() — that resets to bounce."""
+    if progress is None or total <= 0:
+        return
+    on_count = getattr(progress, "on_count", None)
+    pct = max(0, min(100, int(done * 100 / total)))
+    msg = f"Extracting… {pct}%"
+    if callable(on_count):
+        on_count(done, total, msg)
+        return
+    on_bytes = getattr(progress, "on_bytes", None)
+    if callable(on_bytes):
+        set_status = getattr(progress, "set_status", None)
+        if callable(set_status):
+            set_status("Extracting…")
+        on_bytes(done, total)
+
+
+def extract_zip(
+    zip_source: Path | bytes | bytearray,
+    dest: Path,
+    progress: Any | None = None,
+) -> Path:
     """Extract a zip from a path or in-memory bytes.
 
     Prefer ``bytes`` for archives that Windows Defender may quarantine on disk
     (e.g. VanillaFixes.zip containing injector-style DLLs) — writing the zip
     then reopening it can fail with ``[Errno 22]`` / WinError 225.
+
+    When *progress* is a StatusProgress-like object, members are extracted one
+    by one and ``on_count`` reports uncompressed-byte percent (determinate).
     """
     ensure_dir(dest)
     if isinstance(zip_source, (bytes, bytearray)):
@@ -108,7 +154,29 @@ def extract_zip(zip_source: Path | bytes | bytearray, dest: Path) -> Path:
                 ) from e
             raise
     with opener as zf:
-        zf.extractall(dest)
+        if progress is None:
+            zf.extractall(dest)
+        else:
+            dest_res = dest.resolve()
+            members = zf.infolist()
+            total_bytes = sum(max(0, int(info.file_size or 0)) for info in members)
+            total_members = len(members)
+            use_bytes = total_bytes > 0
+            total = total_bytes if use_bytes else total_members
+            done = 0
+            last_pct = -1
+            _report_extract_progress(progress, 0, total or 1)
+            for i, info in enumerate(members, start=1):
+                name = info.filename or ""
+                if not _zip_member_is_safe(dest_res, name):
+                    done += max(0, int(info.file_size or 0)) if use_bytes else 1
+                    continue
+                zf.extract(info, dest)
+                done += max(0, int(info.file_size or 0)) if use_bytes else 1
+                pct = max(0, min(100, int(done * 100 / total))) if total else 100
+                if pct != last_pct or i == total_members:
+                    last_pct = pct
+                    _report_extract_progress(progress, done if use_bytes else i, total or 1)
     children = [c for c in dest.iterdir()]
     if len(children) == 1 and children[0].is_dir():
         return children[0]

@@ -17,7 +17,7 @@ import requests
 from ichalaunch.config.settings import settings
 from ichalaunch.core.filesystem import copy_tree, extract_zip, find_toc_roots, safe_remove
 from ichalaunch.core.logging_setup import log
-from ichalaunch.core.process import download_bytes, download_bytes_cb
+from ichalaunch.core.process import download_bytes, download_bytes_cb, status_only
 from ichalaunch.game.launcher import detect_game, ensure_addons_dir, resolve_addons_dir
 
 ProgressCb = Callable[[str], None]
@@ -789,8 +789,7 @@ def install_from_github(url: str, folder_name: str | None = None, progress: Prog
     if not game:
         raise FileNotFoundError("Game path not set")
 
-    if progress:
-        progress("Fetching repository info...")
+    status_only(progress, "Fetching repository info...")
     if tag:
         meta = github_latest_commit(owner, repo, branch=tag)
         branch = str(meta.get("branch") or tag)
@@ -808,10 +807,9 @@ def install_from_github(url: str, folder_name: str | None = None, progress: Prog
 
     with tempfile.TemporaryDirectory(prefix="icha_addon_") as tmp:
         work = Path(tmp)
-        if progress:
-            progress(f"Downloading {label}...")
+        status_only(progress, f"Downloading {label}...")
         data = download_bytes(zip_url, progress=download_bytes_cb(progress))
-        extracted = extract_zip(data, work / "extract")
+        extracted = extract_zip(data, work / "extract", progress=progress)
         roots = find_toc_roots(extracted)
         if not roots and any(extracted.glob("*.toc")):
             roots = [extracted]
@@ -1000,13 +998,7 @@ def repair_missing_addon_git_origins(
     if not to_repair:
         return 0
 
-    if progress is not None:
-        if callable(progress):
-            progress(GIT_REPAIR_STATUS)
-        else:
-            on_status = getattr(progress, "on_status", None)
-            if callable(on_status):
-                on_status(GIT_REPAIR_STATUS)
+    status_only(progress, GIT_REPAIR_STATUS)
 
     repaired = 0
     for dest, origin in to_repair:

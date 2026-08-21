@@ -28,6 +28,7 @@ class SettingsPage(QWidget):
     browse_clicked = Signal()
     browse_addons_clicked = Signal()
     reset_addons_clicked = Signal()
+    reset_client_link_clicked = Signal()
     verify_clicked = Signal()
 
     def __init__(self, parent=None):
@@ -90,6 +91,21 @@ class SettingsPage(QWidget):
         note.setObjectName("Muted")
         note.setWordWrap(True)
         game_card.body.addWidget(note)
+        reset_link = GluePanelButton("Reset Client Link", width=148)
+        reset_link.setToolTip(
+            "Unlink the saved WoW folder so you can INSTALL to a new location. "
+            "Does not delete files on disk."
+        )
+        reset_link.clicked.connect(self.reset_client_link_clicked.emit)
+        game_card.body.addWidget(reset_link)
+        reset_note = QLabel(
+            "Used to reinstall the client. Clears the saved WoW folder so PLAY "
+            "becomes INSTALL and you can choose a new location. Does not delete "
+            "files on disk."
+        )
+        reset_note.setObjectName("Muted")
+        reset_note.setWordWrap(True)
+        game_card.body.addWidget(reset_note)
 
         addons_card = MarbleCard()
         addons_card.body.setSpacing(10)
