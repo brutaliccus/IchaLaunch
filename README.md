@@ -47,9 +47,19 @@ Official hosted client zip install is not required if you already have a 1.18 cl
 
 ## Screenshots
 
+These are PNGs with a **transparent background**, so the folder tabs, rounded bottom corners, and RavenCraft crest overhang show against GitHub’s light or dark page — not a solid rectangle.
+
 ### Home
 
 ![Home](docs/screenshots/home.png)
+
+Closed purple frame, Mechagon top rail, HOME art, crest on the shelf, and the nav banner above Play.
+
+### Loading bar
+
+![Home with loading bar](docs/screenshots/home-loading.png)
+
+The play strip’s loading bar mid-fill (addon and client-mod checks, downloads, and similar work).
 
 ### Addons
 
