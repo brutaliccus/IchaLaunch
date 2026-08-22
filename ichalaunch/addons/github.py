@@ -24,13 +24,22 @@ ProgressCb = Callable[[str], None]
 UA = {"User-Agent": "IchaLaunch/0.1", "Accept": "application/vnd.github+json"}
 
 RATE_LIMIT_STATUS = "GitHub rate limit hit — add a token in Settings or try later"
+WAITING_RATE_LIMIT_STATUS = "Waiting for GitHub rate limit…"
 # Automatic (startup/silent) rescans are skipped if the last scan was within this window.
 STARTUP_CHECK_COOLDOWN_SEC = 60 * 60
+# Unauthenticated GitHub REST allows ~60 requests/hour; we pace scans to match.
+UNAUTH_API_BUDGET_PER_HOUR = 60
+UNAUTH_BUDGET_WINDOW_SEC = 60 * 60
+_SCAN_QUEUE_KEY = "addon_update_scan_queue"
 _URL_REACH_CACHE_TTL_SEC = 10 * 60
 _URL_REACH_TIMEOUT_SEC = 2.5
 
 # Updated after each GitHub API response (None if header missing).
 _last_rate_remaining: int | None = None
+_last_rate_reset_epoch: int | None = None
+# In-process unauthenticated budget (synced from settings at scan start).
+_budget_window_start: float | None = None
+_budget_window_used: int = 0
 # url -> (monotonic_ts, reachable)
 _url_reach_cache: dict[str, tuple[float, bool]] = {}
 
@@ -52,12 +61,24 @@ class GitHubRateLimitError(Exception):
     """GitHub REST API rate limit exceeded."""
 
 
+class GitHubBudgetExhaustedError(GitHubRateLimitError):
+    """Local unauthenticated hourly API budget exhausted (queued scan resumes later)."""
+
+
 @dataclass
 class AddonUpdateCheckResult:
     updates: list[dict[str, Any]] = field(default_factory=list)
     rate_limited: bool = False
     skipped_recent: bool = False
     status_message: str | None = None
+    queued: bool = False
+    checked_count: int = 0
+    total_count: int = 0
+    resume_after_sec: int | None = None
+
+
+def has_github_token() -> bool:
+    return bool((settings.get("github_token") or "").strip())
 
 
 def github_headers() -> dict[str, str]:
@@ -66,6 +87,103 @@ def github_headers() -> dict[str, str]:
     if token:
         headers["Authorization"] = f"Bearer {token}"
     return headers
+
+
+def compute_unauth_budget(
+    *,
+    window_start: float | None,
+    window_used: int,
+    now: float | None = None,
+    budget: int = UNAUTH_API_BUDGET_PER_HOUR,
+    window_sec: int = UNAUTH_BUDGET_WINDOW_SEC,
+) -> tuple[int, int, float, int]:
+    """Return (remaining, reset_in_sec, effective_start, effective_used) for the hour window."""
+    ts = time.time() if now is None else float(now)
+    used = max(0, int(window_used or 0))
+    start = float(window_start) if window_start is not None else ts
+    elapsed = ts - start
+    if window_start is None or elapsed >= window_sec:
+        return budget, 0, ts, 0
+    remaining = max(0, budget - used)
+    reset_in = max(0, int(window_sec - elapsed))
+    return remaining, reset_in, start, used
+
+
+def format_queued_scan_status(done: int, total: int, resume_after_sec: int) -> str:
+    """User-facing status while a paced unauthenticated scan is waiting on budget."""
+    total = max(0, int(total))
+    done = max(0, min(int(done), total if total else int(done)))
+    sec = max(0, int(resume_after_sec))
+    if sec <= 0:
+        return f"Scanning addons… {done}/{total} (queued; resuming…)"
+    mins = max(1, (sec + 59) // 60)
+    return f"Scanning addons… {done}/{total} (queued; resumes in ~{mins} min)"
+
+
+def _load_scan_queue() -> dict[str, Any]:
+    raw = settings.get(_SCAN_QUEUE_KEY)
+    return dict(raw) if isinstance(raw, dict) else {}
+
+
+def _save_scan_queue(state: dict[str, Any] | None) -> None:
+    if not state:
+        settings.set(_SCAN_QUEUE_KEY, None)
+    else:
+        settings.set(_SCAN_QUEUE_KEY, state)
+
+
+def clear_addon_scan_queue() -> None:
+    """Drop any persisted within-scan queue (full pass finished or token present)."""
+    global _budget_window_start, _budget_window_used
+    _budget_window_start = None
+    _budget_window_used = 0
+    if settings.get(_SCAN_QUEUE_KEY) is not None:
+        _save_scan_queue(None)
+
+
+def has_pending_addon_scan_queue() -> bool:
+    pending = _load_scan_queue().get("pending")
+    return isinstance(pending, list) and bool(pending)
+
+
+def _sync_budget_from_queue(state: dict[str, Any] | None = None) -> None:
+    global _budget_window_start, _budget_window_used
+    q = state if state is not None else _load_scan_queue()
+    remaining, _reset, start, used = compute_unauth_budget(
+        window_start=q.get("window_start"),
+        window_used=int(q.get("window_used") or 0),
+    )
+    _budget_window_start = start
+    _budget_window_used = used
+    # If the hour rolled over, keep effective counters in sync for this process.
+    if remaining == UNAUTH_API_BUDGET_PER_HOUR and used == 0:
+        _budget_window_start = start
+        _budget_window_used = 0
+
+
+def unauth_budget_remaining(*, now: float | None = None) -> tuple[int, int]:
+    """Remaining unauthenticated API calls and seconds until the hour window resets."""
+    remaining, reset_in, start, used = compute_unauth_budget(
+        window_start=_budget_window_start,
+        window_used=_budget_window_used,
+        now=now,
+    )
+    # Keep module state aligned when the window rolls over mid-session.
+    global _budget_window_start, _budget_window_used
+    _budget_window_start = start
+    _budget_window_used = used
+    return remaining, reset_in
+
+
+def _consume_api_budget() -> None:
+    """Count one unauthenticated GitHub API call; raise when the local hour budget is empty."""
+    if has_github_token():
+        return
+    remaining, _reset = unauth_budget_remaining()
+    if remaining <= 0:
+        raise GitHubBudgetExhaustedError(WAITING_RATE_LIMIT_STATUS)
+    global _budget_window_used
+    _budget_window_used += 1
 
 
 def _looks_like_rate_limit(response: requests.Response) -> bool:
@@ -86,22 +204,34 @@ def _looks_like_rate_limit(response: requests.Response) -> bool:
 
 
 def _note_rate_headers(response: requests.Response) -> None:
-    global _last_rate_remaining
+    global _last_rate_remaining, _last_rate_reset_epoch
     remaining = response.headers.get("X-RateLimit-Remaining")
-    if remaining is None:
-        return
-    try:
-        _last_rate_remaining = int(remaining)
-    except ValueError:
-        pass
+    if remaining is not None:
+        try:
+            _last_rate_remaining = int(remaining)
+        except ValueError:
+            pass
+    reset = response.headers.get("X-RateLimit-Reset")
+    if reset is not None:
+        try:
+            _last_rate_reset_epoch = int(reset)
+        except ValueError:
+            pass
 
 
 def rate_limit_exhausted() -> bool:
     return _last_rate_remaining is not None and _last_rate_remaining <= 0
 
 
+def _resume_after_sec_from_headers() -> int | None:
+    if _last_rate_reset_epoch is None:
+        return None
+    return max(0, int(_last_rate_reset_epoch - time.time()))
+
+
 def github_get(url: str, *, timeout: int = 30) -> requests.Response:
     """GET a GitHub API URL with auth headers; raise on rate limit."""
+    _consume_api_budget()
     r = requests.get(url, headers=github_headers(), timeout=timeout)
     _note_rate_headers(r)
     if _looks_like_rate_limit(r):
@@ -372,6 +502,7 @@ def github_latest_version_tag(owner: str, repo: str) -> str | None:
     """Latest GitHub release tag, else newest git tag. None if unknown / 404."""
     full = f"{owner}/{repo}"
     try:
+        _consume_api_budget()
         r = requests.get(
             f"https://api.github.com/repos/{full}/releases/latest",
             headers=github_headers(),
@@ -391,6 +522,7 @@ def github_latest_version_tag(owner: str, repo: str) -> str | None:
         log.warning("Latest release lookup failed for %s: %s", full, exc)
 
     try:
+        _consume_api_budget()
         r = requests.get(
             f"https://api.github.com/repos/{full}/tags",
             headers=github_headers(),
