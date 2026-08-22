@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, NamedTuple
+from urllib.parse import urlparse
 
 import requests
 
@@ -25,6 +26,7 @@ UA = {"User-Agent": "IchaLaunch/0.1", "Accept": "application/vnd.github+json"}
 
 RATE_LIMIT_STATUS = "GitHub rate limit hit — add a token in Settings or try later"
 WAITING_RATE_LIMIT_STATUS = "Waiting for GitHub rate limit…"
+GITHUB_TOKEN_REJECTED_MSG = "GitHub token rejected — clear or update it in Settings"
 # Automatic (startup/silent) rescans are skipped if the last scan was within this window.
 # Default only — live value comes from settings.auto_scan_cooldown_sec().
 STARTUP_CHECK_COOLDOWN_SEC = 60 * 60
@@ -43,6 +45,7 @@ _budget_window_start: float | None = None
 _budget_window_used: int = 0
 # url -> (monotonic_ts, reachable)
 _url_reach_cache: dict[str, tuple[float, bool]] = {}
+_token_rejected_pending: bool = False
 
 
 class ParsedGitHubUrl(NamedTuple):
@@ -82,12 +85,70 @@ def has_github_token() -> bool:
     return bool((settings.get("github_token") or "").strip())
 
 
-def github_headers() -> dict[str, str]:
+# Hosts that may receive Authorization: Bearer <github_token>. HTTPS only.
+# Never include github.io (third-party Pages) or arbitrary image CDNs.
+_GITHUB_AUTH_HOSTS = frozenset({
+    "api.github.com",
+    "github.com",
+    "www.github.com",
+    "raw.githubusercontent.com",
+    "objects.githubusercontent.com",
+    "codeload.github.com",
+})
+
+
+def may_send_github_token(url: str) -> bool:
+    """True only for HTTPS GitHub hosts — never third-party or plaintext HTTP."""
+    try:
+        parts = urlparse(url or "")
+    except ValueError:
+        return False
+    if parts.scheme.lower() != "https":
+        return False
+    host = (parts.hostname or "").lower().rstrip(".")
+    if not host:
+        return False
+    return host in _GITHUB_AUTH_HOSTS or host.endswith(".githubusercontent.com")
+
+
+def github_headers(url: str = "") -> dict[str, str]:
+    """GitHub REST headers. Token is attached only for HTTPS GitHub hosts.
+
+    Always pass the real request URL. An empty or third-party URL never
+    receives ``Authorization`` — including plaintext ``http://``.
+    """
     headers = dict(UA)
     token = (settings.get("github_token") or "").strip()
-    if token:
+    if token and may_send_github_token(url):
         headers["Authorization"] = f"Bearer {token}"
     return headers
+
+
+def note_github_token_rejected() -> None:
+    """Record that the stored token was rejected so the UI can warn once."""
+    global _token_rejected_pending
+    _token_rejected_pending = True
+    log.warning(GITHUB_TOKEN_REJECTED_MSG)
+
+
+def take_github_token_warning() -> str | None:
+    """Return a one-shot user-facing warning when the token was rejected."""
+    global _token_rejected_pending
+    if not _token_rejected_pending:
+        return None
+    _token_rejected_pending = False
+    return GITHUB_TOKEN_REJECTED_MSG
+
+
+def format_github_error_message(exc: BaseException) -> str:
+    """Turn raw HTTP errors into actionable GitHub API messages."""
+    if isinstance(exc, requests.HTTPError) and exc.response is not None:
+        if exc.response.status_code == 401:
+            return GITHUB_TOKEN_REJECTED_MSG
+    text = str(exc)
+    if "401" in text and "Unauthorized" in text and "api.github.com" in text:
+        return GITHUB_TOKEN_REJECTED_MSG
+    return text
 
 
 def compute_unauth_budget(
@@ -230,14 +291,52 @@ def _resume_after_sec_from_headers() -> int | None:
     return max(0, int(_last_rate_reset_epoch - time.time()))
 
 
+def _unauth_headers() -> dict[str, str]:
+    return dict(UA)
+
+
+def _github_api_get(url: str, **kwargs: Any) -> requests.Response:
+    """GET a GitHub API URL; retry without token when a stored token is rejected."""
+    headers = dict(github_headers(url))
+    extra_headers = kwargs.pop("headers", None)
+    if extra_headers:
+        headers.update(extra_headers)
+    had_token = "Authorization" in headers
+    if not had_token:
+        _consume_api_budget()
+    r = requests.get(url, headers=headers, **kwargs)
+    _note_rate_headers(r)
+    if had_token and r.status_code == 401:
+        note_github_token_rejected()
+        _consume_api_budget()
+        retry_headers = _unauth_headers()
+        if extra_headers:
+            retry_headers.update(extra_headers)
+        r = requests.get(url, headers=retry_headers, **kwargs)
+        _note_rate_headers(r)
+    return r
+
+
 def github_get(url: str, *, timeout: int = 30) -> requests.Response:
     """GET a GitHub API URL with auth headers; raise on rate limit."""
-    _consume_api_budget()
-    r = requests.get(url, headers=github_headers(), timeout=timeout)
-    _note_rate_headers(r)
+    r = _github_api_get(url, timeout=timeout)
     if _looks_like_rate_limit(r):
         raise GitHubRateLimitError(RATE_LIMIT_STATUS)
+    if r.status_code == 401:
+        raise requests.HTTPError(GITHUB_TOKEN_REJECTED_MSG, response=r)
     r.raise_for_status()
+    return r
+
+
+def github_open(url: str, **kwargs: Any) -> requests.Response:
+    """GET with auth and bad-token retry; caller must close the response."""
+    r = _github_api_get(url, **kwargs)
+    if _looks_like_rate_limit(r):
+        r.close()
+        raise GitHubRateLimitError(RATE_LIMIT_STATUS)
+    if r.status_code == 401:
+        r.close()
+        raise requests.HTTPError(GITHUB_TOKEN_REJECTED_MSG, response=r)
     return r
 
 
@@ -503,16 +602,14 @@ def github_latest_version_tag(owner: str, repo: str) -> str | None:
     """Latest GitHub release tag, else newest git tag. None if unknown / 404."""
     full = f"{owner}/{repo}"
     try:
-        _consume_api_budget()
-        r = requests.get(
-            f"https://api.github.com/repos/{full}/releases/latest",
-            headers=github_headers(),
-            timeout=30,
-        )
+        latest_url = f"https://api.github.com/repos/{full}/releases/latest"
+        r = _github_api_get(latest_url, timeout=30)
         _note_rate_headers(r)
         if _looks_like_rate_limit(r):
             raise GitHubRateLimitError(RATE_LIMIT_STATUS)
         if r.status_code != 404:
+            if r.status_code == 401:
+                raise requests.HTTPError(GITHUB_TOKEN_REJECTED_MSG, response=r)
             r.raise_for_status()
             tag = str((r.json() or {}).get("tag_name") or "").strip()
             if tag:
@@ -523,18 +620,15 @@ def github_latest_version_tag(owner: str, repo: str) -> str | None:
         log.warning("Latest release lookup failed for %s: %s", full, exc)
 
     try:
-        _consume_api_budget()
-        r = requests.get(
-            f"https://api.github.com/repos/{full}/tags",
-            headers=github_headers(),
-            timeout=30,
-            params={"per_page": 1},
-        )
+        tags_url = f"https://api.github.com/repos/{full}/tags"
+        r = _github_api_get(tags_url, timeout=30, params={"per_page": 1})
         _note_rate_headers(r)
         if _looks_like_rate_limit(r):
             raise GitHubRateLimitError(RATE_LIMIT_STATUS)
         if r.status_code == 404:
             return None
+        if r.status_code == 401:
+            raise requests.HTTPError(GITHUB_TOKEN_REJECTED_MSG, response=r)
         r.raise_for_status()
         data = r.json()
         if isinstance(data, list) and data:
@@ -570,10 +664,8 @@ def fetch_repo_readme(owner: str, repo: str, branch: str | None = None) -> dict[
     full = f"{owner}/{repo}"
     url = f"https://api.github.com/repos/{full}/readme"
     try:
-        _consume_api_budget()
-        r = requests.get(
+        r = _github_api_get(
             url,
-            headers=github_headers(),
             timeout=30,
             params={"ref": branch} if branch else None,
         )
@@ -582,6 +674,8 @@ def fetch_repo_readme(owner: str, repo: str, branch: str | None = None) -> dict[
             raise GitHubRateLimitError(RATE_LIMIT_STATUS)
         if r.status_code == 404:
             return None
+        if r.status_code == 401:
+            raise requests.HTTPError(GITHUB_TOKEN_REJECTED_MSG, response=r)
         r.raise_for_status()
         data = r.json()
     except GitHubRateLimitError:
@@ -639,8 +733,6 @@ def localize_readme_images(markdown: str, *, cache_dir: Path) -> str:
         "Accept": "image/*,*/*;q=0.8",
     }
     token = (settings.get("github_token") or "").strip()
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
 
     url_map: dict[str, str | None] = {}  # remote -> local uri or None (prune)
     found: list[str] = []
@@ -661,7 +753,10 @@ def localize_readme_images(markdown: str, *, cache_dir: Path) -> str:
             url_map[remote] = None
             continue
         try:
-            resp = requests.get(remote, headers=headers, timeout=20, stream=True)
+            req_headers = dict(headers)
+            if token and may_send_github_token(remote):
+                req_headers["Authorization"] = f"Bearer {token}"
+            resp = requests.get(remote, headers=req_headers, timeout=20, stream=True)
             if resp.status_code != 200:
                 url_map[remote] = None
                 continue

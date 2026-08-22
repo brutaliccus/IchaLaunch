@@ -20,7 +20,6 @@ from ichalaunch.addons.github import (
     RATE_LIMIT_STATUS,
     fetch_repo_readme,
     github_get,
-    github_headers,
     github_latest_commit,
     parse_github_url,
     rate_limit_exhausted,

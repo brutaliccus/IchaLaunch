@@ -256,7 +256,8 @@ class SettingsPage(QWidget):
         token_row.addWidget(self.token_status)
         gh_card.body.addLayout(token_row)
         token_note = QLabel(
-            "Raises the API limit (60 → 5,000 req/hour). Autosaves to local settings.json — never uploaded."
+            "Raises the API limit (60 → 5,000 req/hour). Saved in local settings.json. "
+            "Sent only over HTTPS to GitHub (api.github.com / githubusercontent.com), never to other sites."
         )
         token_note.setObjectName("Muted")
         token_note.setWordWrap(True)

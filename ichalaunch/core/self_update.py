@@ -16,9 +16,10 @@ import requests
 from ichalaunch import __version__
 from ichalaunch.addons.github import (
     GitHubRateLimitError,
+    GITHUB_TOKEN_REJECTED_MSG,
     RATE_LIMIT_STATUS,
     github_get,
-    github_headers,
+    github_open,
     rate_limit_exhausted,
 )
 from ichalaunch.core.logging_setup import log
@@ -183,12 +184,12 @@ def _download_asset(
     known_total: int = 0,
 ) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
-    headers = github_headers()
     # Prefer API asset URL when we have an id (works with token for private assets).
     fetch_url = url
+    extra_headers: dict[str, str] = {}
     if asset_id is not None:
         fetch_url = f"https://api.github.com/repos/{repo}/releases/assets/{asset_id}"
-        headers["Accept"] = "application/octet-stream"
+        extra_headers["Accept"] = "application/octet-stream"
 
     def _write_stream(resp: requests.Response) -> None:
         total = resolve_download_total(resp.headers, known_total)
@@ -202,11 +203,22 @@ def _download_asset(
                 if progress:
                     progress(done, total)
 
-    with requests.get(fetch_url, headers=headers, stream=True, timeout=180, allow_redirects=True) as r:
+    with github_open(
+        fetch_url,
+        headers=extra_headers,
+        stream=True,
+        timeout=180,
+        allow_redirects=True,
+    ) as r:
         if r.status_code == 404 and fetch_url != url and url:
             # Fall back to browser_download_url for public releases.
             r.close()
-            with requests.get(url, headers=github_headers(), stream=True, timeout=180, allow_redirects=True) as r2:
+            with github_open(
+                url,
+                stream=True,
+                timeout=180,
+                allow_redirects=True,
+            ) as r2:
                 r2.raise_for_status()
                 _write_stream(r2)
             if dest.stat().st_size < 1024:

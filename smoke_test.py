@@ -853,6 +853,126 @@ def test_unauth_scan_budget_queue():
     print("OK unauth scan budget queue")
 
 
+def test_github_token_not_sent_to_third_party_readme_hosts():
+    """README image fetches must not attach the GitHub token to foreign or HTTP URLs."""
+    from ichalaunch.addons import github as G
+
+    assert G.may_send_github_token("https://api.github.com/repos/o/r") is True
+    assert G.may_send_github_token("https://raw.githubusercontent.com/o/r/main/c.png") is True
+    assert G.may_send_github_token("https://user-images.githubusercontent.com/1/x.png") is True
+    assert G.may_send_github_token("https://objects.githubusercontent.com/x") is True
+    assert G.may_send_github_token("https://github.com/o/r/releases/download/v1/a.exe") is True
+    assert G.may_send_github_token("http://raw.githubusercontent.com/o/r/main/c.png") is False
+    assert G.may_send_github_token("https://third-party.example/a.png") is False
+    assert G.may_send_github_token("http://plaintext.example/b.png") is False
+    assert G.may_send_github_token("https://evil.github.io/x.png") is False
+    assert G.may_send_github_token("https://raw.githubusercontent.com.evil.example/x") is False
+    assert G.may_send_github_token("") is False
+
+    prev_token = G.settings.get("github_token")
+    orig_get = G.requests.get
+    seen: list[tuple[str, str | None]] = []
+
+    class _Resp:
+        status_code = 404
+        headers = {"Content-Type": "text/plain"}
+
+        def iter_content(self, **kw):
+            return iter(())
+
+        def close(self):
+            pass
+
+        @property
+        def content(self):
+            return b""
+
+    def _fake_get(url, headers=None, **kw):
+        seen.append((url, (headers or {}).get("Authorization")))
+        return _Resp()
+
+    try:
+        G.settings.set("github_token", "ghp_TESTTOKEN")
+        assert "Authorization" not in G.github_headers("")
+        assert "Authorization" not in G.github_headers("https://third-party.example/a.png")
+        assert "Authorization" not in G.github_headers("http://api.github.com/repos/o/r")
+        assert G.github_headers("https://api.github.com/repos/o/r").get("Authorization") == (
+            "Bearer ghp_TESTTOKEN"
+        )
+        G.requests.get = _fake_get
+        with tempfile.TemporaryDirectory() as td:
+            G.localize_readme_images(
+                "![a](https://third-party.example/a.png)\n"
+                "![b](http://plaintext.example/b.png)\n"
+                "![c](https://raw.githubusercontent.com/o/r/main/c.png)\n",
+                cache_dir=Path(td),
+            )
+    finally:
+        G.requests.get = orig_get
+        G.settings.set("github_token", prev_token or "")
+
+    by_host = {url.split("/")[2]: auth for url, auth in seen}
+    assert by_host["third-party.example"] is None
+    assert by_host["plaintext.example"] is None
+    assert by_host["raw.githubusercontent.com"] == "Bearer ghp_TESTTOKEN"
+    print("OK github token not sent to third-party README hosts")
+
+
+def test_github_bad_token_retries_without_auth():
+    """Invalid stored tokens must not break public repo API calls."""
+    import requests
+
+    from ichalaunch.addons import github as G
+
+    prev_token = G.settings.get("github_token")
+    orig_get = G.requests.get
+    calls: list[tuple[str, str | None]] = []
+
+    class _Resp:
+        def __init__(self, status_code: int, body: str = "{}"):
+            self.status_code = status_code
+            self.headers = {"Content-Type": "application/json"}
+            self.text = body
+            self._body = body
+
+        def json(self):
+            return json.loads(self._body)
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise requests.HTTPError(f"{self.status_code}", response=self)
+
+        def close(self):
+            pass
+
+    def _fake_get(url, headers=None, **kw):
+        auth = (headers or {}).get("Authorization")
+        calls.append((url, auth))
+        if auth:
+            return _Resp(401)
+        return _Resp(
+            200,
+            '{"tag_name":"1.0.0","assets":[]}',
+        )
+
+    try:
+        G.settings.set("github_token", "ghp_invalid_token")
+        G._token_rejected_pending = False
+        G.requests.get = _fake_get
+        r = G.github_get("https://api.github.com/repos/hannesmann/vanillafixes/releases/latest")
+        assert r.status_code == 200
+        assert len(calls) == 2
+        assert calls[0][1] == "Bearer ghp_invalid_token"
+        assert calls[1][1] is None
+        assert G.take_github_token_warning() == G.GITHUB_TOKEN_REJECTED_MSG
+    finally:
+        G.requests.get = orig_get
+        G.settings.set("github_token", prev_token or "")
+        G._token_rejected_pending = False
+
+    print("OK github bad token retries without auth")
+
+
 def test_auto_scan_cooldown_setting():
     from ichalaunch.config.settings import (
         AUTO_SCAN_COOLDOWN_MINUTES_DEFAULT,
@@ -1472,6 +1592,8 @@ def main():
     test_repair_missing_addon_git()
     test_copied_addon_update_compare()
     test_unauth_scan_budget_queue()
+    test_github_token_not_sent_to_third_party_readme_hosts()
+    test_github_bad_token_retries_without_auth()
     test_auto_scan_cooldown_setting()
     test_bagshui_catalog_pin()
     test_never_update_persists()

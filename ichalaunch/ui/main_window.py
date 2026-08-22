@@ -147,13 +147,16 @@ def _load_point_cursor() -> QCursor | None:
 from ichalaunch.addons.github import (
     AddonUpdateCheckResult,
     GIT_REPAIR_STATUS,
+    GITHUB_TOKEN_REJECTED_MSG,
     RATE_LIMIT_STATUS,
     WAITING_RATE_LIMIT_STATUS,
     check_addon_updates,
+    format_github_error_message,
     has_pending_addon_scan_queue,
     install_from_github,
     rate_limit_exhausted,
     recently_checked_addon_updates,
+    take_github_token_warning,
     uninstall_addon,
     update_addon,
 )
@@ -997,7 +1000,7 @@ class Worker(QThread):
             self.finished_ok.emit(result)
         except Exception as exc:  # noqa: BLE001
             log.exception("Worker failed")
-            self.failed.emit(str(exc))
+            self.failed.emit(format_github_error_message(exc))
 
 
 class MainWindow(QMainWindow):
@@ -2008,6 +2011,11 @@ class MainWindow(QMainWindow):
         self._start_busy_job(title, worker, on_ok)
         return True
 
+    def _maybe_warn_github_token(self) -> None:
+        msg = take_github_token_warning()
+        if msg:
+            themed.warning(self, "GitHub token", msg)
+
     def _on_worker_ok(self, result) -> None:
         handler = self._pending_ok_handler
         self._pending_ok_handler = None
@@ -2047,12 +2055,15 @@ class MainWindow(QMainWindow):
         if self._pump_addon_queue():
             return
         self._set_busy_ui(False, status_after)
+        self._maybe_warn_github_token()
 
     def _on_worker_fail(self, msg: str) -> None:
         themed.error(self, "Error", msg)
         if self._pump_addon_queue():
             return
         self._set_busy_ui(False, f"Failed: {msg[:80]}")
+        if msg != GITHUB_TOKEN_REJECTED_MSG:
+            self._maybe_warn_github_token()
 
     def _on_play_or_install(self) -> None:
         if self._launcher_update_pending():
