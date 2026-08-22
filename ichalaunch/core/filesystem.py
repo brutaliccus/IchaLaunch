@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import logging
 import os
 import re
 import shutil
@@ -13,6 +14,8 @@ import time
 import zipfile
 from pathlib import Path
 from typing import Any
+
+_log = logging.getLogger("ichalaunch")
 
 
 PROTECTED_HINTS = (
@@ -70,14 +73,30 @@ def ensure_dir(path: Path) -> Path:
     return path
 
 
-def sha256_file(path: Path, chunk: int = 1024 * 1024) -> str:
+def sha256_file(path: Path, chunk: int = 1024 * 1024) -> str | None:
+    """Content hash. Reads bytes only — never LoadLibrary. None if locked/missing.
+
+    Opening injector-style game DLLs (VanillaHelpers, nampower, …) can trip
+    Defender (WinError 5/32/225). Callers must treat None as skip, not crash.
+    """
+    if should_skip_locked_path(path):
+        _log.warning("Skipping hash of locked file %s", path)
+        return None
     h = hashlib.sha256()
-    with path.open("rb") as f:
-        while True:
-            block = f.read(chunk)
-            if not block:
-                break
-            h.update(block)
+    try:
+        with path.open("rb") as f:
+            while True:
+                block = f.read(chunk)
+                if not block:
+                    break
+                h.update(block)
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        if is_lock_or_av_error(exc):
+            mark_path_locked(path)
+            _log.warning("Could not hash %s: %s", path, exc)
+        return None
     return h.hexdigest()
 
 
@@ -278,6 +297,121 @@ def is_access_denied(exc: BaseException) -> bool:
     return getattr(exc, "errno", None) in (5, 13)
 
 
+# ERROR_ACCESS_DENIED=5, SHARING_VIOLATION=32, LOCK_VIOLATION=33,
+# ERROR_VIRUS_INFECTED=225 (Python often maps this to errno 22 / EINVAL).
+_WIN_LOCK_OR_AV = frozenset({5, 32, 33, 225})
+_POSIX_LOCK_OR_AV = frozenset({5, 11, 13, 16, 22})  # EACCES, EAGAIN, EACCES, EBUSY, EINVAL
+_SKIP_UNTIL: dict[str, float] = {}
+_DLL_BACKOFF_SEC = 90.0
+_DIR_LIST_CACHE: dict[str, tuple[float, frozenset[str]]] = {}
+_DIR_LIST_TTL = 4.0
+
+
+def is_lock_or_av_error(exc: BaseException) -> bool:
+    """True for Defender / sharing locks that must not abort the Qt event loop."""
+    if getattr(exc, "winerror", None) in _WIN_LOCK_OR_AV:
+        return True
+    if isinstance(exc, PermissionError):
+        return True
+    return getattr(exc, "errno", None) in _POSIX_LOCK_OR_AV
+
+
+def _norm_path_key(path: Path | str) -> str:
+    return str(path).replace("/", "\\").lower()
+
+
+def should_skip_locked_path(path: Path | str) -> bool:
+    """True while a prior lock/AV error on *path* is still backing off."""
+    return time.monotonic() < _SKIP_UNTIL.get(_norm_path_key(path), 0.0)
+
+
+def mark_path_locked(path: Path | str, seconds: float = _DLL_BACKOFF_SEC) -> None:
+    """Do not retry this file for *seconds* (avoids a 2s crash/retry loop)."""
+    _SKIP_UNTIL[_norm_path_key(path)] = time.monotonic() + max(1.0, float(seconds))
+
+
+def clear_fs_caches() -> None:
+    """Test helper — drop listdir + lock-backoff caches."""
+    _DIR_LIST_CACHE.clear()
+    _SKIP_UNTIL.clear()
+
+
+def listed_basenames(directory: Path) -> frozenset[str] | None:
+    """Lowercase names in *directory* via listdir — does not open files.
+
+    Prefer this over per-file ``exists()``/``stat()`` on injector-style DLLs
+    (VanillaHelpers.dll): first open can trip Defender and kill the launcher.
+    Returns None if the folder cannot be listed.
+    """
+    key = _norm_path_key(directory)
+    now = time.monotonic()
+    cached = _DIR_LIST_CACHE.get(key)
+    if cached and now < cached[0]:
+        return cached[1]
+    try:
+        names = frozenset(n.lower() for n in os.listdir(directory))
+    except FileNotFoundError:
+        empty: frozenset[str] = frozenset()
+        _DIR_LIST_CACHE[key] = (now + _DIR_LIST_TTL, empty)
+        return empty
+    except OSError as exc:
+        if is_lock_or_av_error(exc):
+            mark_path_locked(directory)
+            _log.warning("Could not list %s: %s", directory, exc)
+        return None
+    _DIR_LIST_CACHE[key] = (now + _DIR_LIST_TTL, names)
+    return names
+
+
+def name_present(
+    directory: Path,
+    name: str,
+    listing: frozenset[str] | None = None,
+) -> bool:
+    """Case-insensitive presence check. Never LoadLibrary. Never raises.
+
+    Locked/AV-blocked files are treated as **present** so we do not reinstall
+    or re-hash them every UI refresh.
+    """
+    raw = (name or "").strip().strip("\"'")
+    if not raw:
+        return False
+    needle = Path(raw.replace("\\", "/")).name.lower()
+    if not needle or needle in {".", ".."}:
+        return False
+    dest = directory / needle
+    if should_skip_locked_path(dest):
+        return True
+    names = listing if listing is not None else listed_basenames(directory)
+    if names is not None:
+        return needle in names
+    try:
+        return (directory / raw).exists()
+    except OSError as exc:
+        if is_lock_or_av_error(exc):
+            mark_path_locked(dest)
+            return True
+        return False
+
+
+def copy_file_tolerant(src: Path, dest: Path) -> bool:
+    """``copy2`` without mapping *dest* as a DLL. False on lock/AV (does not raise)."""
+    if should_skip_locked_path(src) or should_skip_locked_path(dest):
+        _log.warning("Skipping copy (backoff) %s → %s", src, dest)
+        return False
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dest)
+        return True
+    except OSError as exc:
+        if is_lock_or_av_error(exc):
+            mark_path_locked(src)
+            mark_path_locked(dest)
+            _log.warning("Lock/AV skipped copy %s → %s: %s", src, dest, exc)
+            return False
+        raise
+
+
 def _park_or_remove(dest: Path) -> None:
     """Clear *dest* so a move can use that name. Parks to a unique sibling if delete fails."""
     if not dest.exists():
@@ -377,13 +511,20 @@ def copy_tree(src: Path, dest: Path) -> None:
 
 
 def safe_remove(path: Path) -> None:
-    if not path.exists():
-        return
-    if path.is_dir():
-        robust_rmtree(path)
-    else:
-        _make_writable(path)
-        path.unlink()
+    try:
+        if not path.exists():
+            return
+        if path.is_dir():
+            robust_rmtree(path)
+        else:
+            _make_writable(path)
+            path.unlink()
+    except OSError as exc:
+        if is_lock_or_av_error(exc):
+            mark_path_locked(path)
+            _log.warning("Could not remove locked %s: %s", path, exc)
+            return
+        raise
 
 
 def find_toc_roots(root: Path) -> list[Path]:
@@ -403,30 +544,111 @@ def find_toc_roots(root: Path) -> list[Path]:
     return [r for r in roots if len(r.parts) == min_depth]
 
 
+def dlls_txt_paths(game_path: Path) -> list[Path]:
+    """VanillaFixes reads ``{game}/dlls.txt``; some installs keep a copy under ``.ichalaunch``."""
+    game_path = Path(game_path)
+    return [game_path / "dlls.txt", game_path / ".ichalaunch" / "dlls.txt"]
+
+
+def _dll_basename(entry: str) -> str:
+    text = (entry or "").strip()
+    if not text or text.startswith("#"):
+        return ""
+    if "#" in text:
+        text = text.split("#", 1)[0].strip()
+    text = text.strip("\"'").strip()
+    if not text:
+        return ""
+    return Path(text.replace("\\", "/")).name
+
+
+def parse_dlls_txt_text(text: str) -> list[str]:
+    """Active (uncommented, non-blank) DLL names. Never opens the DLLs themselves."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for line in (text or "").splitlines():
+        s = (line or "").strip()
+        if not s or s.startswith("#"):
+            continue
+        name = _dll_basename(s)
+        if not name:
+            continue
+        key = name.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(name)
+    return out
+
+
 def read_dlls_txt(game_path: Path) -> list[str]:
-    path = game_path / "dlls.txt"
-    if not path.exists():
-        return []
-    lines = []
-    for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
-        s = line.strip()
-        if s and not s.startswith("#"):
-            lines.append(s)
-    return lines
+    """Parse game ``dlls.txt`` (and ``.ichalaunch/dlls.txt``). Skips comments/blanks.
+
+    Missing or locked list files return ``[]`` — never crash.
+    """
+    names: list[str] = []
+    seen: set[str] = set()
+    for path in dlls_txt_paths(game_path):
+        try:
+            if not path.is_file():
+                continue
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError as exc:
+            _log.warning("Could not read %s: %s", path, exc)
+            continue
+        for name in parse_dlls_txt_text(text):
+            key = name.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            names.append(name)
+    return names
 
 
 def write_dlls_txt(game_path: Path, dlls: list[str]) -> None:
-    path = game_path / "dlls.txt"
+    path = Path(game_path) / "dlls.txt"
     content = "# Managed by IchaLaunch\n" + "\n".join(dlls) + "\n"
-    path.write_text(content, encoding="utf-8")
+    try:
+        path.write_text(content, encoding="utf-8")
+    except OSError as exc:
+        _log.warning("Could not write %s: %s", path, exc)
 
 
 def update_dlls_txt(game_path: Path, add: list[str] | None = None, remove: list[str] | None = None) -> None:
-    current = read_dlls_txt(game_path)
-    add = add or []
-    remove = set(remove or [])
-    result = [d for d in current if d not in remove]
-    for d in add:
-        if d not in result:
-            result.append(d)
-    write_dlls_txt(game_path, result)
+    """Add/remove active entries while preserving comments and blank lines."""
+    path = Path(game_path) / "dlls.txt"
+    raw_lines: list[str] = []
+    try:
+        if path.is_file():
+            raw_lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    except OSError as exc:
+        _log.warning("Could not read %s: %s", path, exc)
+        raw_lines = []
+
+    remove_l = {_dll_basename(x).lower() for x in (remove or []) if _dll_basename(x)}
+    add_list = [_dll_basename(x) for x in (add or []) if _dll_basename(x)]
+    present_l: set[str] = set()
+    kept: list[str] = []
+    for line in raw_lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            kept.append(line)
+            continue
+        name = _dll_basename(stripped)
+        key = name.lower()
+        if not name or key in remove_l:
+            continue
+        present_l.add(key)
+        kept.append(line)
+    for d in add_list:
+        key = d.lower()
+        if key in present_l or key in remove_l:
+            continue
+        kept.append(d)
+        present_l.add(key)
+    if not any(x.strip().startswith("#") for x in kept):
+        kept.insert(0, "# Managed by IchaLaunch")
+    try:
+        path.write_text("\n".join(kept).rstrip() + "\n", encoding="utf-8")
+    except OSError as exc:
+        _log.warning("Could not write %s: %s", path, exc)

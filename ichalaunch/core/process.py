@@ -262,6 +262,13 @@ def wow_exe_running() -> bool:
     return False
 
 
+# Game client DLLs (VanillaHelpers.dll, nampower.dll, VfPatcher.dll, d3d9.dll, …)
+# must never be loaded into the IchaLaunch process via ctypes.WinDLL / CDLL /
+# QLibrary / kernel32.LoadLibrary. Mapping them runs DllMain here and can crash
+# the Qt event loop (or trip Defender on first access). Hash/stat/copy them as
+# plain files only, and treat WinError 5/32/225 as skip + backoff.
+
+
 def launch_exe(path: Path, cwd: Path | None = None) -> subprocess.Popen:
     if not path.exists():
         raise FileNotFoundError(str(path))

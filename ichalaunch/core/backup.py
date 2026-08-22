@@ -7,7 +7,8 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
-from ichalaunch.core.filesystem import ensure_dir
+from ichalaunch.core.filesystem import copy_file_tolerant, ensure_dir, is_lock_or_av_error
+from ichalaunch.core.logging_setup import log
 
 
 def ichalaunch_meta_dir(game_path: Path) -> Path:
@@ -23,7 +24,11 @@ def create_backup(game_path: Path, label: str, paths: list[Path]) -> Path:
     backup_root = ensure_dir(backups_dir(game_path) / f"{stamp}_{label}")
     manifest = {"label": label, "stamp": stamp, "files": []}
     for p in paths:
-        if not p.exists():
+        try:
+            if not p.exists():
+                continue
+        except OSError as exc:
+            log.warning("Backup skipped %s: %s", p, exc)
             continue
         try:
             rel = p.relative_to(game_path)
@@ -31,10 +36,15 @@ def create_backup(game_path: Path, label: str, paths: list[Path]) -> Path:
             rel = Path(p.name)
         dest = backup_root / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
-        if p.is_dir():
-            shutil.copytree(p, dest, dirs_exist_ok=True)
-        else:
-            shutil.copy2(p, dest)
+        try:
+            if p.is_dir():
+                shutil.copytree(p, dest, dirs_exist_ok=True)
+            elif not copy_file_tolerant(p, dest):
+                log.warning("Backup skipped locked file %s", p)
+                continue
+        except OSError as exc:
+            log.warning("Backup skipped %s: %s", p, exc)
+            continue
         manifest["files"].append(str(rel).replace("\\", "/"))
     (backup_root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return backup_root
@@ -51,12 +61,19 @@ def restore_backup(game_path: Path, backup_root: Path) -> None:
         if not src.exists():
             continue
         dest.parent.mkdir(parents=True, exist_ok=True)
-        if src.is_dir():
-            if dest.exists():
-                shutil.rmtree(dest)
-            shutil.copytree(src, dest)
-        else:
-            shutil.copy2(src, dest)
+        try:
+            if src.is_dir():
+                if dest.exists():
+                    shutil.rmtree(dest)
+                shutil.copytree(src, dest)
+            elif not copy_file_tolerant(src, dest):
+                log.warning("Restore skipped locked file %s", dest)
+                continue
+        except OSError as exc:
+            if is_lock_or_av_error(exc):
+                log.warning("Restore skipped %s: %s", dest, exc)
+                continue
+            raise
 
 
 def list_backups(game_path: Path) -> list[Path]:

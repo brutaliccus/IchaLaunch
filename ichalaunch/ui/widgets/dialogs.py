@@ -11,13 +11,12 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QPushButton,
     QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
 
-from ichalaunch.ui.widgets.cursors import apply_open_hand
+from ichalaunch.ui.widgets.glue_panel_button import GLUE_BTN_H, GLUE_BTN_W, GluePanelButton
 
 
 class DialogResult(Enum):
@@ -26,6 +25,36 @@ class DialogResult(Enum):
     Ok = auto()
     Cancel = auto()
     Browse = auto()
+
+
+_PRIMARY_RESULTS = frozenset({DialogResult.Yes, DialogResult.Ok, DialogResult.Browse})
+
+
+def _dialog_glue_width(label: str) -> int:
+    n = len(label or "")
+    if n >= 14:
+        return 148
+    if n >= 12:
+        return 140
+    if n >= 10:
+        return 132
+    return GLUE_BTN_W
+
+
+def _dialog_glue_button(
+    label: str,
+    parent: QWidget | None = None,
+    *,
+    primary: bool = False,
+) -> GluePanelButton:
+    """Gold-bordered glue-panel action, matching Settings Browse / toolbar."""
+    return GluePanelButton(
+        label,
+        parent,
+        role="primary" if primary else "standard",
+        width=_dialog_glue_width(label),
+        height=GLUE_BTN_H,
+    )
 
 
 class ThemedDialog(QDialog):
@@ -75,21 +104,23 @@ class ThemedDialog(QDialog):
 
         if buttons is None:
             buttons = [("OK", DialogResult.Ok)]
-        if len(buttons) >= 3:
-            self.setMinimumWidth(460)
 
         row = QHBoxLayout()
         row.setSpacing(10)
         row.addStretch(1)
+        btn_widths = 0
         for label, result in buttons:
-            btn = QPushButton(label)
-            if result in (DialogResult.Yes, DialogResult.Ok, DialogResult.Browse):
-                btn.setObjectName("ThemedDialogPrimary")
-            else:
-                btn.setObjectName("ThemedDialogSecondary")
-            apply_open_hand(btn)
+            btn = _dialog_glue_button(
+                label, card, primary=result in _PRIMARY_RESULTS
+            )
             btn.clicked.connect(lambda _checked=False, r=result: self._finish(r))
             row.addWidget(btn)
+            btn_widths += btn.width()
+        if len(buttons) >= 3:
+            needed = 44 + 10 * (len(buttons) - 1) + btn_widths + 24
+            self.setMinimumWidth(max(460, needed))
+            if needed > 620:
+                self.setMaximumWidth(needed + 40)
         body.addLayout(row)
 
         root.addWidget(card)
@@ -239,14 +270,10 @@ class GitHubImportDialog(QDialog):
         row = QHBoxLayout()
         row.setSpacing(10)
         row.addStretch(1)
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.setObjectName("ThemedDialogSecondary")
-        apply_open_hand(cancel_btn)
+        cancel_btn = _dialog_glue_button("Cancel", card, primary=False)
         cancel_btn.clicked.connect(lambda: self._finish(DialogResult.Cancel))
         cancel_btn.setVisible(not self._view_only)
-        self.accept_btn = QPushButton(accept_text)
-        self.accept_btn.setObjectName("ThemedDialogPrimary")
-        apply_open_hand(self.accept_btn)
+        self.accept_btn = _dialog_glue_button(accept_text, card, primary=True)
         self.accept_btn.setEnabled(bool(self._view_only))
         self.accept_btn.clicked.connect(lambda: self._finish(DialogResult.Yes))
         self._default_accept = accept_text
@@ -666,13 +693,9 @@ class ThemedPreviewDialog(QDialog):
         row = QHBoxLayout()
         row.setSpacing(10)
         row.addStretch(1)
-        cancel_btn = QPushButton(cancel_text)
-        cancel_btn.setObjectName("ThemedDialogSecondary")
-        apply_open_hand(cancel_btn)
+        cancel_btn = _dialog_glue_button(cancel_text, card, primary=False)
         cancel_btn.clicked.connect(lambda: self._finish(DialogResult.Cancel))
-        ok_btn = QPushButton(accept_text)
-        ok_btn.setObjectName("ThemedDialogPrimary")
-        apply_open_hand(ok_btn)
+        ok_btn = _dialog_glue_button(accept_text, card, primary=True)
         ok_btn.clicked.connect(lambda: self._finish(DialogResult.Yes))
         row.addWidget(cancel_btn)
         row.addWidget(ok_btn)
@@ -775,13 +798,9 @@ class ThemedInputDialog(QDialog):
         row = QHBoxLayout()
         row.setSpacing(10)
         row.addStretch(1)
-        cancel_btn = QPushButton(cancel_text)
-        cancel_btn.setObjectName("ThemedDialogSecondary")
-        apply_open_hand(cancel_btn)
+        cancel_btn = _dialog_glue_button(cancel_text, card, primary=False)
         cancel_btn.clicked.connect(self.reject)
-        ok_btn = QPushButton(accept_text)
-        ok_btn.setObjectName("ThemedDialogPrimary")
-        apply_open_hand(ok_btn)
+        ok_btn = _dialog_glue_button(accept_text, card, primary=True)
         ok_btn.clicked.connect(self.accept)
         row.addWidget(cancel_btn)
         row.addWidget(ok_btn)

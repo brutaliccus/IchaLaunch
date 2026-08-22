@@ -200,20 +200,42 @@ class Settings:
 
     def set_installed_addon(self, folder: str, meta: dict[str, Any]) -> None:
         addons = self.installed_addons
-        merged = dict(addons.get(folder) or {})
+        key = folder
+        if key not in addons:
+            for existing in addons:
+                if existing.lower() == str(folder or "").lower():
+                    key = existing
+                    break
+        merged = dict(addons.get(key) or {})
+        prev_never = bool(merged.get("never_update"))
         merged.update(meta)
-        addons[folder] = merged
+        # Incoming payloads often omit flags; never drop a saved lock.
+        if prev_never:
+            merged["never_update"] = True
+        self._stamp_catalog_never_update(str(key), merged)
+        addons[key] = merged
         self.set("installed_addons", addons)
+
+    @staticmethod
+    def _stamp_catalog_never_update(folder: str, meta: dict[str, Any]) -> None:
+        """Force ``never_update`` for catalog pins (Bagshui ``updates: false``)."""
+        from ichalaunch.addons.github import addon_ignores_updates
+
+        if addon_ignores_updates(None, folder, meta):
+            meta["never_update"] = True
 
     def is_addon_never_update(self, folder: str) -> bool:
         """True when this pack is excluded from update checks / Update All."""
         meta = self.installed_addons.get(folder) or {}
-        if meta.get("never_update"):
-            return True
-        for key, val in self.installed_addons.items():
-            if key.lower() == str(folder or "").lower() and isinstance(val, dict):
-                return bool(val.get("never_update"))
-        return False
+        if not meta:
+            needle = str(folder or "").lower()
+            for key, val in self.installed_addons.items():
+                if key.lower() == needle and isinstance(val, dict):
+                    folder, meta = key, val
+                    break
+        from ichalaunch.addons.github import addon_skips_updates
+
+        return addon_skips_updates(str(folder), meta)
 
     def set_addon_never_update(self, folder: str, enabled: bool) -> None:
         """Persist Never Update on the pack primary (case-insensitive key match)."""
@@ -234,6 +256,8 @@ class Settings:
             meta["never_update"] = True
         else:
             meta.pop("never_update", None)
+        # Catalog pin always wins — Bagshui cannot be unlocked.
+        self._stamp_catalog_never_update(str(key), meta)
         addons[key] = meta
         self.set("installed_addons", addons)
 

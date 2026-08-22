@@ -628,7 +628,10 @@ class AddonRow(QWidget):
             self._never_update = bool(never_update)
         self._status_text = status
         self._update_available = status.startswith("Update")
-        self._refresh_never_update_ui()
+        try:
+            self._refresh_never_update_ui()
+        except RuntimeError:
+            return
 
     def kick_git_visibility(self) -> None:
         """Run a deferred Open-in-Git probe once the row is on-screen."""

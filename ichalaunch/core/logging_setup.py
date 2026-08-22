@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from pathlib import Path
 
 from ichalaunch.config.settings import appdata_root
@@ -29,3 +30,14 @@ def setup_logging() -> logging.Logger:
 
 
 log = setup_logging()
+
+
+def _excepthook(exc_type, exc, tb) -> None:  # noqa: ANN001
+    """Log unhandled errors (including Qt slot exceptions) without aborting."""
+    if issubclass(exc_type, (KeyboardInterrupt, SystemExit)):
+        sys.__excepthook__(exc_type, exc, tb)
+        return
+    log.error("Unhandled exception", exc_info=(exc_type, exc, tb))
+
+
+sys.excepthook = _excepthook

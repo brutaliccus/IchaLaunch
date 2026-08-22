@@ -178,7 +178,7 @@ class ClientPage(QWidget):
         self.search.setClearButtonEnabled(True)
         self._search_timer = QTimer(self)
         self._search_timer.setSingleShot(True)
-        self._search_timer.setInterval(160)
+        self._search_timer.setInterval(220)
         self._search_timer.timeout.connect(self._apply_search)
         self.search.textChanged.connect(lambda: self._search_timer.start())
         self.search.returnPressed.connect(self._apply_search)
@@ -340,26 +340,24 @@ class ClientPage(QWidget):
     def _apply_search(self) -> None:
         q = (self.search.text() or "").strip().lower()
         self._search_q = q
-        if not q:
-            for row in self.rows.values():
-                row.setVisible(True)
-            return
-
         matches: list[tuple[str, str]] = []
         for mid, row in self.rows.items():
-            meta = self._row_meta.get(mid) or {}
-            hay = " ".join(
-                [
-                    mid,
-                    str(meta.get("name") or ""),
-                    str(meta.get("description") or ""),
-                    str(meta.get("note") or ""),
-                ]
-            ).lower()
-            hit = q in hay
-            row.setVisible(hit)
-            if hit:
-                matches.append((mid, str(meta.get("category") or "")))
+            try:
+                meta = self._row_meta.get(mid) or {}
+                hay = " ".join(
+                    [
+                        mid,
+                        str(meta.get("name") or ""),
+                        str(meta.get("description") or ""),
+                        str(meta.get("note") or ""),
+                    ]
+                ).lower()
+                hit = (not q) or q in hay
+                row.setVisible(hit)
+                if hit:
+                    matches.append((mid, str(meta.get("category") or "")))
+            except RuntimeError:
+                continue
 
         if not matches:
             return

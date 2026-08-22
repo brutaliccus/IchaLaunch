@@ -1787,8 +1787,21 @@ class MainWindow(QMainWindow):
         self._busy_status_base = (msg or "").strip()
         self.status_lbl.setText(self._format_busy_status(self._busy_status_base or "Working…"))
 
+    def _lock_addon_filters(self, extra_busy: bool = False) -> None:
+        """Disable addons filter combos while a scan or _busy worker is running."""
+        busy = bool(
+            extra_busy
+            or getattr(self, "_checking_addons", False)
+            or self._worker_busy()
+        )
+        try:
+            self.addons.set_scanning(busy)
+        except RuntimeError:
+            pass
+
     def _set_busy_ui(self, busy: bool, msg: str = "") -> None:
         self.play_btn.setEnabled(not busy)
+        self._lock_addon_filters(extra_busy=busy)
         if busy:
             self.progress.show()
             self.progress.setRange(0, 0)  # indeterminate until bytes known
@@ -1827,6 +1840,7 @@ class MainWindow(QMainWindow):
         mod_busy = self._checking_mods
         self.addons.set_checking(addon_busy, "Checking for updates…")
         self.client.set_checking(mod_busy, "Checking for updates…")
+        self._lock_addon_filters()
 
         if self._worker_busy():
             return
@@ -2539,6 +2553,7 @@ class MainWindow(QMainWindow):
         self.status_lbl.setText("Checking addon updates…")
         self._checking_addons = True
         self._check_addon_pct = 0
+        self.addons.set_scanning(True)
         self._refresh_check_loading()
         worker = Worker(check_addon_updates, respect_cooldown=False)
 

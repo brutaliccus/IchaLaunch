@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QShowEvent
 from PySide6.QtWidgets import (
@@ -15,7 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ichalaunch.addons.github import load_catalog
+from ichalaunch.addons.github import catalog_locks_updates, catalog_pin_tag, load_catalog
 from ichalaunch.addons.loadstate import addon_disk_path, addon_is_loaded, set_addon_loaded
 from ichalaunch.config.settings import settings
 from ichalaunch.core.detect import (
@@ -36,6 +38,24 @@ from ichalaunch.ui.widgets.marble_bg import MarbleListWidget, MarblePanel
 
 PAGE_SIZE = 80
 INSTALLED_ROW_H = 48
+# After the combo popup hides, Qt is still tearing down the native popup HWND
+# and may still deliver currentTextChanged. Rebuilds in that window crash.
+LIST_FREEZE_MS = 180
+# Search must not rebuild on every keystroke — Available catalog is huge.
+SEARCH_DEBOUNCE_MS = 220
+_SCAN_TIP = "Wait for scan to finish"
+_INIT_TIP = "Wait for addons to finish loading"
+
+
+def _copied_addon_status(meta: dict | None) -> bool:
+    """True when this folder was detected/copied, not an IchaLaunch-tracked install."""
+    if not meta:
+        return True
+    if str(meta.get("installed_commit") or "").strip():
+        return False
+    if meta.get("updated_at") or meta.get("installed_at"):
+        return False
+    return True
 
 
 def _hide_list_item_widgets(lw: MarbleListWidget) -> None:
@@ -44,19 +64,29 @@ def _hide_list_item_widgets(lw: MarbleListWidget) -> None:
     On Windows, setParent(None) while visible promotes the widget to a real
     top-level HWND — that is the rapid-fire mini-window spam after refresh.
     """
-    for i in range(lw.count()):
-        it = lw.item(i)
-        if it is None:
+    try:
+        count = lw.count()
+    except RuntimeError:
+        return
+    for i in range(count):
+        try:
+            it = lw.item(i)
+            if it is None:
+                continue
+            w = lw.itemWidget(it)
+            if w is not None:
+                w.hide()
+                w.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        except RuntimeError:
             continue
-        w = lw.itemWidget(it)
-        if w is not None:
-            w.hide()
-            w.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
 
 
 def _safe_clear_list(lw: MarbleListWidget) -> None:
     _hide_list_item_widgets(lw)
-    lw.clear()
+    try:
+        lw.clear()
+    except RuntimeError:
+        return
 
 
 def _mount_row(lw: MarbleListWidget, item: QListWidgetItem, row: AddonRow) -> None:
@@ -79,15 +109,22 @@ def _reveal_item_widgets(lw: MarbleListWidget, page: QWidget | None = None) -> N
     )
     if not lw.isVisible() or not page_ok:
         return
-    lw.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, False)
-    for i in range(lw.count()):
-        it = lw.item(i)
-        if it is None:
+    try:
+        lw.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, False)
+        count = lw.count()
+    except RuntimeError:
+        return
+    for i in range(count):
+        try:
+            it = lw.item(i)
+            if it is None:
+                continue
+            w = lw.itemWidget(it)
+            if w is None:
+                continue
+            w.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, False)
+        except RuntimeError:
             continue
-        w = lw.itemWidget(it)
-        if w is None:
-            continue
-        w.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, False)
 
 
 class AddonsPage(QWidget):
@@ -174,9 +211,9 @@ class AddonsPage(QWidget):
         self.search.setPlaceholderText("Search catalog…")
         self._search_timer = QTimer(self)
         self._search_timer.setSingleShot(True)
-        self._search_timer.setInterval(180)
-        self._search_timer.timeout.connect(self.refresh)
-        self.search.textChanged.connect(lambda: self._search_timer.start())
+        self._search_timer.setInterval(SEARCH_DEBOUNCE_MS)
+        self._search_timer.timeout.connect(self._on_search_changed)
+        self.search.textChanged.connect(self._on_search_text)
 
         self.filter_title = QLabel("Installed")
         self.filter_title.setObjectName("SectionTitle")
@@ -192,13 +229,17 @@ class AddonsPage(QWidget):
         self.filter_box.blockSignals(True)
         self.filter_box.addItems(["Installed", "Available", "Update Available", "All"])
         self.filter_box.blockSignals(False)
-        self.filter_box.currentTextChanged.connect(self.refresh)
+        self.filter_box.currentTextChanged.connect(self._on_filter_changed)
+        self.filter_box.popupShown.connect(self._on_combo_popup_shown)
+        self.filter_box.popupHidden.connect(self._on_combo_popup_hidden)
 
         self.cat_box = GlueComboBox()
         self.cat_box.blockSignals(True)
         self.cat_box.addItem("All categories")
         self.cat_box.blockSignals(False)
-        self.cat_box.currentTextChanged.connect(self.refresh)
+        self.cat_box.currentTextChanged.connect(self._on_filter_changed)
+        self.cat_box.popupShown.connect(self._on_combo_popup_shown)
+        self.cat_box.popupHidden.connect(self._on_combo_popup_hidden)
 
         check_btn = GluePanelButton("Check Updates", self)
         check_btn.clicked.connect(self.check_updates_requested.emit)
@@ -217,18 +258,36 @@ class AddonsPage(QWidget):
         tools.addWidget(update_all_btn)
         tools.addWidget(import_btn)
 
-        # Outer marble window holding installed + available lists (and headers).
+        # Outer marble window: installed section and available section are siblings.
+        # Pagination lives *inside* the available section so Prev/Next never steals
+        # height from (or reveals) the installed list.
+        self.installed_section = QWidget(self)
+        self.installed_section.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        inst_l = QVBoxLayout(self.installed_section)
+        inst_l.setContentsMargins(0, 0, 0, 0)
+        inst_l.setSpacing(8)
+        inst_l.addWidget(self.installed_hdr)
+        inst_l.addWidget(self.installed_list, 1)
+
+        self.avail_section = QWidget(self)
+        self.avail_section.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        avail_l = QVBoxLayout(self.avail_section)
+        avail_l.setContentsMargins(0, 0, 0, 0)
+        avail_l.setSpacing(8)
+        avail_l.addWidget(self.avail_hdr)
+        avail_l.addWidget(self.list, 1)
+        avail_l.addLayout(action_row)
+        self.installed_section.hide()
+        self.avail_section.hide()
+
         addons_win = MarblePanel(radius=10.0)
         addons_win.setObjectName("AddonsWindow")
         win_l = QVBoxLayout(addons_win)
         win_l.setContentsMargins(10, 10, 10, 10)
         win_l.setSpacing(8)
         win_l.addLayout(title_row)
-        win_l.addWidget(self.installed_hdr)
-        win_l.addWidget(self.installed_list, 1)
-        win_l.addWidget(self.avail_hdr)
-        win_l.addWidget(self.list, 2)
-        win_l.addLayout(action_row)
+        win_l.addWidget(self.installed_section, 1)
+        win_l.addWidget(self.avail_section, 1)
 
         layout.addLayout(self.loading_row)
         layout.addWidget(self.updates_lbl)
@@ -244,6 +303,20 @@ class AddonsPage(QWidget):
         self._allow_hidden_build = False
         self._want_installed_visible = True
         self._want_avail_visible = False
+        self._refreshing = False
+        self._scanning = False
+        self._lists_ready = False
+        self._available_base: list[dict] = []
+        self._available_base_ready = False
+        self._installed_lower: set[str] = set()
+        self._rendering_avail = False
+        self._pending_avail_search = False
+        self._list_freeze_until = 0.0
+        self._pending_list_work: set[str] = set()
+        self._flush_timer = QTimer(self)
+        self._flush_timer.setSingleShot(True)
+        self._flush_timer.setInterval(LIST_FREEZE_MS)
+        self._flush_timer.timeout.connect(self._on_flush_timer)
         self._git_kick_timer = QTimer(self)
         self._git_kick_timer.setSingleShot(True)
         self._git_kick_timer.setInterval(300)
@@ -255,6 +328,7 @@ class AddonsPage(QWidget):
             self.cat_box.addItem(c)
         self.cat_box.blockSignals(False)
         self.set_checking(False)
+        self._sync_filter_lock()
         # Do not refresh() here — building rows before the page is in the stack
         # (or while hidden) is the launch-time HWND spam. First paint is on show.
 
@@ -264,6 +338,50 @@ class AddonsPage(QWidget):
         self.loading_lbl.setVisible(False)
         self.loading_bar.setVisible(False)
         self.check_btn.setEnabled(not busy)
+        if busy:
+            self.set_scanning(True)
+
+    def set_scanning(self, busy: bool) -> None:
+        """Disable filter combos while an update scan or list-rebuild worker runs."""
+        self._scanning = bool(busy)
+        self._sync_filter_lock()
+
+    def _sync_filter_lock(self) -> None:
+        """Combo stays off until first list is built, during scan/rebuild, and post-popup cooldown."""
+        cooling = time.monotonic() < getattr(self, "_list_freeze_until", 0.0)
+        lock = (
+            not self._lists_ready
+            or self._scanning
+            or self._refreshing
+            or self._rendering_avail
+            or cooling
+        )
+        if not self._lists_ready:
+            tip = _INIT_TIP
+        elif lock:
+            tip = _SCAN_TIP
+        else:
+            tip = ""
+        for box in (self.filter_box, self.cat_box):
+            try:
+                popup_open = False
+                is_open = getattr(box, "isPopupOpen", None)
+                if callable(is_open):
+                    popup_open = bool(is_open())
+                if lock and popup_open:
+                    continue
+                if lock:
+                    if self._scanning or not self._lists_ready:
+                        hide = getattr(box, "hidePopup", None)
+                        if callable(hide):
+                            hide()
+                    box.setEnabled(False)
+                    box.setToolTip(tip)
+                else:
+                    box.setEnabled(True)
+                    box.setToolTip("")
+            except RuntimeError:
+                continue
 
     @property
     def pending_updates(self) -> list[dict]:
@@ -328,44 +446,360 @@ class AddonsPage(QWidget):
             self.updates_lbl.setText(f"{len(filtered)} update(s) available")
         else:
             self.updates_lbl.setText("")
-        # Scan complete must NEVER rebuild rows (Windows HWND spam).
-        if not self._patch_installed_statuses():
-            self.mark_dirty()
+        # Scan callback must NEVER clear()/rebuild lists. In-place status only,
+        # and only after the combo popup + cooldown have settled.
+        self._request_list_work("patch")
         self.badge_state_changed.emit()
 
+    def _combo_popup_open(self) -> bool:
+        for box in (self.filter_box, self.cat_box):
+            is_open = getattr(box, "isPopupOpen", None)
+            if callable(is_open) and is_open():
+                return True
+        return False
+
+    def _lists_frozen(self) -> bool:
+        """True while a combo popup is up or we are inside the post-hide cooldown."""
+        if self._combo_popup_open():
+            return True
+        return time.monotonic() < self._list_freeze_until
+
+    def _on_combo_popup_shown(self) -> None:
+        # Cancel any pending flush — opening again means Qt is using the popup HWND.
+        self._flush_timer.stop()
+
+    def _on_combo_popup_hidden(self) -> None:
+        # Do not rebuild on this event. Hide fires in the middle of QComboBox
+        # teardown; currentTextChanged may still be delivered after _popup_open
+        # is already False. Hold list mutations for LIST_FREEZE_MS.
+        self._list_freeze_until = time.monotonic() + (LIST_FREEZE_MS / 1000.0)
+        self._sync_filter_lock()
+        self._arm_flush_timer()
+
+    def _on_filter_changed(self, *_args) -> None:
+        """Combo changed — never full-rebuild synchronously (popup still dying)."""
+        src = self.sender()
+        if src is self.cat_box:
+            self._available_base_ready = False
+        self._pending_list_work.add("mode")
+        if (
+            self._combo_popup_open()
+            or time.monotonic() < self._list_freeze_until
+            or self._refreshing
+            or self._rendering_avail
+        ):
+            self._arm_flush_timer()
+            return
+        self._apply_filter_mode()
+
+    def _on_search_text(self, *_args) -> None:
+        self._search_timer.start()
+
+    def _on_search_changed(self) -> None:
+        """Debounced search. Available never takes the heavy `_do_refresh` path."""
+        try:
+            mode = self.filter_box.currentText()
+        except RuntimeError:
+            return
+        if mode in ("Available", "All"):
+            self._schedule_avail_search()
+            if mode == "All":
+                self._hide_installed_by_search()
+            return
+        # Installed / Update Available: hide existing rows — no catalog rebuild.
+        self._hide_installed_by_search()
+
+    def _hide_installed_by_search(self) -> None:
+        """In-place hide; never clear() installed rows for a keystroke."""
+        try:
+            q = (self.search.text() or "").lower().strip()
+            count = self.installed_list.count()
+        except RuntimeError:
+            return
+        for i in range(count):
+            try:
+                item = self.installed_list.item(i)
+                if item is None:
+                    continue
+                row = self.installed_list.itemWidget(item)
+                if not isinstance(row, AddonRow):
+                    continue
+                item.setHidden(not self._entry_matches_search(row.entry, q))
+            except RuntimeError:
+                continue
+
+    @staticmethod
+    def _entry_matches_search(entry: dict, q: str) -> bool:
+        if not q:
+            return True
+        folder = entry.get("folder") or entry.get("name") or ""
+        blob = (
+            f"{entry.get('name', '')} {entry.get('description', '')} "
+            f"{entry.get('category', '')} {folder}"
+        ).lower()
+        return q in blob
+
+    def _ensure_available_base(self, *, force: bool = False) -> None:
+        """Build the Available catalog dataset only — no list widgets, no clear()."""
+        if self._available_base_ready and not force:
+            return
+        try:
+            cat_filter = self.cat_box.currentText()
+        except RuntimeError:
+            cat_filter = "All categories"
+        installed_lower = self._installed_lower
+        if not installed_lower:
+            try:
+                disk = set(scan_installed_addon_folders())
+            except Exception:
+                disk = set()
+            installed_lower = {f.lower() for f in disk} | {
+                k.lower() for k in settings.installed_addons
+            }
+            self._installed_lower = installed_lower
+        base: list[dict] = []
+        for entry in self._catalog_cache:
+            folder = entry.get("folder") or entry.get("name") or ""
+            if folder.lower() in installed_lower:
+                continue
+            if not entry.get("repo"):
+                continue
+            cat = entry.get("category") or "General"
+            if cat_filter and cat_filter != "All categories" and cat != cat_filter:
+                continue
+            base.append(entry)
+        self._available_base = base
+        self._available_base_ready = True
+
+    def _schedule_avail_search(self) -> None:
+        """Coalesce rapid typing into one paginated Available re-render. Never `_do_refresh`."""
+        self._pending_avail_search = True
+        try:
+            self._ensure_available_base()
+        except RuntimeError:
+            pass
+        if self._refreshing or self._rendering_avail or self._lists_frozen():
+            self._arm_flush_timer()
+            return
+        self._flush_avail_search()
+
+    def _flush_avail_search(self) -> None:
+        if not self._pending_avail_search:
+            return
+        try:
+            self._ensure_available_base()
+        except RuntimeError:
+            self._arm_flush_timer()
+            return
+        if self._refreshing or self._rendering_avail or self._lists_frozen():
+            self._arm_flush_timer()
+            return
+        self._pending_avail_search = False
+        self._rendering_avail = True
+        self._sync_filter_lock()
+        try:
+            q = (self.search.text() or "").lower().strip()
+            self._filtered_available = [
+                e for e in self._available_base if self._entry_matches_search(e, q)
+            ]
+            self._page_index = 0
+            try:
+                self.list.setUpdatesEnabled(False)
+            except RuntimeError:
+                pass
+            self._render_available_page(light=True)
+        except RuntimeError:
+            pass
+        finally:
+            try:
+                self.list.setUpdatesEnabled(True)
+            except RuntimeError:
+                pass
+            self._rendering_avail = False
+            self._sync_filter_lock()
+            if self._pending_avail_search:
+                QTimer.singleShot(0, self._flush_avail_search)
+
+    def _apply_filter_mode(self) -> None:
+        """Switch Installed/Available without a full disk-scan rebuild when possible."""
+        if (
+            self._combo_popup_open()
+            or time.monotonic() < self._list_freeze_until
+            or self._rendering_avail
+        ):
+            self._pending_list_work.add("mode")
+            self._arm_flush_timer()
+            return
+        if self._refreshing:
+            self._pending_list_work.add("mode")
+            return
+        try:
+            mode = self.filter_box.currentText()
+        except RuntimeError:
+            return
+        if mode in ("Installed", "Update Available", "All") and (
+            self._dirty or self.installed_list.count() == 0
+        ):
+            self._request_list_work("refresh")
+            return
+        self._refreshing = True
+        self._sync_filter_lock()
+        try:
+            if mode == "Update Available":
+                self.filter_title.setText("Updates Available")
+            elif mode == "Available":
+                self.filter_title.setText("Available")
+            elif mode == "All":
+                self.filter_title.setText("All")
+            else:
+                self.filter_title.setText("Installed")
+            if mode in ("Available", "All"):
+                self._ensure_available_base()
+                q = (self.search.text() or "").lower().strip()
+                self._filtered_available = [
+                    e for e in self._available_base if self._entry_matches_search(e, q)
+                ]
+                self._page_index = 0
+                try:
+                    self.list.setUpdatesEnabled(False)
+                except RuntimeError:
+                    pass
+                self._render_available_page(light=True)
+                try:
+                    self.list.setUpdatesEnabled(True)
+                except RuntimeError:
+                    pass
+            self._apply_section_visibility(mode)
+        except RuntimeError:
+            self.mark_dirty()
+        finally:
+            self._refreshing = False
+            self._sync_filter_lock()
+
+    def _arm_flush_timer(self) -> None:
+        self._flush_timer.start(LIST_FREEZE_MS)
+
+    def _on_flush_timer(self) -> None:
+        if self._lists_frozen():
+            self._arm_flush_timer()
+            return
+        self._flush_list_work()
+        self._sync_filter_lock()
+
+    def _request_list_work(self, kind: str) -> None:
+        self._pending_list_work.add(kind)
+        if self._lists_frozen() or self._refreshing:
+            self._arm_flush_timer()
+            return
+        self._flush_list_work()
+
+    def _flush_list_work(self) -> None:
+        if self._lists_frozen() or self._refreshing:
+            self._arm_flush_timer()
+            return
+        work = set(self._pending_list_work)
+        self._pending_list_work.clear()
+        try:
+            if "refresh" in work:
+                self._do_refresh()
+            elif "mode" in work:
+                self._apply_filter_mode()
+            if "patch" in work and not self._dirty and "refresh" not in work:
+                # Scan path: in-place status only. Never escalate to clear/rebuild.
+                self._patch_installed_statuses()
+            if "reveal" in work:
+                self._reveal_lists_if_current()
+            if self._pending_avail_search:
+                self._flush_avail_search()
+        except RuntimeError:
+            self.mark_dirty()
+
+    def _apply_section_visibility(self, mode: str | None = None) -> None:
+        """Show exactly one section for Available/Installed; both only for All.
+
+        Installed must be fully hidden (not just covered) in Available mode so
+        Prev/Next inside the available section cannot reveal it underneath.
+        """
+        if self._lists_frozen() and not self._refreshing:
+            self._request_list_work("reveal")
+            return
+        mode = mode if mode is not None else self.filter_box.currentText()
+        show_installed = mode in ("Installed", "All", "Update Available")
+        show_avail = mode in ("Available", "All")
+        self._want_installed_visible = show_installed
+        self._want_avail_visible = show_avail
+        try:
+            self.installed_section.setVisible(show_installed)
+            self.avail_section.setVisible(show_avail)
+            self.installed_list.setVisible(show_installed)
+            self.list.setVisible(show_avail)
+            self.installed_hdr.setVisible(show_installed and mode == "All")
+            self.avail_hdr.setVisible(show_avail and mode == "All")
+            self.prev_btn.setVisible(show_avail)
+            self.next_btn.setVisible(show_avail)
+            self.page_lbl.setVisible(show_avail)
+            if show_installed:
+                self.installed_list.setMinimumHeight(80)
+                if mode == "All":
+                    self.installed_list.setMaximumHeight(260)
+                else:
+                    self.installed_list.setMaximumHeight(16777215)
+            else:
+                self.installed_list.setMinimumHeight(0)
+                self.installed_list.setMaximumHeight(0)
+        except RuntimeError:
+            return
+
+    def _installed_status_text(self, folder: str, meta: dict | None, never_u: bool) -> str:
+        update_map = {u["folder"]: u for u in self._pending_updates}
+        if never_u:
+            return "Never update"
+        if folder in update_map:
+            return "Update available"
+        if not self._addons_scan_done:
+            return "Not checked"
+        if _copied_addon_status(meta):
+            return "Installed"
+        return status_with_stamp("Up to date", meta)
+
     def _patch_installed_statuses(self) -> bool:
-        """Update existing installed rows without clear/recreate. False if a rebuild is required."""
+        """Update existing installed rows without clear/recreate. False if a rebuild is required.
+
+        Never called as a path to clear() — scan only uses this for in-place text.
+        """
+        if self._lists_frozen() or self._refreshing:
+            return False
         if self._dirty:
             return False
         has_row = False
-        update_map = {u["folder"]: u for u in self._pending_updates}
         installed_meta = settings.installed_addons
-        mode = self.filter_box.currentText()
-        for i in range(self.installed_list.count()):
-            item = self.installed_list.item(i)
-            if item is None:
-                continue
-            row = self.installed_list.itemWidget(item)
-            if not isinstance(row, AddonRow):
-                continue
-            has_row = True
-            folder = str(row.entry.get("folder") or row.entry.get("name") or "")
-            never_u = bool(getattr(row, "_never_update", False)) or settings.is_addon_never_update(
-                folder
-            )
-            if never_u:
-                status = "Never update"
-            elif folder in update_map:
-                status = "Update available"
-            elif self._addons_scan_done:
-                status = status_with_stamp("Up to date", installed_meta.get(folder))
-            else:
-                status = "Not checked"
-            row.apply_status(status, never_update=never_u)
-            if mode == "Update Available":
-                item.setHidden(not status.startswith("Update"))
-            else:
-                item.setHidden(False)
+        try:
+            mode = self.filter_box.currentText()
+            count = self.installed_list.count()
+        except RuntimeError:
+            return False
+        for i in range(count):
+            try:
+                item = self.installed_list.item(i)
+                if item is None:
+                    continue
+                row = self.installed_list.itemWidget(item)
+                if not isinstance(row, AddonRow):
+                    continue
+                has_row = True
+                folder = str(row.entry.get("folder") or row.entry.get("name") or "")
+                never_u = bool(getattr(row, "_never_update", False)) or settings.is_addon_never_update(
+                    folder
+                )
+                meta = installed_meta.get(folder) or {}
+                status = self._installed_status_text(folder, meta, never_u)
+                row.apply_status(status, never_update=never_u)
+                if mode == "Update Available":
+                    item.setHidden(not status.startswith("Update"))
+                else:
+                    item.setHidden(False)
+            except RuntimeError:
+                return False
         if not has_row:
             # Available-only view has no installed rows; scan must not rebuild that list.
             return mode == "Available"
@@ -409,24 +843,37 @@ class AddonsPage(QWidget):
     def _reveal_lists_if_current(self) -> None:
         if not self._page_is_live():
             return
-        mode = self.filter_box.currentText()
-        self.installed_list.setVisible(mode in ("Installed", "All", "Update Available"))
-        self.list.setVisible(mode in ("Available", "All"))
+        if self._lists_frozen():
+            self._request_list_work("reveal")
+            return
+        self._apply_section_visibility()
         self.installed_list.setUpdatesEnabled(True)
         self.list.setUpdatesEnabled(True)
-        _reveal_item_widgets(self.installed_list, self)
-        _reveal_item_widgets(self.list, self)
+        if self._want_installed_visible:
+            _reveal_item_widgets(self.installed_list, self)
+        if self._want_avail_visible:
+            _reveal_item_widgets(self.list, self)
 
     def _kick_deferred_git_checks(self) -> None:
+        if not self._lists_ready or self._lists_frozen() or self._refreshing:
+            self._git_kick_timer.start(LIST_FREEZE_MS)
+            return
         for lw in (self.installed_list, self.list):
-            for i in range(lw.count()):
-                it = lw.item(i)
-                if it is None:
+            try:
+                count = lw.count()
+            except RuntimeError:
+                continue
+            for i in range(count):
+                try:
+                    it = lw.item(i)
+                    if it is None:
+                        continue
+                    row = lw.itemWidget(it)
+                    kick = getattr(row, "kick_git_visibility", None)
+                    if callable(kick):
+                        kick()
+                except RuntimeError:
                     continue
-                row = lw.itemWidget(it)
-                kick = getattr(row, "kick_git_visibility", None)
-                if callable(kick):
-                    kick()
 
     def set_never_update(self, entry: dict, enabled: bool) -> None:
         folder = entry.get("folder") or entry.get("name")
@@ -439,12 +886,9 @@ class AddonsPage(QWidget):
         QTimer.singleShot(0, self._finish_never_update_change)
 
     def _finish_never_update_change(self) -> None:
-        if self._patch_installed_statuses():
-            self.badge_state_changed.emit()
-            return
-        self.mark_dirty()
-        if self.isVisible():
-            self.refresh()
+        self._request_list_work("patch")
+        if self._dirty:
+            self._request_list_work("refresh")
         self.badge_state_changed.emit()
 
     def open_git(self, entry: dict) -> None:
@@ -481,10 +925,9 @@ class AddonsPage(QWidget):
             self.updates_lbl.setText(f"{len(self._pending_updates)} update(s) available")
         else:
             self.updates_lbl.setText("")
-        if not self._patch_installed_statuses():
-            self.mark_dirty()
-            if self.isVisible():
-                self.refresh()
+        self._request_list_work("patch")
+        if self._dirty:
+            self._request_list_work("refresh")
         self.badge_state_changed.emit()
 
     def reload_catalog(self) -> None:
@@ -492,6 +935,8 @@ class AddonsPage(QWidget):
         self.mark_dirty()
 
     def _page(self, delta: int) -> None:
+        if self._lists_frozen() or self._refreshing or self._rendering_avail:
+            return
         max_page = max(0, (len(self._filtered_available) - 1) // PAGE_SIZE)
         self._page_index = max(0, min(max_page, self._page_index + delta))
         self.list.setUpdatesEnabled(False)
@@ -499,8 +944,7 @@ class AddonsPage(QWidget):
         try:
             self._render_available_page()
         finally:
-            mode = self.filter_box.currentText()
-            self.list.setVisible(mode in ("Available", "All"))
+            self._apply_section_visibility()
             self.list.setUpdatesEnabled(True)
             QTimer.singleShot(0, self._reveal_lists_if_current)
             self._git_kick_timer.start(300)
@@ -513,29 +957,74 @@ class AddonsPage(QWidget):
         if entry and entry.get("repo"):
             self.install_requested.emit(entry)
 
-    def _render_available_page(self) -> None:
-        _safe_clear_list(self.list)
+    def _render_available_page(self, *, light: bool = False) -> None:
+        """Mount at most PAGE_SIZE available rows. Search uses light=True (no HWND dance)."""
+        if light:
+            self._clear_avail_page_light()
+        else:
+            _safe_clear_list(self.list)
         start = self._page_index * PAGE_SIZE
         chunk = self._filtered_available[start : start + PAGE_SIZE]
         for entry in chunk:
-            # Parent to the (hidden-during-rebuild) list; mount hides until attached.
-            row = AddonRow(entry, status="available", parent=self.list)
-            row.install_clicked.connect(self.install_requested.emit)
-            row.open_git_clicked.connect(self.open_git)
-            row.preview_clicked.connect(self.open_preview)
-            item = QListWidgetItem()
-            item.setData(Qt.ItemDataRole.UserRole, entry)
-            item.setSizeHint(QSize(0, INSTALLED_ROW_H))
-            _mount_row(self.list, item, row)
+            try:
+                row = AddonRow(entry, status="available", parent=self.list)
+                row.install_clicked.connect(self.install_requested.emit)
+                row.open_git_clicked.connect(self.open_git)
+                row.preview_clicked.connect(self.open_preview)
+                item = QListWidgetItem()
+                item.setData(Qt.ItemDataRole.UserRole, entry)
+                item.setSizeHint(QSize(0, INSTALLED_ROW_H))
+                if light:
+                    self._mount_avail_row_light(item, row)
+                else:
+                    _mount_row(self.list, item, row)
+            except RuntimeError:
+                break
 
         total = len(self._filtered_available)
         max_page = max(0, (total - 1) // PAGE_SIZE) if total else 0
         showing = f"{start + 1}–{min(start + PAGE_SIZE, total)}" if total else "0"
-        self.page_lbl.setText(f"Page {self._page_index + 1}/{max_page + 1}  ·  {showing} of {total}")
-        self.prev_btn.setEnabled(self._page_index > 0)
-        self.next_btn.setEnabled(self._page_index < max_page)
+        try:
+            self.page_lbl.setText(f"Page {self._page_index + 1}/{max_page + 1}  ·  {showing} of {total}")
+            self.prev_btn.setEnabled(self._page_index > 0)
+            self.next_btn.setEnabled(self._page_index < max_page)
+        except RuntimeError:
+            pass
+
+    def _clear_avail_page_light(self) -> None:
+        """Hide current page via setHidden, then clear — no DontShowOnScreen."""
+        try:
+            count = self.list.count()
+        except RuntimeError:
+            return
+        for i in range(count):
+            try:
+                it = self.list.item(i)
+                if it is None:
+                    continue
+                it.setHidden(True)
+            except RuntimeError:
+                continue
+        try:
+            self.list.clear()
+        except RuntimeError:
+            return
+
+    def _mount_avail_row_light(self, item: QListWidgetItem, row: AddonRow) -> None:
+        """Attach a search-page row without WA_DontShowOnScreen (that flag + clear() crashes)."""
+        try:
+            row.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, False)
+            self.list.addItem(item)
+            self.list.setItemWidget(item, row)
+        except RuntimeError:
+            return
 
     def refresh(self) -> None:
+        """Request a list rebuild. Queued while a filter popup/cooldown is active."""
+        self.mark_dirty()
+        self._request_list_work("refresh")
+
+    def _do_refresh(self) -> None:
         if (
             self.testAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
             and not self.isVisible()
@@ -543,8 +1032,21 @@ class AddonsPage(QWidget):
         ):
             self._dirty = True
             return
+        if self._lists_frozen() or self._refreshing:
+            self._dirty = True
+            self._pending_list_work.add("refresh")
+            self._arm_flush_timer()
+            return
+        self._refreshing = True
+        self._sync_filter_lock()
+        self._search_timer.stop()
         self.filter_box.blockSignals(True)
         self.cat_box.blockSignals(True)
+        try:
+            self.filter_box.currentTextChanged.disconnect(self._on_filter_changed)
+            self.cat_box.currentTextChanged.disconnect(self._on_filter_changed)
+        except (RuntimeError, TypeError):
+            pass
         q = (self.search.text() or "").lower().strip()
         mode = self.filter_box.currentText()
         cat_filter = self.cat_box.currentText()
@@ -552,20 +1054,15 @@ class AddonsPage(QWidget):
         disk_folders = set(scan_installed_addon_folders())
         installed_folders = set(installed_meta.keys()) | disk_folders
         installed_lower = {f.lower() for f in installed_folders}
+        self._installed_lower = installed_lower
         update_map = {u["folder"]: u for u in self._pending_updates}
-
-        def matches(entry_name: str, desc: str, category: str, folder: str) -> bool:
-            if cat_filter and cat_filter != "All categories" and category != cat_filter:
-                return False
-            if not q:
-                return True
-            blob = f"{entry_name} {desc} {category} {folder}".lower()
-            return q in blob
 
         # Hide lists for the whole rebuild so new rows parented to them never flash,
         # and so clear() never unparents a still-visible item widget (HWND spam).
         self.installed_list.setUpdatesEnabled(False)
         self.list.setUpdatesEnabled(False)
+        self.installed_section.hide()
+        self.avail_section.hide()
         self.installed_list.hide()
         self.list.hide()
         self.installed_list.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
@@ -665,8 +1162,13 @@ class AddonsPage(QWidget):
                     # Prefer merged meta (includes .git origin override); catalog only as last resort.
                     repo_url = meta.get("url") or (cat or {}).get("repo") or ""
                     search_blob = f"{desc} {' '.join(modules)}"
-                    if not matches(name, search_blob, category, folder):
+                    if cat_filter and cat_filter != "All categories" and category != cat_filter:
                         continue
+                    # All-mode search hides in place; don't drop rows at build time.
+                    if mode != "All" and q:
+                        blob = f"{name} {search_blob} {category} {folder}".lower()
+                        if q not in blob:
+                            continue
                     loaded = addon_is_loaded(folder, addons_dir=addons_dir)
                     if "loaded" in meta:
                         loaded = bool(meta.get("loaded")) if disk is None else loaded
@@ -679,18 +1181,13 @@ class AddonsPage(QWidget):
                         "repository": meta.get("repository") or "",
                         "url": repo_url,
                         "source": meta.get("source", "detected"),
-                        "tag": meta.get("tag") or "",
+                        "tag": meta.get("tag") or catalog_pin_tag(cat) or "",
                         "loaded": loaded,
                     }
                     never_u = bool(meta.get("never_update")) or settings.is_addon_never_update(folder)
-                    if never_u:
-                        status = "Never update"
-                    elif folder in update_map:
-                        status = "Update available"
-                    elif self._addons_scan_done:
-                        status = status_with_stamp("Up to date", meta)
-                    else:
-                        status = "Not checked"
+                    if kind == "exact" and catalog_locks_updates(cat):
+                        never_u = True
+                    status = self._installed_status_text(folder, meta, never_u)
                     if status.startswith("Update"):
                         sort_pri = 0
                     elif never_u:
@@ -737,41 +1234,53 @@ class AddonsPage(QWidget):
                     empty = QListWidgetItem(msg)
                     empty.setFlags(Qt.ItemFlag.NoItemFlags)
                     self.installed_list.addItem(empty)
+                elif mode == "All" and q:
+                    self._hide_installed_by_search()
 
-            self._filtered_available = []
+            self._ensure_available_base(force=True)
             if mode in ("Available", "All"):
-                for entry in self._catalog_cache:
-                    folder = entry.get("folder") or entry.get("name") or ""
-                    if folder.lower() in installed_lower:
-                        continue
-                    if not entry.get("repo"):
-                        continue
-                    if not matches(entry.get("name", ""), entry.get("description", ""), entry.get("category", ""), folder):
-                        continue
-                    self._filtered_available.append(entry)
-
-            self._page_index = 0
-            self._render_available_page()
+                self._filtered_available = [
+                    e for e in self._available_base if self._entry_matches_search(e, q)
+                ]
+                self._page_index = 0
+                self._render_available_page()
+            else:
+                self._filtered_available = []
+            self._pending_avail_search = False
             self._dirty = False
+            self._lists_ready = True
 
             # Restore visibility from filter mode (lists were hidden for the rebuild).
-            show_avail = mode in ("Available", "All")
-            self.installed_list.setVisible(show_installed)
-            self.list.setVisible(show_avail)
-            self.avail_hdr.setVisible(show_avail and mode == "All")
-            self.prev_btn.setVisible(show_avail)
-            self.next_btn.setVisible(show_avail)
-            self.page_lbl.setVisible(show_avail)
-            self._want_installed_visible = show_installed
-            self._want_avail_visible = show_avail
-            if self._page_is_live():
-                QTimer.singleShot(0, self._reveal_lists_if_current)
-                self._git_kick_timer.start(300)
-            else:
+            self._apply_section_visibility(mode)
+            if not self._page_is_live():
+                self.installed_section.hide()
+                self.avail_section.hide()
                 self.installed_list.hide()
                 self.list.hide()
+            else:
+                QTimer.singleShot(0, self._reveal_lists_if_current)
+                self._git_kick_timer.start(300)
+        except RuntimeError:
+            self.mark_dirty()
         finally:
+            self._refreshing = False
+            self._sync_filter_lock()
+            try:
+                self.filter_box.currentTextChanged.connect(self._on_filter_changed)
+                self.cat_box.currentTextChanged.connect(self._on_filter_changed)
+            except (RuntimeError, TypeError):
+                pass
             self.filter_box.blockSignals(False)
             self.cat_box.blockSignals(False)
-            self.installed_list.setUpdatesEnabled(True)
-            self.list.setUpdatesEnabled(True)
+            try:
+                self.installed_list.setUpdatesEnabled(True)
+                self.list.setUpdatesEnabled(True)
+            except RuntimeError:
+                pass
+            if self._pending_list_work:
+                if self._lists_frozen():
+                    self._arm_flush_timer()
+                else:
+                    QTimer.singleShot(0, self._flush_list_work)
+            elif self._pending_avail_search and self._available_base_ready:
+                QTimer.singleShot(0, self._flush_avail_search)

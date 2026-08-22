@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QObject, QRect, QSize, Qt
+from PySide6.QtCore import QEvent, QObject, QRect, QSize, QTimer, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QComboBox, QFrame, QListView, QSizePolicy, QWidget
+
+try:
+    from shiboken6 import isValid as _shiboken_is_valid
+except ImportError:  # pragma: no cover
+    def _shiboken_is_valid(obj: object) -> bool:  # type: ignore[misc]
+        return obj is not None
 
 from ichalaunch.core.paths import theme_file
 from ichalaunch.ui.widgets.cursors import apply_open_hand
@@ -28,6 +35,18 @@ _ARROW_PAD_R = 12
 _ARROW_Y_NUDGE = 3
 _TEXT_PAD_L = 12
 _TEXT_PAD_R = 28  # room for caret
+# Native QComboBox popup HWND is still dying after hidePopup(); re-show in that
+# window crashes inside Qt (showPopup / hidePopup / paint).
+_POPUP_REENTRY_MS = 120
+
+
+def _alive(obj: object | None) -> bool:
+    if obj is None:
+        return False
+    try:
+        return bool(_shiboken_is_valid(obj))
+    except Exception:
+        return False
 
 _ARROW_CACHE: dict[str, QPixmap] = {}
 
@@ -87,7 +106,12 @@ class _MarbleComboView(QListView):
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:  # noqa: N802
         if obj is self.viewport() and event.type() == QEvent.Type.Paint:
-            painter = QPainter(obj)
+            if not _alive(self) or not _alive(obj):
+                return True
+            try:
+                painter = QPainter(obj)
+            except RuntimeError:
+                return True
             if painter.isActive():
                 try:
                     paint_marble_tiled(
@@ -96,10 +120,18 @@ class _MarbleComboView(QListView):
                         self._tile,
                         radius=6.0,
                     )
+                except RuntimeError:
+                    return True
                 finally:
-                    painter.end()
+                    try:
+                        painter.end()
+                    except RuntimeError:
+                        pass
             return False
-        return super().eventFilter(obj, event)
+        try:
+            return super().eventFilter(obj, event)
+        except RuntimeError:
+            return False
 
 
 class GlueComboBox(QComboBox):
@@ -107,6 +139,9 @@ class GlueComboBox(QComboBox):
 
     Caret: Arrow-Down-Up when idle, Arrow-Down-Down when open or mouse-pressed.
     """
+
+    popupShown = Signal()
+    popupHidden = Signal()
 
     def __init__(self, parent=None, *, height: int = GLUE_BTN_H, min_width: int = 148):
         super().__init__(parent)
@@ -140,9 +175,12 @@ class GlueComboBox(QComboBox):
             "}"
         )
         self._popup_open = False
+        self._hiding_popup = False
         self._pressed = False
+        self._show_blocked_until = 0.0
         view = _MarbleComboView(self)
         self.setView(view)
+        view.installEventFilter(self)
         self.setMaxVisibleItems(12)
         # Warm chrome + arrows.
         glue_chrome_pixmap(pressed=False)
@@ -159,31 +197,141 @@ class GlueComboBox(QComboBox):
         w = max(self.minimumWidth(), widest + _TEXT_PAD_L + _TEXT_PAD_R + 8)
         return QSize(w, self.height())
 
-    def showPopup(self) -> None:  # noqa: N802
-        model = self.model()
-        if model is not None:
-            for i in range(self.count()):
-                model.setData(
-                    model.index(i, 0),
-                    int(Qt.AlignmentFlag.AlignCenter),
-                    Qt.ItemDataRole.TextAlignmentRole,
-                )
-        self._popup_open = True
-        self.update()
-        super().showPopup()
-        self._style_popup_container()
+    def isPopupOpen(self) -> bool:
+        # Trust the show/hide flags only. view.isVisible() is a false positive
+        # (QListView can report visible while the native popup HWND is gone).
+        return bool(self._hiding_popup or self._popup_open)
 
-    def hidePopup(self) -> None:  # noqa: N802
+    def _mark_popup_closed(self) -> None:
+        if not self._popup_open:
+            return
         self._popup_open = False
         self._pressed = False
-        self.update()
-        super().hidePopup()
+        # Don't paint while the native popup HWND is still being destroyed.
+        try:
+            self.popupHidden.emit()
+        except RuntimeError:
+            pass
+
+    def _end_popup_hide(self) -> None:
+        if not _alive(self):
+            return
+        self._hiding_popup = False
+        self._pressed = False
+        try:
+            self.update()
+        except RuntimeError:
+            pass
+
+    def showPopup(self) -> None:  # noqa: N802
+        if not _alive(self):
+            return
+        try:
+            if not self.isEnabled():
+                return
+        except RuntimeError:
+            return
+        if self._hiding_popup:
+            return
+        if self._popup_open:
+            return
+        if time.monotonic() < self._show_blocked_until:
+            return
+        view = self.view()
+        try:
+            if view is not None and view.isVisible():
+                self._popup_open = True
+                return
+        except RuntimeError:
+            return
+        model = self.model()
+        if model is not None:
+            try:
+                for i in range(self.count()):
+                    model.setData(
+                        model.index(i, 0),
+                        int(Qt.AlignmentFlag.AlignCenter),
+                        Qt.ItemDataRole.TextAlignmentRole,
+                    )
+            except RuntimeError:
+                return
+        self._popup_open = True
+        try:
+            self.popupShown.emit()
+            self.update()
+            super().showPopup()
+        except RuntimeError:
+            self._popup_open = False
+            return
+        self._style_popup_container()
+        view = self.view()
+        if view is not None:
+            try:
+                container = view.parentWidget()
+            except RuntimeError:
+                container = None
+            if container is not None:
+                container.installEventFilter(self)
+
+    def hidePopup(self) -> None:  # noqa: N802
+        if self._hiding_popup or not self._popup_open:
+            return
+        self._hiding_popup = True
+        self._show_blocked_until = time.monotonic() + (_POPUP_REENTRY_MS / 1000.0)
+        try:
+            if _alive(self):
+                super().hidePopup()
+        except RuntimeError:
+            pass
+        self._mark_popup_closed()
+        QTimer.singleShot(_POPUP_REENTRY_MS, self._end_popup_hide)
+
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:  # noqa: N802
+        et = event.type()
+        if et in (
+            QEvent.Type.Hide,
+            QEvent.Type.HideToParent,
+            QEvent.Type.Close,
+            QEvent.Type.Destroy,
+        ):
+            if not _alive(self):
+                return True
+            view = self.view()
+            try:
+                container = view.parentWidget() if view is not None else None
+            except RuntimeError:
+                container = None
+            if obj in (view, container) and self._popup_open:
+                self._mark_popup_closed()
+        try:
+            return super().eventFilter(obj, event)
+        except RuntimeError:
+            return False
+
+    def changeEvent(self, event) -> None:  # noqa: N802
+        try:
+            super().changeEvent(event)
+        except RuntimeError:
+            return
+        if event.type() == QEvent.Type.EnabledChange and not self.isEnabled():
+            try:
+                self.hidePopup()
+            except RuntimeError:
+                pass
 
     def _style_popup_container(self) -> None:
-        view = self.view()
+        if not _alive(self):
+            return
+        try:
+            view = self.view()
+        except RuntimeError:
+            return
         if view is None:
             return
-        container = view.parentWidget()
+        try:
+            container = view.parentWidget()
+        except RuntimeError:
+            return
         if container is None:
             return
         container.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
@@ -202,7 +350,12 @@ class GlueComboBox(QComboBox):
             class _Filter(QObject):
                 def eventFilter(self, obj, event):  # noqa: N802
                     if obj is container and event.type() == QEvent.Type.Paint:
-                        painter = QPainter(container)
+                        if not _alive(container):
+                            return True
+                        try:
+                            painter = QPainter(container)
+                        except RuntimeError:
+                            return True
                         if painter.isActive():
                             try:
                                 paint_marble_tiled(
@@ -215,8 +368,13 @@ class GlueComboBox(QComboBox):
                                 painter.drawRoundedRect(
                                     container.rect().adjusted(0, 0, -1, -1), 8, 8
                                 )
+                            except RuntimeError:
+                                return True
                             finally:
-                                painter.end()
+                                try:
+                                    painter.end()
+                                except RuntimeError:
+                                    pass
                         return False
                     return False
 
@@ -225,27 +383,64 @@ class GlueComboBox(QComboBox):
             container._glue_marble_filt_obj = filt  # type: ignore[attr-defined]
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
-        if event.button() == Qt.MouseButton.LeftButton:
-            self._pressed = True
+        if event.button() != Qt.MouseButton.LeftButton:
+            try:
+                super().mousePressEvent(event)
+            except RuntimeError:
+                pass
+            return
+        if not _alive(self) or not self.isEnabled() or self._hiding_popup:
+            event.accept()
+            return
+        if self._popup_open:
+            # Close only — do not let QComboBox hide+show on the same click
+            # while the native popup HWND is still destroying.
+            event.accept()
+            self.hidePopup()
+            return
+        self._pressed = True
+        try:
             self.update()
-        super().mousePressEvent(event)
+            super().mousePressEvent(event)
+        except RuntimeError:
+            self._pressed = False
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802
         self._pressed = False
-        self.update()
-        super().mouseReleaseEvent(event)
+        if not _alive(self):
+            return
+        try:
+            self.update()
+            super().mouseReleaseEvent(event)
+        except RuntimeError:
+            pass
 
     def enterEvent(self, event) -> None:  # noqa: N802
-        super().enterEvent(event)
-        self.update()
+        try:
+            super().enterEvent(event)
+            if _alive(self):
+                self.update()
+        except RuntimeError:
+            pass
 
     def leaveEvent(self, event) -> None:  # noqa: N802
-        super().leaveEvent(event)
-        self.update()
+        try:
+            super().leaveEvent(event)
+            if _alive(self):
+                self.update()
+        except RuntimeError:
+            pass
 
     def paintEvent(self, event) -> None:  # noqa: N802
         del event
-        painter = QPainter(self)
+        if not _alive(self):
+            return
+        try:
+            painter = QPainter(self)
+        except RuntimeError:
+            return
+        if not painter.isActive():
+            return
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
         painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
 
@@ -299,4 +494,7 @@ class GlueComboBox(QComboBox):
             )
             painter.drawPixmap(QRect(ax, ay, aw, aw), arrow)
 
-        painter.end()
+        try:
+            painter.end()
+        except RuntimeError:
+            pass

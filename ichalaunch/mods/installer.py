@@ -29,9 +29,14 @@ from ichalaunch.addons.github import (
 from ichalaunch.config.settings import settings
 from ichalaunch.core.backup import create_backup
 from ichalaunch.core.filesystem import (
+    copy_file_tolerant,
     copy_tree,
     extract_zip,
     find_toc_roots,
+    is_lock_or_av_error,
+    listed_basenames,
+    name_present,
+    read_dlls_txt,
     safe_remove,
     sanitize_filename,
     update_dlls_txt,
@@ -42,6 +47,31 @@ from ichalaunch.game.launcher import detect_game, resolve_addons_dir, ensure_add
 
 ProgressCb = Callable[[str], None]
 UA = {"User-Agent": "IchaLaunch/0.1"}
+# Re-entrancy guard: apply is one-shot. A timer must never stack retries.
+_APPLY_IN_PROGRESS = False
+
+
+def _install_copy(src: Path, dest: Path) -> None:
+    """Copy into the game tree. DLLs/EXEs are never LoadLibrary'd; lock/AV → OSError skip."""
+    if dest.suffix.lower() in {".dll", ".exe"}:
+        if not copy_file_tolerant(src, dest):
+            raise OSError(
+                13,
+                f"Skipped locked or antivirus-blocked file {dest.name}",
+                str(dest),
+            )
+        return
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dest)
+    except OSError as exc:
+        if is_lock_or_av_error(exc):
+            raise OSError(
+                getattr(exc, "errno", None) or 13,
+                f"Skipped locked file {dest.name}: {exc}",
+                str(dest),
+            ) from exc
+        raise
 
 
 @dataclass
@@ -405,55 +435,103 @@ def install_custom_dll_from_github(url: str, progress: ProgressCb | None = None)
     return out
 
 
-def _detect_mod(game_path: Path, mod: dict[str, Any]) -> bool:
+def _dlls_txt_has(game_path: Path, names: list[str], listing: frozenset[str] | None) -> bool:
+    """True if any *names* are uncommented in dlls.txt and present on disk.
+
+    Parses the text list only — never opens/hashes/LoadLibrary the DLLs.
+    """
+    if not names:
+        return False
+    want = {Path(n.replace("\\", "/")).name.lower() for n in names if n}
+    if not want:
+        return False
+    listed = {n.lower() for n in read_dlls_txt(game_path)}
+    if not (want & listed):
+        return False
+    return any(name_present(game_path, n, listing) for n in want)
+
+
+def _detect_mod(
+    game_path: Path,
+    mod: dict[str, Any],
+    *,
+    root_names: frozenset[str] | None = None,
+) -> bool:
     det = mod.get("detect") or {}
     if det.get("wdb_file"):
-        return (game_path / "WDB").is_file()
+        return name_present(game_path, "WDB", root_names) and (game_path / "WDB").is_file()
     if det.get("any_files"):
-        return any((game_path / f).exists() for f in det["any_files"])
+        if any(name_present(game_path, f, root_names) for f in det["any_files"]):
+            return True
+        dlls = (mod.get("dlls_txt") or {}).get("add") or []
+        return _dlls_txt_has(game_path, dlls, root_names)
     if det.get("all_files"):
-        return all((game_path / f).exists() for f in det["all_files"])
+        return all(name_present(game_path, f, root_names) for f in det["all_files"])
     if det.get("data_mpq"):
         data = game_path / "Data"
-        return any((data / name).exists() for name in det["data_mpq"])
+        data_names = listed_basenames(data)
+        return any(name_present(data, name, data_names) for name in det["data_mpq"])
     if det.get("config_contains"):
         cfg = game_path / "WTF" / "Config.wtf"
-        if not cfg.exists():
+        if not cfg.is_file():
             return False
         text = cfg.read_text(encoding="utf-8", errors="ignore")
         return det["config_contains"] in text
     if det.get("config_file_contains"):
-        path = game_path / det["config_file_contains"][0]
-        needle = det["config_file_contains"][1]
-        if not path.exists():
+        spec = det.get("config_file_contains") or []
+        if not isinstance(spec, (list, tuple)) or len(spec) < 2:
+            return False
+        path = game_path / spec[0]
+        needle = spec[1]
+        if not path.is_file():
             return False
         return needle in path.read_text(encoding="utf-8", errors="ignore")
     # fallback by kind heuristics
     kind = mod.get("kind")
     mid = mod["id"]
     legacy = {
-        "vanillafixes": (game_path / "VanillaFixes.exe").exists(),
-        "dxvk": (game_path / "d3d9.dll").exists() and (game_path / "dxvk.conf").exists(),
-        "superwow": (game_path / "SuperWoWhook.dll").exists(),
-        "nampower": (game_path / "nampower.dll").exists(),
-        "unitxp": (game_path / "UnitXP_SP3.dll").exists(),
-        "perfboost": (game_path / "perf_boost.dll").exists(),
-        "no1600x1200": (game_path / "no1600x1200.dll").exists(),
-        "wdb_block": (game_path / "WDB").is_file(),
-        "vanilla_tweaks": (game_path / "WoW-OriginalBackup.exe").exists(),
+        "vanillafixes": name_present(game_path, "VanillaFixes.exe", root_names),
+        "dxvk": name_present(game_path, "d3d9.dll", root_names)
+        and name_present(game_path, "dxvk.conf", root_names),
+        "superwow": name_present(game_path, "SuperWoWhook.dll", root_names),
+        "nampower": name_present(game_path, "nampower.dll", root_names),
+        "unitxp": name_present(game_path, "UnitXP_SP3.dll", root_names),
+        "perfboost": name_present(game_path, "perf_boost.dll", root_names),
+        "no1600x1200": name_present(game_path, "no1600x1200.dll", root_names),
+        "wdb_block": name_present(game_path, "WDB", root_names) and (game_path / "WDB").is_file(),
+        "vanilla_tweaks": name_present(game_path, "WoW-OriginalBackup.exe", root_names),
     }
     if mid in legacy:
         return legacy[mid]
     if kind == "mpq_file":
         dest = mod.get("destination")
-        return bool(dest and (game_path / dest).exists())
+        if not dest:
+            return False
+        rel = Path(str(dest).replace("\\", "/"))
+        return name_present(game_path / rel.parent, rel.name)
+    dlls = (mod.get("dlls_txt") or {}).get("add") or []
+    if dlls:
+        return _dlls_txt_has(game_path, dlls, root_names)
     return False
 
 
 def detect_actual_state(game_path: Path) -> dict[str, bool]:
+    """Scan installed client mods. Never LoadLibrary game DLLs; never raise per-mod."""
     state: dict[str, bool] = {}
+    root_names = listed_basenames(game_path)
     for mod in load_mod_catalog():
-        state[mod["id"]] = _detect_mod(game_path, mod)
+        mid = mod.get("id") or ""
+        if not mid:
+            continue
+        try:
+            state[mid] = bool(_detect_mod(game_path, mod, root_names=root_names))
+        except OSError as exc:
+            log.warning("detect %s skipped (disk/AV): %s", mid, exc)
+            dlls = (mod.get("dlls_txt") or {}).get("add") or []
+            state[mid] = _dlls_txt_has(game_path, dlls, root_names) if dlls else False
+        except (IndexError, TypeError, ValueError, KeyError, UnicodeError) as exc:
+            log.warning("detect %s skipped (bad catalog/parse): %s", mid, exc)
+            state[mid] = False
     return state
 
 
@@ -1054,7 +1132,14 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
         raise KeyError(mod_id)
 
     kind = mod.get("kind")
-    create_backup(game, f"before_{mod_id}", [game / "WoW.exe", game / "dlls.txt", game / "VanillaFixes.exe"])
+    try:
+        create_backup(
+            game,
+            f"before_{mod_id}",
+            [game / "WoW.exe", game / "dlls.txt", game / "VanillaFixes.exe"],
+        )
+    except OSError as exc:
+        log.warning("Pre-install backup for %s skipped: %s", mod_id, exc)
 
     with tempfile.TemporaryDirectory(prefix="ichalaunch_") as tmp:
         work = Path(tmp)
@@ -1103,7 +1188,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 raise FileNotFoundError("vanilla-tweaks.exe not found in archive")
             wow = game / "WoW.exe"
             if not (game / "WoW-OriginalBackup.exe").exists():
-                shutil.copy2(wow, game / "WoW-OriginalBackup.exe")
+                _install_copy(wow, game / "WoW-OriginalBackup.exe")
             # Run patcher; creates WoW_tweaked.exe next to WoW.exe
             status_only(progress, "Patching WoW.exe with Vanilla Tweaks...")
             subprocess.run([str(vt), str(wow)], cwd=str(game), check=True)
@@ -1126,13 +1211,13 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                     dest = game / rel
                     # Prefer files that live at shallowest level matching known names
                     dest.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(item, dest)
+                    _install_copy(item, dest)
             # Flatten: if VanillaFixes.exe is nested, find it
             vf = next(game.rglob("VanillaFixes.exe"), None)
             if vf and vf.parent != game:
                 for f in vf.parent.iterdir():
                     if f.is_file():
-                        shutil.copy2(f, game / f.name)
+                        _install_copy(f, game / f.name)
             _record_mod_install(mod_id, mod, source)
             return
 
@@ -1146,13 +1231,13 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 # single dll
                 assert isinstance(artifact, Path)
                 dest_name = source.get("filename") or artifact.name
-                shutil.copy2(artifact, game / dest_name)
+                _install_copy(artifact, game / dest_name)
 
             for fspec in mod.get("files") or []:
                 match = fspec["match"]
                 found = next(search_root.rglob(match), None)
                 if found:
-                    shutil.copy2(found, game / fspec["destination"])
+                    _install_copy(found, game / fspec["destination"])
 
             if mod.get("addon_folder_match"):
                 folder = next(search_root.rglob(mod["addon_folder_match"]), None)
@@ -1198,7 +1283,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
             dest = game / dest_rel
             dest.parent.mkdir(parents=True, exist_ok=True)
             status_only(progress, f"Installing {dest.name} (large file)...")
-            shutil.copy2(artifact, dest)
+            _install_copy(artifact, dest)
             _record_mod_install(mod_id, mod, source)
             return
 
@@ -1230,12 +1315,12 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
             dest.mkdir(parents=True, exist_ok=True)
             for f in glue_src.iterdir():
                 if f.is_file():
-                    shutil.copy2(f, dest / f.name)
+                    _install_copy(f, dest / f.name)
             # apply glue signature skip patch (vanilla 1.12.1)
             wow = game / "WoW.exe"
             if wow.exists():
                 if not (game / "WoW-OriginalBackup.exe").exists():
-                    shutil.copy2(wow, game / "WoW-OriginalBackup.exe")
+                    _install_copy(wow, game / "WoW-OriginalBackup.exe")
                 data = bytearray(wow.read_bytes())
                 patches = {
                     0x2F113A: 0xEB,
@@ -1256,7 +1341,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
             assert source
             artifact = _download_source(source, work, progress)
             assert isinstance(artifact, Path)
-            shutil.copy2(artifact, game / "d3d9.dll")
+            _install_copy(artifact, game / "d3d9.dll")
             conf = game / "dxvk.conf"
             text = conf.read_text(encoding="utf-8", errors="ignore") if conf.exists() else ""
             if "enlargeHardwareCursor" not in text:
@@ -1298,7 +1383,7 @@ def remove_mod(mod_id: str, progress: ProgressCb | None = None) -> None:
     if kind == "exe_patch":
         backup = game / "WoW-OriginalBackup.exe"
         if backup.exists():
-            shutil.copy2(backup, game / "WoW.exe")
+            _install_copy(backup, game / "WoW.exe")
         return
 
     if kind == "mpq_file":
@@ -1359,6 +1444,19 @@ def remove_mod(mod_id: str, progress: ProgressCb | None = None) -> None:
 
 
 def apply_desired_state(progress: ProgressCb | None = None) -> list[str]:
+    """One-shot desired-state apply. Per-mod lock/AV failures are skipped, not retried."""
+    global _APPLY_IN_PROGRESS
+    if _APPLY_IN_PROGRESS:
+        log.warning("apply_desired_state already running — refusing nested retry")
+        return ["skipped: apply already running"]
+    _APPLY_IN_PROGRESS = True
+    try:
+        return _apply_desired_state_inner(progress)
+    finally:
+        _APPLY_IN_PROGRESS = False
+
+
+def _apply_desired_state_inner(progress: ProgressCb | None) -> list[str]:
     changes = plan_changes()
     done: list[str] = []
     manuals: list[str] = []
@@ -1368,12 +1466,20 @@ def apply_desired_state(progress: ProgressCb | None = None) -> list[str]:
         if ch["action"] == "manual":
             manuals.append(ch["detail"])
             continue
-        if ch["action"] == "install":
-            install_mod(ch["id"], progress=progress)
-            done.append(f"+ {ch['id']}")
-        elif ch["action"] == "remove":
-            remove_mod(ch["id"], progress=progress)
-            done.append(f"- {ch['id']}")
+        mid = ch.get("id") or ""
+        try:
+            if ch["action"] == "install":
+                install_mod(mid, progress=progress)
+                done.append(f"+ {mid}")
+            elif ch["action"] == "remove":
+                remove_mod(mid, progress=progress)
+                done.append(f"- {mid}")
+        except OSError as exc:
+            log.warning("Mod %s %s skipped (disk/AV): %s", ch["action"], mid, exc)
+            done.append(f"! {mid} skipped: {exc}")
+        except (RuntimeError, FileNotFoundError, KeyError, shutil.Error) as exc:
+            log.warning("Mod %s %s failed: %s", ch["action"], mid, exc)
+            done.append(f"! {mid} failed: {exc}")
     log.info("Applied mod changes: %s manuals=%s", done, manuals)
     if manuals:
         done.append("Manual downloads needed:")

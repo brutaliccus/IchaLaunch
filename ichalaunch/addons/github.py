@@ -239,6 +239,181 @@ def github_latest_commit(owner: str, repo: str, branch: str | None = None) -> di
     }
 
 
+def _commits_match(left: str, right: str) -> bool:
+    a, b = (left or "").strip().lower(), (right or "").strip().lower()
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    n = min(len(a), len(b))
+    return n >= 7 and a[:n] == b[:n]
+
+
+def should_report_addon_update(
+    *,
+    local_commit: str = "",
+    remote_commit: str = "",
+    local_version: str = "",
+    remote_version: str = "",
+) -> bool:
+    """True only when remote is known to be newer. Missing data is not an update.
+
+    Tracked installs (local commit SHA present) compare commits. Copied/unknown
+    addons with no install SHA compare TOC/version vs a GitHub tag. Empty local
+    commit must not be treated as ``0`` / older than remote.
+    """
+    local_c = (local_commit or "").strip()
+    remote_c = (remote_commit or "").strip()
+    if local_c and remote_c:
+        return not _commits_match(local_c, remote_c)
+    local_v = (local_version or "").strip()
+    remote_v = (remote_version or "").strip()
+    if local_v and remote_v:
+        from ichalaunch.core.self_update import is_newer
+
+        return is_newer(remote_v, local_v)
+    return False
+
+
+def catalog_pin_tag(entry: dict[str, Any] | None) -> str:
+    """Pinned GitHub release tag from catalog ``pin_release`` or a tagged repo URL."""
+    if not entry:
+        return ""
+    pin = str(entry.get("pin_release") or "").strip()
+    if pin:
+        return pin
+    parsed = parse_github_url(str(entry.get("repo") or entry.get("url") or ""))
+    if parsed and parsed.tag:
+        return str(parsed.tag).strip()
+    return ""
+
+
+def catalog_locks_updates(entry: dict[str, Any] | None) -> bool:
+    """True when the catalog entry must not track GitHub latest.
+
+    Honors ``updates: false``, ``ignore_updates`` / ``never_update``,
+    ``pin_release``, or a ``repo`` URL that already includes a release tag.
+    """
+    if not entry:
+        return False
+    if entry.get("updates") is False:
+        return True
+    if entry.get("ignore_updates") is True or entry.get("never_update") is True:
+        return True
+    return bool(catalog_pin_tag(entry))
+
+
+def addon_ignores_updates(
+    entry: dict[str, Any] | None,
+    folder: str,
+    meta: dict[str, Any] | None = None,
+) -> bool:
+    """True if catalog ``updates`` is false, ``pin_release`` is set, or saved ``never_update``.
+
+    Catalog pin always applies — even with empty settings (copied folder / first scan).
+    When *entry* is omitted, the turtle_wiki catalog is resolved from *folder*.
+    """
+    meta = meta if isinstance(meta, dict) else {}
+    if meta.get("never_update"):
+        return True
+    if catalog_locks_updates(entry):
+        return True
+    if not entry and folder:
+        from ichalaunch.core.detect import resolve_catalog_entry
+
+        cat, kind = resolve_catalog_entry(folder, include_mods=False)
+        if kind == "exact" and catalog_locks_updates(cat):
+            return True
+    return False
+
+
+def addon_skips_updates(
+    folder: str,
+    meta: dict[str, Any] | None = None,
+    *,
+    catalog_entry: dict[str, Any] | None = None,
+    catalog_kind: str = "",
+) -> bool:
+    """True when this installed addon should never be offered an auto-update."""
+    meta = meta if isinstance(meta, dict) else {}
+    entry = catalog_entry if catalog_kind != "prefix" else None
+    if addon_ignores_updates(entry, folder, meta):
+        return True
+    managed_by = str(meta.get("managed_by") or "").strip()
+    if managed_by:
+        parent = settings.installed_addons.get(managed_by) or {}
+        if addon_ignores_updates(None, managed_by, parent):
+            return True
+    return False
+
+
+def _catalog_pin_for_install(owner: str, repo: str, folder_name: str | None) -> str:
+    """Catalog pin_release for this GitHub repo (empty if the catalog tracks latest)."""
+    from ichalaunch.core.detect import resolve_catalog_entry
+
+    if folder_name:
+        cat, kind = resolve_catalog_entry(folder_name, include_mods=False)
+        if kind == "exact":
+            pin = catalog_pin_tag(cat)
+            if pin:
+                return pin
+    owner_l, repo_l = owner.lower(), repo.lower()
+    for entry in load_catalog():
+        other = parse_github_url(str(entry.get("repo") or entry.get("url") or ""))
+        if not other:
+            continue
+        if other.owner.lower() == owner_l and other.repo.lower() == repo_l:
+            return catalog_pin_tag(entry)
+    return ""
+
+
+def github_latest_version_tag(owner: str, repo: str) -> str | None:
+    """Latest GitHub release tag, else newest git tag. None if unknown / 404."""
+    full = f"{owner}/{repo}"
+    try:
+        r = requests.get(
+            f"https://api.github.com/repos/{full}/releases/latest",
+            headers=github_headers(),
+            timeout=30,
+        )
+        _note_rate_headers(r)
+        if _looks_like_rate_limit(r):
+            raise GitHubRateLimitError(RATE_LIMIT_STATUS)
+        if r.status_code != 404:
+            r.raise_for_status()
+            tag = str((r.json() or {}).get("tag_name") or "").strip()
+            if tag:
+                return tag
+    except GitHubRateLimitError:
+        raise
+    except (requests.RequestException, ValueError, json.JSONDecodeError) as exc:
+        log.warning("Latest release lookup failed for %s: %s", full, exc)
+
+    try:
+        r = requests.get(
+            f"https://api.github.com/repos/{full}/tags",
+            headers=github_headers(),
+            timeout=30,
+            params={"per_page": 1},
+        )
+        _note_rate_headers(r)
+        if _looks_like_rate_limit(r):
+            raise GitHubRateLimitError(RATE_LIMIT_STATUS)
+        if r.status_code == 404:
+            return None
+        r.raise_for_status()
+        data = r.json()
+        if isinstance(data, list) and data:
+            tag = str(data[0].get("name") or "").strip()
+            if tag:
+                return tag
+    except GitHubRateLimitError:
+        raise
+    except (requests.RequestException, ValueError, json.JSONDecodeError) as exc:
+        log.warning("Tag lookup failed for %s: %s", full, exc)
+    return None
+
+
 _README_MAX_CHARS = 180_000
 _IMG_MD_RE = re.compile(
     r"(!\[[^\]]*\]\()([^)\s]+)((?:\s+\"[^\"]*\")?\))",
@@ -690,8 +865,16 @@ def _addon_install_meta(
         enriched.pop("tag", None)
         if enriched.get("version") == prev.get("tag"):
             enriched.pop("version", None)
-    # Successful install/update clears Never Update (same as Reinstall / choosing Update)
-    enriched.pop("never_update", None)
+        if kind == "exact":
+            pin = catalog_pin_tag(cat)
+            if pin:
+                enriched["tag"] = pin
+                enriched["version"] = pin
+    # Successful install/update clears Never Update unless the catalog pins this addon
+    if kind == "exact" and catalog_locks_updates(cat):
+        enriched["never_update"] = True
+    else:
+        enriched.pop("never_update", None)
     enriched["loaded"] = True
     return enriched
 
@@ -785,6 +968,8 @@ def install_from_github(url: str, folder_name: str | None = None, progress: Prog
     if not tag and folder_name:
         prev = settings.installed_addons.get(folder_name) or {}
         tag = str(prev.get("tag") or "").strip() or None
+    if not tag:
+        tag = _catalog_pin_for_install(owner, repo, folder_name) or None
     game = detect_game()
     if not game:
         raise FileNotFoundError("Game path not set")
@@ -898,12 +1083,12 @@ def _addon_git_exists(addon_dir: Path) -> bool:
 
 
 def _never_update_meta(folder: str, meta: dict[str, Any], installed: dict[str, Any]) -> bool:
-    if meta.get("never_update"):
+    if addon_ignores_updates(None, folder, meta):
         return True
     managed_by = str(meta.get("managed_by") or "").strip()
     if managed_by:
         parent = installed.get(managed_by) or {}
-        if parent.get("never_update"):
+        if addon_ignores_updates(None, managed_by, parent):
             return True
     return False
 
@@ -1048,15 +1233,24 @@ def check_addon_updates(
     checked = 0
     rate_limited = False
 
-    from ichalaunch.core.detect import overlay_git_origin
+    from ichalaunch.addons.loadstate import addon_disk_path
+    from ichalaunch.core.detect import (
+        catalog_index,
+        overlay_git_origin,
+        read_addon_toc_version,
+        read_local_git_head_sha,
+        resolve_catalog_entry,
+    )
 
     repair_missing_addon_git_origins(progress)
 
+    cat_idx = catalog_index()
     to_check: list[tuple[str, dict[str, Any], str, str, str]] = []
     for folder, meta in settings.installed_addons.items():
         if meta.get("managed_by"):
             continue
-        if meta.get("never_update"):
+        cat, kind = resolve_catalog_entry(folder, cat_idx, include_mods=False)
+        if addon_skips_updates(folder, meta, catalog_entry=cat, catalog_kind=kind):
             continue
         # Pinned release-tag installs: reinstall re-fetches the same tag; skip branch tip checks
         if str(meta.get("tag") or "").strip():
@@ -1091,9 +1285,31 @@ def check_addon_updates(
             rate_limited = True
             break
 
+        disk = addon_disk_path(folder)
+        local_sha = str(meta.get("installed_commit") or "").strip()
+        if not local_sha and disk is not None:
+            local_sha = read_local_git_head_sha(disk) or ""
+        local_ver = ""
+        if disk is not None:
+            local_ver = read_addon_toc_version(disk)
+        if not local_ver:
+            local_ver = str(meta.get("version") or "").strip()
+
         try:
-            remote = github_latest_commit(owner, name, meta.get("branch"))
-            checked += 1
+            if local_sha:
+                remote = github_latest_commit(owner, name, meta.get("branch"))
+                checked += 1
+                remote_sha = str(remote.get("sha") or "")
+                remote_ver = ""
+                branch = str(remote.get("branch") or meta.get("branch") or "")
+            else:
+                # Copied / no install SHA: TOC vs GitHub tag. Never treat missing
+                # commit as older than remote (that marked every copied addon outdated).
+                remote_ver = github_latest_version_tag(owner, name) or ""
+                checked += 1
+                remote_sha = ""
+                remote = {"sha": "", "branch": str(meta.get("branch") or "")}
+                branch = str(remote.get("branch") or "")
         except GitHubRateLimitError:
             rate_limited = True
             break
@@ -1103,15 +1319,22 @@ def check_addon_updates(
                 on_count(i + 1, total, f"Checking {folder}…")
             continue
 
-        if remote["sha"] != meta.get("installed_commit"):
+        if should_report_addon_update(
+            local_commit=local_sha,
+            remote_commit=remote_sha,
+            local_version=local_ver,
+            remote_version=remote_ver,
+        ):
+            local_label = (local_sha[:7] if local_sha else local_ver) or "?"
+            remote_label = (remote_sha[:7] if remote_sha else remote_ver) or "?"
             updates.append(
                 {
                     "folder": folder,
                     "repository": repo,
-                    "local": meta.get("installed_commit", "")[:7],
-                    "remote": remote["sha"][:7],
+                    "local": local_label,
+                    "remote": remote_label,
                     "url": meta.get("url") or f"https://github.com/{repo}",
-                    "branch": remote["branch"],
+                    "branch": branch,
                 }
             )
 
@@ -1183,6 +1406,12 @@ def update_addon(folder: str, progress: ProgressCb | None = None) -> None:
 
     meta = overlay_git_origin(folder, meta)
     tag = str(meta.get("tag") or "").strip()
+    if not tag:
+        from ichalaunch.core.detect import resolve_catalog_entry
+
+        cat, kind = resolve_catalog_entry(folder, include_mods=False)
+        if kind == "exact":
+            tag = catalog_pin_tag(cat)
     repo = str(meta.get("repository") or "").strip()
     if tag and "/" in repo:
         owner, name = repo.split("/", 1)

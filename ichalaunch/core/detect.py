@@ -9,9 +9,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from ichalaunch.addons.github import load_catalog, parse_github_url
+from ichalaunch.addons.github import addon_ignores_updates, catalog_locks_updates, load_catalog, parse_github_url
 from ichalaunch.config.settings import settings
-from ichalaunch.core.filesystem import robust_rmtree
+from ichalaunch.core.filesystem import listed_basenames, robust_rmtree
+from ichalaunch.core.logging_setup import log
 from ichalaunch.game.launcher import detect_game, resolve_addons_dir
 from ichalaunch.mods.installer import detect_actual_state, load_mod_catalog
 
@@ -32,6 +33,98 @@ def _scan_toc_dir(addons_dir: Path | None, *, skip_blizzard: bool) -> list[str]:
             continue
         folders.append(p.name)
     return folders
+
+
+_TOC_VERSION_RE = re.compile(r"^##\s*Version\s*:\s*(.+?)\s*$", re.I | re.M)
+_GIT_SHA_RE = re.compile(r"^[0-9a-f]{7,40}$", re.I)
+
+
+def read_addon_toc_version(addon_folder: str | Path) -> str:
+    """Return ``## Version`` from the addon's TOC, or ``""`` if missing."""
+    folder = Path(addon_folder)
+    if not folder.is_dir():
+        return ""
+    tocs = sorted(folder.glob("*.toc"))
+    preferred = folder / f"{folder.name}.toc"
+    if preferred.is_file():
+        tocs = [preferred, *[t for t in tocs if t.resolve() != preferred.resolve()]]
+    for toc in tocs:
+        try:
+            text = toc.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        match = _TOC_VERSION_RE.search(text)
+        if not match:
+            continue
+        ver = match.group(1).strip().strip("\"'")
+        ver = re.sub(r"\|c[0-9a-fA-F]{8}", "", ver)
+        ver = ver.replace("|r", "").strip()
+        if ver:
+            return ver
+    return ""
+
+
+def read_local_git_head_sha(addon_folder: str | Path) -> str | None:
+    """Return HEAD commit SHA for a real git clone, or None for stub/missing ``.git``."""
+    folder = Path(addon_folder)
+    git_entry = folder / ".git"
+    git_dir: Path | None = None
+    try:
+        if git_entry.is_file():
+            text = git_entry.read_text(encoding="utf-8", errors="replace")
+            for line in text.splitlines():
+                stripped = line.strip()
+                if stripped.lower().startswith("gitdir:"):
+                    gitdir = stripped.split(":", 1)[1].strip()
+                    if not gitdir:
+                        return None
+                    base = Path(gitdir)
+                    if not base.is_absolute():
+                        base = (folder / base).resolve()
+                    git_dir = base
+                    break
+        elif git_entry.is_dir():
+            git_dir = git_entry
+    except OSError:
+        return None
+    if git_dir is None or not git_dir.is_dir():
+        return None
+    head_path = git_dir / "HEAD"
+    try:
+        if not head_path.is_file():
+            return None
+        raw = head_path.read_text(encoding="utf-8", errors="replace").strip()
+    except OSError:
+        return None
+    if not raw:
+        return None
+    if raw.lower().startswith("ref:"):
+        ref = raw.split(":", 1)[1].strip()
+        if not ref:
+            return None
+        ref_file = git_dir / ref
+        packed = git_dir / "packed-refs"
+        sha = ""
+        try:
+            if ref_file.is_file():
+                sha = ref_file.read_text(encoding="utf-8", errors="replace").strip()
+            elif packed.is_file():
+                for line in packed.read_text(encoding="utf-8", errors="replace").splitlines():
+                    stripped = line.strip()
+                    if not stripped or stripped.startswith("#") or stripped.startswith("^"):
+                        continue
+                    parts = stripped.split()
+                    if len(parts) >= 2 and parts[1] == ref:
+                        sha = parts[0]
+                        break
+        except OSError:
+            return None
+    else:
+        sha = raw.split()[0] if raw.split() else ""
+    sha = sha.strip()
+    if _GIT_SHA_RE.fullmatch(sha):
+        return sha
+    return None
 
 
 def scan_installed_addon_folders(game_path: Path | None = None) -> list[str]:
@@ -577,6 +670,11 @@ def merge_addon_meta(
         "installed_commit": prev.get("installed_commit") or "",
         "url": url,
     }
+    version = _nonempty(prev.get("version"), prev.get("tag"))
+    if version:
+        meta["version"] = version
+    if prev.get("tag"):
+        meta["tag"] = prev.get("tag")
     for key in ("installed_at", "updated_at", "commit_date"):
         if prev.get(key):
             meta[key] = prev[key]
@@ -589,6 +687,12 @@ def merge_addon_meta(
         meta["folders"] = [str(f) for f in folders if f]
     if "loaded" in prev:
         meta["loaded"] = bool(prev.get("loaded"))
+    # Disk sync rebuilds this dict from a whitelist — keep Never Update and
+    # re-apply catalog ``updates: false`` / pin_release on every detect.
+    if prev.get("never_update"):
+        meta["never_update"] = True
+    if match_kind == "exact" and catalog_locks_updates(cat):
+        meta["never_update"] = True
     return meta
 
 
@@ -804,10 +908,21 @@ def sync_installed_addons_from_disk() -> dict[str, Any]:
             match_kind=kind or "exact",
             git_origin=origin,
         )
+        toc_ver = read_addon_toc_version(disk) if disk is not None else ""
+        if toc_ver and not str(meta.get("version") or "").strip():
+            meta["version"] = toc_ver
         meta["loaded"] = addon_is_loaded(folder, addons_dir=addons_dir)
+        if addon_ignores_updates(cat if kind == "exact" else None, folder, meta):
+            meta["never_update"] = True
         merged[folder] = meta
 
     merged = group_multi_folder_addons(merged)
+    for folder, meta in list(merged.items()):
+        cat, kind = resolve_catalog_entry(folder, idx, include_mods=False)
+        if addon_ignores_updates(cat if kind == "exact" else None, folder, meta):
+            stamped = dict(meta)
+            stamped["never_update"] = True
+            merged[folder] = stamped
     settings.set("installed_addons", merged)
     return merged
 
@@ -816,6 +931,9 @@ def sync_desired_mods_from_disk() -> dict[str, bool]:
     """Set desired_mods checkboxes to match what is actually installed."""
     game = detect_game()
     if not game:
+        return settings.desired_mods
+    if listed_basenames(game) is None:
+        log.warning("Skipping desired_mods sync — could not list game folder")
         return settings.desired_mods
     actual = detect_actual_state(game)
     # Only sync keys we know about in catalog

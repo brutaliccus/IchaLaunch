@@ -58,24 +58,96 @@ def test_protected():
 
 
 def test_dlls_txt():
+    from ichalaunch.core.filesystem import (
+        clear_fs_caches,
+        is_lock_or_av_error,
+        name_present,
+        parse_dlls_txt_text,
+        sha256_file,
+    )
+
+    clear_fs_caches()
     with tempfile.TemporaryDirectory() as td:
         game = Path(td)
         write_dlls_txt(game, ["a.dll"])
         update_dlls_txt(game, add=["b.dll"], remove=["a.dll"])
         assert read_dlls_txt(game) == ["b.dll"]
+
+        # Comments, blanks, inline comments, quotes — never crash
+        (game / "dlls.txt").write_text(
+            "# Managed\n\n  \n# vanillahelpers.dll\n"
+            "vanillahelpers.dll\n\"Nampower.dll\"  # keep\n",
+            encoding="utf-8",
+        )
+        names = read_dlls_txt(game)
+        assert "vanillahelpers.dll" in names
+        assert "Nampower.dll" in names
+        assert parse_dlls_txt_text("# only comment\n\n") == []
+
+        # Commenting out removes from the active list (preserves the line)
+        (game / "dlls.txt").write_text(
+            "# vanillahelpers.dll\nNampower.dll\n", encoding="utf-8"
+        )
+        assert read_dlls_txt(game) == ["Nampower.dll"]
+        update_dlls_txt(game, add=["SuperWoWhook.dll"])
+        text = (game / "dlls.txt").read_text(encoding="utf-8")
+        assert "# vanillahelpers.dll" in text
+        assert "SuperWoWhook.dll" in read_dlls_txt(game)
+
+        # .ichalaunch/dlls.txt is also parsed
+        meta = game / ".ichalaunch"
+        meta.mkdir()
+        (game / "dlls.txt").unlink()
+        (meta / "dlls.txt").write_text("# x\nVanillaHelpers.dll\n", encoding="utf-8")
+        assert read_dlls_txt(game) == ["VanillaHelpers.dll"]
+
+        # Case-insensitive presence via listdir (does not LoadLibrary)
+        (game / "VanillaHelpers.dll").write_bytes(b"MZ")
+        clear_fs_caches()
+        assert name_present(game, "vanillahelpers.dll")
+        assert name_present(game, "VanillaHelpers.dll")
+        assert not name_present(game, "missing.dll")
+
+        locked = OSError(22, "virus")
+        locked.winerror = 225  # type: ignore[attr-defined]
+        assert is_lock_or_av_error(locked)
+        share = OSError(13, "share")
+        share.winerror = 32  # type: ignore[attr-defined]
+        assert is_lock_or_av_error(share)
+
+        digest = sha256_file(game / "VanillaHelpers.dll")
+        assert digest is not None and len(digest) == 64
+        assert sha256_file(game / "nope.dll") is None
     print("OK dlls.txt")
 
 
 def test_detect_state():
+    from ichalaunch.core.filesystem import clear_fs_caches
+
     with tempfile.TemporaryDirectory() as td:
         game = Path(td)
         (game / "nampower.dll").write_bytes(b"x")
         (game / "WDB").write_text("")
+        (game / "vanillahelpers.dll").write_bytes(b"MZ")
+        clear_fs_caches()
         state = detect_actual_state(game)
         assert state["nampower"] is True
         assert state["wdb_block"] is True
         assert state["superwow"] is False
+        assert state["vanilla_helpers"] is True
     print("OK detect state")
+
+
+def test_apply_desired_state_guard():
+    from ichalaunch.mods import installer as inst
+
+    inst._APPLY_IN_PROGRESS = True
+    try:
+        out = inst.apply_desired_state()
+        assert out and "already running" in out[0]
+    finally:
+        inst._APPLY_IN_PROGRESS = False
+    print("OK apply desired state guard")
 
 
 def test_discover_game_path_near_launcher():
@@ -569,6 +641,171 @@ def test_repair_missing_addon_git():
     print("OK repair_missing_addon_git")
 
 
+def test_copied_addon_update_compare():
+    """Copied addons without install SHA must not count as outdated vs GitHub tip."""
+    from ichalaunch.addons.github import should_report_addon_update
+    from ichalaunch.core.detect import read_addon_toc_version, read_local_git_head_sha
+
+    # Empty local commit vs remote SHA used to mark every copied addon out of date.
+    assert should_report_addon_update(local_commit="", remote_commit="abc1234def") is False
+    assert should_report_addon_update(local_commit="", remote_commit="", local_version="", remote_version="1.2.3") is False
+    assert should_report_addon_update(local_version="1.2.3", remote_version="1.2.3") is False
+    assert should_report_addon_update(local_version="1.2.4", remote_version="1.2.3") is False
+    assert should_report_addon_update(local_version="1.2.3", remote_version="v1.2.3") is False
+    assert should_report_addon_update(local_version="1.2.3", remote_version="1.3.0") is True
+    assert should_report_addon_update(local_commit="abc1234", remote_commit="abc1234") is False
+    assert should_report_addon_update(local_commit="abc1234ffff", remote_commit="abc1234") is False
+    assert should_report_addon_update(local_commit="abc1234", remote_commit="def5678") is True
+
+    with tempfile.TemporaryDirectory() as tmp:
+        folder = Path(tmp) / "ShaguTweaks"
+        folder.mkdir()
+        (folder / "ShaguTweaks.toc").write_text(
+            "## Interface: 11200\n## Title: ShaguTweaks\n## Version: 1.5.16\n",
+            encoding="utf-8",
+        )
+        assert read_addon_toc_version(folder) == "1.5.16"
+        assert read_local_git_head_sha(folder) is None
+
+        # Stub .git from origin repair has HEAD ref but no commit object.
+        git_dir = folder / ".git"
+        git_dir.mkdir()
+        (git_dir / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+        (git_dir / "config").write_text(
+            '[remote "origin"]\n\turl = https://github.com/shagu/ShaguTweaks.git\n',
+            encoding="utf-8",
+        )
+        assert read_local_git_head_sha(folder) is None
+
+        ref_dir = git_dir / "refs" / "heads"
+        ref_dir.mkdir(parents=True)
+        (ref_dir / "main").write_text("abcdef1234567890abcdef1234567890abcdef12\n", encoding="utf-8")
+        assert read_local_git_head_sha(folder) == "abcdef1234567890abcdef1234567890abcdef12"
+
+    print("OK copied addon update compare")
+
+
+def test_bagshui_catalog_pin():
+    """Bagshui is pinned to the 1.12 tag and never auto-updates to 3.3.5."""
+    from ichalaunch.addons.github import (
+        addon_ignores_updates,
+        addon_skips_updates,
+        catalog_locks_updates,
+        catalog_pin_tag,
+        parse_github_url,
+    )
+
+    bag = next(
+        (e for e in load_catalog() if (e.get("folder") or e.get("name")) == "Bagshui"),
+        None,
+    )
+    assert bag is not None, "Bagshui missing from addons.json"
+    assert bag.get("pin_release") == "1.5.16"
+    assert bag.get("updates") is False
+    parsed = parse_github_url(str(bag.get("repo") or ""))
+    assert parsed is not None
+    assert parsed.owner == "The-Kludge-Bureau"
+    assert parsed.repo == "Bagshui"
+    assert parsed.tag == "1.5.16"
+    assert catalog_pin_tag(bag) == "1.5.16"
+    assert catalog_locks_updates(bag) is True
+    # Already-installed copy with no tag / never_update still locked via catalog
+    assert addon_ignores_updates(bag, "Bagshui", {}) is True
+    assert addon_skips_updates("Bagshui", {}) is True
+    assert addon_skips_updates(
+        "Bagshui",
+        {"url": "https://github.com/The-Kludge-Bureau/Bagshui", "repository": "The-Kludge-Bureau/Bagshui"},
+    ) is True
+    # Generic catalog helpers: unpinned addons still update
+    shagu = next(
+        (e for e in load_catalog() if (e.get("folder") or "") == "ShaguTweaks"),
+        None,
+    )
+    assert shagu is not None
+    assert catalog_pin_tag(shagu) == ""
+    assert catalog_locks_updates(shagu) is False
+    assert addon_skips_updates("ShaguTweaks", {}) is False
+    assert catalog_locks_updates({"repo": "https://github.com/owner/repo", "updates": False}) is True
+    assert catalog_locks_updates({"repo": "https://github.com/owner/repo", "ignore_updates": True}) is True
+    assert catalog_pin_tag({"repo": "https://github.com/owner/repo/releases/tag/v2.0.0"}) == "v2.0.0"
+    print("OK Bagshui catalog pin 1.5.16")
+
+
+def test_never_update_persists():
+    """never_update must survive merge/sync and settings.json save/load."""
+    import ichalaunch.config.settings as settings_mod
+    from ichalaunch.addons.github import (
+        addon_ignores_updates,
+        addon_skips_updates,
+        catalog_locks_updates,
+        repair_missing_addon_git_origins,
+    )
+    from ichalaunch.config.settings import Settings
+    from ichalaunch.core.detect import merge_addon_meta, resolve_catalog_entry
+
+    cat, kind = resolve_catalog_entry("Bagshui", include_mods=False)
+    assert kind == "exact" and cat is not None
+    assert catalog_locks_updates(cat) is True
+
+    # First disk scan (empty settings) still stamps the catalog pin.
+    scanned = merge_addon_meta("Bagshui", {}, cat, match_kind="exact")
+    assert scanned.get("never_update") is True
+
+    # User lock on an unpinned addon must not be dropped by the meta whitelist.
+    kept = merge_addon_meta(
+        "ShaguTweaks",
+        {"never_update": True, "source": "github", "loaded": True},
+        None,
+        match_kind="exact",
+    )
+    assert kept.get("never_update") is True
+    assert kept.get("loaded") is True
+
+    with tempfile.TemporaryDirectory() as td:
+        fake = Path(td) / "settings.json"
+        orig_path = settings_mod.settings_path
+        settings_mod.settings_path = lambda: fake
+        try:
+            s = Settings()
+            s.set_installed_addon("Bagshui", {"source": "detected", "name": "Bagshui"})
+            assert s.installed_addons["Bagshui"].get("never_update") is True
+            # Incoming write that omits the flag must not wipe it.
+            s.set_installed_addon("Bagshui", {"loaded": True})
+            assert s.installed_addons["Bagshui"].get("never_update") is True
+            s.set_installed_addon(
+                "CustomLock",
+                {"source": "detected", "never_update": True, "name": "CustomLock"},
+            )
+            assert fake.is_file()
+            raw = json.loads(fake.read_text(encoding="utf-8"))
+            assert raw["installed_addons"]["Bagshui"]["never_update"] is True
+            assert raw["installed_addons"]["CustomLock"]["never_update"] is True
+
+            reloaded = Settings()
+            bag_meta = reloaded.installed_addons["Bagshui"]
+            assert bag_meta.get("never_update") is True
+            assert addon_ignores_updates(cat, "Bagshui", bag_meta) is True
+            assert addon_skips_updates("Bagshui", bag_meta) is True
+            assert reloaded.is_addon_never_update("Bagshui") is True
+            assert reloaded.installed_addons["CustomLock"].get("never_update") is True
+        finally:
+            settings_mod.settings_path = orig_path
+
+        # Catalog pin skips .git repair even when settings lost never_update.
+        bag_dir = Path(td) / "Bagshui"
+        bag_dir.mkdir()
+        (bag_dir / "Bagshui.toc").write_text("## Title: Bagshui\n", encoding="utf-8")
+        n_bag = repair_missing_addon_git_origins(
+            None,
+            addons_dir=Path(td),
+            installed={"Bagshui": {"source": "detected"}},
+        )
+        assert n_bag == 0
+        assert not (bag_dir / ".git").exists()
+
+    print("OK never_update persists across save/load")
+
+
 def test_sanitize_filename():
     from ichalaunch.core.filesystem import sanitize_filename
 
@@ -994,6 +1231,7 @@ def main():
     test_protected()
     test_dlls_txt()
     test_detect_state()
+    test_apply_desired_state_guard()
     test_discover_game_path_near_launcher()
     test_addons_path_defaults()
     test_status_progress_bytes()
@@ -1003,6 +1241,9 @@ def main():
     test_addon_loadstate()
     test_robust_move_tree_and_lock_message()
     test_repair_missing_addon_git()
+    test_copied_addon_update_compare()
+    test_bagshui_catalog_pin()
+    test_never_update_persists()
     test_sanitize_filename()
     test_robust_rmtree_readonly_git_pack()
     test_vanillafixes_zip_in_memory()
