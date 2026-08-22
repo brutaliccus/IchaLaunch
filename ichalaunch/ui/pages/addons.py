@@ -1173,14 +1173,8 @@ class AddonsPage(QWidget):
                     category = meta.get("category") or "Installed"
                     # Prefer merged meta (includes .git origin override); catalog only as last resort.
                     repo_url = meta.get("url") or (cat or {}).get("repo") or ""
-                    search_blob = f"{desc} {' '.join(modules)}"
                     if cat_filter and cat_filter != "All categories" and category != cat_filter:
                         continue
-                    # All-mode search hides in place; don't drop rows at build time.
-                    if mode != "All" and q:
-                        blob = f"{name} {search_blob} {category} {folder}".lower()
-                        if q not in blob:
-                            continue
                     loaded = addon_is_loaded(folder, addons_dir=addons_dir)
                     if "loaded" in meta:
                         loaded = bool(meta.get("loaded")) if disk is None else loaded
@@ -1246,7 +1240,7 @@ class AddonsPage(QWidget):
                     empty = QListWidgetItem(msg)
                     empty.setFlags(Qt.ItemFlag.NoItemFlags)
                     self.installed_list.addItem(empty)
-                elif mode == "All" and q:
+                elif show_installed and q:
                     self._hide_installed_by_search()
 
             self._ensure_available_base(force=True)

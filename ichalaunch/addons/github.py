@@ -203,6 +203,11 @@ def clear_addon_scan_queue() -> None:
         _save_scan_queue(None)
 
 
+def clear_github_url_cache() -> None:
+    """Drop in-process GitHub browse URL reachability cache."""
+    _url_reach_cache.clear()
+
+
 def has_pending_addon_scan_queue() -> bool:
     pending = _load_scan_queue().get("pending")
     return isinstance(pending, list) and bool(pending)

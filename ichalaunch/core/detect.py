@@ -14,7 +14,11 @@ from ichalaunch.config.settings import settings
 from ichalaunch.core.filesystem import listed_basenames, robust_rmtree
 from ichalaunch.core.logging_setup import log
 from ichalaunch.game.launcher import detect_game, resolve_addons_dir
-from ichalaunch.mods.installer import detect_actual_state, load_mod_catalog
+from ichalaunch.mods.installer import (
+    detect_actual_state,
+    enforce_vanilla_helpers_for_hd_desired,
+    load_mod_catalog,
+)
 
 
 BLIZZARD_PREFIXES = ("Blizzard_", "Turtle_")
@@ -949,7 +953,7 @@ def sync_desired_mods_from_disk() -> dict[str, bool]:
     for mod_id, present in actual.items():
         if mod_id in known and mod_id not in user_set:
             desired[mod_id] = bool(present)
-    # Same MPQ can match multiple catalog entries (e.g. Reforged vs legacy Patch-N).
+    # Same MPQ can match multiple catalog entries when conflicts exist.
     # Prefer HD Graphics when seeding conflicting pairs the user has not toggled.
     for mod_id in list(desired.keys()):
         if not desired.get(mod_id) or mod_id in user_set:
@@ -964,6 +968,7 @@ def sync_desired_mods_from_disk() -> dict[str, bool]:
                 desired[conf] = False
             elif conf_cat == "HD Graphics" and mod_cat != "HD Graphics":
                 desired[mod_id] = False
+    desired = enforce_vanilla_helpers_for_hd_desired(desired)
     settings.set("desired_mods", desired)
     if "vanillafixes" in actual:
         settings.set("vanillafixes_enabled", bool(actual.get("vanillafixes")))

@@ -37,6 +37,7 @@ class SettingsPage(QWidget):
     browse_addons_clicked = Signal()
     reset_addons_clicked = Signal()
     reset_client_link_clicked = Signal()
+    clear_cache_clicked = Signal()
     verify_clicked = Signal()
 
     def __init__(self, parent=None):
@@ -264,6 +265,27 @@ class SettingsPage(QWidget):
         token_note.setWordWrap(True)
         gh_card.body.addWidget(token_note)
 
+        maint_card = MarbleCard()
+        maint_card.body.setSpacing(10)
+        maint_title = QLabel("Maintenance")
+        maint_title.setObjectName("CardTitle")
+        maint_card.body.addWidget(maint_title)
+        clear_cache = GluePanelButton("Clear Cache", width=148)
+        clear_cache.setToolTip(
+            "Reset launcher settings, cached scan data, and saved preferences. "
+            "Does not delete game or addon files on disk."
+        )
+        clear_cache.clicked.connect(self.clear_cache_clicked.emit)
+        maint_card.body.addWidget(clear_cache)
+        maint_note = QLabel(
+            "Clears saved paths, mod/addon tracking, GitHub token, update scan "
+            "queues, and other launcher preferences. Your WoW client and AddOn "
+            "folders on disk are not deleted."
+        )
+        maint_note.setObjectName("Muted")
+        maint_note.setWordWrap(True)
+        maint_card.body.addWidget(maint_note)
+
         about = MarbleCard()
         about.body.setSpacing(10)
         about_title = QLabel(f"IchaLaunch {__version__}")
@@ -288,6 +310,7 @@ class SettingsPage(QWidget):
         layout.addWidget(launch_card)
         layout.addWidget(upd_card)
         layout.addWidget(gh_card)
+        layout.addWidget(maint_card)
         layout.addWidget(about)
         layout.addStretch(1)
 
@@ -331,6 +354,14 @@ class SettingsPage(QWidget):
     def refresh(self) -> None:
         self.path_edit.setText(settings.game_path)
         self.addons_edit.setText(settings.resolved_addons_path())
+        for cb, key in (
+            (self.cb_vf, "vanillafixes_enabled"),
+            (self.cb_min, "minimize_on_launch"),
+            (self.cb_close, "close_on_launch"),
+        ):
+            cb.blockSignals(True)
+            cb.setChecked(bool(settings.get(key, False)))
+            cb.blockSignals(False)
         self.cb_auto_updates.blockSignals(True)
         self.cb_auto_updates.setChecked(settings.check_updates_on_startup())
         self.cb_auto_updates.blockSignals(False)

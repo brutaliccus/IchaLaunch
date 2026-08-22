@@ -439,6 +439,12 @@ class ClientPage(QWidget):
 
     def _on_toggle(self, mod_id: str, enabled: bool) -> None:
         changes = apply_mod_toggle(mod_id, enabled)
+        if not enabled and mod_id == "vanilla_helpers" and not changes:
+            row = self.rows.get(mod_id)
+            if row is not None:
+                row.cb.blockSignals(True)
+                row.cb.setChecked(True)
+                row.cb.blockSignals(False)
         for mid, state in changes.items():
             if mid == mod_id:
                 continue

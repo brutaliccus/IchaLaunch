@@ -192,6 +192,7 @@ from ichalaunch.mods.installer import (
     apply_desired_state,
     check_mod_updates,
     install_custom_dll_from_github,
+    prepare_for_launch,
     recently_checked_mod_updates,
     update_mod,
     update_mods,
@@ -1216,6 +1217,7 @@ class MainWindow(QMainWindow):
         self.settings_page.browse_addons_clicked.connect(self._browse_addons)
         self.settings_page.reset_addons_clicked.connect(self._reset_addons_path)
         self.settings_page.reset_client_link_clicked.connect(self._reset_client_link)
+        self.settings_page.clear_cache_clicked.connect(self._clear_app_cache)
         self.settings_page.verify_clicked.connect(self._verify_game)
 
         self._refresh_play_button()
@@ -2152,6 +2154,13 @@ class MainWindow(QMainWindow):
 
     def _play(self) -> None:
         try:
+            prep = prepare_for_launch()
+            if prep.fixes:
+                line = prep.status_line or "Pre-launch fixes applied"
+                self.status_lbl.setText(line)
+                log.info("%s — %s", line, "; ".join(prep.fixes))
+            if prep.warnings:
+                themed.warning(self, "Before launch", "\n".join(prep.warnings))
             launch_game()
             if settings.get("close_on_launch"):
                 self.close()
@@ -2355,6 +2364,29 @@ class MainWindow(QMainWindow):
         self.settings_page.refresh()
         self.home.refresh()
         self._refresh_play_button()
+
+    def _clear_app_cache(self) -> None:
+        if not themed.question(
+            self,
+            "Clear Cache",
+            "This will clear launcher settings, cached scan data, and saved preferences. "
+            "Your game files and addons are not deleted.",
+        ):
+            return
+        from ichalaunch.config.settings import clear_app_data
+
+        clear_app_data()
+        self.settings_page.refresh()
+        self.home.refresh()
+        self.client.refresh_from_settings()
+        self.addons.refresh()
+        self._refresh_play_button()
+        self._refresh_nav_badges()
+        themed.info(
+            self,
+            "Clear Cache",
+            "Launcher data has been reset. Restart IchaLaunch if anything still looks outdated.",
+        )
 
     def _verify_game(self) -> None:
         if is_installed():

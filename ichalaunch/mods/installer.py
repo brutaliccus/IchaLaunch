@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import stat
 import subprocess
 import tempfile
 import time
@@ -142,6 +143,36 @@ def _collect_mod_dependencies(
     return ordered
 
 
+_HD_PATCH_PREFIX = "hd_patch_"
+_VANILLA_HELPERS_ID = "vanilla_helpers"
+
+
+def _is_hd_patch_id(mod_id: str) -> bool:
+    return mod_id.startswith(_HD_PATCH_PREFIX)
+
+
+def _any_hd_patch_desired(desired: dict[str, bool]) -> bool:
+    return any(want and _is_hd_patch_id(mid) for mid, want in desired.items())
+
+
+def enforce_vanilla_helpers_for_hd_desired(
+    desired: dict[str, bool] | None = None,
+    *,
+    persist: bool = False,
+) -> dict[str, bool]:
+    """When any HD patch is desired, VanillaHelpers must stay desired too."""
+    if desired is None:
+        desired = dict(settings.desired_mods)
+    if not _any_hd_patch_desired(desired):
+        return desired
+    if desired.get(_VANILLA_HELPERS_ID):
+        return desired
+    desired[_VANILLA_HELPERS_ID] = True
+    if persist:
+        settings.set_desired_mod(_VANILLA_HELPERS_ID, True)
+    return desired
+
+
 def _collect_mod_dependents(
     mod_id: str,
     catalog: dict[str, dict[str, Any]],
@@ -202,6 +233,10 @@ def resolve_mod_toggle(mod_id: str, enabled: bool) -> dict[str, bool]:
             for dep in _collect_mod_dependencies(mid, catalog):
                 changes[dep] = True
     else:
+        if mod_id == _VANILLA_HELPERS_ID and _any_hd_patch_desired(
+            {**desired, **changes}
+        ):
+            return {}
         disable_branch(mod_id, set())
 
     return {
@@ -669,7 +704,10 @@ def plan_changes(desired: dict[str, bool] | None = None) -> list[dict[str, str]]
     game = detect_game()
     if not game:
         return [{"action": "error", "id": "", "detail": "Game path not set"}]
-    desired = desired or settings.desired_mods
+    desired = enforce_vanilla_helpers_for_hd_desired(
+        dict(desired or settings.desired_mods),
+        persist=True,
+    )
     actual = detect_actual_state(game)
     catalog = {m["id"]: m for m in load_mod_catalog()}
     changes: list[dict[str, str]] = []
@@ -681,16 +719,18 @@ def plan_changes(desired: dict[str, bool] | None = None) -> list[dict[str, str]]
     def add_with_deps(mid: str) -> None:
         if mid in seen:
             return
+        seen.add(mid)
         mod = catalog.get(mid) or {}
         for dep in mod.get("dependencies") or []:
             if not actual.get(dep, False):
                 add_with_deps(dep)
-        if mid not in seen:
-            ordered.append(mid)
-            seen.add(mid)
+        ordered.append(mid)
 
     for mid in to_install:
         add_with_deps(mid)
+
+    if _any_hd_patch_desired(desired) and not actual.get(_VANILLA_HELPERS_ID, False):
+        add_with_deps(_VANILLA_HELPERS_ID)
 
     for mid in ordered:
         mod = catalog.get(mid) or {}
@@ -708,6 +748,8 @@ def plan_changes(desired: dict[str, bool] | None = None) -> list[dict[str, str]]
     for mid, want in desired.items():
         have = actual.get(mid, False)
         if not want and have:
+            if mid == _VANILLA_HELPERS_ID and _any_hd_patch_desired(desired):
+                continue
             mod = catalog.get(mid) or {}
             if mod.get("kind") == "manual_link":
                 continue
@@ -1678,16 +1720,134 @@ def apply_desired_state(progress: ProgressCb | None = None) -> list[str]:
         _APPLY_IN_PROGRESS = False
 
 
-def _sync_dlls_txt_for_desired_mods(game: Path) -> None:
-    """Re-add DLL lines for every desired-enabled mod (recovery after zip overwrite)."""
-    to_add: list[str] = []
+def _catalog_dll_sets() -> tuple[set[str], set[str]]:
+    """Return (desired_dll_names, disabled_catalog_dll_names), all lowercased basenames."""
+    desired_dlls: set[str] = set()
+    disabled_dlls: set[str] = set()
+    desired = settings.desired_mods
+    for mod in load_mod_catalog():
+        mid = mod.get("id") or ""
+        dlls = (mod.get("dlls_txt") or {}).get("add") or []
+        names = {
+            Path(str(d).replace("\\", "/")).name.lower()
+            for d in dlls
+            if str(d).strip()
+        }
+        if desired.get(mid, False):
+            desired_dlls |= names
+        else:
+            disabled_dlls |= names
+    return desired_dlls, disabled_dlls
+
+
+def _sync_dlls_txt_for_desired_mods(game: Path) -> tuple[list[str], list[str]]:
+    """Reconcile dlls.txt with desired mod DLL entries. Returns (added, removed)."""
+    should_have, disabled_catalog = _catalog_dll_sets()
+    to_add_by_lower: dict[str, str] = {}
     for mod in load_mod_catalog():
         mid = mod.get("id") or ""
         if not settings.desired_mods.get(mid, False):
             continue
-        to_add.extend((mod.get("dlls_txt") or {}).get("add") or [])
-    if to_add:
-        update_dlls_txt(game, add=to_add)
+        for d in (mod.get("dlls_txt") or {}).get("add") or []:
+            name = Path(str(d).replace("\\", "/")).name
+            if name:
+                to_add_by_lower[name.lower()] = name
+
+    current = {n.lower(): n for n in read_dlls_txt(game)}
+    to_add = [to_add_by_lower[k] for k in should_have if k not in current]
+    to_remove = [current[k] for k in current if k not in should_have and k in disabled_catalog]
+    if to_add or to_remove:
+        update_dlls_txt(game, add=to_add, remove=to_remove)
+    return to_add, to_remove
+
+
+@dataclass
+class PreLaunchResult:
+    fixes: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+
+    @property
+    def status_line(self) -> str | None:
+        if not self.fixes:
+            return None
+        n = len(self.fixes)
+        return f"Pre-launch: {n} fix{'es' if n != 1 else ''} applied"
+
+
+def _ensure_enabled_data_writable(game: Path) -> tuple[list[str], list[str]]:
+    """Clear read-only on Data/ files owned by desired-enabled mods."""
+    fixes: list[str] = []
+    warnings: list[str] = []
+    desired = settings.desired_mods
+
+    def check_path(p: Path) -> None:
+        if not p.is_file():
+            return
+        try:
+            was_ro = not (p.stat().st_mode & stat.S_IWRITE)
+        except OSError as exc:
+            warnings.append(f"Cannot access {p.name}: {exc}")
+            return
+        ensure_data_writable(p, game)
+        try:
+            still_ro = not (p.stat().st_mode & stat.S_IWRITE)
+        except OSError:
+            still_ro = True
+        rel = p.relative_to(game)
+        if was_ro and not still_ro:
+            fixes.append(f"Cleared read-only on {rel}")
+        elif still_ro:
+            warnings.append(f"Still read-only: {rel}")
+
+    for mod in load_mod_catalog():
+        mid = mod.get("id") or ""
+        if not desired.get(mid, False):
+            continue
+        for rel in _mod_owned_paths(mod):
+            if rel.startswith("data/"):
+                check_path(game / rel)
+        if mod.get("kind") == "glue_autologin":
+            glue = game / "Data" / "Interface" / "GlueXML"
+            for name in ("AutoLogin.lua", "AutoLogin.xml"):
+                check_path(glue / name)
+    return fixes, warnings
+
+
+def prepare_for_launch(game: Path | None = None) -> PreLaunchResult:
+    """Quick pre-boot checks: dlls.txt sync and Data/ read-only fixes."""
+    result = PreLaunchResult()
+    game = game or detect_game()
+    if not game:
+        result.warnings.append("Game path not set")
+        return result
+
+    added, removed = _sync_dlls_txt_for_desired_mods(game)
+    if added:
+        result.fixes.append(f"Added to dlls.txt: {', '.join(added)}")
+        listed = {n.lower() for n in read_dlls_txt(game)}
+        still_missing = [d for d in added if d.lower() not in listed]
+        if still_missing:
+            result.warnings.append(
+                f"Could not update dlls.txt for: {', '.join(still_missing)}"
+            )
+    if removed:
+        result.fixes.append(f"Removed from dlls.txt: {', '.join(removed)}")
+        listed = {n.lower() for n in read_dlls_txt(game)}
+        still_present = [d for d in removed if d.lower() in listed]
+        if still_present:
+            result.warnings.append(
+                f"Could not remove from dlls.txt: {', '.join(still_present)}"
+            )
+
+    data_fixes, data_warnings = _ensure_enabled_data_writable(game)
+    result.fixes.extend(data_fixes)
+    result.warnings.extend(data_warnings)
+
+    if result.fixes:
+        log.info("Pre-launch preparation: %s", "; ".join(result.fixes))
+    if result.warnings:
+        log.warning("Pre-launch warnings: %s", "; ".join(result.warnings))
+    return result
 
 
 def _apply_desired_state_inner(progress: ProgressCb | None) -> list[str]:

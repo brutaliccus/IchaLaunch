@@ -335,7 +335,7 @@
     "kind": "mpq_file",
     "destination": "Data/patch-N.mpq",
     "dependencies": ["vanilla_helpers"],
-    "conflicts": ["darker_nights"]
+    "conflicts": []
   },
   {
     "id": "hd_patch_p",
@@ -468,24 +468,6 @@
     "destination": "Data/patch-Y.mpq",
     "dependencies": ["vanilla_tweaks"],
     "conflicts": []
-  },
-  {
-    "id": "darker_nights",
-    "name": "Darker Nights",
-    "category": "Visual / QoL",
-    "description": "Darker ambient lighting at night. Installs as Data/patch-N.mpq (stronger variant).",
-    "detect": {"data_mpq": ["patch-N.mpq", "Patch-N.mpq"]},
-    "source": {
-      "type": "raw_zip",
-      "url": "https://raw.githubusercontent.com/RetroCro/TurtleWoW-Mods/main/Archive/Darker%20Nights.zip",
-      "filename": "DarkerNights.zip",
-      "mpq_prefer_path": "100-more-dark",
-      "mpq_match": "patch-y.mpq"
-    },
-    "kind": "mpq_file",
-    "destination": "Data/patch-N.mpq",
-    "dependencies": [],
-    "conflicts": ["hd_patch_n"]
   },
   {
     "id": "pink_herbs",

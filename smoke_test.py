@@ -223,7 +223,6 @@ def test_mod_remove_desired_state():
             # First run / no desired set: detected state seeds the checkbox on.
             desired = sync_desired_mods_from_disk()
             assert desired.get("hd_patch_n") is True
-            assert desired.get("darker_nights") is not True
 
             # User unchecks Reforged Patch-N — an explicit choice.
             s.set_desired_mod("hd_patch_n", False)
@@ -280,6 +279,39 @@ def test_mod_remove_desired_state():
     print("OK mod removal desired-state loop")
 
 
+def test_darker_nights_migration():
+    """Legacy darker_nights settings migrate to hd_patch_n on load."""
+    from ichalaunch.config.settings import migrate_legacy_mod_ids
+
+    on = {
+        "desired_mods": {"darker_nights": True, "vanillafixes": True},
+        "user_set_mods": ["darker_nights"],
+        "installed_mods": {"darker_nights": {"installed_at": "2024-01-01"}},
+    }
+    migrate_legacy_mod_ids(on)
+    assert on["desired_mods"]["hd_patch_n"] is True
+    assert "darker_nights" not in on["desired_mods"]
+    assert on["user_set_mods"] == ["hd_patch_n"]
+    assert "hd_patch_n" in on["installed_mods"]
+    assert "darker_nights" not in on["installed_mods"]
+
+    off = {
+        "desired_mods": {"darker_nights": False},
+        "user_set_mods": ["darker_nights"],
+        "installed_mods": {},
+    }
+    migrate_legacy_mod_ids(off)
+    assert off["desired_mods"]["hd_patch_n"] is False
+    assert "darker_nights" not in off["desired_mods"]
+    assert off["user_set_mods"] == ["hd_patch_n"]
+
+    detected = {"desired_mods": {"darker_nights": True}, "user_set_mods": [], "installed_mods": {}}
+    migrate_legacy_mod_ids(detected)
+    assert detected["desired_mods"] == {"hd_patch_n": True}
+    assert detected["user_set_mods"] == []
+    print("OK darker nights migration")
+
+
 def test_mod_toggle_resolution():
     """HD patch deps/conflicts auto-enable companions and disable dependents."""
     from ichalaunch.config.settings import settings as s
@@ -303,6 +335,106 @@ def test_mod_toggle_resolution():
         for k in keys:
             s.set(k, saved[k])
     print("OK mod toggle deps/conflicts")
+
+
+def test_plan_changes_hd_env_set_no_recursion():
+    """HD environment set B/D/E has circular deps — plan_changes must not recurse."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.mods.installer import apply_mod_toggle, plan_changes
+
+    keys = ("desired_mods", "user_set_mods", "game_path", "addons_path")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("desired_mods", {})
+            s.set("user_set_mods", [])
+            apply_mod_toggle("hd_patch_b", True)
+            assert s.desired_mods.get("hd_patch_d") and s.desired_mods.get("hd_patch_e")
+            plan = plan_changes()
+            install_ids = [c["id"] for c in plan if c.get("action") == "install"]
+            assert "vanilla_helpers" in install_ids
+            assert "hd_patch_b" in install_ids
+            assert install_ids.index("vanilla_helpers") < install_ids.index("hd_patch_b")
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+    print("OK plan_changes HD env set no recursion")
+
+
+def test_vanilla_helpers_hd_dependency():
+    """HD patches require VanillaHelpers desired, planned install, and blocked disable."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.detect import sync_desired_mods_from_disk
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import (
+        apply_mod_toggle,
+        enforce_vanilla_helpers_for_hd_desired,
+        plan_changes,
+        resolve_mod_toggle,
+    )
+
+    keys = (
+        "desired_mods",
+        "user_set_mods",
+        "installed_mods",
+        "user_mods",
+        "game_path",
+        "addons_path",
+    )
+    saved = {k: s.get(k) for k in keys}
+    try:
+        s.set("desired_mods", {})
+        s.set("user_set_mods", [])
+        apply_mod_toggle("hd_patch_a", True)
+        assert s.desired_mods.get("vanilla_helpers") is True
+
+        blocked = resolve_mod_toggle("vanilla_helpers", False)
+        assert blocked == {}
+
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            data = game / "Data"
+            data.mkdir()
+            (data / "patch-A.mpq").write_bytes(b"MPQ")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("desired_mods", {"hd_patch_a": True})
+            s.set("user_set_mods", [])
+            clear_fs_caches()
+
+            desired = sync_desired_mods_from_disk()
+            assert desired.get("hd_patch_a") is True
+            assert desired.get("vanilla_helpers") is True
+
+            plan = plan_changes()
+            assert any(
+                c["action"] == "install" and c["id"] == "vanilla_helpers" for c in plan
+            ), plan
+            assert not any(
+                c["action"] == "install" and c["id"] == "hd_patch_a" for c in plan
+            ), plan
+
+            (data / "patch-A.mpq").unlink(missing_ok=True)
+            clear_fs_caches()
+            plan_both = plan_changes()
+            install_ids = [
+                c["id"] for c in plan_both if c.get("action") == "install"
+            ]
+            assert "vanilla_helpers" in install_ids and "hd_patch_a" in install_ids
+            assert install_ids.index("vanilla_helpers") < install_ids.index("hd_patch_a")
+
+            enforced = enforce_vanilla_helpers_for_hd_desired({"hd_patch_c": True})
+            assert enforced.get("vanilla_helpers") is True
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK vanilla helpers HD dependency")
 
 
 def test_discover_game_path_near_launcher():
@@ -1401,6 +1533,93 @@ def test_apply_desired_state_restores_dlls_txt():
     print("OK apply desired state restores dlls.txt")
 
 
+def test_prepare_for_launch_syncs_dlls_txt():
+    """Pre-launch should add missing and remove stale catalog DLL lines."""
+    import tempfile
+
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import prepare_for_launch
+
+    keys = (
+        "desired_mods",
+        "user_set_mods",
+        "installed_mods",
+        "user_mods",
+        "game_path",
+        "addons_path",
+    )
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            (game / "nampower.dll").write_bytes(b"MZ")
+            (game / "dlls.txt").write_text(
+                "SuperWoWhook.dll\n# manual keep\nCustomMod.dll\n", encoding="utf-8"
+            )
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("desired_mods", {"nampower": True, "superwow": False})
+            s.set("user_set_mods", ["nampower"])
+            clear_fs_caches()
+            result = prepare_for_launch(game)
+            text = (game / "dlls.txt").read_text(encoding="utf-8")
+            assert "nampower.dll" in text, text
+            assert "SuperWoWhook.dll" not in text, text
+            assert "CustomMod.dll" in text, text
+            assert any("nampower.dll" in f for f in result.fixes), result.fixes
+            assert any("SuperWoWhook.dll" in f for f in result.fixes), result.fixes
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK prepare_for_launch syncs dlls.txt")
+
+
+def test_prepare_for_launch_clears_data_readonly():
+    """Pre-launch should retroactively clear read-only on enabled Data/ mod files."""
+    import os
+    import stat
+    import tempfile
+
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import prepare_for_launch
+
+    keys = (
+        "desired_mods",
+        "user_set_mods",
+        "installed_mods",
+        "user_mods",
+        "game_path",
+        "addons_path",
+    )
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            mpq = game / "Data" / "patch-A.mpq"
+            mpq.parent.mkdir(parents=True)
+            mpq.write_bytes(b"mpq")
+            os.chmod(mpq, stat.S_IREAD)
+            assert not (mpq.stat().st_mode & stat.S_IWRITE)
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("desired_mods", {"hd_patch_a": True, "vanilla_helpers": True})
+            s.set("user_set_mods", ["hd_patch_a", "vanilla_helpers"])
+            clear_fs_caches()
+            result = prepare_for_launch(game)
+            assert mpq.stat().st_mode & stat.S_IWRITE
+            assert any("patch-a.mpq" in f.lower() for f in result.fixes), result.fixes
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK prepare_for_launch clears Data read-only")
+
+
 def test_client_zip_mirrors_and_gofile_parse():
     from ichalaunch.game.launcher import (
         CLIENT_ZIP_MIRRORS,
@@ -1778,7 +1997,10 @@ def main():
     test_detect_state()
     test_apply_desired_state_guard()
     test_mod_remove_desired_state()
+    test_darker_nights_migration()
     test_mod_toggle_resolution()
+    test_plan_changes_hd_env_set_no_recursion()
+    test_vanilla_helpers_hd_dependency()
     test_discover_game_path_near_launcher()
     test_addons_path_defaults()
     test_status_progress_bytes()
@@ -1801,6 +2023,8 @@ def main():
     test_vanillafixes_zip_in_memory()
     test_vanillafixes_preserves_dlls_txt()
     test_apply_desired_state_restores_dlls_txt()
+    test_prepare_for_launch_syncs_dlls_txt()
+    test_prepare_for_launch_clears_data_readonly()
     test_client_zip_mirrors_and_gofile_parse()
     test_find_wow_exe_dir_and_extract()
     test_settle_existing_alphanumeric_folder()

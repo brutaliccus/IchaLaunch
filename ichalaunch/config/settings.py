@@ -90,6 +90,47 @@ DEFAULTS: dict[str, Any] = {
 }
 
 
+_LEGACY_MOD_ALIASES: dict[str, str] = {
+    "darker_nights": "hd_patch_n",
+}
+
+
+def migrate_legacy_mod_ids(data: dict[str, Any]) -> bool:
+    """Rename removed catalog mod ids in persisted settings (one-time on load)."""
+    changed = False
+    for old_id, new_id in _LEGACY_MOD_ALIASES.items():
+        dm = dict(data.get("desired_mods") or {})
+        usm = [str(x) for x in (data.get("user_set_mods") or []) if x]
+        im = dict(data.get("installed_mods") or {})
+
+        if old_id not in dm and old_id not in usm and old_id not in im:
+            continue
+
+        old_on = bool(dm.pop(old_id, False))
+        had_user_choice = old_id in usm
+        if had_user_choice:
+            dm[new_id] = old_on
+            usm_new: list[str] = []
+            for mid in usm:
+                if mid == old_id:
+                    if new_id not in usm_new:
+                        usm_new.append(new_id)
+                else:
+                    usm_new.append(mid)
+            usm = usm_new
+        elif old_on and not dm.get(new_id):
+            dm[new_id] = True
+
+        if old_id in im:
+            im.setdefault(new_id, im.pop(old_id))
+
+        data["desired_mods"] = dm
+        data["user_set_mods"] = usm
+        data["installed_mods"] = im
+        changed = True
+    return changed
+
+
 class Settings:
     def __init__(self) -> None:
         self._data: dict[str, Any] = dict(DEFAULTS)
@@ -127,6 +168,7 @@ class Settings:
                         addon_on = bool(loaded.get("check_addon_updates_on_startup", True))
                         mod_on = bool(loaded.get("check_mod_updates_on_startup", True))
                         merged["check_updates_on_startup"] = addon_on or mod_on
+                    migrate_legacy_mod_ids(merged)
                     self._data = merged
             except (json.JSONDecodeError, OSError):
                 self._data = dict(DEFAULTS)
@@ -364,6 +406,29 @@ class Settings:
     def remove_user_mod(self, mod_id: str) -> None:
         mods = [m for m in self.user_mods if m.get("id") != mod_id]
         self.set("user_mods", mods)
+
+    def reset_to_defaults(self) -> None:
+        """Reset all persisted settings to factory defaults and save."""
+        self._data = json.loads(json.dumps(DEFAULTS))
+        self.save()
+
+
+def clear_app_data() -> None:
+    """Reset launcher settings and in-memory caches. Game/addon files are untouched."""
+    settings.reset_to_defaults()
+    try:
+        from ichalaunch.addons.github import clear_addon_scan_queue, clear_github_url_cache
+
+        clear_addon_scan_queue()
+        clear_github_url_cache()
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        from ichalaunch.core.filesystem import clear_fs_caches
+
+        clear_fs_caches()
+    except Exception:  # noqa: BLE001
+        pass
 
 
 # singleton
