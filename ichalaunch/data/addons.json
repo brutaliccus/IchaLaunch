@@ -163,12 +163,11 @@
   },
   {
     "name": "MinimapButtonBag",
-    "repo": "",
+    "repo": "https://github.com/McPewPew/MinimapButtonBag",
     "category": "Bags",
     "description": "cleans up your Minimap and relocates the buttons in a menu bar",
     "source": "turtle_wiki",
-    "folder": "MinimapButtonBag",
-    "installable": false
+    "folder": "MinimapButtonBag"
   },
   {
     "name": "MrPlow",
@@ -442,14 +441,6 @@
     "description": "Ability, buff, debuff & item tracker for Vanilla WoW — lightweight condition-based auras (WeakAuras-style). https://github.com/Player-Doite/DoiteAuras",
     "source": "turtle_wiki",
     "folder": "DoiteAuras"
-  },
-  {
-    "name": "DpsGirl",
-    "repo": "https://github.com/ahungry/TwowDpsGirl",
-    "category": "Combat",
-    "description": "Show current dps with a friend.",
-    "source": "turtle_wiki",
-    "folder": "TwowDpsGirl"
   },
   {
     "name": "DPSMate",
@@ -1033,14 +1024,6 @@
     "folder": "Mail"
   },
   {
-    "name": "NoMoreMoo",
-    "repo": "https://github.com/ahungry/NoMoreMoo",
-    "category": "Economy",
-    "description": "Get rid of annoying moo and goldspam",
-    "source": "turtle_wiki",
-    "folder": "NoMoreMoo"
-  },
-  {
     "name": "PageTurner",
     "repo": "https://github.com/ZythDr/PageTurner",
     "category": "Economy",
@@ -1130,22 +1113,6 @@
     "folder": "TurtleMail"
   },
   {
-    "name": "TWoW PerHour",
-    "repo": "https://github.com/Khundiann/TWoWPerHour",
-    "category": "Economy",
-    "description": "Reputation, experience, honor and gold metric tracker.",
-    "source": "turtle_wiki",
-    "folder": "TWoWPerHour"
-  },
-  {
-    "name": "TWoWBulkMail",
-    "repo": "https://github.com/Khundiann/TWoWBulkMail",
-    "category": "Economy",
-    "description": "Bulk mail sending addon with autosend rules.",
-    "source": "turtle_wiki",
-    "folder": "TWoWBulkMail"
-  },
-  {
     "name": "VendorAutoBuy",
     "repo": "https://github.com/EinBaum/VendorAutoBuy",
     "category": "Economy",
@@ -1209,14 +1176,6 @@
     "description": "Shows if you are in the safe zone, stacks you have and Zeliek chain range (/4hm).",
     "source": "turtle_wiki",
     "folder": "4HMHelper"
-  },
-  {
-    "name": "__Anticrash",
-    "repo": "https://github.com/me0wg4ming/__Anticrash",
-    "category": "General",
-    "description": "Unregisters all frame events before logout/reload to prevent crashes.",
-    "source": "turtle_wiki",
-    "folder": "__Anticrash"
   },
   {
     "name": "_AntInvite",
@@ -2077,14 +2036,6 @@
     "folder": "DouseReminder"
   },
   {
-    "name": "Druid Eclipse Monitor",
-    "repo": "https://github.com/mdmnky/druid-eclipse-monitor",
-    "category": "General",
-    "description": "Heads up display for Balance Druid eclipse procs.",
-    "source": "turtle_wiki",
-    "folder": "druid-eclipse-monitor"
-  },
-  {
     "name": "DruidConsumable",
     "repo": "https://github.com/Cernie/DruidConsumable",
     "category": "General",
@@ -2155,14 +2106,6 @@
     "description": "Helps you configure your MonkeyMods",
     "source": "turtle_wiki",
     "folder": "EM_MonkeyBuddy"
-  },
-  {
-    "name": "EM MonkeyLibrary",
-    "repo": "https://github.com/dogmax/MonkeyLibrary",
-    "category": "General",
-    "description": "Mandatory dependency for MonkeyMods.",
-    "source": "turtle_wiki",
-    "folder": "MonkeyLibrary"
   },
   {
     "name": "EM WoWQuote",
@@ -2503,14 +2446,6 @@
     "folder": "GoblinBrainwashingHelper"
   },
   {
-    "name": "GodMode",
-    "repo": "https://github.com/qiaeru/GodMode",
-    "category": "General",
-    "description": "A comprehensive toolbox for Game Masters",
-    "source": "turtle_wiki",
-    "folder": "GodMode"
-  },
-  {
     "name": "Gourmet",
     "repo": "https://github.com/jsb/Gourmet",
     "category": "General",
@@ -2557,14 +2492,6 @@
     "description": "Calltoarms fork, interface simplified, but with expanded chat parsing features.",
     "source": "turtle_wiki",
     "folder": "Groupfinder"
-  },
-  {
-    "name": "GroupManager",
-    "repo": "https://github.com/MtxGrower33/GroupManager",
-    "category": "General",
-    "description": "Manages group formations and party utilities",
-    "source": "turtle_wiki",
-    "folder": "GroupManager"
   },
   {
     "name": "GuideCreator",
@@ -2653,14 +2580,6 @@
     "description": "Estimates the honor gained",
     "source": "turtle_wiki",
     "folder": "honorcounter"
-  },
-  {
-    "name": "HonorSpyTurtle",
-    "repo": "https://github.com/jrc13245/HonorSpyTurtle",
-    "category": "General",
-    "description": "collects all the honor/rank info on all players you met and shows it [Img1]",
-    "source": "turtle_wiki",
-    "folder": "HonorSpyTurtle"
   },
   {
     "name": "HordeIronfoe",
@@ -2990,14 +2909,6 @@
     "description": "Create tooltips for your macros [Img1] [Img2]",
     "source": "turtle_wiki",
     "folder": "MacroTT-V"
-  },
-  {
-    "name": "MainTagger",
-    "repo": "https://github.com/Knomkrad/Turtle-wow_MainTagger",
-    "category": "General",
-    "description": "Addon that will print your Main character name in Guild chat or Whisper message if you are on an Alt.",
-    "source": "turtle_wiki",
-    "folder": "Turtle-wow_MainTagger"
   },
   {
     "name": "ManaMinder",
@@ -3423,14 +3334,6 @@
     "description": "Write notes about other players, and display them in tooltips and chat. Built from MrToffee/CaramelNotes. [Img1]",
     "source": "turtle_wiki",
     "folder": "PorkNotes"
-  },
-  {
-    "name": "Prat",
-    "repo": "https://github.com/Qxcl/Prat-turtle",
-    "category": "General",
-    "description": "Chat customization addon [Fu] [Img1] [Img2] [2] [3]",
-    "source": "turtle_wiki",
-    "folder": "Prat-turtle"
   },
   {
     "name": "PriestBinds",
@@ -3927,14 +3830,6 @@
     "description": "Tracks absorption shields and their remaining values",
     "source": "turtle_wiki",
     "folder": "ShieldBuddy"
-  },
-  {
-    "name": "ShieldLeft",
-    "repo": "https://github.com/mrrosh/ShieldLeft",
-    "category": "General",
-    "description": "Estimates and shows the charges left on shield",
-    "source": "turtle_wiki",
-    "folder": "ShieldLeft"
   },
   {
     "name": "ShikaSwap",
@@ -4581,14 +4476,6 @@
     "folder": "vPeddler"
   },
   {
-    "name": "VQueue",
-    "repo": "https://github.com/dimiglas/vqueuetwow",
-    "category": "General",
-    "description": "Group finder utility [2]",
-    "source": "turtle_wiki",
-    "folder": "vqueuetwow"
-  },
-  {
     "name": "WarriorTank",
     "repo": "https://github.com/Cernie/WarriorTank",
     "category": "General",
@@ -4755,14 +4642,6 @@
     "description": "Yet another Hunter Timer. TWoW Trueshot support [Img1] [Img2]",
     "source": "turtle_wiki",
     "folder": "YaHT-TurtleWoWSteady"
-  },
-  {
-    "name": "ZealCycle",
-    "repo": "https://github.com/TerraBaddie/ZealCycle-turtle",
-    "category": "General",
-    "description": "Zeal Stacker (Crusader Strike) then Holy Strike Spammer (Prot Paladin)",
-    "source": "turtle_wiki",
-    "folder": "ZealCycle-turtle"
   },
   {
     "name": "ZeroDB",
@@ -4995,14 +4874,6 @@
     "description": "adds features to the world map [Img1]",
     "source": "turtle_wiki",
     "folder": "Metamap-vanilla"
-  },
-  {
-    "name": "MiniMage_TWOW",
-    "repo": "https://github.com/totalllyswede/MiniMage_TWOW",
-    "category": "Maps",
-    "description": "Mage portal/teleport buttons on mini-map. Updated for TurtleWoW [Img1]",
-    "source": "turtle_wiki",
-    "folder": "MiniMage_TWOW"
   },
   {
     "name": "MinimapButtonFrame",
@@ -5286,14 +5157,6 @@
     "folder": "ReagentData"
   },
   {
-    "name": "SurvivalUI",
-    "repo": "https://github.com/Oronak/SurvivalUI",
-    "category": "Professions",
-    "description": "Creates a GUI for the Survival Profession in TurtleWoW [Img1]",
-    "source": "turtle_wiki",
-    "folder": "SurvivalUI"
-  },
-  {
     "name": "Theorycraft Turtle",
     "repo": "",
     "category": "Professions",
@@ -5400,28 +5263,12 @@
     "folder": "HCWarn"
   },
   {
-    "name": "MorunoRankEnhanced",
-    "repo": "https://github.com/jrc13245/MorunoRankEnhanced",
-    "category": "PvP",
-    "description": "addon for estimating PVP-Standings [Img1]",
-    "source": "turtle_wiki",
-    "folder": "MorunoRankEnhanced"
-  },
-  {
     "name": "MouseOverSounds_PvP",
     "repo": "https://github.com/mikefirefly/MouseOverSounds_PvP",
     "category": "PvP",
     "description": "Plays a warning sound when you mouseover a unit that is PvP enabled.",
     "source": "turtle_wiki",
     "folder": "MouseOverSounds_PvP"
-  },
-  {
-    "name": "PVPToggleTurtle",
-    "repo": "https://github.com/Fragglechen/PVPToggleTurtleWOW",
-    "category": "PvP",
-    "description": "Small Frame with Button to show current PVP state and toggle it on/off with a click. Also show a timer for deactivation",
-    "source": "turtle_wiki",
-    "folder": "PVPToggleTurtleWOW"
   },
   {
     "name": "Pvpwarn",
@@ -5658,14 +5505,6 @@
     "folder": "HardcoreAlarms"
   },
   {
-    "name": "HCQuest",
-    "repo": "https://github.com/ilithyia-addons/HCQuest",
-    "category": "Questing",
-    "description": "Adds a quest warning and information for PvP and dangerous quests.",
-    "source": "turtle_wiki",
-    "folder": "HCQuest"
-  },
-  {
     "name": "LazyPig",
     "repo": "",
     "category": "Questing",
@@ -5869,22 +5708,6 @@
     "folder": "TurtlesEpoch"
   },
   {
-    "name": "TurtleTaxi",
-    "repo": "https://github.com/Fragglechen/TurtleTaxi",
-    "category": "Questing",
-    "description": "Create Transport requests for teleports or summons, or accept requests to teleport or summon other players who need it",
-    "source": "turtle_wiki",
-    "folder": "TurtleTaxi"
-  },
-  {
-    "name": "TWoW LFG Bulletin Board",
-    "repo": "https://github.com/Khundiann/TWoWLFGBulletinBoard",
-    "category": "Questing",
-    "description": "Provides an overview of the group requests from chat channels.",
-    "source": "turtle_wiki",
-    "folder": "TWoWLFGBulletinBoard"
-  },
-  {
     "name": "VanillaStoryline",
     "repo": "https://github.com/tubtubs/VanillaStoryline",
     "category": "Questing",
@@ -6040,14 +5863,6 @@
     "description": "Do you forget to enable combat logs in raids? This helps you not forget!",
     "source": "turtle_wiki",
     "folder": "CombatLoggingReminder"
-  },
-  {
-    "name": "CThunPositions",
-    "repo": "https://github.com/Cinecom/CThunPositions",
-    "category": "Raiding",
-    "description": "Allows you to drag the raid members on a map of C'Thun to help with positioning in phase 1 https://i.ibb.co/s9vL2CD/image.webp Img1",
-    "source": "turtle_wiki",
-    "folder": "CThunPositions"
   },
   {
     "name": "CThunWarner",
@@ -6349,14 +6164,6 @@
     "folder": "PaladinSalvaRemover"
   },
   {
-    "name": "pfUI-combatdock",
-    "repo": "https://github.com/bhhandley/pfUI-combatdock",
-    "category": "Raiding",
-    "description": "Automatically swap the loot chat window to the docked meters when in combat and out of combat.",
-    "source": "turtle_wiki",
-    "folder": "pfUI-combatdock"
-  },
-  {
     "name": "pwscounter",
     "repo": "https://gitlab.com/woblight/pwscounter",
     "category": "Raiding",
@@ -6443,14 +6250,6 @@
     "description": "(Raid Data Exchange) a tool for acquiring, filtering, and visualizing information about your raid team [Img1]",
     "source": "turtle_wiki",
     "folder": "RDX"
-  },
-  {
-    "name": "Recents",
-    "repo": "https://github.com/luskanek/Recents",
-    "category": "Raiding",
-    "description": "highlights recently looted items in the inventory",
-    "source": "turtle_wiki",
-    "folder": "Recents"
   },
   {
     "name": "RenewSpam",
@@ -6845,14 +6644,6 @@
     "folder": "Decursive"
   },
   {
-    "name": "Dragonflight3",
-    "repo": "https://github.com/Flaxic-LUA/-Dragonflight3",
-    "category": "SuperWoW",
-    "description": "A comprehensive UI overhaul. Its in Alpha so expect bugs.",
-    "source": "turtle_wiki",
-    "folder": "-Dragonflight3"
-  },
-  {
     "name": "DruidManaBar",
     "repo": "https://github.com/gashole/DruidManaBar",
     "category": "SuperWoW",
@@ -6941,14 +6732,6 @@
     "folder": "Overhead"
   },
   {
-    "name": "pfUI",
-    "repo": "https://github.com/me0wg4ming/pfUI",
-    "category": "SuperWoW",
-    "description": "full replacement for the original Wow interface in a single Addon [Vid1]",
-    "source": "turtle_wiki",
-    "folder": "pfUI"
-  },
-  {
     "name": "pfUI-bettertotems",
     "repo": "https://github.com/Bombg/pfUI-bettertotems",
     "category": "SuperWoW",
@@ -6979,14 +6762,6 @@
     "description": "Quick NPC search in the Turtle WoW database",
     "source": "turtle_wiki",
     "folder": "QuickTurtleDBLookUp"
-  },
-  {
-    "name": "Rank14losSA Reborn",
-    "repo": "https://github.com/me0wg4ming/Rank14losSA",
-    "category": "SuperWoW",
-    "description": "verbally warns you when an enemy uses an important spell",
-    "source": "turtle_wiki",
-    "folder": "Rank14losSA"
   },
   {
     "name": "Rinse",

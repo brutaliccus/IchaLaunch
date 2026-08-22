@@ -1,4 +1,4 @@
-"""Launch countdown matching ravencraft.io (Aug 22, 2026 18:00 UTC)."""
+"""Launch countdown matching ravencraft.io (Aug 22, 2026 16:00 UTC)."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from datetime import datetime, timezone
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-# Same target as https://ravencraft.io/
-LAUNCH_UTC = datetime(2026, 8, 22, 18, 0, 0, tzinfo=timezone.utc)
+# Same target as https://ravencraft.io/ (shifted −2h from prior 18:00 UTC)
+LAUNCH_UTC = datetime(2026, 8, 22, 16, 0, 0, tzinfo=timezone.utc)
 
 
 class _CountCell(QFrame):

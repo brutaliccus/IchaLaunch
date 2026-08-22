@@ -330,6 +330,20 @@ def mark_path_locked(path: Path | str, seconds: float = _DLL_BACKOFF_SEC) -> Non
     _SKIP_UNTIL[_norm_path_key(path)] = time.monotonic() + max(1.0, float(seconds))
 
 
+def clear_path_locked(path: Path | str) -> None:
+    """Drop the lock backoff for *path* (call after the file is confirmed gone)."""
+    _SKIP_UNTIL.pop(_norm_path_key(path), None)
+
+
+def invalidate_dir_listing(directory: Path | str) -> None:
+    """Drop the cached listdir for *directory* after files are added/removed.
+
+    Without this, detect_actual_state can see a just-deleted patch MPQ for up
+    to _DIR_LIST_TTL seconds and re-flag the mod as installed (nag loop).
+    """
+    _DIR_LIST_CACHE.pop(_norm_path_key(directory), None)
+
+
 def clear_fs_caches() -> None:
     """Test helper — drop listdir + lock-backoff caches."""
     _DIR_LIST_CACHE.clear()
@@ -513,6 +527,8 @@ def copy_tree(src: Path, dest: Path) -> None:
 def safe_remove(path: Path) -> None:
     try:
         if not path.exists():
+            clear_path_locked(path)
+            invalidate_dir_listing(path.parent)
             return
         if path.is_dir():
             robust_rmtree(path)
@@ -525,6 +541,43 @@ def safe_remove(path: Path) -> None:
             _log.warning("Could not remove locked %s: %s", path, exc)
             return
         raise
+    clear_path_locked(path)
+    invalidate_dir_listing(path.parent)
+
+
+def remove_path_strict(path: Path) -> None:
+    """Delete *path*; raise a clear OSError naming the file when it is locked.
+
+    Unlike ``safe_remove``, lock/AV errors (WinError 5/32/225) are NOT swallowed —
+    mod removal must either delete the file or tell the user which file is stuck,
+    otherwise detect keeps seeing the mod as installed and the UI loops.
+    """
+    try:
+        if not path.exists():
+            clear_path_locked(path)
+            invalidate_dir_listing(path.parent)
+            return
+        if path.is_dir():
+            robust_rmtree(path)
+        else:
+            _make_writable(path)
+            path.unlink()
+    except OSError as exc:
+        if is_lock_or_av_error(exc):
+            mark_path_locked(path)
+            winerr = getattr(exc, "winerror", None)
+            code = f"WinError {winerr}" if winerr else f"errno {getattr(exc, 'errno', '?')}"
+            raise OSError(
+                getattr(exc, "errno", None) or 13,
+                (
+                    f"Could not remove {path.name} — the file is locked or blocked ({code}). "
+                    "Close the game, file previews, or antivirus scans using it, then Apply again."
+                ),
+                str(path),
+            ) from exc
+        raise
+    clear_path_locked(path)
+    invalidate_dir_listing(path.parent)
 
 
 def find_toc_roots(root: Path) -> list[Path]:

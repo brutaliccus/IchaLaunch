@@ -928,7 +928,12 @@ def sync_installed_addons_from_disk() -> dict[str, Any]:
 
 
 def sync_desired_mods_from_disk() -> dict[str, bool]:
-    """Set desired_mods checkboxes to match what is actually installed."""
+    """Seed desired_mods checkboxes from disk for mods the user hasn't toggled.
+
+    Detected state is "actual", not "desired": once the user has explicitly
+    checked/unchecked a mod (settings.user_set_mods), a rescan must never flip
+    their choice back — that caused the un-removable Darker Nights loop.
+    """
     game = detect_game()
     if not game:
         return settings.desired_mods
@@ -938,9 +943,10 @@ def sync_desired_mods_from_disk() -> dict[str, bool]:
     actual = detect_actual_state(game)
     # Only sync keys we know about in catalog
     known = {m["id"] for m in load_mod_catalog()}
+    user_set = set(settings.user_set_mods)
     desired = settings.desired_mods
     for mod_id, present in actual.items():
-        if mod_id in known:
+        if mod_id in known and mod_id not in user_set:
             desired[mod_id] = bool(present)
     settings.set("desired_mods", desired)
     if "vanillafixes" in actual:

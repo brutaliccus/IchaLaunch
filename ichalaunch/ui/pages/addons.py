@@ -29,7 +29,12 @@ from ichalaunch.core.detect import (
 )
 from ichalaunch.game.launcher import resolve_addons_dir
 from ichalaunch.ui.widgets.casting_bar_search_edit import CastingBarSearchEdit
-from ichalaunch.ui.widgets.common import AddonRow, open_url_in_browser, status_with_stamp
+from ichalaunch.ui.widgets.common import (
+    AddonRow,
+    is_turtle_wow_custom_addon,
+    open_url_in_browser,
+    status_with_stamp,
+)
 from ichalaunch.ui.widgets.dialogs import github_import_dialog, github_preview_dialog
 from ichalaunch.ui.widgets import dialogs as themed
 from ichalaunch.ui.widgets.glue_combo import GlueComboBox
@@ -568,6 +573,13 @@ class AddonsPage(QWidget):
             if cat_filter and cat_filter != "All categories" and cat != cat_filter:
                 continue
             base.append(entry)
+        # TW-custom (raven badge) first, then others — alphabetical within each group.
+        base.sort(
+            key=lambda e: (
+                0 if is_turtle_wow_custom_addon(e) else 1,
+                str(e.get("name") or e.get("folder") or "").lower(),
+            )
+        )
         self._available_base = base
         self._available_base_ready = True
 

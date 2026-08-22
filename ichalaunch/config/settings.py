@@ -48,6 +48,7 @@ DEFAULTS: dict[str, Any] = {
     "installed_addons": {},
     "installed_mods": {},
     "user_mods": [],
+    "user_set_mods": [],
     "window_geometry": None,
 }
 
@@ -80,6 +81,10 @@ class Settings:
                         merged["user_mods"] = um
                     else:
                         merged["user_mods"] = list(DEFAULTS.get("user_mods") or [])
+                    usm = loaded.get("user_set_mods")
+                    merged["user_set_mods"] = (
+                        [str(x) for x in usm if x] if isinstance(usm, list) else []
+                    )
                     # Migrate older dual startup toggles into one setting.
                     if "check_updates_on_startup" not in loaded:
                         addon_on = bool(loaded.get("check_addon_updates_on_startup", True))
@@ -190,9 +195,21 @@ class Settings:
         return dict(self._data.get("desired_mods") or {})
 
     def set_desired_mod(self, mod_id: str, enabled: bool) -> None:
+        """Persist an explicit desired-state choice; rescans must not override it."""
         mods = self.desired_mods
         mods[mod_id] = enabled
-        self.set("desired_mods", mods)
+        self._data["desired_mods"] = mods
+        marked = self.user_set_mods
+        if mod_id not in marked:
+            marked.append(mod_id)
+        self._data["user_set_mods"] = marked
+        self.save()
+
+    @property
+    def user_set_mods(self) -> list[str]:
+        """Mod ids the user explicitly toggled — desired state wins over detected."""
+        raw = self._data.get("user_set_mods") or []
+        return [str(x) for x in raw if x]
 
     @property
     def installed_addons(self) -> dict[str, Any]:

@@ -1,10 +1,11 @@
 """Reusable UI widgets."""
 from __future__ import annotations
+import re
 from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlparse
 from PySide6.QtCore import QObject, QPoint, QRect, QSize, Qt, QThread, QTimer, QUrl, Signal
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QDesktopServices, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -26,6 +27,90 @@ from ichalaunch.ui.widgets.glue_panel_button import (
     GluePanelButton,
 )
 from ichalaunch.ui.widgets.theme_checkbox import ThemeCheckBox
+
+# Turtle WoW custom-addon badge (splash raven / ichalaunch icon).
+_TURTLE_BADGE_PX = 18
+_TURTLE_BADGE_TIP = "Turtle WoW custom addon"
+_TURTLE_CUSTOM_FLAGS = frozenset(
+    {"turtle_custom", "turtle_wow_custom", "custom_turtle"}
+)
+# Name/folder: Turtle WoW, TWoW, word-boundary TW, TW-prefixed compounds, "Turtle…".
+# Avoid bare "tw" inside words (e.g. Between / Network).
+_TURTLE_CUSTOM_NAME_RE = re.compile(
+    r"(?:"
+    r"Turtle\s*WoW|"
+    r"TurtleWoW|"
+    r"TWoW|"
+    r"\(TW\)|"
+    r"\[TW\]|"
+    r"(?<![A-Za-z0-9])TW(?![A-Za-z])|"
+    r"(?:^|[\-_/\s])TW(?=[A-Z0-9_\-]|$)|"
+    r"Turtle"
+    r")",
+    re.IGNORECASE,
+)
+# Description: strong custom phrases only (not “Turtle WoW version” ports).
+_TURTLE_CUSTOM_DESC_RE = re.compile(
+    r"(?:"
+    r"custom[\-\s]?made for turtle|"
+    r"custom for turtle|"
+    r"built for Turtle\s*WoW|"
+    r"built for TurtleWoW|"
+    r"Made for TWoW|"
+    r"Made for Turtle\s*WoW|"
+    r"Made for TurtleWoW"
+    r")",
+    re.IGNORECASE,
+)
+_turtle_badge_pm: QPixmap | None = None
+
+
+def is_turtle_wow_custom_addon(entry: dict[str, Any] | None) -> bool:
+    """True when catalog marks or name/folder heuristics say Turtle-custom."""
+    if not entry:
+        return False
+    for key in _TURTLE_CUSTOM_FLAGS:
+        if entry.get(key) is True:
+            return True
+    tags = entry.get("tags")
+    if isinstance(tags, (list, tuple, set)):
+        for tag in tags:
+            if str(tag).strip().lower() in _TURTLE_CUSTOM_FLAGS:
+                return True
+    for field in ("name", "folder"):
+        text = str(entry.get(field) or "").strip()
+        if text and _TURTLE_CUSTOM_NAME_RE.search(text):
+            return True
+    desc = str(entry.get("description") or "")
+    if desc and _TURTLE_CUSTOM_DESC_RE.search(desc):
+        return True
+    return False
+
+
+def _turtle_wow_badge_pixmap() -> QPixmap:
+    """Cached splash raven icon scaled for AddonRow height."""
+    global _turtle_badge_pm
+    if _turtle_badge_pm is not None:
+        return _turtle_badge_pm
+    from ichalaunch.core.paths import theme_file
+
+    pm = QPixmap()
+    for name in ("ichalaunch.png", "ichalaunch.ico"):
+        path = theme_file(name)
+        if not path.exists():
+            continue
+        src = QPixmap(str(path))
+        if src.isNull():
+            continue
+        pm = src.scaled(
+            _TURTLE_BADGE_PX,
+            _TURTLE_BADGE_PX,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        break
+    _turtle_badge_pm = pm
+    return pm
 
 
 def format_updated_stamp(meta: dict[str, Any] | None) -> str | None:
@@ -463,6 +548,14 @@ class AddonRow(QWidget):
             self.load_cb.blockSignals(False)
             self.load_cb.toggled.connect(self._on_loaded_toggled)
             name_row.addWidget(self.load_cb, 0, Qt.AlignmentFlag.AlignVCenter)
+        if is_turtle_wow_custom_addon(entry):
+            badge_pm = _turtle_wow_badge_pixmap()
+            if not badge_pm.isNull():
+                badge = QLabel(self)
+                badge.setPixmap(badge_pm)
+                badge.setFixedSize(badge_pm.size())
+                badge.setToolTip(_TURTLE_BADGE_TIP)
+                name_row.addWidget(badge, 0, Qt.AlignmentFlag.AlignVCenter)
         name = QLabel(entry.get("name", "?"), self)
         name.setStyleSheet("font-weight: 600; color: #F1C22D;")
         name_row.addWidget(name, 0)

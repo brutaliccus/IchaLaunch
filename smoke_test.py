@@ -150,6 +150,106 @@ def test_apply_desired_state_guard():
     print("OK apply desired state guard")
 
 
+def test_mod_remove_desired_state():
+    """Uncheck + Apply removes the patch file; rescan never re-checks the box.
+
+    Regression test for the Darker Nights loop: desired off → apply → actual off
+    immediately (no stale listing-cache nag), rescan keeps the checkbox off, and
+    files shared with another enabled mod are kept.
+    """
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.detect import sync_desired_mods_from_disk
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import (
+        apply_desired_state,
+        plan_changes,
+        remove_mod,
+    )
+
+    keys = (
+        "desired_mods",
+        "user_set_mods",
+        "installed_mods",
+        "user_mods",
+        "game_path",
+        "addons_path",
+    )
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            data = game / "Data"
+            data.mkdir()
+            mpq = data / "patch-N.mpq"
+            mpq.write_bytes(b"MPQ")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("desired_mods", {})
+            s.set("user_set_mods", [])
+            s.set("installed_mods", {})
+            s.set("user_mods", [])
+            clear_fs_caches()
+
+            # First run / no desired set: detected state seeds the checkbox on.
+            desired = sync_desired_mods_from_disk()
+            assert desired.get("darker_nights") is True
+
+            # User unchecks Darker Nights — an explicit choice.
+            s.set_desired_mod("darker_nights", False)
+            assert "darker_nights" in s.user_set_mods
+            plan = plan_changes()
+            assert any(
+                c["action"] == "remove" and c["id"] == "darker_nights" for c in plan
+            ), plan
+
+            out = apply_desired_state()
+            assert "- darker_nights" in out, out
+            assert not mpq.exists()
+
+            # Immediately after apply (inside the 4s listing-cache TTL) the plan
+            # must be clean — this is what drives the "unapplied changes" nag.
+            assert plan_changes() == [], plan_changes()
+
+            # Rescan syncs actual but must not flip the user's choice back on.
+            desired = sync_desired_mods_from_disk()
+            assert desired.get("darker_nights") is False
+            assert detect_actual_state(game).get("darker_nights") is False
+
+            # Even if the file reappears (manual copy), desired stays off.
+            mpq.write_bytes(b"MPQ")
+            clear_fs_caches()
+            desired = sync_desired_mods_from_disk()
+            assert desired.get("darker_nights") is False
+
+            # Shared ownership: the same MPQ owned by another enabled mod is kept.
+            shared_mpq = data / "patch-Z.mpq"
+            shared_mpq.write_bytes(b"MPQ")
+            base = {
+                "kind": "mpq_file",
+                "destination": "Data/patch-Z.mpq",
+                "detect": {"data_mpq": ["patch-Z.mpq"]},
+            }
+            s.set(
+                "user_mods",
+                [
+                    {"id": "test_shared_a", "name": "Shared A", **base},
+                    {"id": "test_shared_b", "name": "Shared B", **base},
+                ],
+            )
+            s.set("desired_mods", {"test_shared_a": False, "test_shared_b": True})
+            remove_mod("test_shared_a")
+            assert shared_mpq.exists(), "shared MPQ must be kept for enabled mod"
+            s.set("desired_mods", {"test_shared_a": False, "test_shared_b": False})
+            remove_mod("test_shared_b")
+            assert not shared_mpq.exists()
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK mod removal desired-state loop")
+
+
 def test_discover_game_path_near_launcher():
     from ichalaunch.game.launcher import discover_game_path_near_launcher
 
@@ -1232,6 +1332,7 @@ def main():
     test_dlls_txt()
     test_detect_state()
     test_apply_desired_state_guard()
+    test_mod_remove_desired_state()
     test_discover_game_path_near_launcher()
     test_addons_path_defaults()
     test_status_progress_bytes()

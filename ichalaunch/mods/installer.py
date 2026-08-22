@@ -33,10 +33,12 @@ from ichalaunch.core.filesystem import (
     copy_tree,
     extract_zip,
     find_toc_roots,
+    invalidate_dir_listing,
     is_lock_or_av_error,
     listed_basenames,
     name_present,
     read_dlls_txt,
+    remove_path_strict,
     safe_remove,
     sanitize_filename,
     update_dlls_txt,
@@ -60,6 +62,7 @@ def _install_copy(src: Path, dest: Path) -> None:
                 f"Skipped locked or antivirus-blocked file {dest.name}",
                 str(dest),
             )
+        invalidate_dir_listing(dest.parent)
         return
     try:
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -72,6 +75,7 @@ def _install_copy(src: Path, dest: Path) -> None:
                 str(dest),
             ) from exc
         raise
+    invalidate_dir_listing(dest.parent)
 
 
 @dataclass
@@ -1360,6 +1364,57 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
         raise ValueError(f"Unsupported mod kind: {kind}")
 
 
+def _norm_rel_path(rel: str | Path) -> str:
+    return str(rel).replace("\\", "/").strip("/").lower()
+
+
+def _mod_owned_paths(mod: dict[str, Any]) -> set[str]:
+    """Game-relative files this mod owns on disk (normalized, lowercase)."""
+    owned: set[str] = set()
+
+    def add(rel: Any) -> None:
+        text = str(rel or "").strip()
+        if text:
+            owned.add(_norm_rel_path(text))
+
+    src = mod.get("source") or {}
+    if mod.get("kind") == "mpq_file":
+        add(mod.get("destination"))
+        if src.get("filename"):
+            add(f"Data/{src['filename']}")
+    elif src.get("filename"):
+        add(src["filename"])
+    for fspec in mod.get("files") or []:
+        add(fspec.get("destination"))
+    for dll in (mod.get("dlls_txt") or {}).get("add") or []:
+        add(dll)
+    mid = mod.get("id")
+    if mid == "vanillafixes":
+        add("VanillaFixes.exe")
+        add("VfPatcher.dll")
+    if mid == "dxvk":
+        add("d3d9.dll")
+        add("dxvk.conf")
+    return owned
+
+
+def _paths_shared_with_enabled(mod_id: str) -> dict[str, list[str]]:
+    """Map owned file path -> other desired-enabled mods that also own it.
+
+    HD patch letters and d3d9.dll can collide across mods — removal must keep
+    files another enabled mod still needs.
+    """
+    desired = settings.desired_mods
+    shared: dict[str, list[str]] = {}
+    for other in load_mod_catalog():
+        oid = other.get("id") or ""
+        if not oid or oid == mod_id or not desired.get(oid, False):
+            continue
+        for rel in _mod_owned_paths(other):
+            shared.setdefault(rel, []).append(oid)
+    return shared
+
+
 def remove_mod(mod_id: str, progress: ProgressCb | None = None) -> None:
     game = detect_game()
     if not game:
@@ -1373,11 +1428,28 @@ def remove_mod(mod_id: str, progress: ProgressCb | None = None) -> None:
     settings.remove_installed_mod(mod_id)
 
     kind = mod.get("kind")
+    shared = _paths_shared_with_enabled(mod_id)
+    failures: list[str] = []
+
+    def remove_owned(rel: str | Path) -> None:
+        """Strict-delete a file this mod owns, unless another enabled mod shares it."""
+        owners = shared.get(_norm_rel_path(rel))
+        if owners:
+            log.info("Kept %s — shared with enabled mod(s): %s", rel, ", ".join(owners))
+            return
+        try:
+            remove_path_strict(game / rel)
+        except OSError as exc:
+            failures.append(str(exc))
+
+    def raise_failures() -> None:
+        if failures:
+            raise OSError(13, "; ".join(failures))
 
     if kind == "wdb_block":
         wdb = game / "WDB"
         if wdb.is_file():
-            wdb.unlink()
+            remove_path_strict(wdb)
         return
 
     if kind == "exe_patch":
@@ -1389,10 +1461,11 @@ def remove_mod(mod_id: str, progress: ProgressCb | None = None) -> None:
     if kind == "mpq_file":
         dest = mod.get("destination")
         if dest:
-            safe_remove(game / dest)
+            remove_owned(dest)
         src = mod.get("source") or {}
         if src.get("filename"):
-            safe_remove(game / "Data" / src["filename"])
+            remove_owned(Path("Data") / src["filename"])
+        raise_failures()
         return
 
     if kind == "config_script_memory":
@@ -1416,16 +1489,24 @@ def remove_mod(mod_id: str, progress: ProgressCb | None = None) -> None:
 
     # Remove known DLLs / files from ownership
     for fspec in mod.get("files") or []:
-        safe_remove(game / fspec["destination"])
+        remove_owned(fspec["destination"])
     src = mod.get("source") or {}
     if src.get("filename"):
-        safe_remove(game / src["filename"])
+        remove_owned(src["filename"])
 
     dlls = (mod.get("dlls_txt") or {}).get("add") or []
-    if dlls:
-        update_dlls_txt(game, remove=dlls)
-        for dll in dlls:
-            safe_remove(game / dll)
+    removable_dlls = [d for d in dlls if not shared.get(_norm_rel_path(d))]
+    kept_dlls = [d for d in dlls if d not in removable_dlls]
+    if removable_dlls:
+        update_dlls_txt(game, remove=removable_dlls)
+    for dll in removable_dlls:
+        remove_owned(dll)
+    for dll in kept_dlls:
+        log.info(
+            "Kept %s in dlls.txt — shared with enabled mod(s): %s",
+            dll,
+            ", ".join(shared.get(_norm_rel_path(dll)) or []),
+        )
 
     # Optional addon folders
     folder = (mod.get("addon_source") or {}).get("folder") or mod.get("addon_folder_match")
@@ -1437,10 +1518,11 @@ def remove_mod(mod_id: str, progress: ProgressCb | None = None) -> None:
 
     if mod_id == "vanillafixes":
         for name in ("VanillaFixes.exe", "VfPatcher.dll"):
-            safe_remove(game / name)
+            remove_owned(name)
     if mod_id == "dxvk":
         for name in ("d3d9.dll", "dxvk.conf"):
-            safe_remove(game / name)
+            remove_owned(name)
+    raise_failures()
 
 
 def apply_desired_state(progress: ProgressCb | None = None) -> list[str]:

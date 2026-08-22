@@ -24,7 +24,8 @@ ProgressCb = Callable[[str], None]
 UA = {"User-Agent": "IchaLaunch/0.1", "Accept": "application/vnd.github+json"}
 
 RATE_LIMIT_STATUS = "GitHub rate limit hit — add a token in Settings or try later"
-STARTUP_CHECK_COOLDOWN_SEC = 30 * 60
+# Automatic (startup/silent) rescans are skipped if the last scan was within this window.
+STARTUP_CHECK_COOLDOWN_SEC = 60 * 60
 _URL_REACH_CACHE_TTL_SEC = 10 * 60
 _URL_REACH_TIMEOUT_SEC = 2.5
 

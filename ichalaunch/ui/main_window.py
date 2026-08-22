@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, QRectF, Qt, QThread, QTimer, Signal
@@ -147,6 +148,7 @@ from ichalaunch.addons.github import (
     AddonUpdateCheckResult,
     GIT_REPAIR_STATUS,
     RATE_LIMIT_STATUS,
+    STARTUP_CHECK_COOLDOWN_SEC,
     check_addon_updates,
     install_from_github,
     rate_limit_exhausted,
@@ -198,6 +200,15 @@ from ichalaunch.ui.widgets.loading_bar import ThemeLoadingBar
 from ichalaunch.ui.widgets.chrome_buttons import ChromeGlyphButton
 from ichalaunch.ui.widgets.cursors import apply_open_hand
 from ichalaunch.ui.widgets.launch_button import LaunchButton
+
+
+def _format_minutes_since(settings_key: str) -> str:
+    """Human age of a stored epoch timestamp, e.g. ``23 min`` — for cooldown logs."""
+    try:
+        minutes = int((time.time() - float(settings.get(settings_key))) / 60)
+    except (TypeError, ValueError):
+        return "unknown"
+    return f"{minutes} min"
 
 
 class NavTabButton(QPushButton):
@@ -1730,7 +1741,7 @@ class MainWindow(QMainWindow):
         self.nav_btns[3].set_badge_visible(False)
 
     def _run_startup_update_checks(self) -> None:
-        """Quiet first-pass update scan after launch (bypasses cooldown skips)."""
+        """Quiet first-pass update scan after launch (respects the rescan cooldown)."""
         # Path may become valid after __init__ via co-located WoW / late settings.
         if not is_installed() and ensure_game_path_from_launcher() is not None:
             self.settings_page.refresh()
@@ -1751,8 +1762,8 @@ class MainWindow(QMainWindow):
         if rate_limit_exhausted():
             # Still attempt — check_* handlers stop early and surface RATE_LIMIT_STATUS.
             log.info("GitHub rate limit low at startup; attempting checks anyway")
-        self._check_updates(silent=True, force=True)
-        self._check_mod_updates(silent=True, force=True)
+        self._check_updates(silent=True)
+        self._check_mod_updates(silent=True)
 
     def _periodic_update_check(self) -> None:
         """Recurring silent launcher self-update only (addons/client: launch scan)."""
@@ -2344,6 +2355,19 @@ class MainWindow(QMainWindow):
             detail = "; ".join(lines[:4]) if lines else "no changes"
             more = f" (+{len(lines) - 4} more)" if len(lines) > 4 else ""
             self.status_lbl.setText(f"Client mods applied: {detail}{more}")
+            # Per-mod lock/AV failures are tolerated by apply — surface them
+            # loudly here so a stuck removal is never silent (nag loop).
+            failures = [
+                ln[1:].strip()
+                for ln in lines
+                if isinstance(ln, str) and ln.startswith("!")
+            ]
+            if failures:
+                themed.error(
+                    self,
+                    "Some mod changes failed",
+                    "These changes could not be applied:\n\n" + "\n\n".join(failures),
+                )
 
         worker = Worker(apply_desired_state)
         self._busy("Applying client mods…", worker, on_ok=on_ok)
@@ -2543,10 +2567,15 @@ class MainWindow(QMainWindow):
                 self.status_lbl.setText("Update check already running…")
             return
 
-        # Optional debounce for non-forced silent checks. Startup uses force=True so a
-        # prior session's 30‑min cooldown cannot skip the first post-launch scan.
-        if silent and not periodic and not force and recently_checked_addon_updates():
-            log.info("Skipping silent addon update check — checked recently")
+        # Cooldown gate for automatic (silent/periodic) checks: skip if a scan ran
+        # within the last STARTUP_CHECK_COOLDOWN_SEC. Manual checks arrive with
+        # silent=False and always run; force=True explicitly bypasses the cooldown.
+        if (silent or periodic) and not force and recently_checked_addon_updates():
+            log.info(
+                "Addon scan skipped — last scan %s ago (cooldown %d min)",
+                _format_minutes_since("last_addon_update_check"),
+                STARTUP_CHECK_COOLDOWN_SEC // 60,
+            )
             return
 
         self._addon_check_status = "Checking addon updates…"
@@ -2604,8 +2633,12 @@ class MainWindow(QMainWindow):
             if not silent:
                 self.status_lbl.setText("Client mod update check already running…")
             return
-        if silent and not periodic and not force and recently_checked_mod_updates():
-            log.info("Skipping silent client mod update check — checked recently")
+        if (silent or periodic) and not force and recently_checked_mod_updates():
+            log.info(
+                "Client mod scan skipped — last scan %s ago (cooldown %d min)",
+                _format_minutes_since("last_mod_update_check"),
+                STARTUP_CHECK_COOLDOWN_SEC // 60,
+            )
             return
 
         self.status_lbl.setText("Checking client mod updates…")
