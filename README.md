@@ -74,8 +74,20 @@ Tick what you want, then **Apply Changes**. Search across categories; **Open in 
 - **AddOns folder** — defaults to `Interface\AddOns` under the game; override if yours lives elsewhere
 - **Launch** — VanillaFixes, minimize or close the launcher when the game starts
 - **Automatically Check For Updates On Startup** — launcher, addons, and client mods
-- **GitHub API** — optional personal access token if anonymous checks hit GitHub’s rate limit (no special scopes; stays on your PC)
+- **Auto-scan cooldown** — how long automatic/startup scans wait before running again (15 min–24 hours; default 1 hour). Manual Check for updates always runs.
+- **GitHub API** — optional personal access token (see below); stays on your PC
 - **Reset Client Link** — unlink the saved WoW folder so **PLAY** becomes **INSTALL** again
+
+### GitHub personal access token
+
+Without a token, GitHub allows only about **60 API requests per hour**. IchaLaunch queues the rest of an addon update scan and continues automatically when budget refreshes — a large catalog may take **several hours** to finish one full pass. With a token, scans complete much faster (thousands of requests per hour).
+
+1. Open [GitHub → Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens)
+2. Create a token:
+   - **Fine-grained:** resource owner = your user; repository access can be **Public repositories** (read-only is enough)
+   - **Classic:** enable **`public_repo`** (read) only — no write scopes needed
+3. Copy the token, then in IchaLaunch open **SETTINGS → GitHub API** and paste it
+4. Save — the token never leaves your PC except as the `Authorization` header to `api.github.com`
 
 ---
 
@@ -94,8 +106,8 @@ When a newer IchaLaunch is on GitHub Releases, **PLAY** becomes **UPDATE**. That
 **Windows Defender / Controlled Folder Access blocks VanillaFixes or DLL mods**  
 Allow `IchaLaunch.exe`, `VanillaFixes.exe`, and `WoW.exe`, or move the game out of a protected folder.
 
-**Addon / update checks fail or feel stuck**  
-GitHub’s anonymous API limit is low. In **SETTINGS → GitHub API**, paste a personal access token.
+**Addon / update checks fail, feel stuck, or say “queued”**  
+GitHub’s anonymous API limit is about **60 requests/hour**. Without a token, IchaLaunch checks what it can, queues the rest, and resumes automatically (status shows something like `Scanning addons… 60/240 (queued; resumes in ~47 min)`). Paste a personal access token in **SETTINGS → GitHub API** (see Settings above) so a full catalog pass finishes in one go.
 
 **PLAY does nothing / “Client not found”**  
 Confirm **SETTINGS** points at the folder that contains `WoW.exe`, then click **Verify**.

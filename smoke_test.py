@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 # Ensure project root on path
@@ -785,6 +786,106 @@ def test_copied_addon_update_compare():
     print("OK copied addon update compare")
 
 
+def test_unauth_scan_budget_queue():
+    """Unauthenticated scan budget is 60 API calls/hour; status/queue math is stable."""
+    from ichalaunch.addons import github as gh
+
+    remaining, reset_in, start, used = gh.compute_unauth_budget(
+        window_start=1_000.0,
+        window_used=0,
+        now=1_000.0,
+        budget=60,
+        window_sec=3600,
+    )
+    assert remaining == 60 and reset_in == 3600 and used == 0
+
+    remaining, reset_in, start, used = gh.compute_unauth_budget(
+        window_start=1_000.0,
+        window_used=60,
+        now=1_000.0 + 600,
+        budget=60,
+        window_sec=3600,
+    )
+    assert remaining == 0 and used == 60
+    assert 2900 <= reset_in <= 3000
+
+    # Hour elapsed → full budget again
+    remaining, reset_in, start, used = gh.compute_unauth_budget(
+        window_start=1_000.0,
+        window_used=60,
+        now=1_000.0 + 3600,
+        budget=60,
+        window_sec=3600,
+    )
+    assert remaining == 60 and reset_in == 0 and used == 0
+
+    status = gh.format_queued_scan_status(60, 240, 47 * 60)
+    assert status == "Scanning addons… 60/240 (queued; resumes in ~47 min)"
+    assert "resuming" in gh.format_queued_scan_status(10, 100, 0)
+
+    # Consume gate: without token, 61st call raises budget error
+    prev_token = gh.settings.get("github_token")
+    prev_queue = gh.settings.get("addon_update_scan_queue")
+    try:
+        gh.settings.set("github_token", "")
+        now = time.time()
+        gh._budget_window_start = now
+        gh._budget_window_used = 59
+        gh._consume_api_budget()
+        assert gh._budget_window_used == 60
+        raised = False
+        try:
+            gh._consume_api_budget()
+        except gh.GitHubBudgetExhaustedError:
+            raised = True
+        assert raised
+
+        # With token: no artificial gate
+        gh.settings.set("github_token", "ghp_test_token")
+        gh._budget_window_used = 60
+        gh._consume_api_budget()  # must not raise
+    finally:
+        gh.settings.set("github_token", prev_token or "")
+        gh.settings.set("addon_update_scan_queue", prev_queue)
+        gh._budget_window_start = None
+        gh._budget_window_used = 0
+
+    print("OK unauth scan budget queue")
+
+
+def test_auto_scan_cooldown_setting():
+    from ichalaunch.config.settings import (
+        AUTO_SCAN_COOLDOWN_MINUTES_DEFAULT,
+        clamp_auto_scan_cooldown_minutes,
+        format_auto_scan_cooldown_label,
+        settings,
+    )
+
+    assert clamp_auto_scan_cooldown_minutes(60) == 60
+    assert clamp_auto_scan_cooldown_minutes(1) == 15
+    assert clamp_auto_scan_cooldown_minutes(10_000) == 24 * 60
+    assert clamp_auto_scan_cooldown_minutes(22) == 15 or clamp_auto_scan_cooldown_minutes(22) == 30
+    assert format_auto_scan_cooldown_label(60) == "1 hour"
+    assert format_auto_scan_cooldown_label(120) == "2 hours"
+    assert format_auto_scan_cooldown_label(15) == "15 min"
+    assert format_auto_scan_cooldown_label(90) == "1.5 hours"
+
+    prev = settings.get("auto_scan_cooldown_minutes")
+    try:
+        settings.set_auto_scan_cooldown_minutes(180)
+        assert settings.auto_scan_cooldown_minutes() == 180
+        assert settings.auto_scan_cooldown_sec() == 180 * 60
+        settings.set_auto_scan_cooldown_minutes(AUTO_SCAN_COOLDOWN_MINUTES_DEFAULT)
+        assert settings.auto_scan_cooldown_minutes() == 60
+    finally:
+        if prev is None:
+            settings.set("auto_scan_cooldown_minutes", AUTO_SCAN_COOLDOWN_MINUTES_DEFAULT)
+        else:
+            settings.set("auto_scan_cooldown_minutes", prev)
+
+    print("OK auto scan cooldown setting")
+
+
 def test_bagshui_catalog_pin():
     """Bagshui is pinned to the 1.12 tag and never auto-updates to 3.3.5."""
     from ichalaunch.addons.github import (
@@ -1343,6 +1444,8 @@ def main():
     test_robust_move_tree_and_lock_message()
     test_repair_missing_addon_git()
     test_copied_addon_update_compare()
+    test_unauth_scan_budget_queue()
+    test_auto_scan_cooldown_setting()
     test_bagshui_catalog_pin()
     test_never_update_persists()
     test_sanitize_filename()

@@ -856,3 +856,37 @@ QLabel#CountdownLive {
     font-size: 16px;
     font-weight: 700;
 }
+
+/* Settings — auto-scan cooldown slider */
+QSlider#SettingsAutoScanCooldown::groove:horizontal {
+    border: 1px solid rgba(124, 92, 196, 0.35);
+    height: 6px;
+    background: #2c2632;
+    border-radius: 3px;
+}
+
+QSlider#SettingsAutoScanCooldown::sub-page:horizontal {
+    background: #7c5cc4;
+    border-radius: 3px;
+}
+
+QSlider#SettingsAutoScanCooldown::add-page:horizontal {
+    background: #2c2632;
+    border-radius: 3px;
+}
+
+QSlider#SettingsAutoScanCooldown::handle:horizontal {
+    background: #F1C22D;
+    border: 1px solid #c9a020;
+    width: 14px;
+    margin: -5px 0;
+    border-radius: 7px;
+}
+
+QSlider#SettingsAutoScanCooldown::handle:horizontal:hover {
+    background: #ffd84a;
+}
+
+QSlider#SettingsAutoScanCooldown::tick-mark:horizontal {
+    color: #7a6e88;
+}

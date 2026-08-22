@@ -148,8 +148,9 @@ from ichalaunch.addons.github import (
     AddonUpdateCheckResult,
     GIT_REPAIR_STATUS,
     RATE_LIMIT_STATUS,
-    STARTUP_CHECK_COOLDOWN_SEC,
+    WAITING_RATE_LIMIT_STATUS,
     check_addon_updates,
+    has_pending_addon_scan_queue,
     install_from_github,
     rate_limit_exhausted,
     recently_checked_addon_updates,
@@ -1032,6 +1033,9 @@ class MainWindow(QMainWindow):
         self._current_nav = -1
         self._fitted = False
         self._startup_checks_scheduled = False
+        self._addon_scan_resume_timer = QTimer(self)
+        self._addon_scan_resume_timer.setSingleShot(True)
+        self._addon_scan_resume_timer.timeout.connect(self._resume_queued_addon_scan)
 
         self.setMouseTracking(True)
         self._fit_to_screen(initial=True)
@@ -2568,18 +2572,23 @@ class MainWindow(QMainWindow):
             return
 
         # Cooldown gate for automatic (silent/periodic) checks: skip if a scan ran
-        # within the last STARTUP_CHECK_COOLDOWN_SEC. Manual checks arrive with
+        # within the Settings auto-scan cooldown. Manual checks arrive with
         # silent=False and always run; force=True explicitly bypasses the cooldown.
+        # A persisted within-scan queue may resume even inside the cooldown window.
         if (silent or periodic) and not force and recently_checked_addon_updates():
-            log.info(
-                "Addon scan skipped — last scan %s ago (cooldown %d min)",
-                _format_minutes_since("last_addon_update_check"),
-                STARTUP_CHECK_COOLDOWN_SEC // 60,
-            )
-            return
+            if not has_pending_addon_scan_queue():
+                log.info(
+                    "Addon scan skipped — last scan %s ago (cooldown %d min)",
+                    _format_minutes_since("last_addon_update_check"),
+                    settings.auto_scan_cooldown_minutes(),
+                )
+                return
 
-        self._addon_check_status = "Checking addon updates…"
-        self.status_lbl.setText("Checking addon updates…")
+        if self._addon_scan_resume_timer.isActive():
+            self._addon_scan_resume_timer.stop()
+
+        self._addon_check_status = "Scanning addons…"
+        self.status_lbl.setText("Scanning addons…")
         self._checking_addons = True
         self._check_addon_pct = 0
         self.addons.set_scanning(True)
@@ -2593,9 +2602,13 @@ class MainWindow(QMainWindow):
             if isinstance(result, AddonUpdateCheckResult):
                 updates = result.updates
                 status = result.status_message
+                queued = bool(result.queued)
+                resume_after = result.resume_after_sec
             else:
                 updates = result or []
                 status = None
+                queued = False
+                resume_after = None
             self.addons.set_updates(updates)
             if not self._checking_mods:
                 if status:
@@ -2604,6 +2617,13 @@ class MainWindow(QMainWindow):
                     self.status_lbl.setText(f"{len(updates)} addon update(s) available")
                 else:
                     self.status_lbl.setText("Addons up to date")
+            if queued:
+                wait_ms = max(5_000, int(resume_after or 0) * 1000)
+                if resume_after is not None and int(resume_after) <= 0:
+                    wait_ms = 5_000
+                self._addon_scan_resume_timer.start(wait_ms)
+                if not status and not self._checking_mods:
+                    self.status_lbl.setText(WAITING_RATE_LIMIT_STATUS)
             self._refresh_check_loading()
             self._update_worker = None
             self._refresh_nav_badges()
@@ -2624,6 +2644,17 @@ class MainWindow(QMainWindow):
         self._update_worker = worker
         worker.start()
 
+    def _resume_queued_addon_scan(self) -> None:
+        """Continue a paced unauthenticated addon scan when the hour budget refreshes."""
+        if not has_pending_addon_scan_queue():
+            return
+        if self._update_worker and self._update_worker.isRunning():
+            self._addon_scan_resume_timer.start(30_000)
+            return
+        if not self._checking_mods:
+            self.status_lbl.setText(WAITING_RATE_LIMIT_STATUS)
+        self._check_updates(silent=True, force=True)
+
     def _check_mod_updates(self, silent: bool = False, periodic: bool = False, force: bool = False) -> None:
         if not is_installed():
             if not silent:
@@ -2637,7 +2668,7 @@ class MainWindow(QMainWindow):
             log.info(
                 "Client mod scan skipped — last scan %s ago (cooldown %d min)",
                 _format_minutes_since("last_mod_update_check"),
-                STARTUP_CHECK_COOLDOWN_SEC // 60,
+                settings.auto_scan_cooldown_minutes(),
             )
             return
 

@@ -8,6 +8,39 @@ from typing import Any  # Path used by default_addons_path_for
 
 APP_DIR_NAME = "IchaLaunch"
 
+# Automatic (startup/silent) update-scan cooldown — also the Settings slider default.
+AUTO_SCAN_COOLDOWN_MINUTES_DEFAULT = 60
+AUTO_SCAN_COOLDOWN_MINUTES_MIN = 15
+AUTO_SCAN_COOLDOWN_MINUTES_MAX = 24 * 60  # 24 hours
+AUTO_SCAN_COOLDOWN_MINUTES_STEP = 15
+
+
+def clamp_auto_scan_cooldown_minutes(value: Any) -> int:
+    """Clamp/snap cooldown minutes to the Settings slider range (15 min … 24 h)."""
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        n = AUTO_SCAN_COOLDOWN_MINUTES_DEFAULT
+    step = AUTO_SCAN_COOLDOWN_MINUTES_STEP
+    n = max(AUTO_SCAN_COOLDOWN_MINUTES_MIN, min(AUTO_SCAN_COOLDOWN_MINUTES_MAX, n))
+    # Snap to step (prefer nearest; ties round up).
+    snapped = int(round(n / step) * step)
+    return max(AUTO_SCAN_COOLDOWN_MINUTES_MIN, min(AUTO_SCAN_COOLDOWN_MINUTES_MAX, snapped))
+
+
+def format_auto_scan_cooldown_label(minutes: int) -> str:
+    """Human label for the Settings slider, e.g. ``15 min``, ``1 hour``, ``6 hours``."""
+    mins = clamp_auto_scan_cooldown_minutes(minutes)
+    if mins < 60:
+        return f"{mins} min"
+    if mins % 60 == 0:
+        hours = mins // 60
+        return "1 hour" if hours == 1 else f"{hours} hours"
+    # e.g. 90 → 1.5 hours
+    hours = mins / 60
+    text = f"{hours:.1f}".rstrip("0").rstrip(".")
+    return f"{text} hours"
+
 
 def appdata_root() -> Path:
     base = Path.home() / "AppData" / "Local" / APP_DIR_NAME
@@ -30,10 +63,14 @@ DEFAULTS: dict[str, Any] = {
     # Legacy keys kept for migration from older settings.json files.
     "check_addon_updates_on_startup": True,
     "check_mod_updates_on_startup": True,
+    # Minutes between automatic/startup addon+mod update scans (manual always runs).
+    "auto_scan_cooldown_minutes": AUTO_SCAN_COOLDOWN_MINUTES_DEFAULT,
     "auto_install_updates": False,
     "github_token": "",
     "last_addon_update_check": None,
     "last_mod_update_check": None,
+    # Persisted unauthenticated addon update-scan queue (folders + hour budget).
+    "addon_update_scan_queue": None,
     "desired_mods": {
         "vanilla_tweaks": False,
         "vanillafixes": True,
@@ -104,6 +141,17 @@ class Settings:
         self._data["check_addon_updates_on_startup"] = enabled
         self._data["check_mod_updates_on_startup"] = enabled
         self.save()
+
+    def auto_scan_cooldown_minutes(self) -> int:
+        return clamp_auto_scan_cooldown_minutes(
+            self.get("auto_scan_cooldown_minutes", AUTO_SCAN_COOLDOWN_MINUTES_DEFAULT)
+        )
+
+    def auto_scan_cooldown_sec(self) -> int:
+        return self.auto_scan_cooldown_minutes() * 60
+
+    def set_auto_scan_cooldown_minutes(self, minutes: int) -> None:
+        self.set("auto_scan_cooldown_minutes", clamp_auto_scan_cooldown_minutes(minutes))
 
     def save(self) -> None:
         path = settings_path()

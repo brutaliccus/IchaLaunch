@@ -9,12 +9,19 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QScrollArea,
     QSizePolicy,
+    QSlider,
     QVBoxLayout,
     QWidget,
 )
 
 from ichalaunch import __version__
-from ichalaunch.config.settings import settings
+from ichalaunch.config.settings import (
+    AUTO_SCAN_COOLDOWN_MINUTES_MAX,
+    AUTO_SCAN_COOLDOWN_MINUTES_MIN,
+    AUTO_SCAN_COOLDOWN_MINUTES_STEP,
+    format_auto_scan_cooldown_label,
+    settings,
+)
 from ichalaunch.ui.widgets.casting_bar_search_edit import (
     SETTINGS_MIN_H,
     CastingBarSearchEdit,
@@ -176,6 +183,41 @@ class SettingsPage(QWidget):
         )
         upd_card.body.addWidget(self.cb_auto_updates)
 
+        cooldown_header = QHBoxLayout()
+        cooldown_header.setSpacing(8)
+        cooldown_title = QLabel("Auto-scan cooldown")
+        cooldown_title.setObjectName("CardTitle")
+        self.cooldown_value_lbl = QLabel("")
+        self.cooldown_value_lbl.setObjectName("Muted")
+        self.cooldown_value_lbl.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        cooldown_header.addWidget(cooldown_title, 1)
+        cooldown_header.addWidget(self.cooldown_value_lbl)
+        upd_card.body.addLayout(cooldown_header)
+
+        self.cooldown_slider = QSlider(Qt.Orientation.Horizontal)
+        self.cooldown_slider.setObjectName("SettingsCooldownScanCooldown")
+        self.cooldown_slider.setMinimum(AUTO_SCAN_COOLDOWN_MINUTES_MIN)
+        self.cooldown_slider.setMaximum(AUTO_SCAN_COOLDOWN_MINUTES_MAX)
+        self.cooldown_slider.setSingleStep(AUTO_SCAN_COOLDOWN_MINUTES_STEP)
+        self.cooldown_slider.setPageStep(60)
+        self.cooldown_slider.setTickInterval(60)
+        self.cooldown_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.cooldown_slider.setMinimumHeight(28)
+        self.cooldown_slider.setValue(settings.auto_scan_cooldown_minutes())
+        self.cooldown_slider.valueChanged.connect(self._on_cooldown_slider)
+        upd_card.body.addWidget(self.cooldown_slider)
+        self._sync_cooldown_label(settings.auto_scan_cooldown_minutes())
+
+        cooldown_note = QLabel(
+            "How long to wait before automatic/startup update scans run again. "
+            "Manual Check for updates always runs. Applies to addons and client mods."
+        )
+        cooldown_note.setObjectName("Muted")
+        cooldown_note.setWordWrap(True)
+        upd_card.body.addWidget(cooldown_note)
+
         gh_card = MarbleCard()
         gh_card.body.setSpacing(10)
         gh_title = QLabel("GitHub API")
@@ -244,12 +286,34 @@ class SettingsPage(QWidget):
         scroll.setWidget(host)
         outer.addWidget(scroll)
 
+    def _sync_cooldown_label(self, minutes: int) -> None:
+        self.cooldown_value_lbl.setText(format_auto_scan_cooldown_label(minutes))
+
+    def _on_cooldown_slider(self, value: int) -> None:
+        # Snap to step while dragging so the stored value matches the label.
+        step = AUTO_SCAN_COOLDOWN_MINUTES_STEP
+        snapped = int(round(int(value) / step) * step)
+        snapped = max(AUTO_SCAN_COOLDOWN_MINUTES_MIN, min(AUTO_SCAN_COOLDOWN_MINUTES_MAX, snapped))
+        if snapped != value:
+            self.cooldown_slider.blockSignals(True)
+            self.cooldown_slider.setValue(snapped)
+            self.cooldown_slider.blockSignals(False)
+        self._sync_cooldown_label(snapped)
+        settings.set_auto_scan_cooldown_minutes(snapped)
+
     def _save_github_token(self, force_feedback: bool = False) -> None:
         self._token_save_timer.stop()
         value = self.token_edit.text().strip()
         current = str(settings.get("github_token") or "")
         if value != current:
             settings.set("github_token", value)
+            if value:
+                try:
+                    from ichalaunch.addons.github import clear_addon_scan_queue
+
+                    clear_addon_scan_queue()
+                except Exception:  # noqa: BLE001
+                    pass
             self.token_status.setText("Saved")
             self._token_status_clear.start()
         elif force_feedback:
@@ -262,6 +326,11 @@ class SettingsPage(QWidget):
         self.cb_auto_updates.blockSignals(True)
         self.cb_auto_updates.setChecked(settings.check_updates_on_startup())
         self.cb_auto_updates.blockSignals(False)
+        mins = settings.auto_scan_cooldown_minutes()
+        self.cooldown_slider.blockSignals(True)
+        self.cooldown_slider.setValue(mins)
+        self.cooldown_slider.blockSignals(False)
+        self._sync_cooldown_label(mins)
         # Avoid clobbering in-progress edits / firing textChanged autosave.
         stored = str(settings.get("github_token") or "")
         if self.token_edit.text() != stored:

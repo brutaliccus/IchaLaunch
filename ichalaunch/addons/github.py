@@ -26,6 +26,7 @@ UA = {"User-Agent": "IchaLaunch/0.1", "Accept": "application/vnd.github+json"}
 RATE_LIMIT_STATUS = "GitHub rate limit hit — add a token in Settings or try later"
 WAITING_RATE_LIMIT_STATUS = "Waiting for GitHub rate limit…"
 # Automatic (startup/silent) rescans are skipped if the last scan was within this window.
+# Default only — live value comes from settings.auto_scan_cooldown_sec().
 STARTUP_CHECK_COOLDOWN_SEC = 60 * 60
 # Unauthenticated GitHub REST allows ~60 requests/hour; we pace scans to match.
 UNAUTH_API_BUDGET_PER_HOUR = 60
@@ -1333,7 +1334,14 @@ def repair_missing_addon_git_origins(
     return repaired
 
 
-def recently_checked_addon_updates(cooldown_sec: int = STARTUP_CHECK_COOLDOWN_SEC) -> bool:
+def recently_checked_addon_updates(cooldown_sec: int | None = None) -> bool:
+    """True if an automatic scan should skip because the cooldown window is still open.
+
+    *cooldown_sec* defaults to the Settings ``auto_scan_cooldown_minutes`` value
+    (``STARTUP_CHECK_COOLDOWN_SEC`` when unset). Manual Check Updates ignores this.
+    """
+    if cooldown_sec is None:
+        cooldown_sec = settings.auto_scan_cooldown_sec()
     raw = settings.get("last_addon_update_check")
     if not raw:
         return False
@@ -1341,7 +1349,7 @@ def recently_checked_addon_updates(cooldown_sec: int = STARTUP_CHECK_COOLDOWN_SE
         last = float(raw)
     except (TypeError, ValueError):
         return False
-    return (time.time() - last) < cooldown_sec
+    return (time.time() - last) < float(cooldown_sec)
 
 
 def _mark_addon_update_check_time() -> None:

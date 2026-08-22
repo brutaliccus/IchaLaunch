@@ -18,7 +18,6 @@ import requests
 from ichalaunch.addons.github import (
     GitHubRateLimitError,
     RATE_LIMIT_STATUS,
-    STARTUP_CHECK_COOLDOWN_SEC,
     fetch_repo_readme,
     github_get,
     github_headers,
@@ -957,7 +956,10 @@ def _record_mod_install(
     settings.set_installed_mod(mod_id, meta)
 
 
-def recently_checked_mod_updates(cooldown_sec: int = STARTUP_CHECK_COOLDOWN_SEC) -> bool:
+def recently_checked_mod_updates(cooldown_sec: int | None = None) -> bool:
+    """True if an automatic mod scan should skip (uses Settings auto-scan cooldown)."""
+    if cooldown_sec is None:
+        cooldown_sec = settings.auto_scan_cooldown_sec()
     raw = settings.get("last_mod_update_check")
     if not raw:
         return False
@@ -965,7 +967,7 @@ def recently_checked_mod_updates(cooldown_sec: int = STARTUP_CHECK_COOLDOWN_SEC)
         last = float(raw)
     except (TypeError, ValueError):
         return False
-    return (time.time() - last) < cooldown_sec
+    return (time.time() - last) < float(cooldown_sec)
 
 
 def check_mod_updates(
