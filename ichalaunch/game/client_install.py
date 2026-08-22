@@ -20,6 +20,7 @@ from ichalaunch.core.filesystem import (
     is_protected_path,
     robust_move_tree,
     robust_rmtree,
+    scan_game_permissions,
 )
 from ichalaunch.core.logging_setup import log
 from ichalaunch.core.paths import data_file
@@ -1143,12 +1144,25 @@ def _extract_client(
     apply_bundled_realmlist(target if (target / "WoW.exe").is_file() else game)
     home = target if (target / "WoW.exe").is_file() else game
     commit_game_home(home)
+    _log_post_install_permissions(home)
     cleanup_client_zip(dest, zip_path, watch_dirs=watch_dirs)
     if callable(set_status):
         set_status("Install complete")
     elif progress:
         progress("Install complete")
     return str(home)
+
+
+def _log_post_install_permissions(home: Path) -> None:
+    scan = scan_game_permissions(home)
+    if scan.has_issues:
+        log.warning(
+            "Post-install permission scan found %d issue(s) under %s",
+            len(scan.issues),
+            home,
+        )
+    else:
+        log.info("Post-install permission scan OK for %s", home)
 
 
 def install_client(
@@ -1185,6 +1199,7 @@ def install_client(
             existing = settle_ravencraft_home(dest, existing)
         apply_bundled_realmlist(existing)
         commit_game_home(existing)
+        _log_post_install_permissions(existing)
         return str(existing)
 
     chosen: Path | None = Path(zip_path) if zip_path else None

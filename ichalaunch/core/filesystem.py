@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import getpass
 import hashlib
 import io
 import logging
@@ -9,9 +10,11 @@ import os
 import re
 import shutil
 import stat
+import subprocess
 import sys
 import time
 import zipfile
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -736,3 +739,424 @@ def update_dlls_txt(game_path: Path, add: list[str] | None = None, remove: list[
         path.write_text("\n".join(kept).rstrip() + "\n", encoding="utf-8")
     except OSError as exc:
         _log.warning("Could not write %s: %s", path, exc)
+
+
+# --- Game folder permissions (Windows) ---------------------------------------
+
+GAME_PERMISSION_SUBDIRS = ("Data", "WTF", "Interface")
+_SUBPROC_FLAGS = (
+    subprocess.CREATE_NO_WINDOW
+    if sys.platform == "win32" and hasattr(subprocess, "CREATE_NO_WINDOW")
+    else 0
+)
+_ICACLS_WRITE_RIGHTS = frozenset({"M", "F", "W", "WD", "WDEX", "GW", "GE", "GM", "FULL", "MODIFY", "WRITE", "CHANGE"})
+
+
+@dataclass
+class PermissionIssue:
+    rel: str
+    kind: str
+    detail: str
+
+
+def protected_location_guidance(game: Path | str) -> str:
+    """Plain-language advice when the game folder is in a restricted Windows path."""
+    return (
+        f"Your game folder is in a restricted Windows location:\n{game}\n\n"
+        "Folders like Downloads, Desktop, Documents, and Program Files often "
+        "block the client from saving configs, mods, and patches — a common "
+        "cause of access-denied crashes.\n\n"
+        "Move the entire game folder to a location you own, for example:\n"
+        "  C:\\Games\\TurtleWoW\n"
+        "  D:\\Games\\RavenCraft\n\n"
+        "Then use Browse on the Home or Settings page to select the new folder, "
+        "and run Check Game Permissions again."
+    )
+
+
+@dataclass
+class PermissionScanResult:
+    game: Path
+    issues: list[PermissionIssue] = field(default_factory=list)
+    hints: list[str] = field(default_factory=list)
+    needs_elevation: bool = False
+    protected_path: bool = False
+
+    @property
+    def has_issues(self) -> bool:
+        return bool(self.issues)
+
+    @property
+    def can_auto_fix(self) -> bool:
+        return self.has_issues and not self.protected_path
+
+    def user_message(self, *, max_issues: int = 6) -> str:
+        if self.protected_path:
+            lines = [
+                "Your game folder is in a restricted Windows location "
+                "(Downloads, Desktop, Documents, or Program Files).",
+                "",
+                "Games copied or extracted here often keep restrictive permissions "
+                "that cause access-denied crashes. IchaLaunch cannot fully fix "
+                "permissions in these folders.",
+                "",
+                "Move the entire game folder to a normal location you own, for example:",
+                "• C:\\Games\\TurtleWoW",
+                "• D:\\Games\\RavenCraft",
+                "",
+                "Then browse to the new folder in Settings and run "
+                "Check Game Permissions again.",
+                "",
+                f"Current folder:\n{self.game}",
+            ]
+            if self.issues:
+                lines.extend(["", "Problems found:"])
+                for issue in self.issues[:max_issues]:
+                    lines.append(f"• {issue.rel}: {issue.detail}")
+                if len(self.issues) > max_issues:
+                    lines.append(f"• …and {len(self.issues) - max_issues} more")
+            return "\n".join(lines)
+
+        lines = [
+            "Some game files or folders may block the client from writing saves, "
+            "config, or patches — a common cause of access-denied crashes.",
+            "",
+        ]
+        if self.hints:
+            lines.extend(self.hints)
+            lines.append("")
+        lines.append("Problems found:")
+        for issue in self.issues[:max_issues]:
+            lines.append(f"• {issue.rel}: {issue.detail}")
+        if len(self.issues) > max_issues:
+            lines.append(f"• …and {len(self.issues) - max_issues} more")
+        lines.append("")
+        lines.append(
+            "This often happens when the game was copied from Downloads or extracted "
+            "with restrictive permissions."
+        )
+        lines.append(
+            "IchaLaunch can grant your Windows user Modify access and clear read-only flags."
+        )
+        if self.needs_elevation:
+            lines.append("")
+            lines.append(
+                "Some items may still need Administrator approval to repair fully."
+            )
+        return "\n".join(lines)
+
+
+@dataclass
+class PermissionFixResult:
+    game: Path
+    fixes: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    needs_elevation: bool = False
+
+
+def iter_game_permission_targets(game: Path | str) -> list[Path]:
+    """Key game paths checked for permission problems."""
+    root = Path(game)
+    targets: list[Path] = []
+    if root.is_dir():
+        targets.append(root)
+    wow = root / "WoW.exe"
+    if wow.is_file():
+        targets.append(wow)
+    for name in GAME_PERMISSION_SUBDIRS:
+        sub = root / name
+        if sub.exists():
+            targets.append(sub)
+    return targets
+
+
+def _rel_to_game(game: Path, path: Path) -> str:
+    try:
+        return str(path.relative_to(game)).replace("\\", "/")
+    except ValueError:
+        return path.name
+
+
+def _path_is_readonly(path: Path) -> bool:
+    try:
+        return not (path.stat().st_mode & stat.S_IWRITE)
+    except OSError:
+        return False
+
+
+def _dir_write_probe(path: Path) -> bool:
+    probe = path / f".ichalaunch_write_probe_{os.getpid()}"
+    try:
+        probe.write_text("", encoding="utf-8")
+        probe.unlink()
+        return True
+    except OSError:
+        try:
+            probe.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return False
+
+
+def _file_write_probe(path: Path) -> bool:
+    if _path_is_readonly(path):
+        return False
+    try:
+        with path.open("ab"):
+            pass
+        return True
+    except OSError:
+        return False
+
+
+def _whoami_principal() -> str:
+    if sys.platform != "win32":
+        return ""
+    try:
+        proc = subprocess.run(
+            ["whoami"],
+            capture_output=True,
+            text=True,
+            timeout=8,
+            creationflags=_SUBPROC_FLAGS,
+        )
+        text = (proc.stdout or "").strip()
+        if text:
+            return text
+    except OSError as exc:
+        _log.debug("whoami failed: %s", exc)
+    user = os.environ.get("USERNAME", "").strip()
+    if user:
+        return user
+    try:
+        return getpass.getuser()
+    except Exception:
+        return ""
+
+
+def _principal_aliases() -> set[str]:
+    aliases: set[str] = set()
+    principal = _whoami_principal()
+    if principal:
+        aliases.add(principal.lower())
+        if "\\" in principal:
+            aliases.add(principal.split("\\", 1)[1].lower())
+    user = os.environ.get("USERNAME", "").strip()
+    if user:
+        aliases.add(user.lower())
+    try:
+        aliases.add(getpass.getuser().lower())
+    except Exception:
+        pass
+    return {a for a in aliases if a}
+
+
+def _icacls_text(path: Path) -> str:
+    if sys.platform != "win32" or not path.exists():
+        return ""
+    try:
+        proc = subprocess.run(
+            ["icacls", str(path)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            creationflags=_SUBPROC_FLAGS,
+        )
+    except OSError as exc:
+        _log.debug("icacls read failed for %s: %s", path, exc)
+        return ""
+    if proc.returncode != 0:
+        return (proc.stderr or proc.stdout or "").strip()
+    return proc.stdout or ""
+
+
+def _run_icacls(path: Path, *args: str) -> tuple[int, str]:
+    if sys.platform != "win32":
+        return 1, "not Windows"
+    cmd = ["icacls", str(path), *args]
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            creationflags=_SUBPROC_FLAGS,
+        )
+    except OSError as exc:
+        return 1, str(exc)
+    text = (proc.stdout or "") + (proc.stderr or "")
+    return proc.returncode, text.strip()
+
+
+def _ace_matches_user(ace_principal: str, aliases: set[str]) -> bool:
+    principal = ace_principal.strip().lower()
+    if not principal:
+        return False
+    if principal in aliases:
+        return True
+    if "\\" in principal:
+        return principal.split("\\", 1)[1] in aliases
+    return False
+
+
+def _parse_icacls_issues(path: Path, aliases: set[str]) -> list[tuple[str, str]]:
+    """Return (kind, detail) tuples for ACL problems on *path*."""
+    text = _icacls_text(path)
+    if not text:
+        return []
+    issues: list[tuple[str, str]] = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or ":" not in line:
+            continue
+        principal, rights = line.split(":", 1)
+        principal = principal.strip()
+        rights_u = rights.upper()
+        if not _ace_matches_user(principal, aliases):
+            continue
+        if "DENY" in rights_u:
+            issues.append(("deny_acl", "Windows security denies access for your user"))
+            continue
+        tokens = {tok.strip("()") for tok in rights_u.replace(",", " ").split()}
+        if tokens & _ICACLS_WRITE_RIGHTS:
+            continue
+        if tokens & {"R", "RX", "READ", "READANDEXECUTE"}:
+            issues.append(("no_modify", "Your user can read but not modify this folder"))
+    return issues
+
+
+def _permission_hints(game: Path) -> list[str]:
+    hints: list[str] = []
+    lowered = str(game).lower().replace("/", "\\")
+    if "\\downloads\\" in lowered:
+        hints.append(
+            "Hint: the game folder is inside Downloads — copying or extracting here "
+            "often leaves restrictive permissions."
+        )
+    elif is_protected_path(game):
+        hints.append(
+            "Hint: this location (Desktop, Documents, Program Files, or Downloads) "
+            "often causes permission problems with mods and saves."
+        )
+    return hints
+
+
+def scan_game_permissions(game: Path | str) -> PermissionScanResult:
+    """Scan key game paths for read-only attributes and Windows ACL/write problems."""
+    root = Path(game)
+    result = PermissionScanResult(game=root)
+    if sys.platform != "win32":
+        return result
+    if not root.is_dir():
+        result.issues.append(
+            PermissionIssue(".", "missing", "Game folder does not exist")
+        )
+        return result
+
+    result.protected_path = is_protected_path(root)
+    result.hints.extend(_permission_hints(root))
+    aliases = _principal_aliases()
+    seen: set[tuple[str, str]] = set()
+
+    def add_issue(path: Path, kind: str, detail: str) -> None:
+        rel = _rel_to_game(root, path)
+        key = (rel, kind)
+        if key in seen:
+            return
+        seen.add(key)
+        result.issues.append(PermissionIssue(rel=rel, kind=kind, detail=detail))
+
+    for target in iter_game_permission_targets(root):
+        if not target.exists():
+            continue
+        if _path_is_readonly(target):
+            label = "folder" if target.is_dir() else "file"
+            add_issue(target, "readonly", f"Read-only {label} attribute is set")
+
+        writable = _dir_write_probe(target) if target.is_dir() else _file_write_probe(target)
+        if not writable:
+            add_issue(target, "not_writable", "Your user cannot write here")
+            for kind, detail in _parse_icacls_issues(target, aliases):
+                add_issue(target, kind, detail)
+            if not result.protected_path:
+                result.needs_elevation = True
+
+    if result.issues:
+        _log.info(
+            "Game permission scan found %d issue(s) under %s",
+            len(result.issues),
+            root,
+        )
+    return result
+
+
+def fix_game_permissions(game: Path | str) -> PermissionFixResult:
+    """Grant the current user Modify access and clear read-only flags under *game*."""
+    root = Path(game)
+    result = PermissionFixResult(game=root)
+    if sys.platform != "win32":
+        result.warnings.append("Permission repair is only supported on Windows.")
+        return result
+    if not root.is_dir():
+        result.warnings.append("Game folder does not exist.")
+        return result
+    if is_protected_path(root):
+        result.warnings.append(
+            "This game folder is in a restricted location (Downloads, Desktop, "
+            "Documents, or Program Files). Move the entire folder to a location "
+            "you own (e.g. C:\\Games\\RavenCraft), update the game path in "
+            "Settings, then run Check Game Permissions again."
+        )
+        return result
+
+    _log.info("Repairing game folder permissions: %s", root)
+
+    try:
+        _make_tree_writable(root)
+        result.fixes.append("Cleared read-only attributes")
+    except OSError as exc:
+        result.warnings.append(f"Could not clear all read-only flags: {exc}")
+        _log.warning("Read-only cleanup incomplete for %s: %s", root, exc)
+
+    principal = _whoami_principal()
+    if principal:
+        code, out = _run_icacls(root, "/inheritance:e")
+        if code != 0 and out:
+            _log.debug("icacls inheritance for %s: %s", root, out)
+        grant_code, grant_out = _run_icacls(
+            root,
+            "/grant",
+            f"{principal}:(OI)(CI)M",
+            "/T",
+        )
+        if grant_code == 0:
+            result.fixes.append(f"Granted Modify access to {principal}")
+            _log.info("Granted Modify on %s to %s", root, principal)
+        else:
+            if is_access_denied(OSError(5, grant_out or "access denied")):
+                result.needs_elevation = True
+                result.warnings.append(
+                    "Could not update all security permissions — move the game to a "
+                    "folder you own (e.g. C:\\Games\\RavenCraft) and run "
+                    "Check Game Permissions again."
+                )
+            elif grant_out:
+                result.warnings.append(f"Permission grant incomplete: {grant_out[:240]}")
+            _log.warning("icacls grant failed for %s (%s): %s", root, grant_code, grant_out)
+
+        deny_code, deny_out = _run_icacls(root, "/remove:d", principal, "/T")
+        if deny_code == 0:
+            result.fixes.append("Removed explicit deny rules for your user")
+            _log.info("Removed deny ACEs for %s under %s", principal, root)
+        elif deny_out and "No mappings" not in deny_out:
+            _log.debug("icacls remove:d for %s: %s", root, deny_out)
+    else:
+        result.warnings.append("Could not determine the current Windows user for ACL repair.")
+
+    remaining = scan_game_permissions(root)
+    if remaining.has_issues:
+        result.warnings.append(
+            f"{len(remaining.issues)} permission issue(s) remain after repair."
+        )
+        result.needs_elevation = result.needs_elevation or remaining.needs_elevation
+    return result

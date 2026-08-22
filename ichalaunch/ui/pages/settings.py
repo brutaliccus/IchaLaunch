@@ -38,6 +38,7 @@ class SettingsPage(QWidget):
     reset_addons_clicked = Signal()
     reset_client_link_clicked = Signal()
     clear_cache_clicked = Signal()
+    check_permissions_clicked = Signal()
     verify_clicked = Signal()
 
     def __init__(self, parent=None):
@@ -277,10 +278,24 @@ class SettingsPage(QWidget):
         )
         clear_cache.clicked.connect(self.clear_cache_clicked.emit)
         maint_card.body.addWidget(clear_cache)
+        check_permissions = GluePanelButton("Check Game Permissions", width=188)
+        check_permissions.setToolTip(
+            "Scan the linked WoW folder for read-only files and Windows permission "
+            "problems that can cause access-denied crashes. If the game is in "
+            "Downloads or another restricted folder, move it first — then browse "
+            "to the new location and run this check again."
+        )
+        check_permissions.clicked.connect(self.check_permissions_clicked.emit)
+        maint_card.body.addWidget(check_permissions)
         maint_note = QLabel(
             "Clears saved paths, mod/addon tracking, GitHub token, update scan "
             "queues, and other launcher preferences. Your WoW client and AddOn "
-            "folders on disk are not deleted."
+            "folders on disk are not deleted.\n\n"
+            "Check Game Permissions scans WoW.exe, Data/, WTF/, and Interface/. "
+            "If the game is in Downloads or another restricted folder, move it to "
+            "a normal location (e.g. C:\\Games) and browse to the new path before "
+            "re-running the check. Otherwise IchaLaunch can repair read-only flags "
+            "and ACLs."
         )
         maint_note.setObjectName("Muted")
         maint_note.setWordWrap(True)

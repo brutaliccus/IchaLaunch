@@ -1989,6 +1989,75 @@ def test_zip_url_from_html():
     print("OK zip url from html")
 
 
+def test_game_permissions_scan_and_fix():
+    """Scan/fix detects read-only WoW.exe and restores write access."""
+    import os
+    import stat
+
+    from ichalaunch.core.filesystem import (
+        fix_game_permissions,
+        iter_game_permission_targets,
+        scan_game_permissions,
+    )
+
+    with tempfile.TemporaryDirectory() as td:
+        game = Path(td) / "RavenCraft"
+        game.mkdir()
+        (game / "WoW.exe").write_bytes(b"MZ")
+        for name in ("Data", "WTF", "Interface"):
+            (game / name).mkdir()
+        targets = iter_game_permission_targets(game)
+        assert (game / "WoW.exe") in targets
+        assert game in targets
+
+        scan = scan_game_permissions(game)
+        assert not scan.has_issues, scan.issues
+
+        wow = game / "WoW.exe"
+        os.chmod(wow, stat.S_IREAD)
+        scan = scan_game_permissions(game)
+        assert scan.has_issues
+        assert any(i.kind == "readonly" and i.rel == "WoW.exe" for i in scan.issues), scan.issues
+
+        fix = fix_game_permissions(game)
+        assert fix.fixes
+        assert wow.stat().st_mode & stat.S_IWRITE
+        scan2 = scan_game_permissions(game)
+        assert not scan2.has_issues, scan2.issues
+    print("OK game permissions scan/fix")
+
+
+def test_game_permissions_protected_path():
+    """Protected locations skip auto-fix and advise moving the folder."""
+    import os
+    import stat
+
+    from ichalaunch.core.filesystem import (
+        fix_game_permissions,
+        scan_game_permissions,
+    )
+
+    with tempfile.TemporaryDirectory() as td:
+        # Path segment contains "downloads" (is_protected_path substring match).
+        game = Path(td) / "my_downloads_backup" / "RavenCraft"
+        game.mkdir(parents=True)
+        (game / "WoW.exe").write_bytes(b"MZ")
+        (game / "Data").mkdir()
+        os.chmod(game / "WoW.exe", stat.S_IREAD)
+
+        scan = scan_game_permissions(game)
+        assert scan.protected_path
+        assert scan.has_issues
+        assert not scan.can_auto_fix
+        assert "Move the entire game folder" in scan.user_message()
+        assert not scan.needs_elevation
+
+        fix = fix_game_permissions(game)
+        assert not fix.fixes
+        assert any("restricted location" in w.lower() for w in fix.warnings)
+    print("OK game permissions protected path")
+
+
 def main():
     test_catalogs()
     test_github_parse()
@@ -2031,6 +2100,8 @@ def main():
     test_browser_zip_watch_and_install_from_zip()
     test_cleanup_client_zip()
     test_zip_url_from_html()
+    test_game_permissions_scan_and_fix()
+    test_game_permissions_protected_path()
     print("\nAll smoke tests passed.")
 
 

@@ -37,7 +37,9 @@ from ichalaunch.core.filesystem import (
     is_lock_or_av_error,
     listed_basenames,
     name_present,
+    PermissionScanResult,
     read_dlls_txt,
+    scan_game_permissions,
     remove_path_strict,
     safe_remove,
     sanitize_filename,
@@ -1765,6 +1767,7 @@ def _sync_dlls_txt_for_desired_mods(game: Path) -> tuple[list[str], list[str]]:
 class PreLaunchResult:
     fixes: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    permission_scan: PermissionScanResult | None = None
 
     @property
     def status_line(self) -> str | None:
@@ -1842,6 +1845,8 @@ def prepare_for_launch(game: Path | None = None) -> PreLaunchResult:
     data_fixes, data_warnings = _ensure_enabled_data_writable(game)
     result.fixes.extend(data_fixes)
     result.warnings.extend(data_warnings)
+
+    result.permission_scan = scan_game_permissions(game)
 
     if result.fixes:
         log.info("Pre-launch preparation: %s", "; ".join(result.fixes))

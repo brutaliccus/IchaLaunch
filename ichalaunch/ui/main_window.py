@@ -162,7 +162,13 @@ from ichalaunch.addons.github import (
 )
 from ichalaunch.config.settings import settings
 from ichalaunch.core.detect import full_resync
-from ichalaunch.core.filesystem import is_protected_path
+from ichalaunch.core.filesystem import (
+    PermissionScanResult,
+    fix_game_permissions,
+    is_protected_path,
+    protected_location_guidance,
+    scan_game_permissions,
+)
 from ichalaunch.core.logging_setup import log
 from ichalaunch.core.process import StatusProgress, status_only
 from ichalaunch.core.self_update import (
@@ -1037,6 +1043,7 @@ class MainWindow(QMainWindow):
         self._current_nav = -1
         self._fitted = False
         self._startup_checks_scheduled = False
+        self._permissions_skipped_path: str | None = None
         self._addon_scan_resume_timer = QTimer(self)
         self._addon_scan_resume_timer.setSingleShot(True)
         self._addon_scan_resume_timer.timeout.connect(self._resume_queued_addon_scan)
@@ -1218,6 +1225,7 @@ class MainWindow(QMainWindow):
         self.settings_page.reset_addons_clicked.connect(self._reset_addons_path)
         self.settings_page.reset_client_link_clicked.connect(self._reset_client_link)
         self.settings_page.clear_cache_clicked.connect(self._clear_app_cache)
+        self.settings_page.check_permissions_clicked.connect(self._check_game_permissions)
         self.settings_page.verify_clicked.connect(self._verify_game)
 
         self._refresh_play_button()
@@ -2161,6 +2169,13 @@ class MainWindow(QMainWindow):
                 log.info("%s — %s", line, "; ".join(prep.fixes))
             if prep.warnings:
                 themed.warning(self, "Before launch", "\n".join(prep.warnings))
+            if prep.permission_scan and prep.permission_scan.has_issues:
+                if not self._offer_permission_fix(
+                    prep.permission_scan,
+                    *,
+                    allow_launch_anyway=True,
+                ):
+                    return
             launch_game()
             if settings.get("close_on_launch"):
                 self.close()
@@ -2168,6 +2183,114 @@ class MainWindow(QMainWindow):
                 self.showMinimized()
         except Exception as exc:  # noqa: BLE001
             themed.error(self, "Launch failed", str(exc))
+
+    def _offer_permission_fix(
+        self,
+        scan: PermissionScanResult,
+        *,
+        allow_launch_anyway: bool = False,
+        title: str = "Game folder permissions",
+    ) -> bool:
+        """Prompt to repair permissions. Returns True when the caller may continue."""
+        if not scan.has_issues:
+            return True
+        game_key = str(scan.game)
+        if allow_launch_anyway and self._permissions_skipped_path == game_key:
+            return True
+
+        if scan.protected_path:
+            buttons: list[tuple[str, themed.DialogResult]] = [
+                ("Change game path…", themed.DialogResult.Browse),
+            ]
+            if allow_launch_anyway:
+                buttons.append(("Launch anyway", themed.DialogResult.Ok))
+            buttons.append(("OK", themed.DialogResult.Cancel))
+        else:
+            buttons = [
+                ("Fix permissions", themed.DialogResult.Yes),
+            ]
+            if allow_launch_anyway:
+                buttons.append(("Launch anyway", themed.DialogResult.Ok))
+            buttons.append(("Cancel", themed.DialogResult.Cancel))
+
+        choice = themed.choice(
+            self,
+            title,
+            scan.user_message(),
+            buttons=buttons,
+            kind="warning",
+        )
+        if choice == themed.DialogResult.Cancel:
+            return False
+        if choice == themed.DialogResult.Browse:
+            self._browse_game()
+            return False
+        if choice == themed.DialogResult.Ok:
+            self._permissions_skipped_path = game_key
+            log.info("User chose to continue despite permission issues in %s", scan.game)
+            return True
+
+        self.status_lbl.setText("Repairing game folder permissions…")
+        fix = fix_game_permissions(scan.game)
+        if fix.fixes:
+            log.info("Permission repair: %s", "; ".join(fix.fixes))
+        if fix.warnings:
+            log.warning("Permission repair warnings: %s", "; ".join(fix.warnings))
+
+        rescan = scan_game_permissions(scan.game)
+        if rescan.has_issues:
+            msg = scan.user_message()
+            if fix.warnings:
+                msg += "\n\n" + "\n".join(fix.warnings)
+            themed.warning(
+                self,
+                title,
+                msg + "\n\nSome problems could not be fixed automatically.",
+            )
+            if allow_launch_anyway:
+                return themed.question(
+                    self,
+                    title,
+                    "Launch the game anyway? Access-denied crashes may still occur.",
+                )
+            return False
+
+        self._permissions_skipped_path = None
+        themed.info(
+            self,
+            title,
+            "Permissions repaired.\n\n"
+            + ("\n".join(fix.fixes) if fix.fixes else "Your user can now modify the game folder."),
+        )
+        self.status_lbl.setText("Ready")
+        return True
+
+    def _check_game_permissions(self) -> None:
+        if not is_installed():
+            themed.warning(self, "No game", "Set a valid game path first.")
+            return
+        game = Path(settings.game_path)
+        scan = scan_game_permissions(game)
+        if not scan.has_issues:
+            themed.info(
+                self,
+                "Game folder permissions",
+                f"No permission problems found in:\n{game}",
+            )
+            return
+        self._offer_permission_fix(scan, allow_launch_anyway=False)
+
+    def _maybe_prompt_permissions_after_path_set(self, game_root: Path) -> None:
+        scan = scan_game_permissions(game_root)
+        if scan.has_issues:
+            QTimer.singleShot(
+                0,
+                lambda s=scan: self._offer_permission_fix(
+                    s,
+                    allow_launch_anyway=False,
+                    title="Game folder permissions",
+                ),
+            )
 
     def _install_or_browse(self) -> None:
         path = QFileDialog.getExistingDirectory(
@@ -2194,6 +2317,7 @@ class MainWindow(QMainWindow):
             self.home.refresh()
             self.settings_page.refresh()
             self._refresh_play_button()
+            self._maybe_prompt_permissions_after_path_set(existing)
             return
 
         # Zip discovery / magic / size / extract run in Worker after this dialog.
@@ -2267,6 +2391,7 @@ class MainWindow(QMainWindow):
                     f"Client ready at:\n{r}\n\nAddOns:\n{settings.resolved_addons_path()}",
                 ),
             )
+            QTimer.singleShot(0, lambda r=root: self._maybe_prompt_permissions_after_path_set(r))
             return False
 
         if kwargs.get("zip_path"):
@@ -2309,11 +2434,7 @@ class MainWindow(QMainWindow):
         if not path:
             return
         if is_protected_path(path):
-            themed.warning(
-                self,
-                "Protected location",
-                "This folder may cause permission issues with client mods.",
-            )
+            themed.warning(self, "Protected location", protected_location_guidance(path))
         if not (Path(path) / "WoW.exe").exists():
             themed.warning(self, "Not a game folder", "WoW.exe was not found in that folder.")
             return
@@ -2322,6 +2443,7 @@ class MainWindow(QMainWindow):
         self._resync(silent=True)
         self._refresh_play_button()
         themed.info(self, "Saved", f"Game path set to:\n{path}")
+        self._maybe_prompt_permissions_after_path_set(Path(path))
 
     def _browse_addons(self) -> None:
         start = settings.resolved_addons_path() or settings.game_path or ""
