@@ -449,6 +449,22 @@ def _copy_then_remove(src: Path, dest: Path) -> None:
     robust_rmtree(src)
 
 
+def _is_strict_subpath(inner: Path, outer: Path) -> bool:
+    """True if *inner* is strictly inside *outer* (not the same path)."""
+    try:
+        inner_res = inner.resolve()
+        outer_res = outer.resolve()
+    except OSError:
+        inner_res, outer_res = inner, outer
+    if inner_res == outer_res:
+        return False
+    try:
+        inner_res.relative_to(outer_res)
+        return True
+    except ValueError:
+        return False
+
+
 def robust_move_tree(
     src: Path,
     dest: Path,
@@ -472,6 +488,10 @@ def robust_move_tree(
             return "already"
     except OSError:
         pass
+    # copytree+rmtree fallback would copy src into dest then delete src — and
+    # dest lives inside src, so the whole tree including the copy is destroyed.
+    if _is_strict_subpath(dest, src):
+        raise OSError(f"Cannot move a directory '{src}' into itself '{dest}'")
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     gc.collect()

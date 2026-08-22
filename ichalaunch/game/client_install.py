@@ -966,7 +966,10 @@ def should_settle_existing(picked: Path, wow_dir: Path) -> bool:
         return False
     parts = rel.parts
     if not parts:
-        return _is_wrapper_name(picked.name)
+        # User picked the game directory itself (WoW.exe is here). That is never
+        # disposable packaging — even when the folder name looks like a Gofile
+        # UUID. Settling would try to move the tree into picked/RavenCraft.
+        return False
     return all(_is_wrapper_name(p) for p in parts)
 
 
@@ -993,6 +996,15 @@ def settle_ravencraft_home(picked: Path, wow_dir: Path | None = None) -> Path:
     if inside_target:
         unwrap_to_ravencraft(target)
         return target
+    try:
+        target_res.relative_to(wow_res)
+    except ValueError:
+        pass
+    else:
+        # Moving wow into a child of itself (e.g. RavenCraftClient →
+        # RavenCraftClient/RavenCraft) copies then rmtree's the source.
+        log.warning("Refusing to settle %s into its own subfolder %s", wow_res, target_res)
+        return wow
     target.parent.mkdir(parents=True, exist_ok=True)
     parent_after_move = wow.parent
     if not target.exists():

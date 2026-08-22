@@ -1413,6 +1413,90 @@ def test_cleanup_client_zip():
     print("OK cleanup client zip leftovers")
 
 
+def _write_fake_client(root: Path) -> None:
+    (root / "Interface" / "AddOns").mkdir(parents=True)
+    (root / "Data").mkdir(exist_ok=True)
+    (root / "WTF").mkdir(exist_ok=True)
+    (root / "WoW.exe").write_bytes(b"MZ" + b"\0" * 200)
+    (root / "Data" / "patch.MPQ").write_bytes(b"MPQ\x1a" + b"\0" * 500)
+    (root / "WTF" / "Config.wtf").write_text("SET dummy \"1\"\n", encoding="utf-8")
+
+
+def test_settle_existing_client_not_destroyed():
+    """Picking a real client folder must never delete it (#1)."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import robust_move_tree
+    from ichalaunch.game import client_install as ci
+    from ichalaunch.game.client_install import install_client
+
+    # Wrapper heuristic still matches Gofile/UUID packaging (do not break unwrap).
+    assert ci._is_wrapper_name("RavenCraftClient") is True
+    assert ci._is_wrapper_name("TurtleWoWClient") is True
+    assert ci._is_wrapper_name("179cd45c-aaaa-4bbb-8ccc-ddddeeeeffff") is True
+    assert ci._is_wrapper_name("abcd1234abcd1234") is True
+    assert ci._is_wrapper_name("twmoa_1181") is True
+    assert ci._is_wrapper_name("RavenCraft") is False
+    assert ci._is_wrapper_name("Games") is False
+
+    with tempfile.TemporaryDirectory() as td:
+        picked = Path(td) / "RavenCraftClient"
+        _write_fake_client(picked)
+        before = {p.relative_to(picked) for p in picked.rglob("*")}
+        wow_exe = (picked / "WoW.exe").read_bytes()
+        mpq = (picked / "Data" / "patch.MPQ").read_bytes()
+
+        assert ci.should_settle_existing(picked, picked) is False
+        result = ci.settle_ravencraft_home(picked, picked)
+        assert result.resolve() == picked.resolve()
+        assert picked.is_dir()
+        after = {p.relative_to(picked) for p in picked.rglob("*")}
+        assert before == after
+        assert (picked / "WoW.exe").read_bytes() == wow_exe
+        assert (picked / "Data" / "patch.MPQ").read_bytes() == mpq
+        assert not (picked / "RavenCraft").exists()
+
+        dest_inside = picked / "RavenCraft"
+        try:
+            robust_move_tree(picked, dest_inside)
+            raise AssertionError("robust_move_tree must refuse a move into itself")
+        except OSError as exc:
+            assert "into itself" in str(exc).lower()
+        assert picked.is_dir()
+        assert (picked / "WoW.exe").is_file()
+        assert (picked / "Data" / "patch.MPQ").is_file()
+        assert not dest_inside.exists()
+
+    with tempfile.TemporaryDirectory() as td:
+        parent = Path(td) / "Games"
+        wrapper = parent / "179cd45c-aaaa-4bbb-8ccc-ddddeeeeffff"
+        _write_fake_client(wrapper)
+        assert ci.should_settle_existing(parent, wrapper) is True
+        settled = ci.settle_ravencraft_home(parent, wrapper)
+        assert settled.resolve() == (parent / "RavenCraft").resolve()
+        assert (settled / "WoW.exe").is_file()
+        assert (settled / "Data" / "patch.MPQ").is_file()
+        assert (settled / "WTF" / "Config.wtf").is_file()
+        assert not wrapper.exists()
+
+    old_game = s.game_path
+    old_addons = s.addons_path
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            dest = Path(td) / "RavenCraftClient"
+            _write_fake_client(dest)
+            game = install_client(dest, cleanup_watch_dirs=[])
+            assert game is not None
+            game_p = Path(game)
+            assert game_p.resolve() == dest.resolve()
+            assert (dest / "WoW.exe").is_file()
+            assert (dest / "Data" / "patch.MPQ").is_file()
+            assert not (dest / "RavenCraft").exists()
+    finally:
+        s.game_path = old_game
+        s.addons_path = old_addons
+    print("OK settle existing client is not destroyed")
+
+
 def test_zip_url_from_html():
     from ichalaunch.core.process import zip_url_from_html
 
@@ -1455,6 +1539,7 @@ def main():
     test_find_wow_exe_dir_and_extract()
     test_browser_zip_watch_and_install_from_zip()
     test_cleanup_client_zip()
+    test_settle_existing_client_not_destroyed()
     test_zip_url_from_html()
     print("\nAll smoke tests passed.")
 
