@@ -163,13 +163,13 @@ def _sync_budget_from_queue(state: dict[str, Any] | None = None) -> None:
 
 def unauth_budget_remaining(*, now: float | None = None) -> tuple[int, int]:
     """Remaining unauthenticated API calls and seconds until the hour window resets."""
+    global _budget_window_start, _budget_window_used
     remaining, reset_in, start, used = compute_unauth_budget(
         window_start=_budget_window_start,
         window_used=_budget_window_used,
         now=now,
     )
     # Keep module state aligned when the window rolls over mid-session.
-    global _budget_window_start, _budget_window_used
     _budget_window_start = start
     _budget_window_used = used
     return remaining, reset_in
@@ -177,12 +177,12 @@ def unauth_budget_remaining(*, now: float | None = None) -> tuple[int, int]:
 
 def _consume_api_budget() -> None:
     """Count one unauthenticated GitHub API call; raise when the local hour budget is empty."""
+    global _budget_window_used
     if has_github_token():
         return
     remaining, _reset = unauth_budget_remaining()
     if remaining <= 0:
         raise GitHubBudgetExhaustedError(WAITING_RATE_LIMIT_STATUS)
-    global _budget_window_used
     _budget_window_used += 1
 
 
@@ -569,6 +569,7 @@ def fetch_repo_readme(owner: str, repo: str, branch: str | None = None) -> dict[
     full = f"{owner}/{repo}"
     url = f"https://api.github.com/repos/{full}/readme"
     try:
+        _consume_api_budget()
         r = requests.get(
             url,
             headers=github_headers(),
@@ -1347,6 +1348,25 @@ def _mark_addon_update_check_time() -> None:
     settings.set("last_addon_update_check", time.time())
 
 
+def _persist_scan_queue_progress(
+    *,
+    pending_folders: list[str],
+    total: int,
+    done_count: int,
+    updates: list[dict[str, Any]],
+) -> None:
+    _save_scan_queue(
+        {
+            "pending": list(pending_folders),
+            "total": int(total),
+            "done_count": int(done_count),
+            "found_updates": list(updates),
+            "window_start": _budget_window_start,
+            "window_used": int(_budget_window_used),
+        }
+    )
+
+
 def check_addon_updates(
     *,
     respect_cooldown: bool = False,
@@ -1354,17 +1374,23 @@ def check_addon_updates(
 ) -> AddonUpdateCheckResult:
     """Check installed GitHub addons for newer commits.
 
-    On rate limit (403/429 or X-RateLimit-Remaining=0), stops further API calls
-    for this run and returns any updates found so far.
+    Without a GitHub token, unauthenticated scans are paced to
+    ``UNAUTH_API_BUDGET_PER_HOUR`` API calls per hour. Remaining addons stay in a
+    persisted queue and are checked automatically when budget refreshes.
+
+    With a token, the full set is checked in one pass (no artificial queue).
+
+    On a real GitHub rate limit (403/429 or X-RateLimit-Remaining=0), stops further
+    API calls for this run and queues unfinished folders when unauthenticated.
     Child modules of a multi-folder pack (managed_by) are skipped — only the
     primary entry is checked / listed for Update.
     """
-    if respect_cooldown and recently_checked_addon_updates():
+    if (
+        respect_cooldown
+        and recently_checked_addon_updates()
+        and not has_pending_addon_scan_queue()
+    ):
         return AddonUpdateCheckResult(skipped_recent=True)
-
-    updates: list[dict[str, Any]] = []
-    checked = 0
-    rate_limited = False
 
     from ichalaunch.addons.loadstate import addon_disk_path
     from ichalaunch.core.detect import (
@@ -1402,21 +1428,95 @@ def check_addon_updates(
             owner, name = str(repo).split("/", 1)
         to_check.append((folder, meta, owner, name, str(repo)))
 
-    total = max(1, len(to_check))
-    on_count = getattr(progress, "on_count", None) if progress is not None else None
-    if callable(on_count):
-        on_count(0, total, "Checking addon updates…")
+    by_folder = {t[0]: t for t in to_check}
 
-    if not to_check:
+    on_count = getattr(progress, "on_count", None) if progress is not None else None
+    use_queue = not has_github_token()
+
+    if not use_queue:
+        clear_addon_scan_queue()
+        work = list(to_check)
+        updates: list[dict[str, Any]] = []
+        done_count = 0
+        total = len(work)
+    else:
+        queued = _load_scan_queue()
+        _sync_budget_from_queue(queued)
+        pending_names = queued.get("pending")
+        if isinstance(pending_names, list) and pending_names:
+            work = []
+            for name in pending_names:
+                item = by_folder.get(str(name))
+                if item is not None:
+                    work.append(item)
+            updates = [
+                u
+                for u in (queued.get("found_updates") or [])
+                if isinstance(u, dict) and u.get("folder")
+            ]
+            done_count = max(0, int(queued.get("done_count") or 0))
+            total = max(int(queued.get("total") or 0), done_count + len(work))
+        else:
+            work = list(to_check)
+            updates = []
+            done_count = 0
+            total = len(work)
+            # Keep any in-progress hour window; only reset folder progress.
+            _persist_scan_queue_progress(
+                pending_folders=[t[0] for t in work],
+                total=total,
+                done_count=0,
+                updates=[],
+            )
+
+    display_total = max(1, total if total else 1)
+    if callable(on_count):
+        on_count(done_count, display_total, "Scanning addons…")
+
+    if not to_check and not work:
+        clear_addon_scan_queue()
         _mark_addon_update_check_time()
         if callable(on_count):
-            on_count(1, 1, "Checking addon updates…")
-        return AddonUpdateCheckResult(updates=updates)
+            on_count(1, 1, "Scanning addons…")
+        return AddonUpdateCheckResult(updates=[], checked_count=0, total_count=0)
 
-    for i, (folder, meta, owner, name, repo) in enumerate(to_check):
+    if use_queue and work:
+        remaining_budget, reset_in = unauth_budget_remaining()
+        if remaining_budget <= 0:
+            _persist_scan_queue_progress(
+                pending_folders=[t[0] for t in work],
+                total=total,
+                done_count=done_count,
+                updates=updates,
+            )
+            status = format_queued_scan_status(done_count, total, reset_in)
+            if callable(on_count):
+                on_count(done_count, display_total, status)
+            return AddonUpdateCheckResult(
+                updates=list(updates),
+                queued=True,
+                checked_count=done_count,
+                total_count=total,
+                resume_after_sec=reset_in,
+                status_message=status or WAITING_RATE_LIMIT_STATUS,
+            )
+
+    checked = 0
+    rate_limited = False
+    budget_exhausted = False
+    remaining_work: list[tuple[str, dict[str, Any], str, str, str]] = []
+
+    for i, (folder, meta, owner, name, repo) in enumerate(work):
         if rate_limit_exhausted():
             rate_limited = True
+            remaining_work = list(work[i:])
             break
+        if use_queue:
+            remaining_budget, _ = unauth_budget_remaining()
+            if remaining_budget <= 0:
+                budget_exhausted = True
+                remaining_work = list(work[i:])
+                break
 
         disk = addon_disk_path(folder)
         local_sha = str(meta.get("installed_commit") or "").strip()
@@ -1443,13 +1543,19 @@ def check_addon_updates(
                 remote_sha = ""
                 remote = {"sha": "", "branch": str(meta.get("branch") or "")}
                 branch = str(remote.get("branch") or "")
+        except GitHubBudgetExhaustedError:
+            budget_exhausted = True
+            remaining_work = list(work[i:])
+            break
         except GitHubRateLimitError:
             rate_limited = True
+            remaining_work = list(work[i:])
             break
         except Exception as exc:  # noqa: BLE001
             log.warning("Update check failed for %s: %s", folder, exc)
+            done_count += 1
             if callable(on_count):
-                on_count(i + 1, total, f"Checking {folder}…")
+                on_count(done_count, display_total, f"Scanning addons… {done_count}/{total}")
             continue
 
         if should_report_addon_update(
@@ -1460,6 +1566,8 @@ def check_addon_updates(
         ):
             local_label = (local_sha[:7] if local_sha else local_ver) or "?"
             remote_label = (remote_sha[:7] if remote_sha else remote_ver) or "?"
+            # Replace any prior entry for this folder from an earlier batch.
+            updates = [u for u in updates if str(u.get("folder") or "") != folder]
             updates.append(
                 {
                     "folder": folder,
@@ -1471,13 +1579,60 @@ def check_addon_updates(
                 }
             )
 
+        done_count += 1
         if callable(on_count):
-            on_count(i + 1, total, f"Checking {folder}…")
+            on_count(
+                done_count,
+                display_total,
+                f"Scanning addons… {done_count}/{total}",
+            )
 
         if rate_limit_exhausted():
             rate_limited = True
+            remaining_work = list(work[i + 1 :])
             break
+        if use_queue:
+            remaining_budget, _ = unauth_budget_remaining()
+            if remaining_budget <= 0:
+                budget_exhausted = True
+                remaining_work = list(work[i + 1 :])
+                break
 
+    if use_queue and remaining_work:
+        _, reset_in = unauth_budget_remaining()
+        if rate_limited:
+            header_reset = _resume_after_sec_from_headers()
+            if header_reset is not None:
+                reset_in = max(reset_in, header_reset)
+            elif reset_in <= 0:
+                reset_in = UNAUTH_BUDGET_WINDOW_SEC
+        _persist_scan_queue_progress(
+            pending_folders=[t[0] for t in remaining_work],
+            total=total,
+            done_count=done_count,
+            updates=updates,
+        )
+        status = format_queued_scan_status(done_count, total, reset_in)
+        log.info(
+            "Addon update scan queued (%d/%d done, %d update(s)); resumes in ~%ds%s",
+            done_count,
+            total,
+            len(updates),
+            reset_in,
+            " (GitHub rate limit)" if rate_limited else "",
+        )
+        return AddonUpdateCheckResult(
+            updates=list(updates),
+            rate_limited=rate_limited,
+            queued=True,
+            checked_count=done_count,
+            total_count=total,
+            resume_after_sec=reset_in,
+            status_message=status,
+        )
+
+    # Full pass complete (or authenticated one-shot).
+    clear_addon_scan_queue()
     _mark_addon_update_check_time()
 
     if rate_limited:
@@ -1489,12 +1644,18 @@ def check_addon_updates(
             RATE_LIMIT_STATUS,
         )
         return AddonUpdateCheckResult(
-            updates=updates,
+            updates=list(updates),
             rate_limited=True,
+            checked_count=done_count,
+            total_count=total,
             status_message=RATE_LIMIT_STATUS,
         )
 
-    return AddonUpdateCheckResult(updates=updates)
+    return AddonUpdateCheckResult(
+        updates=list(updates),
+        checked_count=done_count,
+        total_count=total,
+    )
 
 
 def _pack_folders(folder: str, meta: dict[str, Any] | None = None) -> list[str]:
