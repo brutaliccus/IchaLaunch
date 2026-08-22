@@ -1224,6 +1224,33 @@ def test_find_wow_exe_dir_and_extract():
     print("OK find WoW.exe / extract / commit game home")
 
 
+def test_settle_existing_alphanumeric_folder():
+    """Regression: picking an existing WoW home must not delete it during settle."""
+    from ichalaunch.game import client_install as ci
+
+    with tempfile.TemporaryDirectory() as td:
+        picked = Path(td) / "RavenCraftClient"
+        picked.mkdir()
+        (picked / "Interface" / "AddOns").mkdir(parents=True)
+        (picked / "Data").mkdir()
+        (picked / "WoW.exe").write_bytes(b"MZ" + b"\0" * 200)
+        (picked / "Data" / "patch.MPQ").write_bytes(b"MPQ\x1a" + b"\0" * 500)
+        before = len(list(picked.rglob("*")))
+
+        assert ci._is_wrapper_name(picked.name) is True
+        assert ci.should_settle_existing(picked, picked) is False
+
+        try:
+            ci.settle_ravencraft_home(picked, picked)
+        except Exception:
+            pass
+
+        after = len(list(picked.rglob("*"))) if picked.exists() else 0
+        assert after == before, f"game directory destroyed: before={before} after={after}"
+        assert (picked / "WoW.exe").is_file()
+    print("OK settle existing alphanumeric folder")
+
+
 def test_browser_zip_watch_and_install_from_zip():
     import zipfile
 
@@ -1453,6 +1480,7 @@ def main():
     test_vanillafixes_zip_in_memory()
     test_client_zip_mirrors_and_gofile_parse()
     test_find_wow_exe_dir_and_extract()
+    test_settle_existing_alphanumeric_folder()
     test_browser_zip_watch_and_install_from_zip()
     test_cleanup_client_zip()
     test_zip_url_from_html()
