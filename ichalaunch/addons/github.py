@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, NamedTuple
+from urllib.parse import urlparse
 
 import requests
 
@@ -82,10 +83,41 @@ def has_github_token() -> bool:
     return bool((settings.get("github_token") or "").strip())
 
 
-def github_headers() -> dict[str, str]:
+# Hosts that may receive Authorization: Bearer <github_token>. HTTPS only.
+# Never include github.io (third-party Pages) or arbitrary image CDNs.
+_GITHUB_AUTH_HOSTS = frozenset({
+    "api.github.com",
+    "github.com",
+    "www.github.com",
+    "raw.githubusercontent.com",
+    "objects.githubusercontent.com",
+    "codeload.github.com",
+})
+
+
+def may_send_github_token(url: str) -> bool:
+    """True only for HTTPS GitHub hosts — never third-party or plaintext HTTP."""
+    try:
+        parts = urlparse(url or "")
+    except ValueError:
+        return False
+    if parts.scheme.lower() != "https":
+        return False
+    host = (parts.hostname or "").lower().rstrip(".")
+    if not host:
+        return False
+    return host in _GITHUB_AUTH_HOSTS or host.endswith(".githubusercontent.com")
+
+
+def github_headers(url: str = "") -> dict[str, str]:
+    """GitHub REST headers. Token is attached only for HTTPS GitHub hosts.
+
+    Always pass the real request URL. An empty or third-party URL never
+    receives ``Authorization`` — including plaintext ``http://``.
+    """
     headers = dict(UA)
     token = (settings.get("github_token") or "").strip()
-    if token:
+    if token and may_send_github_token(url):
         headers["Authorization"] = f"Bearer {token}"
     return headers
 
@@ -233,7 +265,7 @@ def _resume_after_sec_from_headers() -> int | None:
 def github_get(url: str, *, timeout: int = 30) -> requests.Response:
     """GET a GitHub API URL with auth headers; raise on rate limit."""
     _consume_api_budget()
-    r = requests.get(url, headers=github_headers(), timeout=timeout)
+    r = requests.get(url, headers=github_headers(url), timeout=timeout)
     _note_rate_headers(r)
     if _looks_like_rate_limit(r):
         raise GitHubRateLimitError(RATE_LIMIT_STATUS)
@@ -504,9 +536,10 @@ def github_latest_version_tag(owner: str, repo: str) -> str | None:
     full = f"{owner}/{repo}"
     try:
         _consume_api_budget()
+        latest_url = f"https://api.github.com/repos/{full}/releases/latest"
         r = requests.get(
-            f"https://api.github.com/repos/{full}/releases/latest",
-            headers=github_headers(),
+            latest_url,
+            headers=github_headers(latest_url),
             timeout=30,
         )
         _note_rate_headers(r)
@@ -524,9 +557,10 @@ def github_latest_version_tag(owner: str, repo: str) -> str | None:
 
     try:
         _consume_api_budget()
+        tags_url = f"https://api.github.com/repos/{full}/tags"
         r = requests.get(
-            f"https://api.github.com/repos/{full}/tags",
-            headers=github_headers(),
+            tags_url,
+            headers=github_headers(tags_url),
             timeout=30,
             params={"per_page": 1},
         )
@@ -573,7 +607,7 @@ def fetch_repo_readme(owner: str, repo: str, branch: str | None = None) -> dict[
         _consume_api_budget()
         r = requests.get(
             url,
-            headers=github_headers(),
+            headers=github_headers(url),
             timeout=30,
             params={"ref": branch} if branch else None,
         )
@@ -639,8 +673,6 @@ def localize_readme_images(markdown: str, *, cache_dir: Path) -> str:
         "Accept": "image/*,*/*;q=0.8",
     }
     token = (settings.get("github_token") or "").strip()
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
 
     url_map: dict[str, str | None] = {}  # remote -> local uri or None (prune)
     found: list[str] = []
@@ -661,7 +693,10 @@ def localize_readme_images(markdown: str, *, cache_dir: Path) -> str:
             url_map[remote] = None
             continue
         try:
-            resp = requests.get(remote, headers=headers, timeout=20, stream=True)
+            req_headers = dict(headers)
+            if token and may_send_github_token(remote):
+                req_headers["Authorization"] = f"Bearer {token}"
+            resp = requests.get(remote, headers=req_headers, timeout=20, stream=True)
             if resp.status_code != 200:
                 url_map[remote] = None
                 continue

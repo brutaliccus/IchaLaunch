@@ -82,7 +82,7 @@ Tick what you want, then **Apply Changes**. Search across categories; **Open in 
 - **Launch** — VanillaFixes, minimize or close the launcher when the game starts
 - **Automatically Check For Updates On Startup** — launcher, addons, and client mods
 - **Auto-scan cooldown** — how long automatic/startup scans wait before running again (15 min–24 hours; default 1 hour). Manual Check for updates always runs.
-- **GitHub API** — optional personal access token (see below); stays on your PC
+- **GitHub API** — optional personal access token (see below); stored locally and sent only to GitHub over HTTPS
 - **Reset Client Link** — unlink the saved WoW folder so **PLAY** becomes **INSTALL** again
 
 ### GitHub personal access token
@@ -91,10 +91,10 @@ Without a token, GitHub allows only about **60 API requests per hour**. IchaLaun
 
 1. Open [GitHub → Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens)
 2. Create a token:
-   - **Fine-grained:** resource owner = your user; repository access can be **Public repositories** (read-only is enough)
-   - **Classic:** enable **`public_repo`** (read) only — no write scopes needed
+   - **Fine-grained (recommended):** resource owner = your user; repository access = **Public repositories**; permissions = **Contents: Read-only** and **Metadata: Read-only**
+   - **Classic:** `public_repo` works for API reads, but GitHub also grants **write** to public repositories with that scope. Prefer a fine-grained read-only token.
 3. Copy the token, then in IchaLaunch open **SETTINGS → GitHub API** and paste it
-4. Save — the token never leaves your PC except as the `Authorization` header to `api.github.com`
+4. Save — the token stays on your PC and is sent only as an `Authorization` header over **HTTPS** to GitHub hosts (`api.github.com`, `github.com`, `*.githubusercontent.com`). It is never sent to third-party image hosts or over HTTP.
 
 ---
 

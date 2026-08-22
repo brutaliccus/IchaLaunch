@@ -183,11 +183,12 @@ def _download_asset(
     known_total: int = 0,
 ) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
-    headers = github_headers()
     # Prefer API asset URL when we have an id (works with token for private assets).
     fetch_url = url
     if asset_id is not None:
         fetch_url = f"https://api.github.com/repos/{repo}/releases/assets/{asset_id}"
+    headers = github_headers(fetch_url)
+    if asset_id is not None:
         headers["Accept"] = "application/octet-stream"
 
     def _write_stream(resp: requests.Response) -> None:
@@ -206,7 +207,7 @@ def _download_asset(
         if r.status_code == 404 and fetch_url != url and url:
             # Fall back to browser_download_url for public releases.
             r.close()
-            with requests.get(url, headers=github_headers(), stream=True, timeout=180, allow_redirects=True) as r2:
+            with requests.get(url, headers=github_headers(url), stream=True, timeout=180, allow_redirects=True) as r2:
                 r2.raise_for_status()
                 _write_stream(r2)
             if dest.stat().st_size < 1024:
