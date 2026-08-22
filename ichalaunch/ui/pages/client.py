@@ -454,10 +454,11 @@ class ClientPage(QWidget):
             row.cb.blockSignals(True)
             row.cb.setChecked(state)
             row.cb.blockSignals(False)
-        if changes.get("vanillafixes") is not None:
-            settings.set("vanillafixes_enabled", changes["vanillafixes"])
-        elif mod_id == "vanillafixes":
-            settings.set("vanillafixes_enabled", enabled)
+        desired = settings.desired_mods
+        settings.set(
+            "vanillafixes_enabled",
+            bool(desired.get("vanillafixes") or desired.get("dxvk")),
+        )
         self.refresh_plan()
 
     @staticmethod

@@ -331,6 +331,12 @@ def test_mod_toggle_resolution():
         apply_mod_toggle("hd_patch_u", True)
         swap = resolve_mod_toggle("hd_patch_t", True)
         assert swap.get("hd_patch_t_ultra") is False and swap.get("hd_patch_u") is False
+        apply_mod_toggle("vanillafixes", True)
+        vf_dxvk = resolve_mod_toggle("dxvk", True)
+        assert vf_dxvk.get("vanillafixes") is False and vf_dxvk.get("dxvk") is True
+        apply_mod_toggle("dxvk", True)
+        dxvk_vf = resolve_mod_toggle("vanillafixes", True)
+        assert dxvk_vf.get("dxvk") is False and dxvk_vf.get("vanillafixes") is True
     finally:
         for k in keys:
             s.set(k, saved[k])
@@ -1990,7 +1996,7 @@ def test_zip_url_from_html():
 
 
 def test_game_permissions_scan_and_fix():
-    """Scan/fix detects read-only WoW.exe and restores write access."""
+    """Scan/fix detects read-only Data/ and restores write access; WoW.exe is ignored."""
     import os
     import stat
 
@@ -2007,21 +2013,30 @@ def test_game_permissions_scan_and_fix():
         for name in ("Data", "WTF", "Interface"):
             (game / name).mkdir()
         targets = iter_game_permission_targets(game)
-        assert (game / "WoW.exe") in targets
+        assert (game / "WoW.exe") not in targets
         assert game in targets
+        assert game / "Data" in targets
 
         scan = scan_game_permissions(game)
         assert not scan.has_issues, scan.issues
 
-        wow = game / "WoW.exe"
-        os.chmod(wow, stat.S_IREAD)
+        data = game / "Data"
+        os.chmod(data, stat.S_IREAD)
         scan = scan_game_permissions(game)
         assert scan.has_issues
-        assert any(i.kind == "readonly" and i.rel == "WoW.exe" for i in scan.issues), scan.issues
+        assert any(i.kind == "readonly" and i.rel == "Data" for i in scan.issues), scan.issues
 
+        # Read-only WoW.exe must not trigger permission warnings.
+        os.chmod(data, stat.S_IWRITE)
+        wow = game / "WoW.exe"
+        os.chmod(wow, stat.S_IREAD)
+        scan_wow = scan_game_permissions(game)
+        assert not scan_wow.has_issues, scan_wow.issues
+
+        os.chmod(data, stat.S_IREAD)
         fix = fix_game_permissions(game)
         assert fix.fixes
-        assert wow.stat().st_mode & stat.S_IWRITE
+        assert data.stat().st_mode & stat.S_IWRITE
         scan2 = scan_game_permissions(game)
         assert not scan2.has_issues, scan2.issues
     print("OK game permissions scan/fix")
@@ -2043,7 +2058,7 @@ def test_game_permissions_protected_path():
         game.mkdir(parents=True)
         (game / "WoW.exe").write_bytes(b"MZ")
         (game / "Data").mkdir()
-        os.chmod(game / "WoW.exe", stat.S_IREAD)
+        os.chmod(game / "Data", stat.S_IREAD)
 
         scan = scan_game_permissions(game)
         assert scan.protected_path

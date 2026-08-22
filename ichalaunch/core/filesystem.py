@@ -855,14 +855,11 @@ class PermissionFixResult:
 
 
 def iter_game_permission_targets(game: Path | str) -> list[Path]:
-    """Key game paths checked for permission problems."""
+    """Key game paths checked for permission problems (WoW.exe is intentionally skipped)."""
     root = Path(game)
     targets: list[Path] = []
     if root.is_dir():
         targets.append(root)
-    wow = root / "WoW.exe"
-    if wow.is_file():
-        targets.append(wow)
     for name in GAME_PERMISSION_SUBDIRS:
         sub = root / name
         if sub.exists():

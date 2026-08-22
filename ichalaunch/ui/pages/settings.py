@@ -291,7 +291,7 @@ class SettingsPage(QWidget):
             "Clears saved paths, mod/addon tracking, GitHub token, update scan "
             "queues, and other launcher preferences. Your WoW client and AddOn "
             "folders on disk are not deleted.\n\n"
-            "Check Game Permissions scans WoW.exe, Data/, WTF/, and Interface/. "
+            "Check Game Permissions scans the game folder, Data/, WTF/, and Interface/. "
             "If the game is in Downloads or another restricted folder, move it to "
             "a normal location (e.g. C:\\Games) and browse to the new path before "
             "re-running the check. Otherwise IchaLaunch can repair read-only flags "

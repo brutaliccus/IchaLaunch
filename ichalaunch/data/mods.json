@@ -24,7 +24,7 @@
     },
     "kind": "zip_root",
     "dependencies": [],
-    "conflicts": []
+    "conflicts": ["dxvk"]
   },
   {
     "id": "dxvk",
@@ -38,8 +38,8 @@
       "asset_contains": "dxvk"
     },
     "kind": "zip_root",
-    "dependencies": ["vanillafixes"],
-    "conflicts": []
+    "dependencies": [],
+    "conflicts": ["vanillafixes"]
   },
   {
     "id": "superwow",

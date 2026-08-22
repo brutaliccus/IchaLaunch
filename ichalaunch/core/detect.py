@@ -970,8 +970,11 @@ def sync_desired_mods_from_disk() -> dict[str, bool]:
                 desired[mod_id] = False
     desired = enforce_vanilla_helpers_for_hd_desired(desired)
     settings.set("desired_mods", desired)
-    if "vanillafixes" in actual:
-        settings.set("vanillafixes_enabled", bool(actual.get("vanillafixes")))
+    if "vanillafixes" in actual or "dxvk" in actual:
+        settings.set(
+            "vanillafixes_enabled",
+            bool(actual.get("vanillafixes") or actual.get("dxvk")),
+        )
     return desired
 
 
