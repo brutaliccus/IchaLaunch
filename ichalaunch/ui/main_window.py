@@ -2172,7 +2172,6 @@ class MainWindow(QMainWindow):
             if prep.permission_scan and prep.permission_scan.has_issues:
                 if not self._offer_permission_fix(
                     prep.permission_scan,
-                    *,
                     allow_launch_anyway=True,
                 ):
                     return
