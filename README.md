@@ -19,6 +19,13 @@ A frameless RavenCraft-themed window: **HOME**, **ADDONS**, **CLIENT**, **SETTIN
 
 No installer. Windows may show a SmartScreen prompt for an unsigned download — **More info** → **Run anyway** if you trust the release.
 
+
+## Platform support (Windows only)
+
+IchaLaunch ships as a **native Windows** executable for **Windows 10 or 11** (64-bit). Download **IchaLaunch.exe** from [Releases](https://github.com/brutaliccus/IchaLaunch/releases/latest) and run it on Windows.
+
+**Proton, Wine, Linux, and Steam Deck are not supported.** Running the EXE under Proton/Wine or on a Steam Deck (including Desktop Mode) often fails with missing DLL errors (icuuc.dll, Qt6Core.dll, or `ImportError: DLL load failed` when loading Qt). Use Windows natively, dual-boot Windows, or a Windows VM if you are on Linux or a Deck.
+
 ---
 
 ## Install the RavenCraft client
@@ -103,6 +110,10 @@ When a newer IchaLaunch is on GitHub Releases, **PLAY** becomes **UPDATE**. That
 
 ## Troubleshooting
 
+**Launcher won’t start / `ImportError: DLL load failed` / `icuuc.dll` or `Qt6Core.dll` not found**  
+IchaLaunch is a **Windows 10 or 11** app. Run the release **`IchaLaunch.exe` natively** — not under **Proton**, Wine, or Steam Deck desktop mode. Those environments do not reliably load the PySide6/Qt6 bundle.  
+If the EXE still fails on Windows, install the latest **[Microsoft Visual C++ Redistributable (x64)](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist)** and try again.
+
 **Windows Defender / Controlled Folder Access blocks VanillaFixes or DLL mods**  
 Allow `IchaLaunch.exe`, `VanillaFixes.exe`, and `WoW.exe`, or move the game out of a protected folder.
 
@@ -131,6 +142,8 @@ Build the EXE:
 
 ```bat
 python -m PyInstaller IchaLaunch.spec --noconfirm
+python tools\verify_bundle.py
+dist\IchaLaunch.exe --qt-smoke
 ```
 
 Output: `dist\IchaLaunch.exe`

@@ -1691,12 +1691,14 @@ class MainWindow(QMainWindow):
         super().mouseReleaseEvent(event)
 
     def _nav(self, idx: int) -> None:
+        # Checkable QPushButton unchecks itself on re-click before clicked fires;
+        # always sync tab chrome to stack index (including duplicate clicks).
+        for i, b in enumerate(self.nav_btns):
+            b.setChecked(i == idx)
         if idx == self._current_nav:
             return
         self._current_nav = idx
         self.stack.setCurrentIndex(idx)
-        for i, b in enumerate(self.nav_btns):
-            b.setChecked(i == idx)
         # HOME art/logo/countdown live on Root (not HomePage). Hide them whenever
         # we leave HOME so they cannot cover CLIENT / ADDONS / SETTINGS.
         if idx != 0:
