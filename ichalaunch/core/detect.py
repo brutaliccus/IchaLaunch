@@ -943,11 +943,27 @@ def sync_desired_mods_from_disk() -> dict[str, bool]:
     actual = detect_actual_state(game)
     # Only sync keys we know about in catalog
     known = {m["id"] for m in load_mod_catalog()}
+    catalog = {m["id"]: m for m in load_mod_catalog()}
     user_set = set(settings.user_set_mods)
     desired = settings.desired_mods
     for mod_id, present in actual.items():
         if mod_id in known and mod_id not in user_set:
             desired[mod_id] = bool(present)
+    # Same MPQ can match multiple catalog entries (e.g. Reforged vs legacy Patch-N).
+    # Prefer HD Graphics when seeding conflicting pairs the user has not toggled.
+    for mod_id in list(desired.keys()):
+        if not desired.get(mod_id) or mod_id in user_set:
+            continue
+        mod = catalog.get(mod_id) or {}
+        for conf in mod.get("conflicts") or []:
+            if conf in user_set or not desired.get(conf):
+                continue
+            mod_cat = (mod.get("category") or "").strip()
+            conf_cat = (catalog.get(conf) or {}).get("category") or ""
+            if mod_cat == "HD Graphics" and conf_cat != "HD Graphics":
+                desired[conf] = False
+            elif conf_cat == "HD Graphics" and mod_cat != "HD Graphics":
+                desired[mod_id] = False
     settings.set("desired_mods", desired)
     if "vanillafixes" in actual:
         settings.set("vanillafixes_enabled", bool(actual.get("vanillafixes")))

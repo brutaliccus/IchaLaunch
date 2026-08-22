@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import re
 import subprocess
+import time
 from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import urljoin
 
 import requests
+from requests.exceptions import ChunkedEncodingError, ConnectionError, Timeout
 
 BytesProgressCb = Callable[[int, int], None]  # downloaded, total
 # Back-compat alias used by download_file callers.
@@ -171,6 +173,45 @@ def download_file(
     extra_headers: dict[str, str] | None = None,
     source_url: str | None = None,
     known_total: int = 0,
+    *,
+    retries: int = 3,
+) -> Path:
+    """Download *url* to *dest*, retrying transient connection failures."""
+    last_exc: Exception | None = None
+    attempts = max(1, int(retries))
+    for attempt in range(attempts):
+        try:
+            return _download_file_once(
+                url,
+                dest,
+                progress=progress,
+                timeout=timeout,
+                extra_headers=extra_headers,
+                source_url=source_url,
+                known_total=known_total,
+            )
+        except (ConnectionError, ChunkedEncodingError, Timeout, OSError) as exc:
+            last_exc = exc
+            if dest.exists():
+                try:
+                    dest.unlink()
+                except OSError:
+                    pass
+            if attempt + 1 >= attempts:
+                break
+            time.sleep(min(8, 2**attempt))
+    assert last_exc is not None
+    raise last_exc
+
+
+def _download_file_once(
+    url: str,
+    dest: Path,
+    progress: ProgressCb | None = None,
+    timeout: int | tuple[int, int] = 120,
+    extra_headers: dict[str, str] | None = None,
+    source_url: str | None = None,
+    known_total: int = 0,
 ) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
     headers = _download_headers()
@@ -199,7 +240,7 @@ def download_file(
                 )
             nxt = zip_url_from_html(body.decode("utf-8", "replace"), str(r.url))
             if nxt and nxt != url:
-                return download_file(
+                return _download_file_once(
                     nxt,
                     dest,
                     progress=progress,

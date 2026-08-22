@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from ichalaunch import __version__
+from ichalaunch.core.logging_setup import log_dir
 from ichalaunch.config.settings import (
     AUTO_SCAN_COOLDOWN_MINUTES_MAX,
     AUTO_SCAN_COOLDOWN_MINUTES_MIN,
@@ -274,6 +275,12 @@ class SettingsPage(QWidget):
         about_sub.setObjectName("Muted")
         about_sub.setWordWrap(True)
         about.body.addWidget(about_sub)
+        about_logs = QLabel(
+            f"Support logs: {log_dir()} (crash.log, ichalaunch.log)"
+        )
+        about_logs.setObjectName("Muted")
+        about_logs.setWordWrap(True)
+        about.body.addWidget(about_logs)
 
         layout.addWidget(title)
         layout.addWidget(game_card)

@@ -29,6 +29,7 @@ from ichalaunch.core.backup import create_backup
 from ichalaunch.core.filesystem import (
     copy_file_tolerant,
     copy_tree,
+    ensure_data_writable,
     extract_zip,
     find_toc_roots,
     invalidate_dir_listing,
@@ -51,7 +52,7 @@ UA = {"User-Agent": "IchaLaunch/0.1"}
 _APPLY_IN_PROGRESS = False
 
 
-def _install_copy(src: Path, dest: Path) -> None:
+def _install_copy(src: Path, dest: Path, game_path: Path | None = None) -> None:
     """Copy into the game tree. DLLs/EXEs are never LoadLibrary'd; lock/AV → OSError skip."""
     if dest.suffix.lower() in {".dll", ".exe"}:
         if not copy_file_tolerant(src, dest):
@@ -60,11 +61,17 @@ def _install_copy(src: Path, dest: Path) -> None:
                 f"Skipped locked or antivirus-blocked file {dest.name}",
                 str(dest),
             )
+        if game_path is not None:
+            ensure_data_writable(dest, game_path)
         invalidate_dir_listing(dest.parent)
         return
     try:
         dest.parent.mkdir(parents=True, exist_ok=True)
+        if game_path is not None and dest.exists():
+            ensure_data_writable(dest, game_path)
         shutil.copy2(src, dest)
+        if game_path is not None:
+            ensure_data_writable(dest, game_path)
     except OSError as exc:
         if is_lock_or_av_error(exc):
             raise OSError(
@@ -109,6 +116,107 @@ def get_mod(mod_id: str) -> dict[str, Any] | None:
         if m["id"] == mod_id:
             return m
     return None
+
+
+def mod_catalog_map() -> dict[str, dict[str, Any]]:
+    return {m["id"]: m for m in load_mod_catalog() if m.get("id")}
+
+
+def _collect_mod_dependencies(
+    mod_id: str,
+    catalog: dict[str, dict[str, Any]],
+    seen: set[str] | None = None,
+) -> list[str]:
+    """Return dependency mod ids in install order (deps before dependents)."""
+    if seen is None:
+        seen = set()
+    if mod_id in seen or mod_id not in catalog:
+        return []
+    seen.add(mod_id)
+    ordered: list[str] = []
+    for dep in catalog[mod_id].get("dependencies") or []:
+        if dep not in catalog:
+            continue
+        ordered.extend(_collect_mod_dependencies(dep, catalog, seen))
+        ordered.append(dep)
+    return ordered
+
+
+def _collect_mod_dependents(
+    mod_id: str,
+    catalog: dict[str, dict[str, Any]],
+    seen: set[str] | None = None,
+) -> list[str]:
+    """Return mod ids that (transitively) list *mod_id* as a dependency."""
+    if seen is None:
+        seen = set()
+    if mod_id in seen:
+        return []
+    seen.add(mod_id)
+    ordered: list[str] = []
+    for oid, mod in catalog.items():
+        if mod_id not in (mod.get("dependencies") or []):
+            continue
+        ordered.extend(_collect_mod_dependents(oid, catalog, seen))
+        ordered.append(oid)
+    return ordered
+
+
+def resolve_mod_toggle(mod_id: str, enabled: bool) -> dict[str, bool]:
+    """Compute desired-state changes for a user toggle (deps, conflicts, dependents)."""
+    catalog = mod_catalog_map()
+    if mod_id not in catalog:
+        return {mod_id: enabled}
+
+    desired = settings.desired_mods
+    changes: dict[str, bool] = {}
+
+    def effective(mid: str) -> bool:
+        if mid in changes:
+            return changes[mid]
+        return bool(desired.get(mid, False))
+
+    def disable_branch(mid: str, seen: set[str]) -> None:
+        if mid in seen or mid not in catalog:
+            return
+        if not effective(mid):
+            return
+        seen.add(mid)
+        for dep_id in _collect_mod_dependents(mid, catalog, set()):
+            disable_branch(dep_id, seen)
+        changes[mid] = False
+
+    if enabled:
+        for dep in _collect_mod_dependencies(mod_id, catalog):
+            changes[dep] = True
+        changes[mod_id] = True
+        for mid in list(changes):
+            if not changes.get(mid):
+                continue
+            for conf in catalog.get(mid, {}).get("conflicts") or []:
+                if conf in catalog and effective(conf):
+                    disable_branch(conf, set())
+        for mid in list(changes):
+            if not changes.get(mid):
+                continue
+            for dep in _collect_mod_dependencies(mid, catalog):
+                changes[dep] = True
+    else:
+        disable_branch(mod_id, set())
+
+    return {
+        mid: state
+        for mid, state in changes.items()
+        if bool(desired.get(mid, False)) != state
+    }
+
+
+def apply_mod_toggle(mod_id: str, enabled: bool) -> dict[str, bool]:
+    """Apply resolve_mod_toggle and persist each changed desired state."""
+    changes = resolve_mod_toggle(mod_id, enabled)
+    for mid, state in changes.items():
+        settings.set_desired_mod(mid, state)
+    return changes
 
 
 def builtin_mod_ids() -> set[str]:
@@ -437,6 +545,26 @@ def install_custom_dll_from_github(url: str, progress: ProgressCb | None = None)
     return out
 
 
+def _game_rel_present(
+    game_path: Path,
+    rel: str,
+    root_names: frozenset[str] | None,
+) -> bool:
+    """True if *rel* exists under *game_path* (root basename or nested path)."""
+    raw = str(rel or "").strip().strip("\"'").replace("\\", "/")
+    if not raw:
+        return False
+    if "/" in raw:
+        dest = game_path / raw
+        try:
+            return dest.is_file()
+        except OSError as exc:
+            if is_lock_or_av_error(exc):
+                return True
+            return False
+    return name_present(game_path, raw, root_names)
+
+
 def _dlls_txt_has(game_path: Path, names: list[str], listing: frozenset[str] | None) -> bool:
     """True if any *names* are uncommented in dlls.txt and present on disk.
 
@@ -463,12 +591,12 @@ def _detect_mod(
     if det.get("wdb_file"):
         return name_present(game_path, "WDB", root_names) and (game_path / "WDB").is_file()
     if det.get("any_files"):
-        if any(name_present(game_path, f, root_names) for f in det["any_files"]):
+        if any(_game_rel_present(game_path, f, root_names) for f in det["any_files"]):
             return True
         dlls = (mod.get("dlls_txt") or {}).get("add") or []
         return _dlls_txt_has(game_path, dlls, root_names)
     if det.get("all_files"):
-        return all(name_present(game_path, f, root_names) for f in det["all_files"])
+        return all(_game_rel_present(game_path, f, root_names) for f in det["all_files"])
     if det.get("data_mpq"):
         data = game_path / "Data"
         data_names = listed_basenames(data)
@@ -715,10 +843,14 @@ def _download_source(source: dict[str, Any], work: Path, progress: ProgressCb | 
         filename = sanitize_filename(
             source.get("filename") or url.split("/")[-1].split("?")[0]
         )
+        file_timeout: int | tuple[int, int] = timeout
+        if not source.get("timeout") and filename.lower().endswith(".mpq"):
+            # HD patches are multi-GB; allow slower links between read chunks.
+            file_timeout = (30, 600)
         if _looks_like_zip(filename, stype):
             return download_bytes(url, progress=bytes_cb, timeout=timeout)
         dest = work / filename
-        download_file(url, dest, progress=bytes_cb, timeout=timeout)
+        download_file(url, dest, progress=bytes_cb, timeout=file_timeout)
         return dest
     if stype == "github_release_latest":
         repo = source["repo"]
@@ -1193,7 +1325,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 raise FileNotFoundError("vanilla-tweaks.exe not found in archive")
             wow = game / "WoW.exe"
             if not (game / "WoW-OriginalBackup.exe").exists():
-                _install_copy(wow, game / "WoW-OriginalBackup.exe")
+                _install_copy(wow, game / "WoW-OriginalBackup.exe", game_path=game)
             # Run patcher; creates WoW_tweaked.exe next to WoW.exe
             status_only(progress, "Patching WoW.exe with Vanilla Tweaks...")
             subprocess.run([str(vt), str(wow)], cwd=str(game), check=True)
@@ -1208,21 +1340,28 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
             assert source
             z = _download_source(source, work, progress)
             extracted = extract_zip(z, work / "extract", progress=progress)
+            dlls_txt = game / "dlls.txt"
+
+            def _zip_root_copy(src: Path, dest: Path) -> None:
+                # VanillaFixes/DXVK zips ship a template dlls.txt — never replace a
+                # user-managed list (IchaLaunch entries + manual DLL lines).
+                if dest.name.lower() == "dlls.txt" and dlls_txt.is_file():
+                    log.info("Preserving existing dlls.txt while installing %s", mod_id)
+                    return
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                _install_copy(src, dest, game_path=game)
+
             # copy all files into game root
             for item in extracted.rglob("*"):
                 if item.is_file():
                     rel = item.relative_to(extracted)
-                    # if nested single folder, flatten one level if needed
-                    dest = game / rel
-                    # Prefer files that live at shallowest level matching known names
-                    dest.parent.mkdir(parents=True, exist_ok=True)
-                    _install_copy(item, dest)
+                    _zip_root_copy(item, game / rel)
             # Flatten: if VanillaFixes.exe is nested, find it
             vf = next(game.rglob("VanillaFixes.exe"), None)
             if vf and vf.parent != game:
                 for f in vf.parent.iterdir():
                     if f.is_file():
-                        _install_copy(f, game / f.name)
+                        _zip_root_copy(f, game / f.name)
             _record_mod_install(mod_id, mod, source)
             return
 
@@ -1236,13 +1375,13 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 # single dll
                 assert isinstance(artifact, Path)
                 dest_name = source.get("filename") or artifact.name
-                _install_copy(artifact, game / dest_name)
+                _install_copy(artifact, game / dest_name, game_path=game)
 
             for fspec in mod.get("files") or []:
                 match = fspec["match"]
                 found = next(search_root.rglob(match), None)
                 if found:
-                    _install_copy(found, game / fspec["destination"])
+                    _install_copy(found, game / fspec["destination"], game_path=game)
 
             if mod.get("addon_folder_match"):
                 folder = next(search_root.rglob(mod["addon_folder_match"]), None)
@@ -1288,7 +1427,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
             dest = game / dest_rel
             dest.parent.mkdir(parents=True, exist_ok=True)
             status_only(progress, f"Installing {dest.name} (large file)...")
-            _install_copy(artifact, dest)
+            _install_copy(artifact, dest, game_path=game)
             _record_mod_install(mod_id, mod, source)
             return
 
@@ -1320,12 +1459,12 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
             dest.mkdir(parents=True, exist_ok=True)
             for f in glue_src.iterdir():
                 if f.is_file():
-                    _install_copy(f, dest / f.name)
+                    _install_copy(f, dest / f.name, game_path=game)
             # apply glue signature skip patch (vanilla 1.12.1)
             wow = game / "WoW.exe"
             if wow.exists():
                 if not (game / "WoW-OriginalBackup.exe").exists():
-                    _install_copy(wow, game / "WoW-OriginalBackup.exe")
+                    _install_copy(wow, game / "WoW-OriginalBackup.exe", game_path=game)
                 data = bytearray(wow.read_bytes())
                 patches = {
                     0x2F113A: 0xEB,
@@ -1346,7 +1485,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
             assert source
             artifact = _download_source(source, work, progress)
             assert isinstance(artifact, Path)
-            _install_copy(artifact, game / "d3d9.dll")
+            _install_copy(artifact, game / "d3d9.dll", game_path=game)
             conf = game / "dxvk.conf"
             text = conf.read_text(encoding="utf-8", errors="ignore") if conf.exists() else ""
             if "enlargeHardwareCursor" not in text:
@@ -1456,7 +1595,7 @@ def remove_mod(mod_id: str, progress: ProgressCb | None = None) -> None:
     if kind == "exe_patch":
         backup = game / "WoW-OriginalBackup.exe"
         if backup.exists():
-            _install_copy(backup, game / "WoW.exe")
+            _install_copy(backup, game / "WoW.exe", game_path=game)
         return
 
     if kind == "mpq_file":
@@ -1539,6 +1678,18 @@ def apply_desired_state(progress: ProgressCb | None = None) -> list[str]:
         _APPLY_IN_PROGRESS = False
 
 
+def _sync_dlls_txt_for_desired_mods(game: Path) -> None:
+    """Re-add DLL lines for every desired-enabled mod (recovery after zip overwrite)."""
+    to_add: list[str] = []
+    for mod in load_mod_catalog():
+        mid = mod.get("id") or ""
+        if not settings.desired_mods.get(mid, False):
+            continue
+        to_add.extend((mod.get("dlls_txt") or {}).get("add") or [])
+    if to_add:
+        update_dlls_txt(game, add=to_add)
+
+
 def _apply_desired_state_inner(progress: ProgressCb | None) -> list[str]:
     changes = plan_changes()
     done: list[str] = []
@@ -1563,6 +1714,12 @@ def _apply_desired_state_inner(progress: ProgressCb | None) -> list[str]:
         except (RuntimeError, FileNotFoundError, KeyError, shutil.Error) as exc:
             log.warning("Mod %s %s failed: %s", ch["action"], mid, exc)
             done.append(f"! {mid} failed: {exc}")
+        except requests.RequestException as exc:
+            log.warning("Mod %s %s failed (download): %s", ch["action"], mid, exc)
+            done.append(f"! {mid} failed: {exc}")
+    game = detect_game()
+    if game:
+        _sync_dlls_txt_for_desired_mods(game)
     log.info("Applied mod changes: %s manuals=%s", done, manuals)
     if manuals:
         done.append("Manual downloads needed:")

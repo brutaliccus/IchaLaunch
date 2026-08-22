@@ -202,14 +202,36 @@ def extract_zip(
     return dest
 
 
-def _make_writable(path: Path) -> None:
-    """Clear the Windows read-only bit so deletes can succeed (common under .git)."""
+def ensure_writable(path: Path | str) -> None:
+    """Clear the Windows read-only bit so overwrites can succeed."""
     try:
-        mode = path.stat().st_mode
+        p = Path(path)
+        mode = p.stat().st_mode
         if not (mode & stat.S_IWRITE):
-            os.chmod(path, mode | stat.S_IWRITE)
+            os.chmod(p, mode | stat.S_IWRITE)
     except OSError:
         pass
+
+
+def _is_under_data(path: Path, game_path: Path) -> bool:
+    try:
+        path.resolve().relative_to((game_path / "Data").resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def ensure_data_writable(path: Path | str, game_path: Path | str) -> None:
+    """Clear read-only only for paths under ``{game}/Data/`` (MPQs, GlueXML, etc.)."""
+    p = Path(path)
+    game = Path(game_path)
+    if _is_under_data(p, game):
+        ensure_writable(p)
+
+
+def _make_writable(path: Path) -> None:
+    """Alias for internal callers — prefer :func:`ensure_writable` in new code."""
+    ensure_writable(path)
 
 
 def _make_tree_writable(root: Path) -> None:
@@ -670,16 +692,25 @@ def write_dlls_txt(game_path: Path, dlls: list[str]) -> None:
 def update_dlls_txt(game_path: Path, add: list[str] | None = None, remove: list[str] | None = None) -> None:
     """Add/remove active entries while preserving comments and blank lines."""
     path = Path(game_path) / "dlls.txt"
+    had_file = path.is_file()
+    read_ok = False
     raw_lines: list[str] = []
-    try:
-        if path.is_file():
+    if had_file:
+        try:
             raw_lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
-    except OSError as exc:
-        _log.warning("Could not read %s: %s", path, exc)
-        raw_lines = []
+            read_ok = True
+        except OSError as exc:
+            _log.warning("Could not read %s: %s", path, exc)
+            raw_lines = []
 
     remove_l = {_dll_basename(x).lower() for x in (remove or []) if _dll_basename(x)}
     add_list = [_dll_basename(x) for x in (add or []) if _dll_basename(x)]
+
+    if remove_l and had_file and not read_ok:
+        _log.warning("Skipping dlls.txt update — could not read existing file")
+        return
+    if remove_l and not had_file and not add_list:
+        return
     present_l: set[str] = set()
     kept: list[str] = []
     for line in raw_lines:

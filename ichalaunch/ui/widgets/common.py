@@ -559,6 +559,7 @@ class AddonRow(QWidget):
         name = QLabel(entry.get("name", "?"), self)
         name.setStyleSheet("font-weight: 600; color: #F1C22D;")
         name_row.addWidget(name, 0)
+        self._name_lbl = name
         self.modules_toggle = QPushButton("▸", self)
         self.modules_toggle.setObjectName("DescToggle")
         self.modules_toggle.setFlat(True)
@@ -617,10 +618,6 @@ class AddonRow(QWidget):
                 layout.addWidget(btn_git)
                 self.open_git_btn = btn_git
                 apply_open_git_visibility(btn_git, git_url, self, defer=True)
-                btn_prev = GluePanelButton("Preview", self, width=GLUE_ROW_W, height=GLUE_ROW_H)
-                btn_prev.setToolTip("Show repository README and details")
-                btn_prev.clicked.connect(lambda: self.preview_clicked.emit(entry))
-                layout.addWidget(btn_prev)
             if git_url or entry.get("source") == "github" or entry.get("tag"):
                 btn_ri = GluePanelButton(
                     "Reinstall", self, width=GLUE_ROW_W, height=GLUE_ROW_H
@@ -659,8 +656,35 @@ class AddonRow(QWidget):
         self.modules_panel.setWordWrap(True)
         self.modules_panel.setVisible(False)
         root.addWidget(self.modules_panel)
+        self._preview_on_click = bool(is_installed and git_url)
+        if self._preview_on_click:
+            preview_tip = "Click to show repository README and details"
+            self.setToolTip(preview_tip)
+            self._name_lbl.setToolTip(preview_tip)
+            self.status_lbl.setToolTip(preview_tip)
+            self.modules_panel.setToolTip(preview_tip)
+            apply_open_hand(self)
+            for lbl in (self._name_lbl, self.status_lbl, self.modules_panel):
+                lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
     def preferred_height(self) -> int:
         return max(48, self.sizeHint().height())
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802
+        if (
+            self._preview_on_click
+            and event.button() == Qt.MouseButton.LeftButton
+            and self.rect().contains(event.position().toPoint())
+        ):
+            child = self.childAt(event.position().toPoint())
+            while child is not None and child is not self:
+                if isinstance(child, (GluePanelButton, ThemeCheckBox, QPushButton)):
+                    super().mouseReleaseEvent(event)
+                    return
+                child = child.parentWidget()
+            self.preview_clicked.emit(self.entry)
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
 
     def _on_loaded_toggled(self, checked: bool) -> None:
         self._loaded = bool(checked)

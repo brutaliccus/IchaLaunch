@@ -17,7 +17,12 @@ from PySide6.QtWidgets import (
 
 from ichalaunch.config.settings import settings
 from ichalaunch.game.launcher import detect_game
-from ichalaunch.mods.installer import detect_actual_state, load_mod_catalog, plan_changes
+from ichalaunch.mods.installer import (
+    apply_mod_toggle,
+    detect_actual_state,
+    load_mod_catalog,
+    plan_changes,
+)
 from ichalaunch.ui.widgets.casting_bar_search_edit import CastingBarSearchEdit
 from ichalaunch.ui.widgets.common import ModCheckRow, mod_git_url, open_url_in_browser, status_with_stamp
 from ichalaunch.ui.widgets.cursors import apply_open_hand
@@ -433,8 +438,19 @@ class ClientPage(QWidget):
             b.setChecked(i == idx)
 
     def _on_toggle(self, mod_id: str, enabled: bool) -> None:
-        settings.set_desired_mod(mod_id, enabled)
-        if mod_id == "vanillafixes":
+        changes = apply_mod_toggle(mod_id, enabled)
+        for mid, state in changes.items():
+            if mid == mod_id:
+                continue
+            row = self.rows.get(mid)
+            if row is None:
+                continue
+            row.cb.blockSignals(True)
+            row.cb.setChecked(state)
+            row.cb.blockSignals(False)
+        if changes.get("vanillafixes") is not None:
+            settings.set("vanillafixes_enabled", changes["vanillafixes"])
+        elif mod_id == "vanillafixes":
             settings.set("vanillafixes_enabled", enabled)
         self.refresh_plan()
 

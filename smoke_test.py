@@ -119,6 +119,27 @@ def test_dlls_txt():
         digest = sha256_file(game / "VanillaHelpers.dll")
         assert digest is not None and len(digest) == 64
         assert sha256_file(game / "nope.dll") is None
+
+        # remove-only on a missing file must not create an empty dlls.txt
+        (game / "dlls.txt").unlink(missing_ok=True)
+        update_dlls_txt(game, remove=["ghost.dll"])
+        assert not (game / "dlls.txt").exists()
+
+        # remove must not wipe the list when the file cannot be read
+        (game / "dlls.txt").write_text("keepme.dll\n", encoding="utf-8")
+        original_read = Path.read_text
+
+        def _fail_dlls_read(self, *args, **kwargs):
+            if self.name.lower() == "dlls.txt":
+                raise OSError(13, "locked")
+            return original_read(self, *args, **kwargs)
+
+        Path.read_text = _fail_dlls_read  # type: ignore[method-assign]
+        try:
+            update_dlls_txt(game, remove=["gone.dll"])
+        finally:
+            Path.read_text = original_read  # type: ignore[method-assign]
+        assert (game / "dlls.txt").read_text(encoding="utf-8") == "keepme.dll\n"
     print("OK dlls.txt")
 
 
@@ -136,6 +157,13 @@ def test_detect_state():
         assert state["wdb_block"] is True
         assert state["superwow"] is False
         assert state["vanilla_helpers"] is True
+
+        glue = game / "Data" / "Interface" / "GlueXML"
+        glue.mkdir(parents=True)
+        (glue / "AutoLogin.lua").write_text("-- autologin")
+        clear_fs_caches()
+        state = detect_actual_state(game)
+        assert state["auto_login"] is True, state
     print("OK detect state")
 
 
@@ -194,18 +222,19 @@ def test_mod_remove_desired_state():
 
             # First run / no desired set: detected state seeds the checkbox on.
             desired = sync_desired_mods_from_disk()
-            assert desired.get("darker_nights") is True
+            assert desired.get("hd_patch_n") is True
+            assert desired.get("darker_nights") is not True
 
-            # User unchecks Darker Nights — an explicit choice.
-            s.set_desired_mod("darker_nights", False)
-            assert "darker_nights" in s.user_set_mods
+            # User unchecks Reforged Patch-N — an explicit choice.
+            s.set_desired_mod("hd_patch_n", False)
+            assert "hd_patch_n" in s.user_set_mods
             plan = plan_changes()
             assert any(
-                c["action"] == "remove" and c["id"] == "darker_nights" for c in plan
+                c["action"] == "remove" and c["id"] == "hd_patch_n" for c in plan
             ), plan
 
             out = apply_desired_state()
-            assert "- darker_nights" in out, out
+            assert "- hd_patch_n" in out, out
             assert not mpq.exists()
 
             # Immediately after apply (inside the 4s listing-cache TTL) the plan
@@ -214,14 +243,14 @@ def test_mod_remove_desired_state():
 
             # Rescan syncs actual but must not flip the user's choice back on.
             desired = sync_desired_mods_from_disk()
-            assert desired.get("darker_nights") is False
-            assert detect_actual_state(game).get("darker_nights") is False
+            assert desired.get("hd_patch_n") is False
+            assert detect_actual_state(game).get("hd_patch_n") is False
 
             # Even if the file reappears (manual copy), desired stays off.
             mpq.write_bytes(b"MPQ")
             clear_fs_caches()
             desired = sync_desired_mods_from_disk()
-            assert desired.get("darker_nights") is False
+            assert desired.get("hd_patch_n") is False
 
             # Shared ownership: the same MPQ owned by another enabled mod is kept.
             shared_mpq = data / "patch-Z.mpq"
@@ -249,6 +278,31 @@ def test_mod_remove_desired_state():
             s.set(k, saved[k])
         clear_fs_caches()
     print("OK mod removal desired-state loop")
+
+
+def test_mod_toggle_resolution():
+    """HD patch deps/conflicts auto-enable companions and disable dependents."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.mods.installer import apply_mod_toggle, resolve_mod_toggle
+
+    keys = ("desired_mods", "user_set_mods")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        s.set("desired_mods", {})
+        s.set("user_set_mods", [])
+        env = resolve_mod_toggle("hd_patch_b", True)
+        assert env.get("hd_patch_d") and env.get("hd_patch_e") and env.get("vanilla_helpers")
+        apply_mod_toggle("hd_patch_l", True)
+        off = resolve_mod_toggle("hd_patch_a", False)
+        assert off.get("hd_patch_a") is False and off.get("hd_patch_l") is False
+        apply_mod_toggle("hd_patch_t_ultra", True)
+        apply_mod_toggle("hd_patch_u", True)
+        swap = resolve_mod_toggle("hd_patch_t", True)
+        assert swap.get("hd_patch_t_ultra") is False and swap.get("hd_patch_u") is False
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+    print("OK mod toggle deps/conflicts")
 
 
 def test_discover_game_path_near_launcher():
@@ -1169,6 +1223,76 @@ def test_robust_rmtree_readonly_git_pack():
     print("OK robust rmtree readonly git pack")
 
 
+def test_install_clears_readonly_data_mpqs():
+    """Data/ paths clear read-only on install; root WoW.exe, DLLs, and dlls.txt stay untouched."""
+    import os
+    import stat
+
+    from ichalaunch.core.filesystem import copy_file_tolerant, ensure_data_writable, update_dlls_txt
+    from ichalaunch.mods.installer import _install_copy
+
+    with tempfile.TemporaryDirectory() as td:
+        game = Path(td)
+        data = game / "Data"
+        data.mkdir()
+        src_mpq = data / "patch-src.mpq"
+        dest_mpq = data / "patch-A.mpq"
+        src_mpq.write_bytes(b"mpq-bytes")
+        dest_mpq.write_bytes(b"old")
+        os.chmod(dest_mpq, stat.S_IREAD)
+        assert not (dest_mpq.stat().st_mode & stat.S_IWRITE)
+
+        _install_copy(src_mpq, dest_mpq, game_path=game)
+        assert dest_mpq.read_bytes() == b"mpq-bytes"
+        assert dest_mpq.stat().st_mode & stat.S_IWRITE
+
+        glue = data / "Interface" / "GlueXML"
+        glue.mkdir(parents=True)
+        glue_src = glue / "AutoLogin-src.lua"
+        glue_dest = glue / "AutoLogin.lua"
+        glue_src.write_text("-- lua", encoding="utf-8")
+        glue_dest.write_text("-- old", encoding="utf-8")
+        os.chmod(glue_dest, stat.S_IREAD)
+        _install_copy(glue_src, glue_dest, game_path=game)
+        assert glue_dest.stat().st_mode & stat.S_IWRITE
+
+        src_dll = game / "nampower-src.dll"
+        dest_dll = game / "nampower.dll"
+        src_dll.write_bytes(b"dll")
+        dest_dll.write_bytes(b"old")
+        os.chmod(dest_dll, stat.S_IREAD)
+        copy_file_tolerant(src_dll, dest_dll)  # read-only dest may block overwrite on Windows
+        ensure_data_writable(dest_dll, game)
+        assert not (dest_dll.stat().st_mode & stat.S_IWRITE)
+
+        wow_src = game / "WoW-src.exe"
+        wow = game / "WoW.exe"
+        wow_src.write_bytes(b"exe")
+        wow.write_bytes(b"old")
+        os.chmod(wow, stat.S_IREAD)
+        try:
+            _install_copy(wow_src, wow, game_path=game)
+        except OSError:
+            pass
+        ensure_data_writable(wow, game)
+        assert not (wow.stat().st_mode & stat.S_IWRITE)
+
+        dlls = game / "dlls.txt"
+        dlls.write_text("# old\nold.dll\n", encoding="utf-8")
+        os.chmod(dlls, stat.S_IREAD)
+        update_dlls_txt(game, add=["nampower.dll"])
+        assert not (dlls.stat().st_mode & stat.S_IWRITE)
+
+        outside = game / "outside.txt"
+        outside.write_text("x", encoding="utf-8")
+        os.chmod(outside, stat.S_IREAD)
+        ensure_data_writable(outside, game)
+        assert not (outside.stat().st_mode & stat.S_IWRITE)
+
+        ensure_data_writable(game / "missing-file.bin", game)  # must not raise
+    print("OK install clears readonly Data files only")
+
+
 def test_vanillafixes_zip_in_memory():
     """Windows Defender may quarantine vanillafixes-*.zip on disk; memory extract must work."""
     import tempfile
@@ -1202,6 +1326,79 @@ def test_vanillafixes_zip_in_memory():
         except OSError:
             disk_ok = False
         print(f"OK vanillafixes in-memory extract (disk zip readable={disk_ok})")
+
+
+def test_vanillafixes_preserves_dlls_txt():
+    """Installing/updating VanillaFixes must not replace the user's dlls.txt."""
+    import tempfile
+
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.mods.installer import install_mod
+
+    keys = ("desired_mods", "user_set_mods", "installed_mods", "user_mods", "game_path", "addons_path")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            preserved = (
+                "UnitXP_SP3.dll\nVanillaHelpers.dll\n# manual keep\nCustomMod.dll\n"
+            )
+            (game / "dlls.txt").write_text(preserved, encoding="utf-8")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            install_mod("vanillafixes")
+            text = (game / "dlls.txt").read_text(encoding="utf-8")
+            assert "UnitXP_SP3.dll" in text, text
+            assert "VanillaHelpers.dll" in text, text
+            assert "CustomMod.dll" in text, text
+            assert "# manual keep" in text, text
+            assert (game / "VanillaFixes.exe").is_file()
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+    print("OK vanillafixes preserves dlls.txt")
+
+
+def test_apply_desired_state_restores_dlls_txt():
+    """Apply after a template overwrite should re-add DLLs for desired mods."""
+    import tempfile
+
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import apply_desired_state
+
+    keys = (
+        "desired_mods",
+        "user_set_mods",
+        "installed_mods",
+        "user_mods",
+        "game_path",
+        "addons_path",
+    )
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            (game / "nampower.dll").write_bytes(b"MZ")
+            (game / "dlls.txt").write_text("nampower.dll\n", encoding="utf-8")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("desired_mods", {"nampower": True})
+            s.set("user_set_mods", ["nampower"])
+            clear_fs_caches()
+            # Simulate VanillaFixes zip shipping a bare template without nampower.
+            (game / "dlls.txt").write_text(
+                "# template\nSuperWoWhook.dll\n", encoding="utf-8"
+            )
+            out = apply_desired_state()
+            assert "nampower.dll" in (game / "dlls.txt").read_text(encoding="utf-8"), out
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK apply desired state restores dlls.txt")
 
 
 def test_client_zip_mirrors_and_gofile_parse():
@@ -1581,6 +1778,7 @@ def main():
     test_detect_state()
     test_apply_desired_state_guard()
     test_mod_remove_desired_state()
+    test_mod_toggle_resolution()
     test_discover_game_path_near_launcher()
     test_addons_path_defaults()
     test_status_progress_bytes()
@@ -1599,7 +1797,10 @@ def main():
     test_never_update_persists()
     test_sanitize_filename()
     test_robust_rmtree_readonly_git_pack()
+    test_install_clears_readonly_data_mpqs()
     test_vanillafixes_zip_in_memory()
+    test_vanillafixes_preserves_dlls_txt()
+    test_apply_desired_state_restores_dlls_txt()
     test_client_zip_mirrors_and_gofile_parse()
     test_find_wow_exe_dir_and_extract()
     test_settle_existing_alphanumeric_folder()
