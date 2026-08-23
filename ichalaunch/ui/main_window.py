@@ -121,6 +121,9 @@ _BOTTOM_CORNERS_PAINT_INSET_X = 6
 _FRAME_OUTSET_MARGIN = 24
 # Chrome pad for −/X (bottom corners no longer crowd the top-right).
 _CHROME_FRAME_PAD = 14
+# Minimize / close sit closer to the framed panel's right edge than the logo pad.
+_CHROME_BTN_INSET_X = 6
+_CHROME_BTN_INSET_Y = 10
 
 from ichalaunch import __version__
 from ichalaunch.core.paths import theme_file
@@ -225,7 +228,7 @@ from ichalaunch.ui.pages.settings import SettingsPage
 from ichalaunch.ui.widgets.loading_bar import ThemeLoadingBar
 from ichalaunch.ui.widgets.chrome_buttons import ChromeGlyphButton
 from ichalaunch.ui.widgets.cursors import apply_open_hand
-from ichalaunch.ui.widgets.launch_button import LaunchButton
+from ichalaunch.ui.widgets.launch_button import LaunchButton, UpdateLaunchButton
 
 
 def _format_minutes_since(settings_key: str) -> str:
@@ -1065,6 +1068,7 @@ class MainWindow(QMainWindow):
         self._startup_checks_scheduled = False
         self._permissions_skipped_path: str | None = None
         self._play_launch_lock_until = 0.0
+        self._preview_play_bar = False
         self._play_launch_timer = QTimer(self)
         self._play_launch_timer.setSingleShot(True)
         self._play_launch_timer.timeout.connect(self._release_play_launch_lock)
@@ -1159,9 +1163,10 @@ class MainWindow(QMainWindow):
         bottom = BottomBar()
         self._bottom_bar = bottom
         bottom.set_frame_host(self)
-        bottom.setFixedHeight(78)
+        # 80px UPDATE glow (hole-matched to the 56 plate) needs this height.
+        bottom.setFixedHeight(88)
         bot_l = QHBoxLayout(bottom)
-        bot_l.setContentsMargins(16, 12, 4, 4)
+        bot_l.setContentsMargins(16, 4, 4, 4)
         bot_l.setSpacing(14)
 
         self.status_lbl = QLabel("Ready")
@@ -1177,18 +1182,41 @@ class MainWindow(QMainWindow):
         self.progress = ThemeLoadingBar()
         self.progress.setTextVisible(False)
 
+        self.update_btn = UpdateLaunchButton()
+        self.update_btn.clicked.connect(self._apply_launcher_update)
         self.play_btn = LaunchButton("PLAY")
         self.play_btn.clicked.connect(self._on_play_or_install)
+
+        play_cluster = QWidget(bottom)
+        play_cluster.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+        play_row = QHBoxLayout(play_cluster)
+        play_row.setContentsMargins(0, 0, 0, 0)
+        play_row.setSpacing(8)
+        play_row.addWidget(self.update_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+        play_row.addWidget(self.play_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+        self._play_cluster = play_cluster
+
+        # Expanding slot keeps PLAY pinned to the right when the rail is hidden.
+        progress_slot = QWidget(bottom)
+        progress_slot.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+        progress_slot.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
+        )
+        slot_l = QHBoxLayout(progress_slot)
+        slot_l.setContentsMargins(0, 0, 0, 0)
+        slot_l.setSpacing(0)
+        slot_l.addWidget(self.progress)
+        self._progress_slot = progress_slot
 
         grip = QSizeGrip(bottom)
         grip.setFixedSize(16, 16)
         grip.setToolTip("Drag to resize")
+        self._play_grip = grip
 
         bot_l.addWidget(self.status_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
-        bot_l.addStretch(1)
-        bot_l.addWidget(self.progress, 0, Qt.AlignmentFlag.AlignVCenter)
-        bot_l.addStretch(1)
-        bot_l.addWidget(self.play_btn, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        # Slot (not the hidden bar) owns leftover space so PLAY never recenters.
+        bot_l.addWidget(progress_slot, 1, Qt.AlignmentFlag.AlignVCenter)
+        bot_l.addWidget(play_cluster, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         bot_l.addWidget(grip, 0, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
 
         # Decorative strip between pages and the play/progress bar (bundled offline asset).
@@ -1251,6 +1279,7 @@ class MainWindow(QMainWindow):
         self.settings_page.clear_cache_clicked.connect(self._clear_app_cache)
         self.settings_page.check_permissions_clicked.connect(self._check_game_permissions)
         self.settings_page.verify_clicked.connect(self._verify_game)
+        self.settings_page.preview_play_bar_toggled.connect(self._set_play_bar_preview)
 
         self._refresh_play_button()
         self._nav(0)
@@ -1442,13 +1471,8 @@ class MainWindow(QMainWindow):
         root = self.centralWidget()
         if content is None or btn_min is None or btn_close is None or root is None:
             return
-        overlay = getattr(self, "_side_corners", None)
-        inset_x = 10
-        if overlay is not None:
-            inset_x = max(inset_x, overlay.opaque_inset_x())
-        else:
-            inset_x = max(inset_x, _CHROME_FRAME_PAD)
-        inset_y = 10
+        inset_x = _CHROME_BTN_INSET_X
+        inset_y = _CHROME_BTN_INSET_Y
         gap = 6
         origin = _safe_map_to(content, root, QPoint(0, 0))
         if origin is None:
@@ -1555,6 +1579,7 @@ class MainWindow(QMainWindow):
         self._position_chrome_buttons()
         self._raise_side_corners()
         self._refresh_chrome_fills()
+        self._fit_bottom_progress()
 
     def closeEvent(self, event):
         app = QApplication.instance()
@@ -1773,10 +1798,9 @@ class MainWindow(QMainWindow):
 
     def _launcher_update_pending(self) -> bool:
         # Applying an update means replacing the running executable, which
-        # apply_windows_self_replace refuses to do anywhere but Windows. So
-        # reporting one elsewhere turns PLAY into UPDATE, sends the user
-        # through a download that cannot be applied, and leaves the game
-        # unlaunchable from that button for good.
+        # apply_windows_self_replace refuses to do anywhere but Windows. The
+        # square update button is the only place that offer appears, so hide
+        # it everywhere else rather than hijacking PLAY.
         if os.name != "nt":
             return False
         info = self._latest_launcher_release
@@ -1786,7 +1810,7 @@ class MainWindow(QMainWindow):
         """Gold dots on folder tabs when that area has pending work."""
         if len(self.nav_btns) < 4:
             return
-        # HOME — launcher self-update (PLAY already becomes UPDATE)
+        # HOME — launcher self-update (square button left of PLAY)
         self.nav_btns[0].set_badge_visible(self._launcher_update_pending())
         # ADDONS — managed addon updates available
         self.nav_btns[1].set_badge_visible(bool(self.addons.pending_updates))
@@ -1829,15 +1853,69 @@ class MainWindow(QMainWindow):
         self._check_launcher_update(silent=True)
 
     def _refresh_play_button(self) -> None:
-        if self._launcher_update_pending():
-            self.play_btn.setText("UPDATE")
-            self._refresh_nav_badges()
-            return
         if is_installed():
             self.play_btn.setText("PLAY")
         else:
             self.play_btn.setText("INSTALL")
+        self._refresh_update_button()
         self._refresh_nav_badges()
+
+    def _refresh_update_button(self) -> None:
+        pending = self._launcher_update_pending() or self._preview_play_bar
+        self.update_btn.set_pending(pending)
+        info = self._latest_launcher_release
+        if self._preview_play_bar and not self._launcher_update_pending():
+            self.update_btn.setToolTip("Preview — no launcher update queued")
+        elif pending and info and getattr(info, "version", None):
+            self.update_btn.setToolTip(f"Update IchaLaunch to v{info.version}")
+        else:
+            self.update_btn.setToolTip("Update IchaLaunch")
+        self._fit_bottom_progress()
+
+    def _fit_bottom_progress(self) -> None:
+        """Keep the loading rail out of the update/PLAY cluster."""
+        progress = getattr(self, "progress", None)
+        update_btn = getattr(self, "update_btn", None)
+        if progress is None or update_btn is None:
+            return
+        extra = 0
+        if not update_btn.isHidden():
+            extra = update_btn.width() + 8
+        progress.reserve_trailing(extra)
+        lay = getattr(self, "_bottom_bar", None)
+        if lay is not None and lay.layout() is not None:
+            lay.layout().activate()
+
+    def _hide_progress_bar(self) -> None:
+        if self._preview_play_bar:
+            self._show_play_bar_preview_progress()
+            return
+        self.progress.hide()
+        self.progress.setRange(0, 100)
+        self.progress.setValue(0)
+        self.progress.setFormat("%p%")
+
+    def _show_play_bar_preview_progress(self) -> None:
+        self.progress.show()
+        self.progress.setRange(0, 100)
+        self.progress.setValue(45)
+        self.progress.setFormat("%p%")
+
+    def _set_play_bar_preview(self, on: bool) -> None:
+        """Settings test control: force the update arrow + progress rail on."""
+        self._preview_play_bar = bool(on)
+        if self._preview_play_bar:
+            self.update_btn.setEnabled(True)
+            self._refresh_update_button()
+            self._show_play_bar_preview_progress()
+            self.status_lbl.setText("Preview: update button + progress")
+        else:
+            self._refresh_play_button()
+            if not self._worker_busy() and not self._checking_addons and not self._checking_mods:
+                self._hide_progress_bar()
+            if (self.status_lbl.text() or "").startswith("Preview"):
+                self.status_lbl.setText("Ready")
+        self._fit_bottom_progress()
 
     def _worker_busy(self) -> bool:
         return bool(self._worker and self._worker.isRunning())
@@ -1873,6 +1951,7 @@ class MainWindow(QMainWindow):
         """Spam guard: keep PLAY disabled for at least 5s during launch prep."""
         self._play_launch_lock_until = time.monotonic() + 5.0
         self.play_btn.setEnabled(False)
+        self.update_btn.setEnabled(False)
         self.play_btn.setText("LAUNCHING…")
         remaining_ms = int((self._play_launch_lock_until - time.monotonic()) * 1000) + 1
         self._play_launch_timer.start(max(1, remaining_ms))
@@ -1882,24 +1961,20 @@ class MainWindow(QMainWindow):
         self._play_launch_timer.stop()
         if not self._worker_busy():
             self.play_btn.setEnabled(True)
+            self.update_btn.setEnabled(True)
             self._refresh_play_button()
             if self.progress.maximum() == 0:
-                self.progress.hide()
-                self.progress.setRange(0, 100)
-                self.progress.setValue(0)
-                self.progress.setFormat("%p%")
+                self._hide_progress_bar()
 
     def _fail_play_launch(self, status: str) -> None:
         self._play_launch_lock_until = 0.0
         self._play_launch_timer.stop()
         if not self._worker_busy():
             self.play_btn.setEnabled(True)
+            self.update_btn.setEnabled(True)
             self._refresh_play_button()
             if self.progress.maximum() == 0:
-                self.progress.hide()
-                self.progress.setRange(0, 100)
-                self.progress.setValue(0)
-                self.progress.setFormat("%p%")
+                self._hide_progress_bar()
         self.status_lbl.setText(status)
 
     def _show_play_launch_progress(self, msg: str) -> None:
@@ -1912,21 +1987,22 @@ class MainWindow(QMainWindow):
     def _set_busy_ui(self, busy: bool, msg: str = "") -> None:
         if busy:
             self.play_btn.setEnabled(False)
+            self.update_btn.setEnabled(False)
         elif not self._is_play_launch_locked():
             self.play_btn.setEnabled(True)
+            self.update_btn.setEnabled(True)
         self._lock_addon_filters(extra_busy=busy)
         if busy:
             self.progress.show()
             self.progress.setRange(0, 0)  # indeterminate until bytes known
             self.progress.setFormat("")
+            self._fit_bottom_progress()
             self._set_busy_status(msg or "Working…")
         else:
-            self.progress.hide()
-            self.progress.setRange(0, 100)
-            self.progress.setValue(0)
-            self.progress.setFormat("%p%")
+            self._hide_progress_bar()
             self._busy_status_base = ""
-            self.status_lbl.setText(msg or "Ready")
+            if not self._preview_play_bar:
+                self.status_lbl.setText(msg or "Ready")
 
     def _on_progress_pct(self, pct: int) -> None:
         """Update bottom bar: determinate 0–100, or busy when pct < 0."""
@@ -1967,10 +2043,7 @@ class MainWindow(QMainWindow):
         elif mod_busy:
             msg = "Checking client mod updates…"
         else:
-            self.progress.hide()
-            self.progress.setRange(0, 100)
-            self.progress.setValue(0)
-            self.progress.setFormat("%p%")
+            self._hide_progress_bar()
             self._check_addon_pct = 0
             self._check_mod_pct = 0
             # Keep the last status text from done/fail handlers; only restore Ready
@@ -2159,9 +2232,6 @@ class MainWindow(QMainWindow):
             self._maybe_warn_github_token()
 
     def _on_play_or_install(self) -> None:
-        if self._launcher_update_pending():
-            self._apply_launcher_update()
-            return
         if is_installed():
             self._play()
         else:
@@ -2209,7 +2279,7 @@ class MainWindow(QMainWindow):
                 if not silent:
                     self.status_lbl.setText(f"Launcher update available: v{result.version}")
                 else:
-                    # Quiet: badge + PLAY→UPDATE only; leave status for other work.
+                    # Quiet: badge + square update button only; leave status for other work.
                     log.info("Launcher update available: v%s", result.version)
                 self._refresh_play_button()
                 return

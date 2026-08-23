@@ -41,6 +41,7 @@ class SettingsPage(QWidget):
     clear_cache_clicked = Signal()
     check_permissions_clicked = Signal()
     verify_clicked = Signal()
+    preview_play_bar_toggled = Signal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -190,6 +191,25 @@ class SettingsPage(QWidget):
         )
         upd_card.body.addWidget(self.cb_auto_updates)
 
+        preview_row = QHBoxLayout()
+        preview_row.setSpacing(8)
+        self.btn_preview_play_bar = GluePanelButton("Test update button")
+        self.btn_preview_play_bar.setToolTip(
+            "Show the gold update arrow and the progress bar so you can check "
+            "that the rail shrinks instead of overlapping PLAY."
+        )
+        self.btn_preview_play_bar.clicked.connect(self._toggle_preview_play_bar)
+        self._preview_play_bar = False
+        preview_row.addWidget(self.btn_preview_play_bar)
+        preview_row.addStretch(1)
+        upd_card.body.addLayout(preview_row)
+        preview_note = QLabel(
+            "Test only — does not download an update. Toggle off when you are done."
+        )
+        preview_note.setObjectName("Muted")
+        preview_note.setWordWrap(True)
+        upd_card.body.addWidget(preview_note)
+
         cooldown_header = QHBoxLayout()
         cooldown_header.setSpacing(8)
         cooldown_title = QLabel("Auto-scan cooldown")
@@ -336,6 +356,13 @@ class SettingsPage(QWidget):
 
         scroll.setWidget(host)
         outer.addWidget(scroll)
+
+    def _toggle_preview_play_bar(self) -> None:
+        self._preview_play_bar = not self._preview_play_bar
+        self.btn_preview_play_bar.setText(
+            "Hide update button test" if self._preview_play_bar else "Test update button"
+        )
+        self.preview_play_bar_toggled.emit(self._preview_play_bar)
 
     def _sync_cooldown_label(self, minutes: int) -> None:
         self.cooldown_value_lbl.setText(format_auto_scan_cooldown_label(minutes))

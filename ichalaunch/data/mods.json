@@ -3,11 +3,9 @@
     "id": "vanilla_tweaks",
     "name": "Vanilla Tweaks",
     "category": "Performance & Fixes",
-    "description": "Widescreen FoV, farclip, quickloot, 4GB LAA, nameplate range, and more. Patches WoW.exe.",
+    "description": "Widescreen FoV, farclip, quickloot, 4GB LAA, nameplate range, and more. Patches WoW.exe (not a DLL).",
     "detect": {
-      "any_files": [
-        "WoW-OriginalBackup.exe"
-      ]
+      "exe_differs_from": "WoW-OriginalBackup.exe"
     },
     "source": {
       "type": "github_release",

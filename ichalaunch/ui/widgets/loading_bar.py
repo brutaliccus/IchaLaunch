@@ -163,7 +163,9 @@ class ThemeLoadingBar(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setMinimumHeight(32)
         self.setMaximumHeight(40)
-        # ~2× original width so the bar reads clearly between status and PLAY.
+        # Default slot is the gap between status and PLAY. When the square
+        # update button is showing, reserve_trailing() tightens this so the
+        # rail does not run under the arrow.
         self.setMinimumWidth(320)
         self.setMaximumWidth(880)
 
@@ -193,7 +195,14 @@ class ThemeLoadingBar(QWidget):
         self.hide()
 
     def sizeHint(self) -> QSize:  # noqa: N802
-        return QSize(640, 36)
+        return QSize(min(640, self.maximumWidth()), 36)
+
+    def reserve_trailing(self, px: int = 0) -> None:
+        """Shrink the bar's min/max width by *px* (update-button slot)."""
+        extra = max(0, int(px))
+        self.setMinimumWidth(220 if extra else 320)
+        self.setMaximumWidth(max(self.minimumWidth(), 880 - extra))
+        self.updateGeometry()
 
     # ---- QProgressBar-compatible surface ---------------------------------
 

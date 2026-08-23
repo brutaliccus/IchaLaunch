@@ -179,6 +179,7 @@ def test_detect_state():
         assert state["wdb_block"] is True
         assert state["superwow"] is False
         assert state["vanilla_helpers"] is True
+        assert state["vanilla_tweaks"] is False
 
         glue = game / "Data" / "Interface" / "GlueXML"
         glue.mkdir(parents=True)
@@ -187,6 +188,86 @@ def test_detect_state():
         state = detect_actual_state(game)
         assert state["auto_login"] is True, state
     print("OK detect state")
+
+
+def test_vanilla_tweaks_disable_clears_pending():
+    """Stock WoW-OriginalBackup.exe must not keep Apply glowing after disable.
+
+    RavenCraft/Turtle ships a backup identical to WoW.exe. Detecting "installed"
+    from backup *presence* made uncheck+Apply forever pending (remove could not
+    delete the stock backup, so actual stayed True).
+    """
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import apply_desired_state, plan_changes, remove_mod
+
+    keys = (
+        "desired_mods",
+        "user_set_mods",
+        "installed_mods",
+        "user_mods",
+        "game_path",
+        "addons_path",
+    )
+    saved = {k: s.get(k) for k in keys}
+    stock = b"MZ" + b"\0" * 64
+    patched = b"MZ" + b"\x01" * 64
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(stock)
+            (game / "WoW-OriginalBackup.exe").write_bytes(stock)
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("desired_mods", {"vanilla_tweaks": False})
+            s.set("user_set_mods", ["vanilla_tweaks"])
+            s.set("installed_mods", {})
+            s.set("user_mods", [])
+            clear_fs_caches()
+
+            # Stock client: backup exists but matches WoW.exe → not applied.
+            assert detect_actual_state(game).get("vanilla_tweaks") is False
+            assert not any(c.get("id") == "vanilla_tweaks" for c in plan_changes())
+
+            # Enable is pending until the exe actually differs from the backup.
+            s.set_desired_mod("vanilla_tweaks", True)
+            assert any(
+                c["action"] == "install" and c["id"] == "vanilla_tweaks"
+                for c in plan_changes()
+            ), plan_changes()
+
+            # Simulate a successful apply (byte-patch WoW.exe, keep stock backup).
+            (game / "WoW.exe").write_bytes(patched)
+            clear_fs_caches()
+            assert detect_actual_state(game).get("vanilla_tweaks") is True
+            assert not any(c.get("id") == "vanilla_tweaks" for c in plan_changes())
+
+            # Disable → Apply pending until revert.
+            s.set_desired_mod("vanilla_tweaks", False)
+            assert any(
+                c["action"] == "remove" and c["id"] == "vanilla_tweaks"
+                for c in plan_changes()
+            ), plan_changes()
+
+            out = apply_desired_state()
+            assert any("vanilla_tweaks" in line for line in out), out
+            assert (game / "WoW.exe").read_bytes() == stock
+            assert (game / "WoW-OriginalBackup.exe").is_file()
+            assert detect_actual_state(game).get("vanilla_tweaks") is False
+            # This is what turns off the Apply glow.
+            assert not any(c.get("id") == "vanilla_tweaks" for c in plan_changes())
+            assert plan_changes() == [], plan_changes()
+
+            # Identical stock files: disable must not plan a remove (no glow).
+            s.set_desired_mod("vanilla_tweaks", False)
+            assert plan_changes() == [], plan_changes()
+            remove_mod("vanilla_tweaks")
+            assert (game / "WoW.exe").read_bytes() == stock
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK vanilla tweaks disable clears pending")
 
 
 def test_apply_desired_state_guard():
@@ -3164,6 +3245,222 @@ def test_themed_dialog_flags_and_close():
     print("OK themed dialog flags and close")
 
 
+def test_dll_security_dialog_dont_show_again_is_themed_checkbox():
+    """Don't show this again must be ThemeCheckBox — QCheckBox indicator is invisible."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication, QWidget
+
+    from ichalaunch.ui.widgets.dialogs import DllSecurityExclusionDialog
+    from ichalaunch.ui.widgets.theme_checkbox import ThemeCheckBox
+
+    app = QApplication.instance() or QApplication([])
+    root = QWidget()
+    dlg = DllSecurityExclusionDialog(root, "Add game folder to Windows Security", "Body")
+    cb = dlg._dont_show
+    assert isinstance(cb, ThemeCheckBox)
+    assert cb.isEnabled()
+    assert cb.isCheckable()
+    assert cb.cursor().shape() == Qt.CursorShape.PointingHandCursor
+    assert not dlg.dismissed_permanently()
+    cb.click()
+    assert dlg.dismissed_permanently()
+    print("OK dll security dialog don't-show-again is themed checkbox")
+
+
+def test_update_launch_button_is_square_and_pulses():
+    from PySide6.QtWidgets import QApplication, QWidget
+
+    from ichalaunch.ui.widgets import launch_button
+    from ichalaunch.ui.widgets.launch_button import LaunchButton, UpdateLaunchButton
+
+    app = QApplication.instance() or QApplication([])
+    arrow = launch_button._up_stream_arrow()
+    assert not arrow.isNull(), "UI-MicroStream-Yellow up-arrow failed to load"
+    glow = launch_button._check_button_glow()
+    assert not glow.isNull(), "CheckButtonGlow failed to load"
+    gc = glow.toImage()
+    # Pad-only crop: chamfered corners stay soft (not an alpha≥140 box).
+    for x, y in ((0, 0), (gc.width() - 1, 0), (0, gc.height() - 1), (gc.width() - 1, gc.height() - 1)):
+        assert gc.pixelColor(x, y).alpha() < 40, f"boxy glow corner at {x},{y}"
+    play = LaunchButton("PLAY")
+    assert play.size().width() == 200
+    assert play.size().height() == 56
+    host = QWidget()
+    btn = UpdateLaunchButton(host)
+    assert btn.size().width() == btn.size().height()
+    # Inner hole is 32px of a 46px halo → ~80px when the hole matches the 56 plate.
+    assert 72 <= btn.size().width() <= 84
+    assert not btn._glow.isNull()
+    assert btn._glow.width() == btn.size().width()
+    chrome = btn._chrome_rect()
+    assert chrome.width() == 56
+    assert chrome.height() == 56
+    pad = chrome.x()
+    assert pad >= 8
+    # Bright ring sits just outside the plate (covered when scaled to 62).
+    ring = gc.pixelColor(gc.width() // 2, max(0, pad - 2))
+    assert ring.alpha() >= 80, f"glow ring missing outside plate (alpha={ring.alpha()})"
+    assert btn.isHidden()
+    btn.set_pending(True)
+    assert not btn.isHidden()
+    assert btn._pulse_timer.isActive()
+    btn.set_pending(False)
+    assert btn.isHidden()
+    assert not btn._pulse_timer.isActive()
+    print("OK update launch button is square and pulses")
+
+
+def test_loading_bar_reserves_update_button_slot():
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.widgets.loading_bar import ThemeLoadingBar
+
+    app = QApplication.instance() or QApplication([])
+    bar = ThemeLoadingBar()
+    assert bar.minimumWidth() == 320
+    assert bar.maximumWidth() == 880
+    bar.reserve_trailing(56 + 8)
+    assert bar.minimumWidth() == 220
+    assert bar.maximumWidth() == 880 - 64
+    bar.reserve_trailing(0)
+    assert bar.minimumWidth() == 320
+    assert bar.maximumWidth() == 880
+    print("OK loading bar reserves update button slot")
+
+
+def test_launch_buttons_use_glue_panel_chrome():
+    """PLAY / UPDATE / REGISTER use purple glue-panel art with a gold underline."""
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.widgets.glue_panel_button import launch_glue_chrome
+    from ichalaunch.ui.widgets.launch_button import LaunchButton, UpdateLaunchButton
+
+    app = QApplication.instance() or QApplication([])
+    play = LaunchButton("PLAY")
+    assert play._chrome is not None and not play._chrome.isNull()
+    reg = LaunchButton("REGISTER HERE")
+    assert reg._chrome is not None and not reg._chrome.isNull()
+    upd = UpdateLaunchButton()
+    assert upd._chrome is not None and not upd._chrome.isNull()
+    # Visible plate is a 56×56 square (not a tall rectangle inside a square pixmap).
+    assert upd._chrome.width() == 56
+    assert upd._chrome.height() == 56
+    wide = launch_glue_chrome(pressed=False)
+    assert not wide.isNull()
+    assert wide.width() > wide.height()
+    sq = launch_glue_chrome(pressed=False, square=True)
+    simg = sq.toImage()
+    min_x, min_y, max_x, max_y = 56, 56, -1, -1
+    for y in range(simg.height()):
+        for x in range(simg.width()):
+            if simg.pixelColor(x, y).alpha() >= 24:
+                min_x = min(min_x, x)
+                min_y = min(min_y, y)
+                max_x = max(max_x, x)
+                max_y = max(max_y, y)
+    vis_w = max_x - min_x + 1
+    vis_h = max_y - min_y + 1
+    assert vis_w >= 52 and vis_h >= 52, f"visible plate too small {vis_w}x{vis_h}"
+    assert abs(vis_w - vis_h) <= 3, f"visible plate not square {vis_w}x{vis_h}"
+    mid = simg.height() // 2
+
+    def _is_purple_fill(x: int) -> bool:
+        c = simg.pixelColor(x, mid)
+        return c.alpha() >= 16 and 240 <= c.hue() <= 300 and c.saturation() >= 80
+
+    left_metal = sum(1 for x in range(8) if not _is_purple_fill(x))
+    right_metal = sum(1 for x in range(simg.width() - 8, simg.width()) if not _is_purple_fill(x))
+    assert left_metal >= 6, "UPDATE chrome missing left metal frame"
+    assert right_metal >= 6, "UPDATE chrome missing right metal frame"
+
+    chrome = launch_glue_chrome(pressed=False)
+    assert not chrome.isNull()
+    img = chrome.toImage()
+    purple = gold = 0
+    for y in range(0, img.height(), 2):
+        for x in range(0, img.width(), 2):
+            c = img.pixelColor(x, y)
+            if c.alpha() < 200:
+                continue
+            h = c.hue()
+            if 240 <= h <= 300 and c.saturation() >= 60:
+                purple += 1
+            # Soft underline: muted warm gold blended into the fill (not #F1C22D).
+            if (
+                18 <= h <= 55
+                and c.saturation() >= 40
+                and c.value() >= 80
+                and c.red() > c.blue() + 20
+            ):
+                gold += 1
+    assert purple > 200, "glue launch chrome missing purple fill"
+    assert gold > 5, "glue launch chrome missing gold underline"
+    print("OK launch buttons use glue-panel chrome")
+
+
+def test_options_cog_uses_wow_art():
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.core.paths import theme_file
+    from ichalaunch.ui.widgets.common import OptionsCogButton, _options_cog_pixmap
+
+    app = QApplication.instance() or QApplication([])
+    assert theme_file("UI-OptionsButton.PNG").is_file()
+    icon = _options_cog_pixmap()
+    assert not icon.isNull()
+    btn = OptionsCogButton()
+    assert btn.size().width() == 28
+    assert btn.size().height() == 28
+    assert not btn._icon.isNull()
+    print("OK addons settings cog uses UI-OptionsButton art")
+
+
+def test_chrome_buttons_hug_right_edge():
+    from ichalaunch.ui import main_window as mw
+
+    assert mw._CHROME_BTN_INSET_X <= 6
+    assert mw._CHROME_BTN_INSET_X < mw._CHROME_FRAME_PAD
+    src = Path(mw.__file__).read_text(encoding="utf-8")
+    assert "_progress_slot" in src
+    print("OK minimize/close hug the right edge")
+
+
+def test_play_stays_right_when_progress_hidden():
+    """An expanding slot — not the bar itself — keeps PLAY pinned right."""
+    from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QSizePolicy, QWidget
+
+    app = QApplication.instance() or QApplication([])
+    host = QWidget()
+    host.resize(800, 80)
+    lay = QHBoxLayout(host)
+    lay.setContentsMargins(0, 0, 0, 0)
+    status = QLabel("Ready")
+    slot = QWidget()
+    slot.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+    slot_l = QHBoxLayout(slot)
+    slot_l.setContentsMargins(0, 0, 0, 0)
+    bar = QWidget()
+    bar.setFixedSize(240, 32)
+    slot_l.addWidget(bar)
+    play = QWidget()
+    play.setFixedSize(200, 56)
+    grip = QWidget()
+    grip.setFixedSize(16, 16)
+    lay.addWidget(status)
+    lay.addWidget(slot, 1)
+    lay.addWidget(play)
+    lay.addWidget(grip)
+    host.show()
+    app.processEvents()
+    play_x = play.x()
+    bar.hide()
+    lay.activate()
+    app.processEvents()
+    assert abs(play.x() - play_x) <= 2, f"PLAY shifted from {play_x} to {play.x()}"
+    host.hide()
+    print("OK PLAY stays right-aligned when progress is hidden")
+
+
 def test_client_exe_probe_is_case_insensitive():
     """3.3.5-era clients ship "Wow.exe"; 1.12-era ship "WoW.exe".
 
@@ -3299,6 +3596,7 @@ def _run_smoke_tests():
     test_protected()
     test_dlls_txt()
     test_detect_state()
+    test_vanilla_tweaks_disable_clears_pending()
     test_apply_desired_state_guard()
     test_mod_remove_desired_state()
     test_darker_nights_migration()
@@ -3365,6 +3663,13 @@ def _run_smoke_tests():
     test_dll_injection_mod_detection()
     test_superwow_issue_detection()
     test_themed_dialog_flags_and_close()
+    test_dll_security_dialog_dont_show_again_is_themed_checkbox()
+    test_update_launch_button_is_square_and_pulses()
+    test_loading_bar_reserves_update_button_slot()
+    test_launch_buttons_use_glue_panel_chrome()
+    test_options_cog_uses_wow_art()
+    test_chrome_buttons_hug_right_edge()
+    test_play_stays_right_when_progress_hidden()
     print("\nAll smoke tests passed.")
 
 

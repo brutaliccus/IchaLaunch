@@ -7,18 +7,19 @@ from enum import Enum, auto
 from PySide6.QtCore import Qt, QThread, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
-    QCheckBox,
     QDialog,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QScrollArea,
+    QSizePolicy,
     QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
 
 from ichalaunch.ui.widgets.glue_panel_button import GLUE_BTN_H, GLUE_BTN_W, GluePanelButton
+from ichalaunch.ui.widgets.theme_checkbox import ThemeCheckBox
 
 
 class DialogResult(Enum):
@@ -238,8 +239,12 @@ class DllSecurityExclusionDialog(QDialog):
         scroll.setWidget(scroll_content)
         body.addWidget(scroll, 1)
 
-        self._dont_show = QCheckBox("Don't show this again")
-        self._dont_show.setObjectName("ThemedDialogCheckbox")
+        self._dont_show = ThemeCheckBox("Don't show this again", card)
+        self._dont_show.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._dont_show.setMinimumHeight(28)
+        self._dont_show.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         body.addWidget(self._dont_show)
 
         row = QHBoxLayout()

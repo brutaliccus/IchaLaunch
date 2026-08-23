@@ -35,8 +35,15 @@ _FILL_STANDARD = (275, 95, 1.05)   # hue, sat, value scale
 _FILL_PRIMARY = (268, 175, 1.25)
 _FILL_PRIMARY_BRIGHT = (265, 200, 1.35)
 
+# Square UPDATE plate: keep L/R metal caps, compress only the middle fill.
+# Caps are the trimmed metal (~16–20px), not the padded 32px of the 512 source
+# (that left transparent side gutters and a tall visible plate).
+_LAUNCH_SQUARE_SIDE = 56
+_LAUNCH_SQUARE_CAP = 20
+
 _RAW: dict[str, QImage] = {}
 _RECOLOR: dict[tuple[str, str, bool], QPixmap] = {}
+_LAUNCH: dict[tuple[bool, bool, bool, int], QPixmap] = {}
 
 
 def _load_image(bundled: str, external: Path) -> QImage:
@@ -119,6 +126,169 @@ def glue_chrome_pixmap(
         role = "standard"
     name, ext = (_DOWN_NAME, _DOWN_EXTERNAL) if pressed else (_UP_NAME, _UP_EXTERNAL)
     return _colored_pm(name, ext, role, disabled)
+
+
+def _embellish_launch_fill(src: QImage) -> QPixmap:
+    """Red fill → primary purple, then PLAY-style bottom glow + a soft gold underline.
+
+    Same pixel walk as toolbar recolor: metal borders stay untouched. Fill
+    value is darkened at the top and lifted toward the bottom so the taller
+    PLAY / REGISTER / UPDATE plates match the old launch chrome gradient.
+    """
+    if src.isNull():
+        return QPixmap()
+    out = src.copy()
+    w, h = out.width(), out.height()
+    hue, sat, base_scale = _FILL_PRIMARY
+
+    top, bottom = h, -1
+    for y in range(h):
+        for x in range(w):
+            if _is_red_fill(QColor.fromRgba(out.pixel(x, y))):
+                if y < top:
+                    top = y
+                if y > bottom:
+                    bottom = y
+    if bottom < top:
+        return QPixmap.fromImage(out)
+
+    span = max(1, bottom - top)
+    for y in range(h):
+        t = (y - top) / span
+        t = 0.0 if t < 0.0 else 1.0 if t > 1.0 else t
+        grad = 0.30 + 1.10 * (t ** 1.25)
+        for x in range(w):
+            c = QColor.fromRgba(out.pixel(x, y))
+            if not _is_red_fill(c):
+                continue
+            v = max(0, min(255, int(round(c.value() * base_scale * grad))))
+            out.setPixel(x, y, QColor.fromHsv(hue, sat, v, c.alpha()).rgba())
+
+    # Soft gold underline — one muted row blended into the fill (not a hard bar).
+    uy = bottom - 3
+    if 0 <= uy < h:
+        gold = QColor(196, 158, 68)  # #C49E44, antique gold (not #F1C22D)
+        mix = 0.58
+        keep = 1.0 - mix
+        for x in range(w):
+            c = QColor.fromRgba(out.pixel(x, uy))
+            if c.alpha() < 16:
+                continue
+            hh = c.hue()
+            if not (240 <= hh <= 300 and c.saturation() >= 60):
+                continue
+            out.setPixel(
+                x,
+                uy,
+                QColor(
+                    int(round(c.red() * keep + gold.red() * mix)),
+                    int(round(c.green() * keep + gold.green() * mix)),
+                    int(round(c.blue() * keep + gold.blue() * mix)),
+                    c.alpha(),
+                ).rgba(),
+            )
+    return QPixmap.fromImage(out)
+
+
+def _opaque_rect(img: QImage, alpha_min: int = 20) -> QRect:
+    if img.isNull():
+        return QRect()
+    w, h = img.width(), img.height()
+    min_x, min_y, max_x, max_y = w, h, -1, -1
+    for y in range(h):
+        for x in range(w):
+            if QColor.fromRgba(img.pixel(x, y)).alpha() >= alpha_min:
+                if x < min_x:
+                    min_x = x
+                if y < min_y:
+                    min_y = y
+                if x > max_x:
+                    max_x = x
+                if y > max_y:
+                    max_y = y
+    if max_x < min_x:
+        return QRect()
+    return QRect(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1)
+
+
+def _squish_plate_to_square(pm: QPixmap, side: int) -> QPixmap:
+    """3-slice the wide glue plate into a *visible* square.
+
+    Trim transparent gutters first (the 512 source is inset ~10px on the
+    sides). Then keep L/R metal caps and compress the middle. Finally scale
+    the opaque result into ``side``×``side`` so the plate is not a tall
+    rectangle sitting inside a square pixmap.
+    """
+    if pm.isNull() or side <= 0:
+        return pm
+    bounds = _opaque_rect(pm.toImage())
+    if bounds.isValid() and bounds != pm.rect():
+        pm = pm.copy(bounds)
+    src_w, src_h = pm.width(), pm.height()
+    cap = min(_LAUNCH_SQUARE_CAP, max(1, src_w // 4))
+    dest_cap = max(1, int(round(cap * (side / max(1, src_h)))))
+    dest_cap = min(dest_cap, max(1, side // 4))
+    mid = side - 2 * dest_cap
+    sliced = QPixmap(side, side)
+    sliced.fill(Qt.GlobalColor.transparent)
+    p = QPainter(sliced)
+    p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+    p.drawPixmap(QRect(0, 0, dest_cap, side), pm, QRect(0, 0, cap, src_h))
+    p.drawPixmap(
+        QRect(side - dest_cap, 0, dest_cap, side),
+        pm,
+        QRect(src_w - cap, 0, cap, src_h),
+    )
+    if mid > 0:
+        p.drawPixmap(
+            QRect(dest_cap, 0, mid, side),
+            pm,
+            QRect(cap, 0, src_w - 2 * cap, src_h),
+        )
+    p.end()
+    vis = _opaque_rect(sliced.toImage())
+    if not vis.isValid() or vis == QRect(0, 0, side, side):
+        return sliced
+    filled = QPixmap(side, side)
+    filled.fill(Qt.GlobalColor.transparent)
+    p = QPainter(filled)
+    p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+    p.drawPixmap(QRect(0, 0, side, side), sliced, vis)
+    p.end()
+    return filled
+
+
+def launch_glue_chrome(
+    *,
+    pressed: bool = False,
+    disabled: bool = False,
+    square: bool = False,
+    side: int = _LAUNCH_SQUARE_SIDE,
+) -> QPixmap:
+    """PLAY / REGISTER / UPDATE chrome: purple glue-panel + gradient + soft gold line.
+
+    ``square=True`` 3-slices the full Up/Down art into a square (left + right
+    metal caps kept, middle compressed). Not a center crop.
+    """
+    key = (pressed, disabled, square, int(side) if square else 0)
+    hit = _LAUNCH.get(key)
+    if hit is not None:
+        return hit
+    name, ext = (_DOWN_NAME, _DOWN_EXTERNAL) if pressed else (_UP_NAME, _UP_EXTERNAL)
+    pm = _embellish_launch_fill(_load_image(name, ext))
+    if square and not pm.isNull():
+        pm = _squish_plate_to_square(pm, int(side) if side > 0 else _LAUNCH_SQUARE_SIDE)
+    if disabled and not pm.isNull():
+        dim = QPixmap(pm.size())
+        dim.fill(Qt.GlobalColor.transparent)
+        p = QPainter(dim)
+        p.drawPixmap(0, 0, pm)
+        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceAtop)
+        p.fillRect(dim.rect(), QColor(30, 28, 34, 110))
+        p.end()
+        pm = dim
+    _LAUNCH[key] = pm
+    return pm
 
 
 class GluePanelButton(QPushButton):

@@ -5,11 +5,24 @@
 
 > **Fresh install:** Use the launcher's **INSTALL** flow for a clean RavenCraft setup. Do **not** point IchaLaunch at an old TurtleWoW or Capybara client — start fresh for the best results.
 
-**IchaLaunch v1.1.1** installs **[RavenCraft](https://ravencraft.io/)** (Turtle WoW–compatible 1.18), manages addons and client mods, and launches the game.
+**IchaLaunch v1.2.0** installs **[RavenCraft](https://ravencraft.io/)** (Turtle WoW–compatible 1.18), manages addons and client mods, and launches the game.
 
 Download **`IchaLaunch.exe`** from **[Releases](https://github.com/brutaliccus/IchaLaunch/releases/latest)**.
 
 A frameless RavenCraft-themed window: **HOME**, **ADDONS**, **CLIENT**, **SETTINGS**, and a **PLAY** bar.
+
+---
+
+## What's new in v1.2.0
+
+- **Linux from source** — on Linux, **PLAY** can launch the client through **umu-launcher** / Proton (optional paths in Settings). The Windows EXE is still Windows-only.
+- **Case-insensitive client paths** — `WoW.exe` / `Wow.exe` and related files resolve correctly on case-sensitive disks.
+- **Realmlist backup** — an existing `realmlist.wtf` is kept as `.bak` instead of being overwritten blindly.
+- **Self-update** — launcher self-update is offered on Windows only (no-op elsewhere).
+- **PLAY / UPDATE split** — a square update control sits left of **PLAY** (CheckButtonGlow pulse). **PLAY** stays right-aligned and is not blocked by a pending launcher update.
+- **Glue-panel buttons** — **PLAY**, **REGISTER HERE**, and the update plate use taller purple WoW glue-panel art; hover uses the Down plate (no gold box).
+- **Addons options cog** — repository settings uses the WoW `UI-OptionsButton` art.
+- **Vanilla Tweaks detect** — on-disk Vanilla Tweaks is detected more reliably so disable/remove can run.
 
 ---
 
@@ -40,17 +53,17 @@ A frameless RavenCraft-themed window: **HOME**, **ADDONS**, **CLIENT**, **SETTIN
 ## Get the launcher
 
 1. Open the latest release: [github.com/brutaliccus/IchaLaunch/releases/latest](https://github.com/brutaliccus/IchaLaunch/releases/latest)
-2. Download **`IchaLaunch.exe`** (v1.1.1)
+2. Download **`IchaLaunch.exe`** (v1.2.0)
 3. Put it somewhere convenient (next to your game folder is fine — not required)
 4. Run the EXE
 
 No installer. Windows may show a SmartScreen prompt for an unsigned download — **More info** → **Run anyway** if you trust the release.
 
-## Platform support (Windows only)
+## Platform support
 
 IchaLaunch ships as a **native Windows** executable for **Windows 10 or 11** (64-bit).
 
-**Proton, Wine, Linux, and Steam Deck are not supported.** Running the EXE under Proton/Wine often fails with missing DLL errors (`icuuc.dll`, `Qt6Core.dll`, or `ImportError: DLL load failed`). Use Windows natively, dual-boot Windows, or a Windows VM.
+**Linux from source** is supported: run the Python app and point Settings at **umu-launcher** / Proton to launch the Windows client. Running **`IchaLaunch.exe` under Proton/Wine is not supported** and often fails with missing DLL errors (`icuuc.dll`, `Qt6Core.dll`).
 
 ---
 

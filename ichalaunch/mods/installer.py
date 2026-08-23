@@ -41,6 +41,7 @@ from ichalaunch.core.filesystem import (
     PermissionScanResult,
     read_dlls_txt,
     resolve_ci,
+    sha256_file,
     scan_game_permissions,
     remove_path_strict,
     safe_remove,
@@ -837,6 +838,42 @@ def _game_rel_present(
     return name_present(game_path, raw, root_names)
 
 
+_VANILLA_TWEAKS_BACKUP = "WoW-OriginalBackup.exe"
+
+
+def _files_content_differ(left: Path, right: Path) -> bool:
+    """True when both files hash and the digests differ. Locked/missing → False."""
+    digest_left = sha256_file(left)
+    digest_right = sha256_file(right)
+    if not digest_left or not digest_right:
+        return False
+    return digest_left != digest_right
+
+
+def _exe_differs_from_backup(game_path: Path, backup_name: str) -> bool:
+    """True when WoW.exe has been patched relative to *backup_name*.
+
+    Turtle/RavenCraft ships a stock ``WoW-OriginalBackup.exe`` that matches
+    ``WoW.exe``. Treating backup *presence* as installed made disable forever
+    pending (Apply stayed glowing) because remove cannot delete that stock file.
+    """
+    wow = wow_exe_in(game_path)
+    backup = resolve_ci(game_path, backup_name)
+    if wow is None or backup is None:
+        return False
+    try:
+        if not wow.is_file() or not backup.is_file():
+            return False
+    except OSError:
+        return False
+    try:
+        if wow.resolve() == backup.resolve():
+            return False
+    except OSError:
+        pass
+    return _files_content_differ(wow, backup)
+
+
 def _dlls_txt_has(game_path: Path, names: list[str], listing: frozenset[str] | None) -> bool:
     """True if any *names* are uncommented in dlls.txt and present on disk.
 
@@ -860,6 +897,8 @@ def _detect_mod(
     root_names: frozenset[str] | None = None,
 ) -> bool:
     det = mod.get("detect") or {}
+    if det.get("exe_differs_from"):
+        return _exe_differs_from_backup(game_path, str(det["exe_differs_from"]))
     if det.get("wdb_file"):
         return name_present(game_path, "WDB", root_names) and (game_path / "WDB").is_file()
     if det.get("any_files"):
@@ -901,7 +940,7 @@ def _detect_mod(
         "perfboost": name_present(game_path, "perf_boost.dll", root_names),
         "no1600x1200": name_present(game_path, "no1600x1200.dll", root_names),
         "wdb_block": name_present(game_path, "WDB", root_names) and (game_path / "WDB").is_file(),
-        "vanilla_tweaks": name_present(game_path, "WoW-OriginalBackup.exe", root_names),
+        "vanilla_tweaks": _exe_differs_from_backup(game_path, _VANILLA_TWEAKS_BACKUP),
     }
     if mid in legacy:
         return legacy[mid]
@@ -1770,8 +1809,8 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 if not vt:
                     raise FileNotFoundError("vanilla-tweaks.exe not found in archive")
                 wow = wow_exe_in(game) or (game / "WoW.exe")
-                if not (game / "WoW-OriginalBackup.exe").exists():
-                    _install_copy(wow, game / "WoW-OriginalBackup.exe", game_path=game)
+                if resolve_ci(game, _VANILLA_TWEAKS_BACKUP) is None:
+                    _install_copy(wow, game / _VANILLA_TWEAKS_BACKUP, game_path=game)
                 # Run patcher; creates WoW_tweaked.exe next to WoW.exe
                 status_only(progress, "Patching WoW.exe with Vanilla Tweaks...")
                 subprocess.run([str(vt), str(wow)], cwd=str(game), check=True)
@@ -2160,9 +2199,13 @@ def remove_mod(mod_id: str, progress: ProgressCb | None = None) -> None:
         return
 
     if kind == "exe_patch":
-        backup = game / "WoW-OriginalBackup.exe"
-        if backup.exists():
-            _install_copy(backup, wow_exe_in(game) or (game / "WoW.exe"), game_path=game)
+        backup = resolve_ci(game, _VANILLA_TWEAKS_BACKUP)
+        wow = wow_exe_in(game) or (game / "WoW.exe")
+        # Stock clients already ship an identical backup. Skip the copy so a
+        # locked WoW.exe (game running) does not fail a no-op revert.
+        if backup is not None and backup.is_file() and wow.is_file():
+            if _files_content_differ(backup, wow):
+                _install_copy(backup, wow, game_path=game)
         return
 
     if kind == "mpq_file":

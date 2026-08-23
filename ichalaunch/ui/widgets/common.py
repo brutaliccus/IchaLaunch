@@ -2,10 +2,11 @@
 from __future__ import annotations
 import re
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 from PySide6.QtCore import QObject, QPoint, QRect, QSize, Qt, QThread, QTimer, QUrl, Signal
-from PySide6.QtGui import QDesktopServices, QPixmap
+from PySide6.QtGui import QDesktopServices, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -19,6 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ichalaunch.core.paths import theme_file
 from ichalaunch.ui.widgets.cursors import apply_open_hand
 from ichalaunch.ui.widgets.glue_panel_button import (
     GLUE_ROW_H,
@@ -27,6 +29,88 @@ from ichalaunch.ui.widgets.glue_panel_button import (
     GluePanelButton,
 )
 from ichalaunch.ui.widgets.theme_checkbox import ThemeCheckBox
+
+_OPTIONS_COG = "UI-OptionsButton.PNG"
+_OPTIONS_COG_EXTERNAL = Path(r"F:\wow-ui-textures\Buttons") / _OPTIONS_COG
+_OPTIONS_COG_PX = 20
+_OPTIONS_COG_CACHE: QPixmap | None = None
+
+
+def _options_cog_pixmap() -> QPixmap:
+    """Bundled WoW UI-OptionsButton, scaled for the addons row cog."""
+    global _OPTIONS_COG_CACHE
+    if _OPTIONS_COG_CACHE is not None:
+        return _OPTIONS_COG_CACHE
+    path = theme_file(_OPTIONS_COG)
+    if not path.is_file():
+        path = _OPTIONS_COG_EXTERNAL
+    pm = QPixmap()
+    if path.is_file():
+        src = QPixmap(str(path))
+        if not src.isNull():
+            pm = src.scaled(
+                _OPTIONS_COG_PX,
+                _OPTIONS_COG_PX,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+    _OPTIONS_COG_CACHE = pm
+    return pm
+
+
+class OptionsCogButton(QPushButton):
+    """Addons repository-settings control painted with UI-OptionsButton art."""
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setObjectName("OptionsCogButton")
+        apply_open_hand(self)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.setFixedSize(GLUE_ROW_MENU_W, GLUE_ROW_H)
+        self.setFlat(True)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+        self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+        self.setStyleSheet(
+            "QPushButton#OptionsCogButton {"
+            "  background: transparent;"
+            "  border: none;"
+            "  padding: 0;"
+            "  margin: 0;"
+            "  color: transparent;"
+            "}"
+        )
+        self._icon = _options_cog_pixmap()
+
+    def enterEvent(self, event) -> None:  # noqa: N802
+        super().enterEvent(event)
+        self.update()
+
+    def leaveEvent(self, event) -> None:  # noqa: N802
+        super().leaveEvent(event)
+        self.update()
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        del event
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        rect = self.rect()
+        icon = self._icon
+        if icon.isNull():
+            painter.setPen(Qt.GlobalColor.yellow)
+            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "⚙")
+            painter.end()
+            return
+        if self.isDown():
+            painter.setOpacity(0.75)
+        elif self.underMouse():
+            painter.setOpacity(1.0)
+        else:
+            painter.setOpacity(0.92)
+        x = rect.center().x() - icon.width() // 2
+        y = rect.center().y() - icon.height() // 2 + (1 if self.isDown() else 0)
+        painter.drawPixmap(x, y, icon)
+        painter.end()
 
 # Turtle WoW custom-addon badge (splash raven / ichalaunch icon).
 _TURTLE_BADGE_PX = 18
@@ -92,7 +176,6 @@ def _turtle_wow_badge_pixmap() -> QPixmap:
     global _turtle_badge_pm
     if _turtle_badge_pm is not None:
         return _turtle_badge_pm
-    from ichalaunch.core.paths import theme_file
 
     pm = QPixmap()
     for name in ("ichalaunch.png", "ichalaunch.ico"):
@@ -662,6 +745,7 @@ class AddonRow(QWidget):
         self._update_available = status.startswith("Update")
         self._status_text = status
         self.open_git_btn: GluePanelButton | None = None
+        self.settings_btn: OptionsCogButton | None = None
         self.load_cb: ThemeCheckBox | None = None
         self._loaded = bool(loaded)
         root = QVBoxLayout(self)
@@ -774,14 +858,13 @@ class AddonRow(QWidget):
             btn_r.clicked.connect(lambda: self.remove_clicked.emit(entry.get("folder") or entry.get("name")))
             layout.addWidget(btn_r)
             if git_url:
-                btn_set = GluePanelButton(
-                    "⚙", self, width=GLUE_ROW_MENU_W, height=GLUE_ROW_H
-                )
+                btn_set = OptionsCogButton(self)
                 btn_set.setToolTip(
                     "Repository settings — fork, version, and README preview"
                 )
                 btn_set.clicked.connect(lambda: self.settings_clicked.emit(entry))
                 layout.addWidget(btn_set)
+                self.settings_btn = btn_set
             self._refresh_never_update_ui()
         else:
             self._update_btn = None
