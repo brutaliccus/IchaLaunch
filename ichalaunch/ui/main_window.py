@@ -1564,7 +1564,39 @@ class MainWindow(QMainWindow):
             w = w.parentWidget()
         return False
 
+    @staticmethod
+    def _use_system_window_move() -> bool:
+        """True on Wayland, where clients may not position their own windows.
+
+        Wayland has no concept of a client setting its own global window
+        position: ``QWidget.move()`` on a top-level is discarded by the
+        compositor, so a frameless window appears frozen in place. The
+        compositor-side equivalents are ``QWindow.startSystemMove`` and
+        ``startSystemResize``. On Windows and X11 this returns False and the
+        original code path runs unchanged.
+        """
+        try:
+            from PySide6.QtGui import QGuiApplication
+
+            return (QGuiApplication.platformName() or "").lower().startswith("wayland")
+        except Exception:  # noqa: BLE001
+            return False
+
     def _begin_window_drag(self, global_pos: QPoint) -> None:
+        # Hand the drag to the compositor on Wayland. Leaving _drag_pos as None
+        # keeps mouseMoveEvent's self.move() path dormant.
+        if self._use_system_window_move():
+            handle = self.windowHandle()
+            if handle is not None:
+                try:
+                    if handle.startSystemMove():
+                        self._drag_pos = None
+                        self._resize_edges = None
+                        self._resize_origin = None
+                        self._resize_geo = None
+                        return
+                except Exception:  # noqa: BLE001
+                    pass
         self._drag_pos = global_pos - self.frameGeometry().topLeft()
         self._resize_edges = None
         self._resize_origin = None
@@ -1664,6 +1696,29 @@ class MainWindow(QMainWindow):
             pos = event.position().toPoint()
             edges = self._hit_resize_edges(pos)
             if any(edges):
+                # setGeometry() cannot reposition on Wayland either, so an
+                # edge-resize that moves the origin (left/top) misbehaves.
+                if self._use_system_window_move():
+                    handle = self.windowHandle()
+                    if handle is not None:
+                        left, right, top, bottom = edges
+                        qedges = Qt.Edge(0)
+                        if left:
+                            qedges |= Qt.Edge.LeftEdge
+                        if right:
+                            qedges |= Qt.Edge.RightEdge
+                        if top:
+                            qedges |= Qt.Edge.TopEdge
+                        if bottom:
+                            qedges |= Qt.Edge.BottomEdge
+                        try:
+                            if qedges and handle.startSystemResize(qedges):
+                                self._drag_pos = None
+                                self._resize_edges = None
+                                event.accept()
+                                return
+                        except Exception:  # noqa: BLE001
+                            pass
                 self._resize_edges = edges
                 self._resize_origin = event.globalPosition().toPoint()
                 self._resize_geo = QRect(self.geometry())
