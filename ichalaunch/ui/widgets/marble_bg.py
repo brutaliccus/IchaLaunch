@@ -83,15 +83,10 @@ def paint_marble_tiled(
         tw, th = tile.width(), tile.height()
         if tw > 0 and th > 0:
             painter.setOpacity(_TILE_OPACITY)
-            y = rect.top()
-            bottom = rect.top() + rect.height()
-            right = rect.left() + rect.width()
-            while y < bottom:
-                x = rect.left()
-                while x < right:
-                    painter.drawPixmap(x, y, tile)
-                    x += tw
-                y += th
+            # Qt's raster engine has a dedicated tiled-blit path. The Python
+            # double loop cost one interpreter iteration and one binding call
+            # per tile, which is measurable at 5120x2160.
+            painter.drawTiledPixmap(rect, tile)
             painter.setOpacity(1.0)
 
     painter.restore()

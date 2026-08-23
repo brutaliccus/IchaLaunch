@@ -349,16 +349,14 @@ def _paint_floor_fill(
         ox = tile_origin.x() if tile_origin is not None else rect.left()
         oy = tile_origin.y() if tile_origin is not None else rect.top()
         # Align tile phase to a shared origin so TopNav and ContentPanel match.
-        x0 = rect.left() - ((rect.left() - ox) % tw)
-        y0 = rect.top() - ((rect.top() - oy) % th)
         painter.setOpacity(_FLOOR_TILE_OPACITY)
-        y = y0
-        while y < rect.bottom():
-            x = x0
-            while x < rect.right():
-                painter.drawPixmap(x, y, floor)
-                x += tw
-            y += th
+        # drawTiledPixmap's offset is the starting point WITHIN the pixmap, so
+        # the shared tile phase above is preserved exactly. Qt's raster engine
+        # blits this in one pass; the Python double loop cost an interpreter
+        # iteration and a binding call per tile, which shows at 5120x2160.
+        painter.drawTiledPixmap(
+            rect, floor, QPoint((rect.left() - ox) % tw, (rect.top() - oy) % th)
+        )
         painter.setOpacity(1.0)
         painter.fillRect(rect, _FLOOR_WASH)
     painter.restore()
