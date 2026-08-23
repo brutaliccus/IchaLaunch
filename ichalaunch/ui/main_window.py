@@ -995,6 +995,25 @@ class NavBottomBanner(QWidget):
         painter.drawPixmap(draw, self._pix)
 
 
+try:
+    from shiboken6 import isValid as _shiboken_is_valid
+except ImportError:  # pragma: no cover
+    def _shiboken_is_valid(obj: object) -> bool:  # type: ignore[misc]
+        return obj is not None
+
+
+def _safe_worker_running(worker: Worker | None) -> bool:
+    """True when *worker* is a live QThread that is still running."""
+    if worker is None:
+        return False
+    try:
+        if not _shiboken_is_valid(worker):
+            return False
+        return worker.isRunning()
+    except RuntimeError:
+        return False
+
+
 class Worker(QThread):
     finished_ok = Signal(object)
     failed = Signal(str)
@@ -1868,7 +1887,7 @@ class MainWindow(QMainWindow):
 
     def _periodic_update_check(self) -> None:
         """Recurring silent launcher self-update only (addons/client: launch scan)."""
-        if self._worker and self._worker.isRunning():
+        if _safe_worker_running(self._worker):
             return
         # Do not re-scan addons/client here — that runs once at startup (force).
         self._check_launcher_update(silent=True)
@@ -1912,7 +1931,10 @@ class MainWindow(QMainWindow):
         self.progress.setFormat("%p%")
 
     def _worker_busy(self) -> bool:
-        return bool(self._worker and self._worker.isRunning())
+        busy = _safe_worker_running(self._worker)
+        if not busy and self._worker is not None:
+            self._worker = None
+        return busy
 
     def _track_worker(self, worker: Worker) -> None:
         """Hold *worker* alive until its thread has actually terminated.
@@ -1928,6 +1950,8 @@ class MainWindow(QMainWindow):
     def _release_worker(self, worker: Worker) -> None:
         worker.wait()  # finished has fired; returns immediately once run() unwinds
         self._live_workers.discard(worker)
+        if getattr(self, "_worker", None) is worker:
+            self._worker = None
         # The tracking connection's closure still references the wrapper, so
         # let Qt free the C++ thread object (and with it that connection).
         worker.deleteLater()
@@ -2146,7 +2170,7 @@ class MainWindow(QMainWindow):
         queue_key: str = "",
     ) -> None:
         """Run a background job; optionally queue addon jobs when one is already running."""
-        if self._worker and self._worker.isRunning():
+        if _safe_worker_running(self._worker):
             if queueable:
                 self._enqueue_addon_job(title, worker, on_ok, queue_key)
                 return
@@ -2181,7 +2205,7 @@ class MainWindow(QMainWindow):
 
     def _pump_addon_queue(self) -> bool:
         """Start the next queued addon job. Returns True if a job was started."""
-        if self._worker and self._worker.isRunning():
+        if _safe_worker_running(self._worker):
             return True
         if not self._addon_queue:
             return False
@@ -2255,7 +2279,7 @@ class MainWindow(QMainWindow):
         Silent/startup/periodic checks never touch the bottom progress bar or
         busy PLAY state — only real download/install via ``_apply_launcher_update``.
         """
-        if self._launcher_update_worker and self._launcher_update_worker.isRunning():
+        if _safe_worker_running(self._launcher_update_worker):
             if not silent:
                 self.status_lbl.setText("Launcher update check already running…")
             return
@@ -3044,7 +3068,7 @@ class MainWindow(QMainWindow):
             if not silent:
                 self.status_lbl.setText("Set a game path before checking updates")
             return
-        if self._update_worker and self._update_worker.isRunning():
+        if _safe_worker_running(self._update_worker):
             if not silent:
                 self.status_lbl.setText("Update check already running…")
             return
@@ -3127,7 +3151,7 @@ class MainWindow(QMainWindow):
         """Continue a paced unauthenticated addon scan when the hour budget refreshes."""
         if not has_pending_addon_scan_queue():
             return
-        if self._update_worker and self._update_worker.isRunning():
+        if _safe_worker_running(self._update_worker):
             self._addon_scan_resume_timer.start(30_000)
             return
         if not self._checking_mods:
@@ -3139,7 +3163,7 @@ class MainWindow(QMainWindow):
             if not silent:
                 self.status_lbl.setText("Set a game path before checking updates")
             return
-        if self._mod_update_worker and self._mod_update_worker.isRunning():
+        if _safe_worker_running(self._mod_update_worker):
             if not silent:
                 self.status_lbl.setText("Client mod update check already running…")
             return

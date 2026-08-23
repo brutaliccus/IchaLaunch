@@ -3551,6 +3551,49 @@ def test_worker_survives_ref_drop_in_result_slot():
     print("OK worker survives ref drop in result slot")
 
 
+def test_main_worker_ref_cleared_after_release():
+    """Regression: _release_worker must clear self._worker before deleteLater.
+
+    v1.2.2 kept workers alive via _live_workers but left self._worker pointing
+    at the freed C++ object after the first _busy job, so the next install hit
+    RuntimeError in _busy / _periodic_update_check.
+    """
+    from PySide6.QtCore import QDeadlineTimer
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.main_window import MainWindow, Worker, _safe_worker_running
+
+    app = QApplication.instance() or QApplication([])
+
+    class Harness:
+        def __init__(self):
+            self._worker = None
+            self._live_workers: set = set()
+
+        _track_worker = MainWindow._track_worker
+        _release_worker = MainWindow._release_worker
+        _worker_busy = MainWindow._worker_busy
+
+    harness = Harness()
+
+    def _work(progress=None):
+        return "ok"
+
+    for _ in range(2):
+        worker = Worker(_work)
+        harness._worker = worker
+        harness._track_worker(worker)
+        worker.start()
+        deadline = QDeadlineTimer(5000)
+        while harness._live_workers and not deadline.hasExpired():
+            app.processEvents()
+        assert harness._worker is None, "main worker ref must clear on release"
+        assert not harness._worker_busy(), "released worker must not read as busy"
+        assert not _safe_worker_running(worker), "deleted worker must not read as running"
+
+    print("OK main worker ref cleared after release")
+
+
 def test_loading_bar_reserves_update_button_slot():
     from PySide6.QtWidgets import QApplication
 
@@ -3994,6 +4037,7 @@ def _run_smoke_tests():
     test_update_launch_button_is_square_and_pulses()
     test_launch_button_down_plate_is_click_only()
     test_worker_survives_ref_drop_in_result_slot()
+    test_main_worker_ref_cleared_after_release()
     test_loading_bar_reserves_update_button_slot()
     test_launch_buttons_use_glue_panel_chrome()
     test_options_cog_uses_wow_art()
