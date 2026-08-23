@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 from pathlib import Path
 
@@ -1762,6 +1763,13 @@ class MainWindow(QMainWindow):
         self.addons.preload_rows()
 
     def _launcher_update_pending(self) -> bool:
+        # Applying an update means replacing the running executable, which
+        # apply_windows_self_replace refuses to do anywhere but Windows. So
+        # reporting one elsewhere turns PLAY into UPDATE, sends the user
+        # through a download that cannot be applied, and leaves the game
+        # unlaunchable from that button for good.
+        if os.name != "nt":
+            return False
         info = self._latest_launcher_release
         return bool(info and info.update_available)
 
