@@ -123,7 +123,7 @@ class LaunchButton(QPushButton):
 
     Uses taller WoW Glue-Panel art: red fill is shifted to purple, then a
     bottom-weighted gradient and gold underline are painted the same way
-    (per-pixel). Hover uses the Down plate — no gold outline.
+    (per-pixel). Hover stays on the Up plate; Down art is click-only.
     """
 
     def __init__(
@@ -196,7 +196,7 @@ class LaunchButton(QPushButton):
     def _pick_chrome(self) -> QPixmap | None:
         if not self.isEnabled():
             return self._chrome_disabled or self._chrome
-        if self.isDown() or self.underMouse():
+        if self.isDown():
             return self._chrome_pressed or self._chrome
         return self._chrome
 

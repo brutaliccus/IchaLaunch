@@ -5,11 +5,18 @@
 
 > **Fresh install:** Use the launcher's **INSTALL** flow for a clean RavenCraft setup. Do **not** point IchaLaunch at an old TurtleWoW or Capybara client — start fresh for the best results.
 
-**IchaLaunch v1.2.0** installs **[RavenCraft](https://ravencraft.io/)** (Turtle WoW–compatible 1.18), manages addons and client mods, and launches the game.
+**IchaLaunch v1.2.1** installs **[RavenCraft](https://ravencraft.io/)** (Turtle WoW–compatible 1.18), manages addons and client mods, and launches the game.
 
 Download **`IchaLaunch.exe`** from **[Releases](https://github.com/brutaliccus/IchaLaunch/releases/latest)**.
 
 A frameless RavenCraft-themed window: **HOME**, **ADDONS**, **CLIENT**, **SETTINGS**, and a **PLAY** bar.
+
+---
+
+## What's new in v1.2.1
+
+- **Click-only Down plate** — PLAY, REGISTER HERE, and the square UPDATE control stay on the Up glue-panel art until you press them (no hover-as-press, no gold hover box).
+- **Settings** — the developer “Test update button” preview control is gone.
 
 ---
 
@@ -53,7 +60,7 @@ A frameless RavenCraft-themed window: **HOME**, **ADDONS**, **CLIENT**, **SETTIN
 ## Get the launcher
 
 1. Open the latest release: [github.com/brutaliccus/IchaLaunch/releases/latest](https://github.com/brutaliccus/IchaLaunch/releases/latest)
-2. Download **`IchaLaunch.exe`** (v1.2.0)
+2. Download **`IchaLaunch.exe`** (v1.2.1)
 3. Put it somewhere convenient (next to your game folder is fine — not required)
 4. Run the EXE
 

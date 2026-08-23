@@ -3310,6 +3310,27 @@ def test_update_launch_button_is_square_and_pulses():
     print("OK update launch button is square and pulses")
 
 
+def test_launch_button_down_plate_is_click_only():
+    """PLAY / REGISTER / UPDATE use Down chrome only while pressed, not on hover."""
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.widgets.launch_button import LaunchButton, UpdateLaunchButton
+
+    app = QApplication.instance() or QApplication([])
+    play = LaunchButton("PLAY")
+    reg = LaunchButton("REGISTER HERE")
+    upd = UpdateLaunchButton()
+    for btn in (play, reg, upd):
+        assert not hasattr(btn, "_paint_gold_border")
+        idle = btn._pick_chrome()
+        assert idle is btn._chrome
+        btn.setDown(True)
+        assert btn._pick_chrome() is btn._chrome_pressed
+        btn.setDown(False)
+        assert btn._pick_chrome() is btn._chrome
+    print("OK launch button Down plate is click-only")
+
+
 def test_loading_bar_reserves_update_button_slot():
     from PySide6.QtWidgets import QApplication
 
@@ -3665,6 +3686,7 @@ def _run_smoke_tests():
     test_themed_dialog_flags_and_close()
     test_dll_security_dialog_dont_show_again_is_themed_checkbox()
     test_update_launch_button_is_square_and_pulses()
+    test_launch_button_down_plate_is_click_only()
     test_loading_bar_reserves_update_button_slot()
     test_launch_buttons_use_glue_panel_chrome()
     test_options_cog_uses_wow_art()

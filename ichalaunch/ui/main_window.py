@@ -1068,7 +1068,6 @@ class MainWindow(QMainWindow):
         self._startup_checks_scheduled = False
         self._permissions_skipped_path: str | None = None
         self._play_launch_lock_until = 0.0
-        self._preview_play_bar = False
         self._play_launch_timer = QTimer(self)
         self._play_launch_timer.setSingleShot(True)
         self._play_launch_timer.timeout.connect(self._release_play_launch_lock)
@@ -1279,7 +1278,6 @@ class MainWindow(QMainWindow):
         self.settings_page.clear_cache_clicked.connect(self._clear_app_cache)
         self.settings_page.check_permissions_clicked.connect(self._check_game_permissions)
         self.settings_page.verify_clicked.connect(self._verify_game)
-        self.settings_page.preview_play_bar_toggled.connect(self._set_play_bar_preview)
 
         self._refresh_play_button()
         self._nav(0)
@@ -1861,12 +1859,10 @@ class MainWindow(QMainWindow):
         self._refresh_nav_badges()
 
     def _refresh_update_button(self) -> None:
-        pending = self._launcher_update_pending() or self._preview_play_bar
+        pending = self._launcher_update_pending()
         self.update_btn.set_pending(pending)
         info = self._latest_launcher_release
-        if self._preview_play_bar and not self._launcher_update_pending():
-            self.update_btn.setToolTip("Preview — no launcher update queued")
-        elif pending and info and getattr(info, "version", None):
+        if pending and info and getattr(info, "version", None):
             self.update_btn.setToolTip(f"Update IchaLaunch to v{info.version}")
         else:
             self.update_btn.setToolTip("Update IchaLaunch")
@@ -1887,35 +1883,10 @@ class MainWindow(QMainWindow):
             lay.layout().activate()
 
     def _hide_progress_bar(self) -> None:
-        if self._preview_play_bar:
-            self._show_play_bar_preview_progress()
-            return
         self.progress.hide()
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
         self.progress.setFormat("%p%")
-
-    def _show_play_bar_preview_progress(self) -> None:
-        self.progress.show()
-        self.progress.setRange(0, 100)
-        self.progress.setValue(45)
-        self.progress.setFormat("%p%")
-
-    def _set_play_bar_preview(self, on: bool) -> None:
-        """Settings test control: force the update arrow + progress rail on."""
-        self._preview_play_bar = bool(on)
-        if self._preview_play_bar:
-            self.update_btn.setEnabled(True)
-            self._refresh_update_button()
-            self._show_play_bar_preview_progress()
-            self.status_lbl.setText("Preview: update button + progress")
-        else:
-            self._refresh_play_button()
-            if not self._worker_busy() and not self._checking_addons and not self._checking_mods:
-                self._hide_progress_bar()
-            if (self.status_lbl.text() or "").startswith("Preview"):
-                self.status_lbl.setText("Ready")
-        self._fit_bottom_progress()
 
     def _worker_busy(self) -> bool:
         return bool(self._worker and self._worker.isRunning())
@@ -2001,8 +1972,7 @@ class MainWindow(QMainWindow):
         else:
             self._hide_progress_bar()
             self._busy_status_base = ""
-            if not self._preview_play_bar:
-                self.status_lbl.setText(msg or "Ready")
+            self.status_lbl.setText(msg or "Ready")
 
     def _on_progress_pct(self, pct: int) -> None:
         """Update bottom bar: determinate 0–100, or busy when pct < 0."""
