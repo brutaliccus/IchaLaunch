@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-23T18:20:14Z",
+  "generated_at": "2026-08-23T19:19:47Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -6386,11 +6386,11 @@
     },
     "brues-code/classicapi": {
       "default_branch": "master",
-      "sha": "3c6b449df53ab29ae3ad1efdb0d885ce5e39b970",
+      "sha": "f97379795d80afed17351a36d84c0123bfac9b83",
       "branches": {
-        "master": "3c6b449df53ab29ae3ad1efdb0d885ce5e39b970"
+        "master": "f97379795d80afed17351a36d84c0123bfac9b83"
       },
-      "latest_tag": "v1.12.0"
+      "latest_tag": "v1.12.1"
     },
     "retrocro/turtlewow-mods": {
       "default_branch": "main",
