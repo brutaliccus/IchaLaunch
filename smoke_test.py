@@ -2944,6 +2944,17 @@ def test_auto_scan_cooldown_persists_to_disk():
     page = settings_page_mod.SettingsPage()
     assert not hasattr(page, "cooldown_slider")
     assert settings.auto_scan_cooldown_minutes() == 15
+    if sys.platform != "win32":
+        assert page.linux_umu_edit is not None
+        page.linux_umu_edit.setText("/opt/umu-run")
+        page.linux_umu_edit.editingFinished.emit()
+        assert settings.get("linux_umu_path") == "/opt/umu-run"
+        page.cb_linux_latest.setChecked(True)
+        assert settings.get("linux_use_latest_proton") is True
+        assert page.linux_proton_edit.isEnabled() is False
+        page.refresh()
+        assert page.linux_umu_edit.text() == "/opt/umu-run"
+        assert page.cb_linux_latest.isChecked() is True
     print("OK auto scan cooldown has no settings slider")
 
 
@@ -4026,6 +4037,9 @@ def test_settings_paths_survive_load_cycle():
                     {
                         "game_path": r"D:\Games\RavenCraft",
                         "addons_path": r"E:\Custom\AddOns",
+                        "linux_umu_path": "/opt/umu-run",
+                        "linux_proton_path": "/opt/GE-Proton9-20",
+                        "linux_wineprefix": "/opt/prefixes/RavenCraft",
                         "check_addon_updates_on_startup": True,
                         "github_token": "",
                         "desired_mods": {"darker_nights": True},
@@ -4037,6 +4051,9 @@ def test_settings_paths_survive_load_cycle():
             s = Settings()
             assert s.game_path.replace("\\", "/") == "D:/Games/RavenCraft"
             assert s.addons_path.replace("\\", "/") == "E:/Custom/AddOns"
+            assert s.get("linux_umu_path") == "/opt/umu-run"
+            assert s.get("linux_proton_path") == "/opt/GE-Proton9-20"
+            assert s.get("linux_wineprefix") == "/opt/prefixes/RavenCraft"
             assert s.desired_mods.get("hd_patch_n") is True
 
             # Simulate a routine settings write (e.g. desired_mods reconcile).
@@ -4046,6 +4063,9 @@ def test_settings_paths_survive_load_cycle():
             reloaded = Settings()
             assert reloaded.game_path.replace("\\", "/") == "D:/Games/RavenCraft"
             assert reloaded.addons_path.replace("\\", "/") == "E:/Custom/AddOns"
+            assert reloaded.get("linux_umu_path") == "/opt/umu-run"
+            assert reloaded.get("linux_proton_path") == "/opt/GE-Proton9-20"
+            assert reloaded.get("linux_wineprefix") == "/opt/prefixes/RavenCraft"
 
             # Accidental empty writes must not wipe saved paths.
             reloaded.set("game_path", "")

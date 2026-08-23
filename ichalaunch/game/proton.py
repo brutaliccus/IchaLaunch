@@ -46,7 +46,8 @@ UMU_MISSING_MSG = (
 )
 PROTON_MISSING_MSG = (
     "No Proton build was found. Install one with ProtonUp-Qt, or via Steam, "
-    "so that it appears under a compatibilitytools.d folder."
+    "so that it appears under a compatibilitytools.d folder, or pick a Proton "
+    "folder in Settings."
 )
 
 

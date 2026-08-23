@@ -85,7 +85,13 @@ DEFAULTS: dict[str, Any] = {
 }
 
 
-_PATH_KEYS = ("game_path", "addons_path")
+_PATH_KEYS = (
+    "game_path",
+    "addons_path",
+    "linux_umu_path",
+    "linux_proton_path",
+    "linux_wineprefix",
+)
 
 _LEGACY_MOD_ALIASES: dict[str, str] = {
     "darker_nights": "hd_patch_n",

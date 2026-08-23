@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import sys
+
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
+    QFileDialog,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -160,6 +163,10 @@ class SettingsPage(QWidget):
             cb.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             launch_card.body.addWidget(cb)
 
+        linux_card = None
+        if sys.platform != "win32":
+            linux_card = self._build_linux_card()
+
         upd_card = MarbleCard()
         upd_card.body.setSpacing(10)
         upd_title = QLabel("Updates")
@@ -307,6 +314,8 @@ class SettingsPage(QWidget):
         layout.addWidget(game_card)
         layout.addWidget(addons_card)
         layout.addWidget(launch_card)
+        if linux_card is not None:
+            layout.addWidget(linux_card)
         layout.addWidget(upd_card)
         layout.addWidget(gh_card)
         layout.addWidget(maint_card)
@@ -315,6 +324,180 @@ class SettingsPage(QWidget):
 
         scroll.setWidget(host)
         outer.addWidget(scroll)
+
+    def _build_linux_card(self) -> MarbleCard:
+        """umu / Proton / prefix — Linux only; keys were JSON-only after #3."""
+        card = MarbleCard()
+        card.body.setSpacing(10)
+        title = QLabel("Linux launch")
+        title.setObjectName("CardTitle")
+        card.body.addWidget(title)
+
+        umu_lbl = QLabel("umu-run")
+        umu_lbl.setObjectName("Muted")
+        card.body.addWidget(umu_lbl)
+        self.linux_umu_edit, umu_row = self._linux_path_row(
+            "SettingsLinuxUmu",
+            "linux_umu_path",
+            placeholder="Auto (umu-run on PATH, or ~/.local/bin/umu-run)",
+            browse_file=True,
+            browse_title="Select umu-run",
+        )
+        card.body.addLayout(umu_row)
+
+        proton_lbl = QLabel("Proton folder")
+        proton_lbl.setObjectName("Muted")
+        card.body.addWidget(proton_lbl)
+        self.linux_proton_edit, proton_row = self._linux_path_row(
+            "SettingsLinuxProton",
+            "linux_proton_path",
+            placeholder="Auto (discover and pin a compatibilitytools.d build)",
+            browse_file=False,
+            browse_title="Select Proton folder (contains toolmanifest.vdf)",
+        )
+        card.body.addLayout(proton_row)
+
+        self.cb_linux_latest = ThemeCheckBox("Always use the newest Proton build (do not pin)")
+        self.cb_linux_latest.setChecked(bool(settings.get("linux_use_latest_proton", False)))
+        self.cb_linux_latest.setToolTip(
+            "By default the first Proton build found is pinned so a later "
+            "ProtonUp-Qt or Steam update cannot move a working install onto "
+            "an untested runtime. Turn this on only if you want that."
+        )
+        self.cb_linux_latest.setMinimumHeight(28)
+        self.cb_linux_latest.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+        self.cb_linux_latest.toggled.connect(self._on_linux_latest_proton)
+        card.body.addWidget(self.cb_linux_latest)
+        self._set_linux_proton_enabled(not self.cb_linux_latest.isChecked())
+
+        prefix_lbl = QLabel("Wine prefix")
+        prefix_lbl.setObjectName("Muted")
+        card.body.addWidget(prefix_lbl)
+        self.linux_wineprefix_edit, prefix_row = self._linux_path_row(
+            "SettingsLinuxWineprefix",
+            "linux_wineprefix",
+            placeholder="Auto (under the launcher AppData prefixes folder)",
+            browse_file=False,
+            browse_title="Select Wine prefix folder",
+        )
+        card.body.addLayout(prefix_row)
+
+        note = QLabel(
+            "Used when PLAY starts WoW.exe through umu-launcher. Leave a field "
+            "empty to auto-detect. A first launch may download the Steam Linux "
+            "Runtime and can take several minutes."
+        )
+        note.setObjectName("Muted")
+        note.setWordWrap(True)
+        card.body.addWidget(note)
+        return card
+
+    def _linux_path_row(
+        self,
+        object_name: str,
+        key: str,
+        *,
+        placeholder: str,
+        browse_file: bool,
+        browse_title: str,
+    ) -> tuple[CastingBarSearchEdit, QHBoxLayout]:
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        edit = CastingBarSearchEdit(
+            object_name=object_name,
+            read_only=False,
+            clear_button=False,
+            minimum_height=SETTINGS_MIN_H,
+        )
+        edit.setText(str(settings.get(key) or ""))
+        edit.setPlaceholderText(placeholder)
+        edit.setToolTip("Saved when you leave the field")
+        edit.editingFinished.connect(lambda k=key, e=edit: self._save_linux_path(k, e))
+        browse = GluePanelButton("Browse…")
+        browse.clicked.connect(
+            lambda k=key, e=edit, f=browse_file, t=browse_title: self._browse_linux_path(
+                k, e, browse_file=f, title=t
+            )
+        )
+        clear = GluePanelButton("Clear")
+        clear.clicked.connect(lambda k=key, e=edit: self._clear_linux_path(k, e))
+        if key == "linux_proton_path":
+            self._linux_proton_browse = browse
+            self._linux_proton_clear = clear
+        row.addWidget(edit, 1)
+        row.addWidget(browse)
+        row.addWidget(clear)
+        return edit, row
+
+    def _save_linux_path(self, key: str, edit: CastingBarSearchEdit) -> None:
+        value = edit.text().strip()
+        current = str(settings.get(key) or "")
+        if value != current:
+            settings.set(key, value)
+        if edit.text() != value:
+            edit.blockSignals(True)
+            edit.setText(value)
+            edit.blockSignals(False)
+
+    def _clear_linux_path(self, key: str, edit: CastingBarSearchEdit) -> None:
+        edit.blockSignals(True)
+        edit.setText("")
+        edit.blockSignals(False)
+        settings.set(key, "")
+
+    def _browse_linux_path(
+        self,
+        key: str,
+        edit: CastingBarSearchEdit,
+        *,
+        browse_file: bool,
+        title: str,
+    ) -> None:
+        start = edit.text().strip()
+        if browse_file:
+            path, _ok = QFileDialog.getOpenFileName(self, title, start)
+        else:
+            path = QFileDialog.getExistingDirectory(self, title, start)
+        if not path:
+            return
+        edit.blockSignals(True)
+        edit.setText(path)
+        edit.blockSignals(False)
+        settings.set(key, path)
+
+    def _set_linux_proton_enabled(self, enabled: bool) -> None:
+        self.linux_proton_edit.setEnabled(enabled)
+        browse = getattr(self, "_linux_proton_browse", None)
+        clear = getattr(self, "_linux_proton_clear", None)
+        if browse is not None:
+            browse.setEnabled(enabled)
+        if clear is not None:
+            clear.setEnabled(enabled)
+
+    def _on_linux_latest_proton(self, on: bool) -> None:
+        settings.set("linux_use_latest_proton", bool(on))
+        self._set_linux_proton_enabled(not on)
+
+    def _sync_linux_edits(self) -> None:
+        if getattr(self, "linux_umu_edit", None) is None:
+            return
+        for edit, key in (
+            (self.linux_umu_edit, "linux_umu_path"),
+            (self.linux_proton_edit, "linux_proton_path"),
+            (self.linux_wineprefix_edit, "linux_wineprefix"),
+        ):
+            stored = str(settings.get(key) or "")
+            if edit.text() != stored:
+                edit.blockSignals(True)
+                edit.setText(stored)
+                edit.blockSignals(False)
+        latest = bool(settings.get("linux_use_latest_proton", False))
+        self.cb_linux_latest.blockSignals(True)
+        self.cb_linux_latest.setChecked(latest)
+        self.cb_linux_latest.blockSignals(False)
+        self._set_linux_proton_enabled(not latest)
 
     def _save_github_token(self, force_feedback: bool = False) -> None:
         self._token_save_timer.stop()
@@ -358,3 +541,4 @@ class SettingsPage(QWidget):
             self.token_edit.blockSignals(True)
             self.token_edit.setText(stored)
             self.token_edit.blockSignals(False)
+        self._sync_linux_edits()
