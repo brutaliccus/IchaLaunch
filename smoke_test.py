@@ -3162,6 +3162,8 @@ def test_themed_dialog_flags_and_close():
     close_open_themed_dialogs(root)
     assert not dlg.isVisible()
     print("OK themed dialog flags and close")
+
+
 def test_client_exe_probe_is_case_insensitive():
     """3.3.5-era clients ship "Wow.exe"; 1.12-era ship "WoW.exe".
 
@@ -3195,6 +3197,74 @@ def test_client_exe_probe_is_case_insensitive():
         assert resolve_ci(base, "data/absent.mpq") is None
 
     print("OK client exe probe is case-insensitive")
+
+
+def test_linux_proton_launch_resolution():
+    """Proton discovery, pin-by-default, and command assembly.
+
+    Uses a stub settings object throughout: resolving a build PINS it, and a
+    test must never write into the user's real configuration.
+    """
+    if sys.platform == "win32":
+        print("OK linux proton launch resolution (skipped on Windows)")
+        return
+
+    import os
+
+    from ichalaunch.game import proton
+
+    class _Stub:
+        def __init__(self, d):
+            self.d = dict(d)
+
+        def get(self, k, default=None):
+            return self.d.get(k, default)
+
+        def set(self, k, v):
+            self.d[k] = v
+
+    real = proton.settings
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            tools = root / "compatibilitytools.d"
+            for name in ("GE-Proton9-20", "GE-Proton10-34", "Proton-GE Latest", "notatool"):
+                (tools / name).mkdir(parents=True)
+            for name in ("GE-Proton9-20", "GE-Proton10-34", "Proton-GE Latest"):
+                (tools / name / "toolmanifest.vdf").write_text("x")
+
+            proton.settings = _Stub({"linux_proton_path": "", "linux_wineprefix": "",
+                                     "linux_use_latest_proton": False, "linux_umu_path": ""})
+            os.environ["STEAM_EXTRA_COMPAT_TOOLS_PATHS"] = str(tools)
+            try:
+                builds = [b.name for b in proton.discover_proton_builds()
+                          if str(b).startswith(str(tools))]
+            finally:
+                os.environ.pop("STEAM_EXTRA_COMPAT_TOOLS_PATHS", None)
+
+            # A directory without a manifest is not a Proton build.
+            assert "notatool" not in builds, builds
+            # Numeric names sort newest-first; a digit-less name never wins
+            # automatic selection, because it is a moving target.
+            assert builds[0] == "GE-Proton10-34", builds
+            assert builds.index("GE-Proton9-20") < builds.index("Proton-GE Latest"), builds
+
+            # Pinning: the resolved build is written back and then honoured.
+            stub = proton.settings
+            stub.set("linux_proton_path", str(tools / "GE-Proton9-20"))
+            assert proton.resolve_proton_path().name == "GE-Proton9-20"
+
+            # A missing umu-run is a clear error, not a traceback.
+            stub.set("linux_umu_path", str(root / "no-such-umu"))
+            try:
+                proton.build_launch_command(root / "WoW.exe", root)
+                raise AssertionError("expected FileNotFoundError")
+            except FileNotFoundError as exc:
+                assert "umu-run" in str(exc), str(exc)
+    finally:
+        proton.settings = real
+
+    print("OK linux proton launch resolution")
 
 
 def main():
@@ -3268,6 +3338,7 @@ def _run_smoke_tests():
     test_apply_desired_state_restores_dlls_txt()
     test_prepare_for_launch_syncs_dlls_txt()
     test_client_exe_probe_is_case_insensitive()
+    test_linux_proton_launch_resolution()
     test_prepare_for_launch_clears_data_readonly()
     test_plan_missing_installs_dxvk()
     test_play_prep_plans_remove()

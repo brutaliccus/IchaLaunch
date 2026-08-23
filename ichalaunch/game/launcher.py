@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -265,7 +266,7 @@ def launch_exe_note(game_path: Path, exe: Path) -> str | None:
     return None
 
 
-def launch_game() -> None:
+def launch_game() -> subprocess.Popen | None:
     game = detect_game()
     if not game:
         raise FileNotFoundError("Game not installed / path not set")
@@ -276,7 +277,9 @@ def launch_game() -> None:
     note = launch_exe_note(game, exe)
     if note:
         log.info("Launch note: %s", note)
-    launch_exe(exe, cwd=game)
+    # Returned rather than discarded: on Linux the caller has to watch this
+    # for an early non-zero exit, which is the only sign the launch failed.
+    return launch_exe(exe, cwd=game)
 
 
 def gofile_content_id(url: str) -> str | None:

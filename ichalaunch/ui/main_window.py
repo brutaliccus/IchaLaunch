@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import time
 from pathlib import Path
 
@@ -43,6 +44,12 @@ from PySide6.QtWidgets import (
 )
 
 from ichalaunch.ui.widgets import dialogs as themed
+
+# How long a launched client is watched for an early failure, and how often.
+# Long enough to catch umu refusing a Proton build or an unusable prefix,
+# short enough that a working launch is not held up noticeably.
+_LAUNCH_GRACE_S = 8.0
+_LAUNCH_POLL_MS = 250
 
 _RESIZE_MARGIN = 6
 _CORNER_RADIUS = 14
@@ -2335,16 +2342,65 @@ class MainWindow(QMainWindow):
                     self._fail_play_launch("Launch cancelled")
                     return
             self._show_play_launch_progress("Launching game…")
-            launch_game()
-            self.status_lbl.setText("Game launched")
-            themed.close_open_themed_dialogs(self)
-            if settings.get("close_on_launch"):
-                self.close()
-            elif settings.get("minimize_on_launch"):
-                self.showMinimized()
+            proc = launch_game()
+            if proc is not None and os.name != "nt":
+                self._watch_launch(proc)
+                return
+            self._launch_succeeded()
         except Exception as exc:  # noqa: BLE001
             self._fail_play_launch(f"Launch failed: {str(exc)[:80]}")
             themed.error(self, "Launch failed", str(exc))
+
+    def _launch_succeeded(self) -> None:
+        self.status_lbl.setText("Game launched")
+        themed.close_open_themed_dialogs(self)
+        if settings.get("close_on_launch"):
+            self.close()
+        elif settings.get("minimize_on_launch"):
+            self.showMinimized()
+
+    def _watch_launch(self, proc: subprocess.Popen) -> None:
+        """Give the child a moment to fail before calling the launch a success.
+
+        Windows runs the client directly, so Popen returning means it started.
+        Elsewhere it runs under umu, which exits non-zero when the Proton build,
+        the prefix or the runtime is unusable -- and does so a second or two
+        later, with its reasons in a log file rather than on any terminal. The
+        window used to close on the line after Popen, so a launch that failed
+        looked exactly like one that worked.
+
+        Polled from a timer rather than waited on, because this runs on the GUI
+        thread. Nothing is treated as failure except an early non-zero exit.
+        """
+        from ichalaunch.game.proton import launch_log_tail
+
+        deadline = time.monotonic() + _LAUNCH_GRACE_S
+        self._show_play_launch_progress(
+            "Launching game… first run may download the Steam Linux Runtime"
+        )
+
+        def check() -> None:
+            code = proc.poll()
+            if code is None:
+                if time.monotonic() < deadline:
+                    QTimer.singleShot(_LAUNCH_POLL_MS, check)
+                else:
+                    self._launch_succeeded()
+                return
+            if code == 0:
+                self._launch_succeeded()
+                return
+            tail = launch_log_tail()
+            log.warning("Launch exited early with code %s", code)
+            self._fail_play_launch(f"Launch failed (exit code {code})")
+            themed.error(
+                self,
+                "Launch failed",
+                f"The game exited immediately, with code {code}.\n\n"
+                + (tail or "No output was captured from the launch."),
+            )
+
+        QTimer.singleShot(_LAUNCH_POLL_MS, check)
 
     def _offer_permission_fix(
         self,

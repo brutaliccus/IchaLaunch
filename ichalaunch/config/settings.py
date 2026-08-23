@@ -57,6 +57,11 @@ def settings_path() -> Path:
 
 DEFAULTS: dict[str, Any] = {
     "game_path": "",
+    # Linux launch. Empty proton path means "resolve and then pin".
+    "linux_umu_path": "",
+    "linux_proton_path": "",
+    "linux_use_latest_proton": False,
+    "linux_wineprefix": "",
     "addons_path": "",
     "vanillafixes_enabled": True,
     "minimize_on_launch": False,
