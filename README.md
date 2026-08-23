@@ -13,13 +13,6 @@ A frameless RavenCraft-themed window: **HOME**, **ADDONS**, **CLIENT**, **SETTIN
 
 ---
 
-## What's new in v1.2.1
-
-- **Click-only Down plate** — PLAY, REGISTER HERE, and the square UPDATE control stay on the Up glue-panel art until you press them (no hover-as-press, no gold hover box).
-- **Settings** — the developer “Test update button” preview control is gone.
-
----
-
 ## What's new in v1.2.0
 
 - **Linux from source** — on Linux, **PLAY** can launch the client through **umu-launcher** / Proton (optional paths in Settings). The Windows EXE is still Windows-only.
