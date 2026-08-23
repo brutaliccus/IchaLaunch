@@ -1,8 +1,8 @@
 """Shared catalog tip-SHA index (one JSON instead of per-repo probes).
 
-The file is produced by ``tools/build_addon_tips.py`` and optionally published
-to GitHub. The launcher prefers a fresh remote copy, then an appdata cache,
-then a bundled copy next to ``addons.json``.
+The file is produced by ``tools/build_addon_tips.py`` from ``addons.json`` and
+``mods.json``, then optionally published to GitHub. The launcher prefers a fresh
+remote copy, then an appdata cache, then a bundled copy next to ``addons.json``.
 """
 
 from __future__ import annotations
@@ -21,10 +21,10 @@ from ichalaunch.core.logging_setup import log
 from ichalaunch.core.paths import data_file
 
 DEFAULT_TIPS_URL = (
-    "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/main/"
+    "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/"
     "ichalaunch/data/addon_tips.json"
 )
-TIPS_TTL_SEC = 30 * 60
+TIPS_TTL_SEC = 60 * 60
 _FETCH_TIMEOUT_SEC = 8
 _UA = {"User-Agent": "IchaLaunch/0.1", "Accept": "application/json"}
 
