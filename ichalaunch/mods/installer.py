@@ -40,6 +40,7 @@ from ichalaunch.core.filesystem import (
     name_present,
     PermissionScanResult,
     read_dlls_txt,
+    resolve_ci,
     scan_game_permissions,
     remove_path_strict,
     safe_remove,
@@ -55,6 +56,7 @@ from ichalaunch.game.launcher import (
     ensure_addons_dir,
     resolve_addons_dir,
     vf_mode_display,
+    wow_exe_in,
 )
 
 ProgressCb = Callable[[str], None]
@@ -1767,13 +1769,15 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 )
                 if not vt:
                     raise FileNotFoundError("vanilla-tweaks.exe not found in archive")
-                wow = game / "WoW.exe"
+                wow = wow_exe_in(game) or (game / "WoW.exe")
                 if not (game / "WoW-OriginalBackup.exe").exists():
                     _install_copy(wow, game / "WoW-OriginalBackup.exe", game_path=game)
                 # Run patcher; creates WoW_tweaked.exe next to WoW.exe
                 status_only(progress, "Patching WoW.exe with Vanilla Tweaks...")
                 subprocess.run([str(vt), str(wow)], cwd=str(game), check=True)
-                tweaked = game / "WoW_tweaked.exe"
+                tweaked = game / f"{wow.stem}_tweaked.exe"
+                if not tweaked.exists() and wow.stem != "WoW":
+                    tweaked = game / "WoW_tweaked.exe"
                 if tweaked.exists():
                     wow.unlink(missing_ok=True)
                     tweaked.rename(wow)
@@ -1906,7 +1910,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                     if f.is_file():
                         _install_copy(f, dest / f.name, game_path=game)
                 # apply glue signature skip patch (vanilla 1.12.1)
-                wow = game / "WoW.exe"
+                wow = wow_exe_in(game) or (game / "WoW.exe")
                 if wow.exists():
                     if not (game / "WoW-OriginalBackup.exe").exists():
                         _install_copy(wow, game / "WoW-OriginalBackup.exe", game_path=game)
@@ -2006,7 +2010,7 @@ _SUPERWOW_DLL_MIN_BYTES = 200_000
 def _install_backup_paths(game: Path, mod: dict[str, Any]) -> list[Path]:
     """Files to snapshot before applying a mod (owned paths + core launch files)."""
     paths: list[Path] = [
-        game / "WoW.exe",
+        wow_exe_in(game) or (game / "WoW.exe"),
         game / "dlls.txt",
         game / "VanillaFixes.exe",
         game / ".ichalaunch" / "dlls.txt",
@@ -2158,7 +2162,7 @@ def remove_mod(mod_id: str, progress: ProgressCb | None = None) -> None:
     if kind == "exe_patch":
         backup = game / "WoW-OriginalBackup.exe"
         if backup.exists():
-            _install_copy(backup, game / "WoW.exe", game_path=game)
+            _install_copy(backup, wow_exe_in(game) or (game / "WoW.exe"), game_path=game)
         return
 
     if kind == "mpq_file":
@@ -2330,7 +2334,12 @@ def _ensure_enabled_data_writable(game: Path) -> tuple[list[str], list[str]]:
             continue
         for rel in _mod_owned_paths(mod):
             if rel.startswith("data/"):
-                check_path(game / rel)
+                # _mod_owned_paths lowercases for comparison, so `rel` is a
+                # comparison key, not a real filename. resolve_ci finds the
+                # on-disk casing (Data/patch-A.MPQ) that game / rel would miss.
+                resolved = resolve_ci(game, rel)
+                if resolved is not None:
+                    check_path(resolved)
         if mod.get("kind") == "glue_autologin":
             glue = game / "Data" / "Interface" / "GlueXML"
             for name in ("AutoLogin.lua", "AutoLogin.xml"):

@@ -192,6 +192,7 @@ from ichalaunch.game.launcher import (
     GAME_DOWNLOAD_URL,
     GOFILE_FILE_NAME,
     ensure_game_path_from_launcher,
+    has_wow_exe,
     is_installed,
     launch_game,
     validate_install_location,
@@ -2596,7 +2597,7 @@ class MainWindow(QMainWindow):
             return
         if is_protected_path(path):
             themed.warning(self, "Protected location", protected_location_guidance(path))
-        if not (Path(path) / "WoW.exe").exists():
+        if not has_wow_exe(Path(path)):
             themed.warning(self, "Not a game folder", "WoW.exe was not found in that folder.")
             return
         settings.game_path = path
