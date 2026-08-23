@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-23T16:59:24Z",
+  "generated_at": "2026-08-23T18:20:14Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -186,6 +186,6156 @@
         "master": "1b59767ca41749e70d72f2991c27054beebcdfcd"
       }
     },
+    "refaim/soulshardmanager": {
+      "default_branch": "master",
+      "sha": "e2d124d5657a8b00f72218735b6c12137c8f6756",
+      "branches": {
+        "master": "e2d124d5657a8b00f72218735b6c12137c8f6756"
+      }
+    },
+    "otari98/succ-bag": {
+      "default_branch": "master",
+      "sha": "167c34673f34c233720d9c642a2854a6d8f08080",
+      "branches": {
+        "master": "167c34673f34c233720d9c642a2854a6d8f08080"
+      }
+    },
+    "linae-kronos/tradedispenser": {
+      "default_branch": "master",
+      "sha": "63aee841b835e291a30c40b46c452a9aa47717b1",
+      "branches": {
+        "master": "63aee841b835e291a30c40b46c452a9aa47717b1"
+      }
+    },
+    "oldmanalpha/unitxp_sp3_addon": {
+      "default_branch": "latest",
+      "sha": "dbbf4f0f2fef33c1e50e9a4f2fd3640796ac0999",
+      "branches": {
+        "latest": "dbbf4f0f2fef33c1e50e9a4f2fd3640796ac0999"
+      }
+    },
+    "prodigystudios/akkio_consume_helper": {
+      "default_branch": "main",
+      "sha": "9af15e3c236d14d6d704d4db78cb210620849b24",
+      "branches": {
+        "main": "9af15e3c236d14d6d704d4db78cb210620849b24"
+      }
+    },
+    "nikoichu/autobuff-turtle": {
+      "default_branch": "main",
+      "sha": "5d9bb8404ac80d344c3b4a8c3cf98015e0170d7b",
+      "branches": {
+        "main": "5d9bb8404ac80d344c3b4a8c3cf98015e0170d7b"
+      }
+    },
+    "zmarotrix/battlemusic": {
+      "default_branch": "main",
+      "sha": "82e9e93785e34741387da6aa4ae564c48a310ac2",
+      "branches": {
+        "main": "82e9e93785e34741387da6aa4ae564c48a310ac2"
+      },
+      "latest_tag": "Publish"
+    },
+    "gabcinder2004/battlescribe": {
+      "default_branch": "master",
+      "sha": "e7c702ed8b38867acf60b796f9545d8153a77d87",
+      "branches": {
+        "master": "e7c702ed8b38867acf60b796f9545d8153a77d87"
+      },
+      "latest_tag": "v1.1"
+    },
+    "tcavemant/benecast": {
+      "default_branch": "main",
+      "sha": "f6b875c385302f1c9015448c4f4a3ad8ad5c20c4",
+      "branches": {
+        "main": "f6b875c385302f1c9015448c4f4a3ad8ad5c20c4"
+      }
+    },
+    "jrc13245/bonusscanner": {
+      "default_branch": "main",
+      "sha": "caf3cbf3836e84d740934b9fb8752eaa1a9b62c4",
+      "branches": {
+        "main": "caf3cbf3836e84d740934b9fb8752eaa1a9b62c4"
+      }
+    },
+    "brunt/buffalert": {
+      "default_branch": "main",
+      "sha": "7bb6f3526f9d39aa6a35eec4bfc2c4b08465f7b7",
+      "branches": {
+        "main": "7bb6f3526f9d39aa6a35eec4bfc2c4b08465f7b7"
+      }
+    },
+    "towneh/buffblock": {
+      "default_branch": "master",
+      "sha": "cbcd2d23d6860049bad69f52574f193fbeb3c93d",
+      "branches": {
+        "master": "cbcd2d23d6860049bad69f52574f193fbeb3c93d"
+      },
+      "latest_tag": "v1.0"
+    },
+    "uc9089/buffblock-tw": {
+      "default_branch": "master",
+      "sha": "503697db9a7047479049577f0c0c200ddf529539",
+      "branches": {
+        "master": "503697db9a7047479049577f0c0c200ddf529539"
+      }
+    },
+    "geigerkind/buffcounter": {
+      "default_branch": "master",
+      "sha": "52101d1fc9570f5618ed0bb5c0c4f113cfeece75",
+      "branches": {
+        "master": "52101d1fc9570f5618ed0bb5c0c4f113cfeece75"
+      },
+      "latest_tag": "b1"
+    },
+    "schaka/buffhook": {
+      "default_branch": "master",
+      "sha": "3e40ae1c218f27521c99754b43b7b506d8348391",
+      "branches": {
+        "master": "3e40ae1c218f27521c99754b43b7b506d8348391"
+      }
+    },
+    "opcow/buffreminder": {
+      "default_branch": "master",
+      "sha": "db965f861184db02925fc2e7efdbada46de2a056",
+      "branches": {
+        "master": "db965f861184db02925fc2e7efdbada46de2a056"
+      },
+      "latest_tag": "1.2"
+    },
+    "shkarlsson/buffwatch": {
+      "default_branch": "main",
+      "sha": "926f3924e1860f0b7f95458194fb65dc23350e28",
+      "branches": {
+        "main": "926f3924e1860f0b7f95458194fb65dc23350e28"
+      }
+    },
+    "cernie/catdruiddps": {
+      "default_branch": "master",
+      "sha": "3eeecbad23a584f265a17f559b7319d54d089d57",
+      "branches": {
+        "master": "3eeecbad23a584f265a17f559b7319d54d089d57"
+      }
+    },
+    "zirtox1992/combat": {
+      "default_branch": "main",
+      "sha": "d118c5b259fc925e086c00f5f4db5a77273e6894",
+      "branches": {
+        "main": "d118c5b259fc925e086c00f5f4db5a77273e6894"
+      }
+    },
+    "abstr4ctz/cooldowntracker": {
+      "default_branch": "main",
+      "sha": "36caab96f68d7b4477cab536089d6e8ad51e9d2d",
+      "branches": {
+        "main": "36caab96f68d7b4477cab536089d6e8ad51e9d2d"
+      }
+    },
+    "redbu11dev/coolhealthbar": {
+      "default_branch": "main",
+      "sha": "f8146269b5b09954b0fa356dbd9c0b4a194844b5",
+      "branches": {
+        "main": "f8146269b5b09954b0fa356dbd9c0b4a194844b5"
+      }
+    },
+    "caracioly/critei": {
+      "default_branch": "main",
+      "sha": "eeee679dc03d47502477e10a9fa0fced04ee9895",
+      "branches": {
+        "main": "eeee679dc03d47502477e10a9fa0fced04ee9895"
+      },
+      "latest_tag": "v1.2.2"
+    },
+    "aeroscripts/ct_buffmod_sorted": {
+      "default_branch": "master",
+      "sha": "d924e88e81dd5645a64514061f173c63dedc75e2",
+      "branches": {
+        "master": "d924e88e81dd5645a64514061f173c63dedc75e2"
+      },
+      "latest_tag": "v0.1"
+    },
+    "vashin1/debufffilter": {
+      "default_branch": "master",
+      "sha": "9cf04734166fe087770354ecbd55643c894a83eb",
+      "branches": {
+        "master": "9cf04734166fe087770354ecbd55643c894a83eb"
+      }
+    },
+    "geigerkind/debufflistcheck": {
+      "default_branch": "master",
+      "sha": "fb4b5104094c3799a5c17d6bc585e386d293c936",
+      "branches": {
+        "master": "fb4b5104094c3799a5c17d6bc585e386d293c936"
+      },
+      "latest_tag": "b1"
+    },
+    "voidmenull/debufftimers": {
+      "default_branch": "master",
+      "sha": "9da80d56175f4772e6f3c59798eec19aea61bed0",
+      "branches": {
+        "master": "9da80d56175f4772e6f3c59798eec19aea61bed0"
+      }
+    },
+    "wardz/dispelborder": {
+      "default_branch": "master",
+      "sha": "db35de80e003af48c741df2e79c0ca7847a677c7",
+      "branches": {
+        "master": "db35de80e003af48c741df2e79c0ca7847a677c7"
+      },
+      "latest_tag": "v1.0.0"
+    },
+    "player-doite/doiteauras": {
+      "default_branch": "main",
+      "sha": "cbb3e01b82bb84122bc5ccdf35a06ae803edd6df",
+      "branches": {
+        "main": "cbb3e01b82bb84122bc5ccdf35a06ae803edd6df"
+      }
+    },
+    "turinpt/fubar_dpsmate": {
+      "default_branch": "master",
+      "sha": "5f9b405c9b956580a25b08b471b38e9b717a405a",
+      "branches": {
+        "master": "5f9b405c9b956580a25b08b471b38e9b717a405a"
+      }
+    },
+    "laytya/eavesdrop": {
+      "default_branch": "master",
+      "sha": "244cba1c61f861bfc643a8b8617691a742e33c44",
+      "branches": {
+        "master": "244cba1c61f861bfc643a8b8617691a742e33c44"
+      },
+      "latest_tag": "1.4.1"
+    },
+    "kirchlive/elkbuffbarhor": {
+      "default_branch": "master",
+      "sha": "b25a66da88af21cfccd7a5e0e5949c1b00ff41f9",
+      "branches": {
+        "master": "b25a66da88af21cfccd7a5e0e5949c1b00ff41f9"
+      }
+    },
+    "pepopo978/flamestriker": {
+      "default_branch": "master",
+      "sha": "ebcf8bdd1661b5dcc11b107f459c3d5006c44c00",
+      "branches": {
+        "master": "ebcf8bdd1661b5dcc11b107f459c3d5006c44c00"
+      }
+    },
+    "birdayz/fubar_buffleecherfu": {
+      "default_branch": "master",
+      "sha": "d694ab83b71692609b0cf50855f5fd65fbe7078e",
+      "branches": {
+        "master": "d694ab83b71692609b0cf50855f5fd65fbe7078e"
+      }
+    },
+    "trumpetx/gethead": {
+      "default_branch": "master",
+      "sha": "296fbc2bddc6bd043b29f359b80cb518c9890ce2",
+      "branches": {
+        "master": "296fbc2bddc6bd043b29f359b80cb518c9890ce2"
+      }
+    },
+    "yogo1212/healbot-classic": {
+      "default_branch": "master",
+      "sha": "6c78b6801556e52be829548b1305b2f4a53141e2",
+      "branches": {
+        "master": "6c78b6801556e52be829548b1305b2f4a53141e2"
+      }
+    },
+    "otari98/healcomm": {
+      "default_branch": "master",
+      "sha": "b53baabfa09eeac140980dd2b26f67e3aac76752",
+      "branches": {
+        "master": "b53baabfa09eeac140980dd2b26f67e3aac76752"
+      }
+    },
+    "voidmenull/vanillahealingassignments": {
+      "default_branch": "master",
+      "sha": "1d3077c586e71463864faadfc8b8e5b50eeaa769",
+      "branches": {
+        "master": "1d3077c586e71463864faadfc8b8e5b50eeaa769"
+      }
+    },
+    "qrospars/holyshiftmiio": {
+      "default_branch": "master",
+      "sha": "9cb60822a0cf6391dd34828802b0c0965b752016",
+      "branches": {
+        "master": "9cb60822a0cf6391dd34828802b0c0965b752016"
+      }
+    },
+    "grymskvll/kangz": {
+      "default_branch": "master",
+      "sha": "a721a1d6ef0bc63cd34f86479a4a259778f3bd26",
+      "branches": {
+        "master": "a721a1d6ef0bc63cd34f86479a4a259778f3bd26"
+      }
+    },
+    "zensociety/lager": {
+      "default_branch": "main",
+      "sha": "19beb37b087acf8f92559d9485ff6902ac9b2803",
+      "branches": {
+        "main": "19beb37b087acf8f92559d9485ff6902ac9b2803"
+      }
+    },
+    "laytya/lazyspell": {
+      "default_branch": "master",
+      "sha": "1af9fc538bf010116290b3399ca67b9b2b95043f",
+      "branches": {
+        "master": "1af9fc538bf010116290b3399ca67b9b2b95043f"
+      }
+    },
+    "marcelinevq/loatheborder": {
+      "default_branch": "master",
+      "sha": "2ae69de1aa38abe90acc9e24996ccf7546e704c3",
+      "branches": {
+        "master": "2ae69de1aa38abe90acc9e24996ccf7546e704c3"
+      }
+    },
+    "kc8pnd/mobhealth": {
+      "default_branch": "master",
+      "sha": "74982883284a6c79f50247e1cf7b5d4842ef37f3",
+      "branches": {
+        "master": "74982883284a6c79f50247e1cf7b5d4842ef37f3"
+      }
+    },
+    "paparogue/mobhealth3-kronos3-edition": {
+      "default_branch": "master",
+      "sha": "198fec86d3213cad69d4fa4c2307355daa1a87e9",
+      "branches": {
+        "master": "198fec86d3213cad69d4fa4c2307355daa1a87e9"
+      }
+    },
+    "leenux/mobresistanddmg": {
+      "default_branch": "main",
+      "sha": "f04af9fc33f76f989bae23f604f54a8aa1597c81",
+      "branches": {
+        "main": "f04af9fc33f76f989bae23f604f54a8aa1597c81"
+      }
+    },
+    "refaim/mobstats": {
+      "default_branch": "master",
+      "sha": "8835e8ebb554c3b5f3f2a74a0f4fd1c3e4ff4647",
+      "branches": {
+        "master": "8835e8ebb554c3b5f3f2a74a0f4fd1c3e4ff4647"
+      }
+    },
+    "marcelinevq/modifiedpowerauras": {
+      "default_branch": "master",
+      "sha": "faf26552df05146251866a092dd6812999ed578d",
+      "branches": {
+        "master": "faf26552df05146251866a092dd6812999ed578d"
+      }
+    },
+    "dudusandsten/nbr": {
+      "default_branch": "master",
+      "sha": "074e06d2191380deec3758a10da3cf54b36c2eb5",
+      "branches": {
+        "master": "074e06d2191380deec3758a10da3cf54b36c2eb5"
+      }
+    },
+    "liiora/pfui-lazyres": {
+      "default_branch": "master",
+      "sha": "d33a17af316de26595cbeac252a08767f7dcbf5f",
+      "branches": {
+        "master": "d33a17af316de26595cbeac252a08767f7dcbf5f"
+      }
+    },
+    "jrc13245/pfui-weakicons": {
+      "default_branch": "master",
+      "sha": "fe59bea6e70ef6ec54a1f84c914d070cdea065c8",
+      "branches": {
+        "master": "fe59bea6e70ef6ec54a1f84c914d070cdea065c8"
+      }
+    },
+    "jsb/picopoisons": {
+      "default_branch": "master",
+      "sha": "92f89feb2959910106c960f71c9913279cee0073",
+      "branches": {
+        "master": "92f89feb2959910106c960f71c9913279cee0073"
+      },
+      "latest_tag": "v1.00"
+    },
+    "sentilix/pitty": {
+      "default_branch": "master",
+      "sha": "a6f7ee211029d9adbe9f0c7130a7361e44a19a13",
+      "branches": {
+        "master": "a6f7ee211029d9adbe9f0c7130a7361e44a19a13"
+      },
+      "latest_tag": "pitty-1.2.0-rc1"
+    },
+    "sulpitz/quickheal": {
+      "default_branch": "master",
+      "sha": "33a3172bbcfa930b57bb3f0b9002eb09f99d4760",
+      "branches": {
+        "master": "33a3172bbcfa930b57bb3f0b9002eb09f99d4760"
+      },
+      "latest_tag": "hc01"
+    },
+    "weirdpuppy94/rallyhelper": {
+      "default_branch": "main",
+      "sha": "e38cb75f0cbee12bcf413e23787d94b5927e8daa",
+      "branches": {
+        "main": "e38cb75f0cbee12bcf413e23787d94b5927e8daa"
+      },
+      "latest_tag": "RallyHelperv1.4.7"
+    },
+    "dreaming-possum/recap": {
+      "default_branch": "master",
+      "sha": "c20ddb525c45e98be6cd7e6418e7ed3a19f272bf",
+      "branches": {
+        "master": "c20ddb525c45e98be6cd7e6418e7ed3a19f272bf"
+      }
+    },
+    "pokerbhind/roguepoker": {
+      "default_branch": "main",
+      "sha": "a7786ed09c548d4930d0d64715591a2c6c33ef97",
+      "branches": {
+        "main": "a7786ed09c548d4930d0d64715591a2c6c33ef97"
+      },
+      "latest_tag": "v1.2.1"
+    },
+    "shagu/shagucombat": {
+      "default_branch": "master",
+      "sha": "04e7a81a58d0e45d0529737d35a1d62dd3204f0c",
+      "branches": {
+        "master": "04e7a81a58d0e45d0529737d35a1d62dd3204f0c"
+      }
+    },
+    "yani9o/simpleauras": {
+      "default_branch": "main",
+      "sha": "84f95b068abbf8a8347b502548efaf054ea89a9c",
+      "branches": {
+        "main": "84f95b068abbf8a8347b502548efaf054ea89a9c"
+      }
+    },
+    "road-block/simplecombatlog": {
+      "default_branch": "master",
+      "sha": "2f4b6035c07d3e09fe15e33c2e9fe8e00fa739b3",
+      "branches": {
+        "master": "2f4b6035c07d3e09fe15e33c2e9fe8e00fa739b3"
+      }
+    },
+    "simon3/smartdebuffcheck": {
+      "default_branch": "master",
+      "sha": "2e9e292cb56284138fca06038ec26e56c7e46508",
+      "branches": {
+        "master": "2e9e292cb56284138fca06038ec26e56c7e46508"
+      }
+    },
+    "melbaa/smarthealer": {
+      "default_branch": "master",
+      "sha": "3c550f8ee8e185ee223d1a1f5910847fe81e92f9",
+      "branches": {
+        "master": "3c550f8ee8e185ee223d1a1f5910847fe81e92f9"
+      }
+    },
+    "dauls/smartrestore": {
+      "default_branch": "main",
+      "sha": "ce7ccc9ba7bc18a52ab9fc85d1e85fbe2a78bc93",
+      "branches": {
+        "main": "ce7ccc9ba7bc18a52ab9fc85d1e85fbe2a78bc93"
+      },
+      "latest_tag": "v3.4.1"
+    },
+    "madscripting/snaguloatheb-turtleedition": {
+      "default_branch": "main",
+      "sha": "b111b5a6d5cecb0c928c60c05a0cb017706c8e08",
+      "branches": {
+        "main": "b111b5a6d5cecb0c928c60c05a0cb017706c8e08"
+      },
+      "latest_tag": "Turtle"
+    },
+    "kevmodrome/spellpowermulti": {
+      "default_branch": "master",
+      "sha": "de2d75a5b80543848094e01b7bc85c4255a32b09",
+      "branches": {
+        "master": "de2d75a5b80543848094e01b7bc85c4255a32b09"
+      },
+      "latest_tag": "0.1"
+    },
+    "paparogue/stopduelbuffer": {
+      "default_branch": "master",
+      "sha": "5f46676befeb26a46beb670241cf622b0bd7c90e",
+      "branches": {
+        "master": "5f46676befeb26a46beb670241cf622b0bd7c90e"
+      }
+    },
+    "zerf/sw_stats-vanilla": {
+      "default_branch": "master",
+      "sha": "c000f0ddf31f5bfaa1511c5b15af7c56f24beb4f",
+      "branches": {
+        "master": "c000f0ddf31f5bfaa1511c5b15af7c56f24beb4f"
+      }
+    },
+    "xorann/tankheal": {
+      "default_branch": "master",
+      "sha": "c5642faca9d7f81ddc98e927781445f3f32d1691",
+      "branches": {
+        "master": "c5642faca9d7f81ddc98e927781445f3f32d1691"
+      }
+    },
+    "ziims/targetframebuff": {
+      "default_branch": "master",
+      "sha": "9ad8acbe28661b72e60185399ee79f67835fa72d",
+      "branches": {
+        "master": "9ad8acbe28661b72e60185399ee79f67835fa72d"
+      }
+    },
+    "isitlove/titancritline": {
+      "default_branch": "master",
+      "sha": "e3dc9cf79a7a6f3188b838e0b5e2ae6c91d02c05",
+      "branches": {
+        "master": "e3dc9cf79a7a6f3188b838e0b5e2ae6c91d02c05"
+      }
+    },
+    "cosminpop/twassignments": {
+      "default_branch": "master",
+      "sha": "e4533a9809ec30fa1b27f0821130f08d237a5b14",
+      "branches": {
+        "master": "e4533a9809ec30fa1b27f0821130f08d237a5b14"
+      }
+    },
+    "szalor/unleashedtracker": {
+      "default_branch": "main",
+      "sha": "8422f5f9d5809b9f99ab1e38e1579189b3a3380d",
+      "branches": {
+        "main": "8422f5f9d5809b9f99ab1e38e1579189b3a3380d"
+      }
+    },
+    "firenahzku/vanguardanticooldown": {
+      "default_branch": "master",
+      "sha": "f99ac37b0d858a287a7dc2b25fad043195bf92b0",
+      "branches": {
+        "master": "f99ac37b0d858a287a7dc2b25fad043195bf92b0"
+      }
+    },
+    "firenahzku/vgsmartunbuff": {
+      "default_branch": "master",
+      "sha": "c108a72250db707e98ecccceee78da967f88a356",
+      "branches": {
+        "master": "c108a72250db707e98ecccceee78da967f88a356"
+      }
+    },
+    "faraso/warriorcombatmanager": {
+      "default_branch": "main",
+      "sha": "1b4f2a4d775f7035483746f9d1f294397a84a989",
+      "branches": {
+        "main": "1b4f2a4d775f7035483746f9d1f294397a84a989"
+      },
+      "latest_tag": "v0.1.0"
+    },
+    "numielle/worldbossalert": {
+      "default_branch": "master",
+      "sha": "17246aa8f3c73e0f6a357fbbad8ed989dbfffd40",
+      "branches": {
+        "master": "17246aa8f3c73e0f6a357fbbad8ed989dbfffd40"
+      }
+    },
+    "bergador/worldbuffsoundalert": {
+      "default_branch": "master",
+      "sha": "4058df754baae525cd6531622dc34dd10e89c0b5",
+      "branches": {
+        "master": "4058df754baae525cd6531622dc34dd10e89c0b5"
+      }
+    },
+    "acid9000/antiafk": {
+      "default_branch": "main",
+      "sha": "8ba518f52fb6bd6c4e12a924af9dfcf89af0add6",
+      "branches": {
+        "main": "8ba518f52fb6bd6c4e12a924af9dfcf89af0add6"
+      }
+    },
+    "shagu/antispam": {
+      "default_branch": "master",
+      "sha": "c1efb663f2fd722c23eef8c6087ec081bd151125",
+      "branches": {
+        "master": "c1efb663f2fd722c23eef8c6087ec081bd151125"
+      }
+    },
+    "einbaum/auctionaltbuy": {
+      "default_branch": "master",
+      "sha": "dca00f12e9a9290b6de5dc48de25a2ee018db7ab",
+      "branches": {
+        "master": "dca00f12e9a9290b6de5dc48de25a2ee018db7ab"
+      },
+      "latest_tag": "1.0.0"
+    },
+    "nimeral/auctionatorvanilla": {
+      "default_branch": "master",
+      "sha": "90c109351034d59e5987d9efa53989dcfe3eff62",
+      "branches": {
+        "master": "90c109351034d59e5987d9efa53989dcfe3eff62"
+      }
+    },
+    "einbaum/auctionhelper": {
+      "default_branch": "master",
+      "sha": "09998b7d22ec2916826cf8e0eaf2fcce2e2863f8",
+      "branches": {
+        "master": "09998b7d22ec2916826cf8e0eaf2fcce2e2863f8"
+      }
+    },
+    "zerf/auctionlink": {
+      "default_branch": "master",
+      "sha": "a4f2092848244ebef4ee2f57c3ca32775af934a0",
+      "branches": {
+        "master": "a4f2092848244ebef4ee2f57c3ca32775af934a0"
+      },
+      "latest_tag": "v2.0.1"
+    },
+    "einbaum/auctionsearchtimer": {
+      "default_branch": "master",
+      "sha": "639a5b7765a6d3d1bb18a8e053865401e0493f89",
+      "branches": {
+        "master": "639a5b7765a6d3d1bb18a8e053865401e0493f89"
+      }
+    },
+    "road-block/autoprofit": {
+      "default_branch": "master",
+      "sha": "19ae2d47818c8405fd3ded54b2b5bbb74d443039",
+      "branches": {
+        "master": "19ae2d47818c8405fd3ded54b2b5bbb74d443039"
+      },
+      "latest_tag": "3.11a-11200"
+    },
+    "oldmanalpha/aux-addon": {
+      "default_branch": "master",
+      "sha": "c25ad2baeb2e8fd220166239be6a2f53443f5250",
+      "branches": {
+        "master": "c25ad2baeb2e8fd220166239be6a2f53443f5250"
+      }
+    },
+    "acid9000/aux-addon": {
+      "default_branch": "master",
+      "sha": "09728c5a5a4c9b30c05a25d4fc23a9247683fadc",
+      "branches": {
+        "master": "09728c5a5a4c9b30c05a25d4fc23a9247683fadc"
+      },
+      "latest_tag": "1.0.3"
+    },
+    "ftkun/aux-revamped-opaque": {
+      "default_branch": "master",
+      "sha": "ad976fb06112186baaf285ab72fadeec72d61a56",
+      "branches": {
+        "master": "ad976fb06112186baaf285ab72fadeec72d61a56"
+      }
+    },
+    "shirsig/aux_merchant_prices": {
+      "default_branch": "master",
+      "sha": "dc3b12d9f6ed4b37df78fdd84721552d00f5025e",
+      "branches": {
+        "master": "dc3b12d9f6ed4b37df78fdd84721552d00f5025e"
+      },
+      "latest_tag": "1"
+    },
+    "einherjarn/ct_mailmod": {
+      "default_branch": "master",
+      "sha": "4b51c285a48dd9a64f2a962781e4a45a98f22b0e",
+      "branches": {
+        "master": "4b51c285a48dd9a64f2a962781e4a45a98f22b0e"
+      }
+    },
+    "mcpewpew/diivskins": {
+      "default_branch": "master",
+      "sha": "4acd8225ac48844cd85280afaa75cee6eb5ab66c",
+      "branches": {
+        "master": "4acd8225ac48844cd85280afaa75cee6eb5ab66c"
+      }
+    },
+    "quakerzz/dkpauctionbidder": {
+      "default_branch": "master",
+      "sha": "8b38ae52ac3a3613216fb7dc37cfaddc73627c34",
+      "branches": {
+        "master": "8b38ae52ac3a3613216fb7dc37cfaddc73627c34"
+      }
+    },
+    "cinecom/easypoisons": {
+      "default_branch": "main",
+      "sha": "7c79f964118995c4cd7874704f561488cb02e2ce",
+      "branches": {
+        "main": "7c79f964118995c4cd7874704f561488cb02e2ce"
+      }
+    },
+    "keijinde/keijinautovendor": {
+      "default_branch": "main",
+      "sha": "4cefadbc99d7c5d452e67c7c151bdf917c8de0cc",
+      "branches": {
+        "main": "4cefadbc99d7c5d452e67c7c151bdf917c8de0cc"
+      },
+      "latest_tag": "v0.1.4"
+    },
+    "einbaum/mail": {
+      "default_branch": "master",
+      "sha": "59c04a41ea4110cd098cc6dddb6799be6edb5892",
+      "branches": {
+        "master": "59c04a41ea4110cd098cc6dddb6799be6edb5892"
+      }
+    },
+    "zythdr/pageturner": {
+      "default_branch": "main",
+      "sha": "0e51751babef4abf5a66397c66620c7c73420738",
+      "branches": {
+        "main": "0e51751babef4abf5a66397c66620c7c73420738"
+      }
+    },
+    "coryo/rosterfilter": {
+      "default_branch": "master",
+      "sha": "a9ddd62e7ef70b890737d2d3583d1fb7db4052f0",
+      "branches": {
+        "master": "a9ddd62e7ef70b890737d2d3583d1fb7db4052f0"
+      },
+      "latest_tag": "v2.4"
+    },
+    "vortigern11/selffound": {
+      "default_branch": "main",
+      "sha": "fadf4c12dd9d9653c76cd9f6773d0e90cdb0c729",
+      "branches": {
+        "main": "fadf4c12dd9d9653c76cd9f6773d0e90cdb0c729"
+      }
+    },
+    "anzz1/sellvalue": {
+      "default_branch": "master",
+      "sha": "5683c445bd08e0fd46dc090b2c5a8e235989ec7e",
+      "branches": {
+        "master": "5683c445bd08e0fd46dc090b2c5a8e235989ec7e"
+      }
+    },
+    "shagu/shagujunk": {
+      "default_branch": "master",
+      "sha": "9a91065d8ef9078a9ea8b7d254e88605e8367567",
+      "branches": {
+        "master": "9a91065d8ef9078a9ea8b7d254e88605e8367567"
+      }
+    },
+    "shirsig/snipe": {
+      "default_branch": "master",
+      "sha": "bbd83684f7e18e38b41c74ee64a256792e4aa5e0",
+      "branches": {
+        "master": "bbd83684f7e18e38b41c74ee64a256792e4aa5e0"
+      }
+    },
+    "redbu11dev/sortbybuyout": {
+      "default_branch": "main",
+      "sha": "4c437a3c05777fd6b207d721bf5a7f6fc394279a",
+      "branches": {
+        "main": "4c437a3c05777fd6b207d721bf5a7f6fc394279a"
+      }
+    },
+    "yutsuku/spamsentry": {
+      "default_branch": "master",
+      "sha": "9651753920f1d8b07448c6e1f41754f87189ac79",
+      "branches": {
+        "master": "9651753920f1d8b07448c6e1f41754f87189ac79"
+      }
+    },
+    "melbaa/topmeoff": {
+      "default_branch": "master",
+      "sha": "5a3e66b6d9d0996238a2c01b030397344fc19097",
+      "branches": {
+        "master": "5a3e66b6d9d0996238a2c01b030397344fc19097"
+      }
+    },
+    "sica42/turtlemail": {
+      "default_branch": "master",
+      "sha": "322429e143db1f1f00afe0d1074678a844bf8c7c",
+      "branches": {
+        "master": "322429e143db1f1f00afe0d1074678a844bf8c7c"
+      }
+    },
+    "einbaum/vendorautobuy": {
+      "default_branch": "master",
+      "sha": "0e82fb2facfb5ab7e3ddaa28c5d9f1f6f81c9532",
+      "branches": {
+        "master": "0e82fb2facfb5ab7e3ddaa28c5d9f1f6f81c9532"
+      },
+      "latest_tag": "1.0.0"
+    },
+    "marcelinevq/vendorlist": {
+      "default_branch": "master",
+      "sha": "6fcec31fbf19fabec6dcb58075f677a766d0dda4",
+      "branches": {
+        "master": "6fcec31fbf19fabec6dcb58075f677a766d0dda4"
+      }
+    },
+    "gregdeichler/vizput": {
+      "default_branch": "main",
+      "sha": "ef28e445c11e5c48c87a099a6338d4932426a363",
+      "branches": {
+        "main": "ef28e445c11e5c48c87a099a6338d4932426a363"
+      }
+    },
+    "ladabr/whisperfilter": {
+      "default_branch": "universal",
+      "sha": "666977c9117ee5777f053ac9eedcae1e3961df3a",
+      "branches": {
+        "universal": "666977c9117ee5777f053ac9eedcae1e3961df3a"
+      }
+    },
+    "daribon/wrugs": {
+      "default_branch": "master",
+      "sha": "608e64dcbd79d4f8dd2823a4fb9a9b789150a0ea",
+      "branches": {
+        "master": "608e64dcbd79d4f8dd2823a4fb9a9b789150a0ea"
+      }
+    },
+    "shirsig/notoggle": {
+      "default_branch": "master",
+      "sha": "43fb54eac45d1f0f6a8ee1e31cc76ef9442d6629",
+      "branches": {
+        "master": "43fb54eac45d1f0f6a8ee1e31cc76ef9442d6629"
+      }
+    },
+    "niclaseriksen/4hmhelper": {
+      "default_branch": "main",
+      "sha": "2d270895ab5b2e645e70045a60043d4f2bb466da",
+      "branches": {
+        "main": "2d270895ab5b2e645e70045a60043d4f2bb466da"
+      }
+    },
+    "kiiruaa/_antinvite": {
+      "default_branch": "master",
+      "sha": "35257bba9cf9645c1c9a927525a6c3880d2381a5",
+      "branches": {
+        "master": "35257bba9cf9645c1c9a927525a6c3880d2381a5"
+      },
+      "latest_tag": "v0.3"
+    },
+    "xorann/abraxas": {
+      "default_branch": "master",
+      "sha": "9eb1bc1b81f27943c605bb39d383f10fad4fe0b7",
+      "branches": {
+        "master": "9eb1bc1b81f27943c605bb39d383f10fad4fe0b7"
+      },
+      "latest_tag": "r2"
+    },
+    "the-kludge-bureau/accountant": {
+      "default_branch": "main",
+      "sha": "9078a7cd0f30b328aa939cb63c636c818c4af204",
+      "branches": {
+        "main": "9078a7cd0f30b328aa939cb63c636c818c4af204"
+      },
+      "latest_tag": "3.1"
+    },
+    "numielle/actionbuttonutils": {
+      "default_branch": "master",
+      "sha": "42b7b97ba37e7d5453650a482b2b3d1ec51e95ee",
+      "branches": {
+        "master": "42b7b97ba37e7d5453650a482b2b3d1ec51e95ee"
+      },
+      "latest_tag": "1.0.2"
+    },
+    "gashole/aero": {
+      "default_branch": "master",
+      "sha": "f6304c8834f1c8a0289f5ce93e49b29aed0585dc",
+      "branches": {
+        "master": "f6304c8834f1c8a0289f5ce93e49b29aed0585dc"
+      },
+      "latest_tag": "current"
+    },
+    "nehswu/altoholic_vanilla": {
+      "default_branch": "master",
+      "sha": "d6929562ecbcd562dccba285935ecd36ee905435",
+      "branches": {
+        "master": "d6929562ecbcd562dccba285935ecd36ee905435"
+      },
+      "latest_tag": "1.0.9"
+    },
+    "einbaum/announcekick": {
+      "default_branch": "master",
+      "sha": "95e17fc04b70eb48cee7051ff2d739927c0eaafb",
+      "branches": {
+        "master": "95e17fc04b70eb48cee7051ff2d739927c0eaafb"
+      },
+      "latest_tag": "1.0.0"
+    },
+    "thepparker/antispamstopcast": {
+      "default_branch": "master",
+      "sha": "fe861706d738d7fc3ec1389e29e70e2842c23d86",
+      "branches": {
+        "master": "fe861706d738d7fc3ec1389e29e70e2842c23d86"
+      }
+    },
+    "allingaming/arcanesurgewarning": {
+      "default_branch": "main",
+      "sha": "63fc40421336346cbaa67b521711101711d4212b",
+      "branches": {
+        "main": "63fc40421336346cbaa67b521711101711d4212b"
+      }
+    },
+    "pepopo978/arcanum": {
+      "default_branch": "main",
+      "sha": "00f90fca8e2cbacc8a0e43a8904377c692dc9319",
+      "branches": {
+        "main": "00f90fca8e2cbacc8a0e43a8904377c692dc9319"
+      }
+    },
+    "codeshard/architotem": {
+      "default_branch": "master",
+      "sha": "b2aa56ca6ba10b52bcf3cdb7eb91c43f3a822abc",
+      "branches": {
+        "master": "b2aa56ca6ba10b52bcf3cdb7eb91c43f3a822abc"
+      },
+      "latest_tag": "v1.6.3"
+    },
+    "shirsig/attack": {
+      "default_branch": "master",
+      "sha": "2b6aa85fe9693f540fee8dfa3b90e6e0768237a3",
+      "branches": {
+        "master": "2b6aa85fe9693f540fee8dfa3b90e6e0768237a3"
+      }
+    },
+    "road-block/attackbar": {
+      "default_branch": "master",
+      "sha": "75501c71bb102b5c1ec5cdfae196e77ab5d987f8",
+      "branches": {
+        "master": "75501c71bb102b5c1ec5cdfae196e77ab5d987f8"
+      },
+      "latest_tag": "5.01-11200"
+    },
+    "siventt/attackbar-twow": {
+      "default_branch": "master",
+      "sha": "9227d13c58c0b723678e69f79603aaff31e90a7f",
+      "branches": {
+        "master": "9227d13c58c0b723678e69f79603aaff31e90a7f"
+      }
+    },
+    "road-block/auldlangsyne": {
+      "default_branch": "master",
+      "sha": "e77bebedb909cc6defd946b49e456362c7825ceb",
+      "branches": {
+        "master": "e77bebedb909cc6defd946b49e456362c7825ceb"
+      },
+      "latest_tag": "1.1"
+    },
+    "mcpewpew/autodecline": {
+      "default_branch": "master",
+      "sha": "119aa402925bc5a427b07c6eb0e21696e639b54d",
+      "branches": {
+        "master": "119aa402925bc5a427b07c6eb0e21696e639b54d"
+      }
+    },
+    "atreyyo/autodot": {
+      "default_branch": "master",
+      "sha": "707dae14bcba632c6ee41b046d54e1a26d313f19",
+      "branches": {
+        "master": "707dae14bcba632c6ee41b046d54e1a26d313f19"
+      }
+    },
+    "leenux/autoexpenable": {
+      "default_branch": "main",
+      "sha": "d4a134d62aae9ceab4e42152a7803a1556bb1015",
+      "branches": {
+        "main": "d4a134d62aae9ceab4e42152a7803a1556bb1015"
+      }
+    },
+    "einbaum/autohump": {
+      "default_branch": "master",
+      "sha": "f0df86e776daffa250f3e67b073e209d9eab8209",
+      "branches": {
+        "master": "f0df86e776daffa250f3e67b073e209d9eab8209"
+      }
+    },
+    "fsuhas/autolfm": {
+      "default_branch": "master",
+      "sha": "168f9e2966a5ddb980be05433e45bf648363b6bb",
+      "branches": {
+        "master": "168f9e2966a5ddb980be05433e45bf648363b6bb"
+      }
+    },
+    "marcelinevq/automana": {
+      "default_branch": "master",
+      "sha": "4a38b3353a294667da04938e03957f53ce1518f1",
+      "branches": {
+        "master": "4a38b3353a294667da04938e03957f53ce1518f1"
+      }
+    },
+    "0ldi/automessage": {
+      "default_branch": "master",
+      "sha": "c367bb48ae07c4bb1aa7e1d53b11fb0555623d2b",
+      "branches": {
+        "master": "c367bb48ae07c4bb1aa7e1d53b11fb0555623d2b"
+      }
+    },
+    "gbl/autoreputationbar": {
+      "default_branch": "master",
+      "sha": "9044eab904547cd5af101e7e8b29c9c21c8c4d60",
+      "branches": {
+        "master": "9044eab904547cd5af101e7e8b29c9c21c8c4d60"
+      }
+    },
+    "wouterbink/autoshot": {
+      "default_branch": "master",
+      "sha": "0a8b53551bda2bd1fd76c532b1f558d0bf6b30bb",
+      "branches": {
+        "master": "0a8b53551bda2bd1fd76c532b1f558d0bf6b30bb"
+      }
+    },
+    "dayfiree/autospellranker": {
+      "default_branch": "main",
+      "sha": "625e2088a50f2df30314b740356a06f875e13600",
+      "branches": {
+        "main": "625e2088a50f2df30314b740356a06f875e13600"
+      }
+    },
+    "mcpewpew/bartender2-read-instructions": {
+      "default_branch": "master",
+      "sha": "1eec247ecaf755916ece74009b367c5f7219f0c4",
+      "branches": {
+        "master": "1eec247ecaf755916ece74009b367c5f7219f0c4"
+      }
+    },
+    "fiskehatt/bearcastbar": {
+      "default_branch": "master",
+      "sha": "64944e8c4c653ae9415eae64d4024c23241416c6",
+      "branches": {
+        "master": "64944e8c4c653ae9415eae64d4024c23241416c6"
+      }
+    },
+    "cama-dev/turtlebeastiary": {
+      "default_branch": "main",
+      "sha": "6def1c555106db9d181b4820edd53f7a4ea3561f",
+      "branches": {
+        "main": "6def1c555106db9d181b4820edd53f7a4ea3561f"
+      }
+    },
+    "denniswg/betteralign": {
+      "default_branch": "master",
+      "sha": "b1ef86016dd0dee96e60870649f77b0a27a7b95e",
+      "branches": {
+        "master": "b1ef86016dd0dee96e60870649f77b0a27a7b95e"
+      },
+      "latest_tag": "1.0.0"
+    },
+    "yutsuku/betterbabelfish": {
+      "default_branch": "master",
+      "sha": "5fb2a05e826edd8895505317595bb86843a025c6",
+      "branches": {
+        "master": "5fb2a05e826edd8895505317595bb86843a025c6"
+      }
+    },
+    "otari98/bettercharacterstats": {
+      "default_branch": "main",
+      "sha": "0d5d84f42267b20263cb1b5aaaa8a55f08b227d4",
+      "branches": {
+        "main": "0d5d84f42267b20263cb1b5aaaa8a55f08b227d4"
+      }
+    },
+    "jeromem/bettereverlookbroadcastingco": {
+      "default_branch": "master",
+      "sha": "1be039605b90931afbed8533034618da54a1504d",
+      "branches": {
+        "master": "1be039605b90931afbed8533034618da54a1504d"
+      },
+      "latest_tag": "v1.1.0"
+    },
+    "neolectron/betterhelp": {
+      "default_branch": "master",
+      "sha": "235d6e291e5d24afe9be29a0518dbd005d26f7a1",
+      "branches": {
+        "master": "235d6e291e5d24afe9be29a0518dbd005d26f7a1"
+      }
+    },
+    "yutsuku/betterscoreframe": {
+      "default_branch": "master",
+      "sha": "b28ef19635417ff6e1351fb631ae5e756132f014",
+      "branches": {
+        "master": "b28ef19635417ff6e1351fb631ae5e756132f014"
+      }
+    },
+    "einherjarn/bgflag": {
+      "default_branch": "master",
+      "sha": "043bb62a22f27f32a0095950b5df65ed52eda218",
+      "branches": {
+        "master": "043bb62a22f27f32a0095950b5df65ed52eda218"
+      }
+    },
+    "jejkas/bigbrother": {
+      "default_branch": "master",
+      "sha": "a1193b887b84067b21eb98ec8c14af6d32845c68",
+      "branches": {
+        "master": "a1193b887b84067b21eb98ec8c14af6d32845c68"
+      }
+    },
+    "gabcinder2004/bislist": {
+      "default_branch": "master",
+      "sha": "cbfa05df370d78047fbc34c2a55e15d9ba0eee78",
+      "branches": {
+        "master": "cbfa05df370d78047fbc34c2a55e15d9ba0eee78"
+      },
+      "latest_tag": "v1.1"
+    },
+    "dbfblackbull/bitescookbook": {
+      "default_branch": "master",
+      "sha": "36c919110a87bcadbc331f657bc962da00c3ef92",
+      "branches": {
+        "master": "36c919110a87bcadbc331f657bc962da00c3ef92"
+      }
+    },
+    "zerf/blacklist": {
+      "default_branch": "master",
+      "sha": "9a066c287d0f923a61beb601f2bec3e8eb9f648c",
+      "branches": {
+        "master": "9a066c287d0f923a61beb601f2bec3e8eb9f648c"
+      }
+    },
+    "sondli/blockvalue": {
+      "default_branch": "main",
+      "sha": "7f65aed87e78ab0c85640cb909472e78c2a0e245",
+      "branches": {
+        "main": "7f65aed87e78ab0c85640cb909472e78c2a0e245"
+      },
+      "latest_tag": "1.0.0"
+    },
+    "muellerj/bloodrage": {
+      "default_branch": "master",
+      "sha": "9095d91c9a74724738601d0b3d814d755aaa5af5",
+      "branches": {
+        "master": "9095d91c9a74724738601d0b3d814d755aaa5af5"
+      }
+    },
+    "turinpt/bossalert": {
+      "default_branch": "master",
+      "sha": "aead2112b0ef4792975124c384196149e8baeec7",
+      "branches": {
+        "master": "aead2112b0ef4792975124c384196149e8baeec7"
+      }
+    },
+    "zensociety/bossdeathtimer": {
+      "default_branch": "main",
+      "sha": "bb74a18ca2ccfa4afe9a6ec3617cea937a3cdc7a",
+      "branches": {
+        "main": "bb74a18ca2ccfa4afe9a6ec3617cea937a3cdc7a"
+      },
+      "latest_tag": "v0.01"
+    },
+    "marcelinevq/brainsaver": {
+      "default_branch": "master",
+      "sha": "35aa13b050915862b5a7303eb43bd6525876fb09",
+      "branches": {
+        "master": "35aa13b050915862b5a7303eb43bd6525876fb09"
+      }
+    },
+    "cinecom/brainwasherpro": {
+      "default_branch": "main",
+      "sha": "ec02c4ea74ebc59791873943bd57fdd1179c9cc7",
+      "branches": {
+        "main": "ec02c4ea74ebc59791873943bd57fdd1179c9cc7"
+      }
+    },
+    "fsuhas/bsalert-tw": {
+      "default_branch": "main",
+      "sha": "3104b532b0f0ac3d262be3398655adb0b115b5dc",
+      "branches": {
+        "main": "3104b532b0f0ac3d262be3398655adb0b115b5dc"
+      }
+    },
+    "computerequipmentgroup/bubbles": {
+      "default_branch": "main",
+      "sha": "d6e07f8b958ade654fa5e02be6f63ae22e7f634f",
+      "branches": {
+        "main": "d6e07f8b958ade654fa5e02be6f63ae22e7f634f"
+      },
+      "latest_tag": "1.2"
+    },
+    "mcpewpew/bugsack": {
+      "default_branch": "master",
+      "sha": "163158abcd49464d285b5c3f3e547c4b873a687f",
+      "branches": {
+        "master": "163158abcd49464d285b5c3f3e547c4b873a687f"
+      }
+    },
+    "road-block/calltoarms": {
+      "default_branch": "master",
+      "sha": "aef2cef25340a270b1f889f8ea4429409da78aa5",
+      "branches": {
+        "master": "aef2cef25340a270b1f889f8ea4429409da78aa5"
+      },
+      "latest_tag": "R12.5"
+    },
+    "sentilix/capslock": {
+      "default_branch": "master",
+      "sha": "2960f9fc9d0fdef39949729fbc71fbc4ea84a67d",
+      "branches": {
+        "master": "2960f9fc9d0fdef39949729fbc71fbc4ea84a67d"
+      },
+      "latest_tag": "0.3.1"
+    },
+    "mrtoffee/caramelnotes": {
+      "default_branch": "main",
+      "sha": "e607ec7c7a3c7d27c7cfcd391f5fb8a715ce4b07",
+      "branches": {
+        "main": "e607ec7c7a3c7d27c7cfcd391f5fb8a715ce4b07"
+      }
+    },
+    "linae-kronos/casterstats": {
+      "default_branch": "master",
+      "sha": "ed43393184e81d488b106c5b1b12a4382189e04d",
+      "branches": {
+        "master": "ed43393184e81d488b106c5b1b12a4382189e04d"
+      }
+    },
+    "abstr4ctz/casthistorytracker": {
+      "default_branch": "main",
+      "sha": "5de5cd4b40018c53cd2ee3291a077303b5969f28",
+      "branches": {
+        "main": "5de5cd4b40018c53cd2ee3291a077303b5969f28"
+      }
+    },
+    "pepopo978/casttimer": {
+      "default_branch": "master",
+      "sha": "774a06f750f468c70dabea2d0b3378c866580b89",
+      "branches": {
+        "master": "774a06f750f468c70dabea2d0b3378c866580b89"
+      }
+    },
+    "shirsig/ccwatch": {
+      "default_branch": "master",
+      "sha": "b88c980aca96632a61406f525e776095be21a2bb",
+      "branches": {
+        "master": "b88c980aca96632a61406f525e776095be21a2bb"
+      }
+    },
+    "shirsig/cdframes": {
+      "default_branch": "master",
+      "sha": "e3242a6144f60e6e468430311ac070a2f6e1a43c",
+      "branches": {
+        "master": "e3242a6144f60e6e468430311ac070a2f6e1a43c"
+      }
+    },
+    "cyaohiri/censusplusturtle": {
+      "default_branch": "main",
+      "sha": "6dae25fad5fcf038083ded230c380cc56b142d3a",
+      "branches": {
+        "main": "6dae25fad5fcf038083ded230c380cc56b142d3a"
+      }
+    },
+    "cernie/cernieswonderfulfunctions": {
+      "default_branch": "master",
+      "sha": "c89ecbe4789323ee6396a60fee15447708f22759",
+      "branches": {
+        "master": "c89ecbe4789323ee6396a60fee15447708f22759"
+      }
+    },
+    "shirsig/channel_monitor": {
+      "default_branch": "master",
+      "sha": "ed4297565efeb67c8bb743571e2280b79d2f05f7",
+      "branches": {
+        "master": "ed4297565efeb67c8bb743571e2280b79d2f05f7"
+      }
+    },
+    "rnorden/chaosreserves": {
+      "default_branch": "master",
+      "sha": "d4f84111c69b54ed1aa8223714c709bad086a42c",
+      "branches": {
+        "master": "d4f84111c69b54ed1aa8223714c709bad086a42c"
+      },
+      "latest_tag": "0.72"
+    },
+    "celguar/characterprofiler": {
+      "default_branch": "master",
+      "sha": "8501d6991302d177776ace5f5843cd24b6308974",
+      "branches": {
+        "master": "8501d6991302d177776ace5f5843cd24b6308974"
+      },
+      "latest_tag": "1.0"
+    },
+    "0ldi/chatbar": {
+      "default_branch": "master",
+      "sha": "ab3106bdfbd33bb871ceac1848e70f2d71e73f32",
+      "branches": {
+        "master": "ab3106bdfbd33bb871ceac1848e70f2d71e73f32"
+      }
+    },
+    "road-block/chatemote": {
+      "default_branch": "master",
+      "sha": "8a8e8dee15ce89ae0cc3ed380a76de76e2653c47",
+      "branches": {
+        "master": "8a8e8dee15ce89ae0cc3ed380a76de76e2653c47"
+      },
+      "latest_tag": "1.11-11200"
+    },
+    "0ldi/chatfix": {
+      "default_branch": "master",
+      "sha": "d9722d760e21465c4bbe1f5511dd03ad69fd6500",
+      "branches": {
+        "master": "d9722d760e21465c4bbe1f5511dd03ad69fd6500"
+      }
+    },
+    "0ldi/chatlog": {
+      "default_branch": "master",
+      "sha": "6a0d97db6225e2fcae0444bf578b33efbc09c7bd",
+      "branches": {
+        "master": "6a0d97db6225e2fcae0444bf578b33efbc09c7bd"
+      }
+    },
+    "scotthamper/chatsuey": {
+      "default_branch": "master",
+      "sha": "c63bbef38a3f8989546f254c3867168567072fb0",
+      "branches": {
+        "master": "c63bbef38a3f8989546f254c3867168567072fb0"
+      },
+      "latest_tag": "1.2.0"
+    },
+    "wbb1977/chattimestamps": {
+      "default_branch": "master",
+      "sha": "ea11be079d5a61adf429973ded0ad8beda8c485e",
+      "branches": {
+        "master": "ea11be079d5a61adf429973ded0ad8beda8c485e"
+      },
+      "latest_tag": "1.6a"
+    },
+    "swizzpop/chickenjockey": {
+      "default_branch": "main",
+      "sha": "7ba0158232cc1faabdbb412bc70bec74937fb9ea",
+      "branches": {
+        "main": "7ba0158232cc1faabdbb412bc70bec74937fb9ea"
+      }
+    },
+    "satan666/lazyspell": {
+      "default_branch": "master",
+      "sha": "3e9a5eee251fca2bd6bcede98f71270fdb955dae",
+      "branches": {
+        "master": "3e9a5eee251fca2bd6bcede98f71270fdb955dae"
+      }
+    },
+    "refaim/classicons": {
+      "default_branch": "master",
+      "sha": "8c8f26181ba8eddbd2f5b14e2b2932a7f9d01e6c",
+      "branches": {
+        "master": "8c8f26181ba8eddbd2f5b14e2b2932a7f9d01e6c"
+      }
+    },
+    "road-block/classicsnowfall": {
+      "default_branch": "master",
+      "sha": "fd802c10662198d03a1dbe1ccc72aa314da515c6",
+      "branches": {
+        "master": "fd802c10662198d03a1dbe1ccc72aa314da515c6"
+      },
+      "latest_tag": "0.5-11200"
+    },
+    "ko0z/classportraits_vanilla": {
+      "default_branch": "master",
+      "sha": "1d98c52195de8f603b5c33ddf62bd13d9984319e",
+      "branches": {
+        "master": "1d98c52195de8f603b5c33ddf62bd13d9984319e"
+      }
+    },
+    "refaim/cleanchat": {
+      "default_branch": "master",
+      "sha": "84e0e57e306265ae4f5ace596678cefd27ff4475",
+      "branches": {
+        "master": "84e0e57e306265ae4f5ace596678cefd27ff4475"
+      }
+    },
+    "wbb1977/cleanplayerframe": {
+      "default_branch": "master",
+      "sha": "234eb6d89bb24adb956dcececa590d664cc6b558",
+      "branches": {
+        "master": "234eb6d89bb24adb956dcececa590d664cc6b558"
+      },
+      "latest_tag": "11200"
+    },
+    "shirsig/cleanup-vanilla": {
+      "default_branch": "master",
+      "sha": "4c83ecb84f376979a0ac6b4747a0bed467cb9b90",
+      "branches": {
+        "master": "4c83ecb84f376979a0ac6b4747a0bed467cb9b90"
+      }
+    },
+    "danieladolfsson/clevermacro": {
+      "default_branch": "master",
+      "sha": "7b85b4c4e59cfea121e5460dfc19e0dde8c89472",
+      "branches": {
+        "master": "7b85b4c4e59cfea121e5460dfc19e0dde8c89472"
+      },
+      "latest_tag": "v1.4"
+    },
+    "cutiepoka/cleveroidmacros": {
+      "default_branch": "main",
+      "sha": "9456c483dd21a77028aa6afc5952e8ef190426bf",
+      "branches": {
+        "main": "9456c483dd21a77028aa6afc5952e8ef190426bf"
+      }
+    },
+    "itslusse/clifftells": {
+      "default_branch": "main",
+      "sha": "eade44ff6dd3693584358eadb6851ea254a1aa7b",
+      "branches": {
+        "main": "eade44ff6dd3693584358eadb6851ea254a1aa7b"
+      }
+    },
+    "shagu/clique": {
+      "default_branch": "master",
+      "sha": "87717adc0ba5456aadfb88cb9fa0a2189c241763",
+      "branches": {
+        "master": "87717adc0ba5456aadfb88cb9fa0a2189c241763"
+      },
+      "latest_tag": "14063"
+    },
+    "cabro/clog": {
+      "default_branch": "master",
+      "sha": "e9fd281f7947bfeffe96decca152446e64b34ec8",
+      "branches": {
+        "master": "e9fd281f7947bfeffe96decca152446e64b34ec8"
+      }
+    },
+    "road-block/closeup": {
+      "default_branch": "master",
+      "sha": "01c0c296b0840b5732690716156c9958744248c0",
+      "branches": {
+        "master": "01c0c296b0840b5732690716156c9958744248c0"
+      },
+      "latest_tag": "11200"
+    },
+    "chad90b/codex": {
+      "default_branch": "main",
+      "sha": "dff918ab8a2c742982fa12df865d6224cf7d4a4f",
+      "branches": {
+        "main": "dff918ab8a2c742982fa12df865d6224cf7d4a4f"
+      }
+    },
+    "mr-rosh/colorpickerplus": {
+      "default_branch": "master",
+      "sha": "178e7b9980467a70bd353a9afb95db1ebf6b6a0b",
+      "branches": {
+        "master": "178e7b9980467a70bd353a9afb95db1ebf6b6a0b"
+      }
+    },
+    "road-block/colorsocialframe": {
+      "default_branch": "master",
+      "sha": "723fe40b9635fc96c48960cbb9b8bd189a4a4f06",
+      "branches": {
+        "master": "723fe40b9635fc96c48960cbb9b8bd189a4a4f06"
+      },
+      "latest_tag": "1.30"
+    },
+    "cysthen/comix": {
+      "default_branch": "main",
+      "sha": "0c1fb1c38260babf4194a4342f1f954ecce37a95",
+      "branches": {
+        "main": "0c1fb1c38260babf4194a4342f1f954ecce37a95"
+      }
+    },
+    "sica42/companionmanager": {
+      "default_branch": "main",
+      "sha": "9efb42eb8c98a44c20918687c146374cceb4d56d",
+      "branches": {
+        "main": "9efb42eb8c98a44c20918687c146374cceb4d56d"
+      }
+    },
+    "pepordev/consoleexperienceclassic": {
+      "default_branch": "main",
+      "sha": "c2f2dfc555ff4bc2ec625281e813b4eb7a080aa0",
+      "branches": {
+        "main": "c2f2dfc555ff4bc2ec625281e813b4eb7a080aa0"
+      },
+      "latest_tag": "v0.17.3"
+    },
+    "shirsig/cooline": {
+      "default_branch": "master",
+      "sha": "ee097857089e1573a6e6e12cde82035096db2b7f",
+      "branches": {
+        "master": "ee097857089e1573a6e6e12cde82035096db2b7f"
+      }
+    },
+    "wbb1977/corpseinfo": {
+      "default_branch": "master",
+      "sha": "493c18b6d6822b38cc9f030778970fc10be45e61",
+      "branches": {
+        "master": "493c18b6d6822b38cc9f030778970fc10be45e61"
+      },
+      "latest_tag": "v15"
+    },
+    "metalgrid/crapfilter": {
+      "default_branch": "master",
+      "sha": "1ab564e2ec7939b01e2203ba0fcade5467b3b7b9",
+      "branches": {
+        "master": "1ab564e2ec7939b01e2203ba0fcade5467b3b7b9"
+      },
+      "latest_tag": "v0.2"
+    },
+    "azgaardian/crusader": {
+      "default_branch": "main",
+      "sha": "41511322589daa959e8d36632b7abd7393109906",
+      "branches": {
+        "main": "41511322589daa959e8d36632b7abd7393109906"
+      }
+    },
+    "yutsuku/ct_unitframes": {
+      "default_branch": "master",
+      "sha": "a4366d256807816703612fb8d3668c72031289de",
+      "branches": {
+        "master": "a4366d256807816703612fb8d3668c72031289de"
+      }
+    },
+    "tarkusx/customicons": {
+      "default_branch": "main",
+      "sha": "694a3508a0a5994587bfb0d5a9e7645d08101b7f",
+      "branches": {
+        "main": "694a3508a0a5994587bfb0d5a9e7645d08101b7f"
+      },
+      "latest_tag": "turtle-wow"
+    },
+    "cephel/dankscore": {
+      "default_branch": "master",
+      "sha": "9c38910c9c6d66417c7e44762857b6781b0d38fe",
+      "branches": {
+        "master": "9c38910c9c6d66417c7e44762857b6781b0d38fe"
+      }
+    },
+    "determinedpanda/difficultbulletinboard": {
+      "default_branch": "master",
+      "sha": "39423709b68fd2c08382c5b3d1103be3781d6a31",
+      "branches": {
+        "master": "39423709b68fd2c08382c5b3d1103be3781d6a31"
+      },
+      "latest_tag": "V2.40"
+    },
+    "einbaum/disableescape": {
+      "default_branch": "master",
+      "sha": "14e12e29dfc4512c4d95d623eb02c41ee6c902b1",
+      "branches": {
+        "master": "14e12e29dfc4512c4d95d623eb02c41ee6c902b1"
+      },
+      "latest_tag": "1.0.0"
+    },
+    "linae-kronos/distance": {
+      "default_branch": "master",
+      "sha": "8e02c049d323e8557738981803214fd0f9b0b8e6",
+      "branches": {
+        "master": "8e02c049d323e8557738981803214fd0f9b0b8e6"
+      }
+    },
+    "uc9089/distancedisplay": {
+      "default_branch": "main",
+      "sha": "0f7fb5167387a37fc8e0150f88f42d597849eb38",
+      "branches": {
+        "main": "0f7fb5167387a37fc8e0150f88f42d597849eb38"
+      }
+    },
+    "quakerzz/dkplist": {
+      "default_branch": "master",
+      "sha": "5c1b387e10d53eb246c0374536918b5b88ecd64e",
+      "branches": {
+        "master": "5c1b387e10d53eb246c0374536918b5b88ecd64e"
+      }
+    },
+    "einbaum/doomed": {
+      "default_branch": "master",
+      "sha": "2217376dc7af8170405db6a11afe510287ed3fc8",
+      "branches": {
+        "master": "2217376dc7af8170405db6a11afe510287ed3fc8"
+      }
+    },
+    "kc8pnd/dotimer": {
+      "default_branch": "master",
+      "sha": "90bad43fe9347cdeb5f2640f71f082255f6bb7a5",
+      "branches": {
+        "master": "90bad43fe9347cdeb5f2640f71f082255f6bb7a5"
+      }
+    },
+    "numielle/dousereminder": {
+      "default_branch": "master",
+      "sha": "a5b3e2b7366b4b12e12afed3fd788612d381078f",
+      "branches": {
+        "master": "a5b3e2b7366b4b12e12afed3fd788612d381078f"
+      }
+    },
+    "cernie/druidconsumable": {
+      "default_branch": "master",
+      "sha": "7138b6f1919e2d3e8ea9a3011d2ef277dddcb14f",
+      "branches": {
+        "master": "7138b6f1919e2d3e8ea9a3011d2ef277dddcb14f"
+      }
+    },
+    "akzkak/drunktracker": {
+      "default_branch": "master",
+      "sha": "e12b77980ba35d47c1d2401b9bbb522fddd2f230",
+      "branches": {
+        "master": "e12b77980ba35d47c1d2401b9bbb522fddd2f230"
+      }
+    },
+    "numielle/easycloak": {
+      "default_branch": "master",
+      "sha": "2cf5e3e0a896e63a164e9cde81b00a7492b74f15",
+      "branches": {
+        "master": "2cf5e3e0a896e63a164e9cde81b00a7492b74f15"
+      },
+      "latest_tag": "v0.2"
+    },
+    "numielle/easyress": {
+      "default_branch": "master",
+      "sha": "57d355827c0f36198ade3883f0654f7845091ad6",
+      "branches": {
+        "master": "57d355827c0f36198ade3883f0654f7845091ad6"
+      }
+    },
+    "fulzamoth/eepanels-v": {
+      "default_branch": "master",
+      "sha": "2f5af623720a1a308abe3fdff4b9fc0b01e468b9",
+      "branches": {
+        "master": "2f5af623720a1a308abe3fdff4b9fc0b01e468b9"
+      },
+      "latest_tag": "v1.0.0"
+    },
+    "cubenicke/efcreport": {
+      "default_branch": "master",
+      "sha": "a4ae1f56c2e3fbfd34b2804d59a0e0b214d4b5d4",
+      "branches": {
+        "master": "a4ae1f56c2e3fbfd34b2804d59a0e0b214d4b5d4"
+      }
+    },
+    "medeah/egnar": {
+      "default_branch": "master",
+      "sha": "23a6b3ea9efe8eacce395e97a16a011958a0560f",
+      "branches": {
+        "master": "23a6b3ea9efe8eacce395e97a16a011958a0560f"
+      },
+      "latest_tag": "0.1"
+    },
+    "jlabranche/elitewarriorttd": {
+      "default_branch": "main",
+      "sha": "bab48b161c016848ea9ff52b60015948622c0ade",
+      "branches": {
+        "main": "bab48b161c016848ea9ff52b60015948622c0ade"
+      }
+    },
+    "rumchiller/em_monkeybuddy": {
+      "default_branch": "master",
+      "sha": "07137f6d32f67c5ffac9b35de6e150e1845f676d",
+      "branches": {
+        "master": "07137f6d32f67c5ffac9b35de6e150e1845f676d"
+      }
+    },
+    "rumchiller/em_wowquote": {
+      "default_branch": "master",
+      "sha": "8529606a5be5926bec4630ec63d48b9864fb01c8",
+      "branches": {
+        "master": "8529606a5be5926bec4630ec63d48b9864fb01c8"
+      },
+      "latest_tag": "0.2"
+    },
+    "rumchiller/em_critbam": {
+      "default_branch": "master",
+      "sha": "01c93b5ed63af6bf3d2140317a51e81ceb2bd1b6",
+      "branches": {
+        "master": "01c93b5ed63af6bf3d2140317a51e81ceb2bd1b6"
+      }
+    },
+    "zetone/enemyframes": {
+      "default_branch": "master",
+      "sha": "7a6591617b038e52153ee0eb5dba73c74978b887",
+      "branches": {
+        "master": "7a6591617b038e52153ee0eb5dba73c74978b887"
+      }
+    },
+    "smirgeli/es": {
+      "default_branch": "main",
+      "sha": "2782b20acce0beea71902ee0113858619456d0f7",
+      "branches": {
+        "main": "2782b20acce0beea71902ee0113858619456d0f7"
+      }
+    },
+    "shirsig/etl": {
+      "default_branch": "master",
+      "sha": "a50f6a9e4b25a0e3fb8ace1e11cf6ed5b7595b57",
+      "branches": {
+        "master": "a50f6a9e4b25a0e3fb8ace1e11cf6ed5b7595b57"
+      }
+    },
+    "theonereed/evtcalendar": {
+      "default_branch": "master",
+      "sha": "772c9201ace228edca2d1a5c0ae65b15a3abb286",
+      "branches": {
+        "master": "772c9201ace228edca2d1a5c0ae65b15a3abb286"
+      },
+      "latest_tag": "1.3"
+    },
+    "yutsuku/ez-epgp": {
+      "default_branch": "master",
+      "sha": "db3732bb13605f920bab5d9d28aeea8a18626aff",
+      "branches": {
+        "master": "db3732bb13605f920bab5d9d28aeea8a18626aff"
+      }
+    },
+    "laytya/ezdismount": {
+      "default_branch": "master",
+      "sha": "e95b05be42a35f05367749dda6e8930ad592247d",
+      "branches": {
+        "master": "e95b05be42a35f05367749dda6e8930ad592247d"
+      }
+    },
+    "wierdthing/ezpoison": {
+      "default_branch": "main",
+      "sha": "eb0184efaed84992dd652b2ad82a49679177d6f6",
+      "branches": {
+        "main": "eb0184efaed84992dd652b2ad82a49679177d6f6"
+      }
+    },
+    "0ldi/felwoodgather": {
+      "default_branch": "master",
+      "sha": "e99c99109bcd300565d5917f0703893b5fcfc56d",
+      "branches": {
+        "master": "e99c99109bcd300565d5917f0703893b5fcfc56d"
+      }
+    },
+    "marktiedemann/feralfire": {
+      "default_branch": "master",
+      "sha": "57dabfa970a5f7c6a123cc213df14d2a3813e855",
+      "branches": {
+        "master": "57dabfa970a5f7c6a123cc213df14d2a3813e855"
+      }
+    },
+    "stormhand81/finezoom": {
+      "default_branch": "main",
+      "sha": "bb9b18688ef6a764b6e721c2a3d712285a487de1",
+      "branches": {
+        "main": "bb9b18688ef6a764b6e721c2a3d712285a487de1"
+      },
+      "latest_tag": "1.3"
+    },
+    "wbb1977/fishinfo2": {
+      "default_branch": "master",
+      "sha": "acc91a08bbb7c13ce7b6c2d0b96ec05ed90c3f6f",
+      "branches": {
+        "master": "acc91a08bbb7c13ce7b6c2d0b96ec05ed90c3f6f"
+      },
+      "latest_tag": "v10"
+    },
+    "deffar/fishingvolume": {
+      "default_branch": "main",
+      "sha": "3f7dbd522844a994f945748b5dd1f1f2aef3f3cd",
+      "branches": {
+        "main": "3f7dbd522844a994f945748b5dd1f1f2aef3f3cd"
+      }
+    },
+    "draiscor/fishswap": {
+      "default_branch": "main",
+      "sha": "d502d96cf1037785649476807df4a6bc79c26d15",
+      "branches": {
+        "main": "d502d96cf1037785649476807df4a6bc79c26d15"
+      },
+      "latest_tag": "v1.1"
+    },
+    "mcpewpew/fizzle": {
+      "default_branch": "master",
+      "sha": "90ae4215bcde84cc8347f274de55d9d012063f42",
+      "branches": {
+        "master": "90ae4215bcde84cc8347f274de55d9d012063f42"
+      }
+    },
+    "mcpewpew/gfw_huntershelper": {
+      "default_branch": "master",
+      "sha": "306a625f1b97e80013aae9887de8ba8d278e96ae",
+      "branches": {
+        "master": "306a625f1b97e80013aae9887de8ba8d278e96ae"
+      }
+    },
+    "lookino/flyout": {
+      "default_branch": "main",
+      "sha": "f13633a7adc6169e9b5112b68322252b1e623740",
+      "branches": {
+        "main": "f13633a7adc6169e9b5112b68322252b1e623740"
+      }
+    },
+    "wardz/focusframe": {
+      "default_branch": "master",
+      "sha": "e438b7efb358b20d3f1950b5b42910f1d20e6f75",
+      "branches": {
+        "master": "e438b7efb358b20d3f1950b5b42910f1d20e6f75"
+      },
+      "latest_tag": "1.04"
+    },
+    "wardz/focusframe_targetcastbar": {
+      "default_branch": "master",
+      "sha": "44fa7fb810aacf17a8cc0f05b8bd6de3bf5f8c4e",
+      "branches": {
+        "master": "44fa7fb810aacf17a8cc0f05b8bd6de3bf5f8c4e"
+      },
+      "latest_tag": "v1.0.0"
+    },
+    "noo0b1/followmeenhanced": {
+      "default_branch": "master",
+      "sha": "53bf3f88b860ca4bdd184edfa07e08689398fcf0",
+      "branches": {
+        "master": "53bf3f88b860ca4bdd184edfa07e08689398fcf0"
+      }
+    },
+    "nemanuel/forged_pethappiness": {
+      "default_branch": "main",
+      "sha": "989cfebeb5a938e1dc49f7ff1b615063b7c5e53d",
+      "branches": {
+        "main": "989cfebeb5a938e1dc49f7ff1b615063b7c5e53d"
+      }
+    },
+    "nemanuel/forged_sellallgrays": {
+      "default_branch": "main",
+      "sha": "308a2e673f71e398c1e32f30b22c195630da9e6a",
+      "branches": {
+        "main": "308a2e673f71e398c1e32f30b22c195630da9e6a"
+      }
+    },
+    "fiskehatt/friendfinder": {
+      "default_branch": "master",
+      "sha": "e339f7c462e034ce49b98f5a1978b4d925cc3b4a",
+      "branches": {
+        "master": "e339f7c462e034ce49b98f5a1978b4d925cc3b4a"
+      }
+    },
+    "shellyoung/fubar_population": {
+      "default_branch": "main",
+      "sha": "9bf2673f876fb9700a6cef4265144e832d0f4b29",
+      "branches": {
+        "main": "9bf2673f876fb9700a6cef4265144e832d0f4b29"
+      },
+      "latest_tag": "2.3"
+    },
+    "laytya/fubar_portalfu": {
+      "default_branch": "main",
+      "sha": "d50fdbbe0765edd073640ed317bfade682cffb4f",
+      "branches": {
+        "main": "d50fdbbe0765edd073640ed317bfade682cffb4f"
+      }
+    },
+    "road-block/fubar_possessionsfu": {
+      "default_branch": "master",
+      "sha": "3911af9ab97be76e0bd5a2fa7a22eb5b853ebb73",
+      "branches": {
+        "master": "3911af9ab97be76e0bd5a2fa7a22eb5b853ebb73"
+      },
+      "latest_tag": "11200.3"
+    },
+    "laytya/fubar_pursuefu": {
+      "default_branch": "main",
+      "sha": "135fbeb81ff01942d8ff308928c74b0e4b17db70",
+      "branches": {
+        "main": "135fbeb81ff01942d8ff308928c74b0e4b17db70"
+      },
+      "latest_tag": "v1.2"
+    },
+    "ebedanostalrius/fubar_zepmaster": {
+      "default_branch": "master",
+      "sha": "ddf6a5042ef9131dae9ffebe1fe0757253f590e9",
+      "branches": {
+        "master": "ddf6a5042ef9131dae9ffebe1fe0757253f590e9"
+      }
+    },
+    "otari98/fullsack": {
+      "default_branch": "master",
+      "sha": "5d6f2a5182815ccec8484f67ac4e0b5740af1632",
+      "branches": {
+        "master": "5d6f2a5182815ccec8484f67ac4e0b5740af1632"
+      }
+    },
+    "yutsuku/gamepad": {
+      "default_branch": "master",
+      "sha": "3986144052b8aed0a006fe7944b5022cfdba83c7",
+      "branches": {
+        "master": "3986144052b8aed0a006fe7944b5022cfdba83c7"
+      }
+    },
+    "voidmenull/gamonkilltimer": {
+      "default_branch": "master",
+      "sha": "202d8eab385cefd84103ba194cc6de7b219a9743",
+      "branches": {
+        "master": "202d8eab385cefd84103ba194cc6de7b219a9743"
+      }
+    },
+    "ageous27/gcdtimerbar": {
+      "default_branch": "main",
+      "sha": "ce25c463b743c3ffb0408b92e7fdea5c19ef25e0",
+      "branches": {
+        "main": "ce25c463b743c3ffb0408b92e7fdea5c19ef25e0"
+      }
+    },
+    "ragedunicorn/wow-vanilla-gearmenu": {
+      "default_branch": "master",
+      "sha": "06f9edc3d84835f9ec818a7b8e951ebc92c0ca71",
+      "branches": {
+        "master": "06f9edc3d84835f9ec818a7b8e951ebc92c0ca71"
+      },
+      "latest_tag": "v1.2.2"
+    },
+    "diff3/ghost": {
+      "default_branch": "master",
+      "sha": "fd2bbd44fdf7205f92d42548c4a2a7e6f1c4eb2f",
+      "branches": {
+        "master": "fd2bbd44fdf7205f92d42548c4a2a7e6f1c4eb2f"
+      },
+      "latest_tag": "3745561"
+    },
+    "trangoul/globalfriendslist": {
+      "default_branch": "main",
+      "sha": "00c2d8234097f0c72326820e131190d68491ea27",
+      "branches": {
+        "main": "00c2d8234097f0c72326820e131190d68491ea27"
+      }
+    },
+    "shagu/gmblacklist": {
+      "default_branch": "master",
+      "sha": "46ee64b772f809fd5d78a7773ddcc2a2335240c4",
+      "branches": {
+        "master": "46ee64b772f809fd5d78a7773ddcc2a2335240c4"
+      }
+    },
+    "mcpewpew/goblinbrainwashinghelper": {
+      "default_branch": "master",
+      "sha": "26159e4ef29e0af7259ae92b66dde3da4c68f7d2",
+      "branches": {
+        "master": "26159e4ef29e0af7259ae92b66dde3da4c68f7d2"
+      },
+      "latest_tag": "v0.1"
+    },
+    "jsb/gourmet": {
+      "default_branch": "master",
+      "sha": "f0a31d2b0baa4e595481b611fb185923a9981fc4",
+      "branches": {
+        "master": "f0a31d2b0baa4e595481b611fb185923a9981fc4"
+      }
+    },
+    "scoboose/grimoirekeeper": {
+      "default_branch": "main",
+      "sha": "05f70668d425d0c5073538c3ac8e85b6380ccd5b",
+      "branches": {
+        "main": "05f70668d425d0c5073538c3ac8e85b6380ccd5b"
+      }
+    },
+    "xorann/grimreaper": {
+      "default_branch": "master",
+      "sha": "18d52e0660dcd217b8717d457717832ce829b39b",
+      "branches": {
+        "master": "18d52e0660dcd217b8717d457717832ce829b39b"
+      }
+    },
+    "onnateldome/grindspots": {
+      "default_branch": "master",
+      "sha": "23a40786ce3066568c64fbfca500404a593f1db4",
+      "branches": {
+        "master": "23a40786ce3066568c64fbfca500404a593f1db4"
+      }
+    },
+    "monteo/groupcalendar": {
+      "default_branch": "master",
+      "sha": "41ec2f9313376530fd3854c7cd3ee04834a808db",
+      "branches": {
+        "master": "41ec2f9313376530fd3854c7cd3ee04834a808db"
+      }
+    },
+    "redshadowz/groupfinder": {
+      "default_branch": "main",
+      "sha": "51ebb9beca1b0880ea15f3e293132d10488b9450",
+      "branches": {
+        "main": "51ebb9beca1b0880ea15f3e293132d10488b9450"
+      }
+    },
+    "zarant/guidecreator": {
+      "default_branch": "master",
+      "sha": "36d92e3e9ec730991e8e65ca11d8310751d6142e",
+      "branches": {
+        "master": "36d92e3e9ec730991e8e65ca11d8310751d6142e"
+      }
+    },
+    "sica42/guildalts": {
+      "default_branch": "main",
+      "sha": "fe11010738b58565b97e8f382f7577ae942c2f9f",
+      "branches": {
+        "main": "fe11010738b58565b97e8f382f7577ae942c2f9f"
+      }
+    },
+    "graved/guildmaintagger": {
+      "default_branch": "main",
+      "sha": "37c259e18473445ad3c96c70e5b785b7d432b164",
+      "branches": {
+        "main": "37c259e18473445ad3c96c70e5b785b7d432b164"
+      }
+    },
+    "rollingsmile/guildroll": {
+      "default_branch": "main",
+      "sha": "cb5ccbb40cd81ab586e77d515e92a58883ff2176",
+      "branches": {
+        "main": "cb5ccbb40cd81ab586e77d515e92a58883ff2176"
+      }
+    },
+    "yutsuku/guildsearch": {
+      "default_branch": "master",
+      "sha": "e78dfbae6dc06600590e9d581288514ca5df3242",
+      "branches": {
+        "master": "e78dfbae6dc06600590e9d581288514ca5df3242"
+      }
+    },
+    "timanaku/hastedisplay": {
+      "default_branch": "main",
+      "sha": "7f9a7a11161af69402ce17a3ae5fc5855fa10005",
+      "branches": {
+        "main": "7f9a7a11161af69402ce17a3ae5fc5855fa10005"
+      }
+    },
+    "vakos1/hattrick": {
+      "default_branch": "main",
+      "sha": "fd14ab1622f2beb2c8af16ee2400752494f4a599",
+      "branches": {
+        "main": "fd14ab1622f2beb2c8af16ee2400752494f4a599"
+      },
+      "latest_tag": "addon"
+    },
+    "hitbutton/hbpowerinfusion": {
+      "default_branch": "master",
+      "sha": "87fa6f0a6989765592b8eb15a622f021f2a36b47",
+      "branches": {
+        "master": "87fa6f0a6989765592b8eb15a622f021f2a36b47"
+      }
+    },
+    "cosminpop/hendrishift": {
+      "default_branch": "master",
+      "sha": "22b05db2ee66e4555cce2263fc8854687a66134f",
+      "branches": {
+        "master": "22b05db2ee66e4555cce2263fc8854687a66134f"
+      }
+    },
+    "zirtox1992/hideerrorframe": {
+      "default_branch": "main",
+      "sha": "c65a36f01ab69c35779313f1b91ef8432c972fc6",
+      "branches": {
+        "main": "c65a36f01ab69c35779313f1b91ef8432c972fc6"
+      }
+    },
+    "pre-elysium/hordeironfoe": {
+      "default_branch": "master",
+      "sha": "a8e6fd1719c9e36d269405ce2566c08bb2d0f478",
+      "branches": {
+        "master": "a8e6fd1719c9e36d269405ce2566c08bb2d0f478"
+      }
+    },
+    "dudusandsten/hotbotpanel": {
+      "default_branch": "master",
+      "sha": "37bfac2799975c6d9902a4f7b252cc1c7abb8836",
+      "branches": {
+        "master": "37bfac2799975c6d9902a4f7b252cc1c7abb8836"
+      },
+      "latest_tag": "1"
+    },
+    "enn-wow-addons/hunterswissknife": {
+      "default_branch": "master",
+      "sha": "441cae66541d9031efeb29fb899b4021a56e35b2",
+      "branches": {
+        "master": "441cae66541d9031efeb29fb899b4021a56e35b2"
+      },
+      "latest_tag": "v1.1"
+    },
+    "geigerkind/ibdf": {
+      "default_branch": "master",
+      "sha": "0dda784f22d7f405aab8ef1bf1ea8cd94023f861",
+      "branches": {
+        "master": "0dda784f22d7f405aab8ef1bf1ea8cd94023f861"
+      }
+    },
+    "alchem1ster/vanilla-iconic": {
+      "default_branch": "main",
+      "sha": "7d742251f2f42b91689ba40da4e8ad4fa0e7c630",
+      "branches": {
+        "main": "7d742251f2f42b91689ba40da4e8ad4fa0e7c630"
+      },
+      "latest_tag": "1.1_Vanilla"
+    },
+    "abstr4ctz/ifalert": {
+      "default_branch": "master",
+      "sha": "864cc8d9edd09ac3b4b60978b6788c7afd376aaf",
+      "branches": {
+        "master": "864cc8d9edd09ac3b4b60978b6788c7afd376aaf"
+      }
+    },
+    "vakos1/ignite-status": {
+      "default_branch": "main",
+      "sha": "643d58cec868c1e4265653b44d8b277779709c30",
+      "branches": {
+        "main": "643d58cec868c1e4265653b44d8b277779709c30"
+      }
+    },
+    "0ldi/imdead": {
+      "default_branch": "master",
+      "sha": "48ef045409f9e506fc50376fe022e45e3112b523",
+      "branches": {
+        "master": "48ef045409f9e506fc50376fe022e45e3112b523"
+      }
+    },
+    "twothe/improvedignore": {
+      "default_branch": "master",
+      "sha": "8fa195448453e881607e95bb8f8d4fc96bece6b8",
+      "branches": {
+        "master": "8fa195448453e881607e95bb8f8d4fc96bece6b8"
+      },
+      "latest_tag": "1.2"
+    },
+    "shirsig/inspect": {
+      "default_branch": "master",
+      "sha": "a91c16ebfe09a0ef8bfb92e4b593c8da795346e9",
+      "branches": {
+        "master": "a91c16ebfe09a0ef8bfb92e4b593c8da795346e9"
+      }
+    },
+    "doorknob6/inspector": {
+      "default_branch": "master",
+      "sha": "3298d70752b60475ad611242a7030c0bbacb02df",
+      "branches": {
+        "master": "3298d70752b60475ad611242a7030c0bbacb02df"
+      }
+    },
+    "marcelinevq/instancetimers": {
+      "default_branch": "master",
+      "sha": "5d4e5535c92aeed47e06e7ee143263931401d96c",
+      "branches": {
+        "master": "5d4e5535c92aeed47e06e7ee143263931401d96c"
+      }
+    },
+    "jrc13245/intellisense": {
+      "default_branch": "main",
+      "sha": "e8968c2088054bd3f567529e9f177ebf032d4241",
+      "branches": {
+        "main": "e8968c2088054bd3f567529e9f177ebf032d4241"
+      }
+    },
+    "road-block/interruptor": {
+      "default_branch": "master",
+      "sha": "777585a52a447fc59f42a625c8a38b7d411e1052",
+      "branches": {
+        "master": "777585a52a447fc59f42a625c8a38b7d411e1052"
+      }
+    },
+    "road-block/itemhints": {
+      "default_branch": "master",
+      "sha": "4e33174b1fc403d395671eefcbbc70a57fb6e52a",
+      "branches": {
+        "master": "4e33174b1fc403d395671eefcbbc70a57fb6e52a"
+      },
+      "latest_tag": "1.11"
+    },
+    "cyaohiri/itemidtooltip": {
+      "default_branch": "main",
+      "sha": "f25c97e799ebd66d3e5e4318f4b513f3561c385d",
+      "branches": {
+        "main": "f25c97e799ebd66d3e5e4318f4b513f3561c385d"
+      }
+    },
+    "road-block/itemsofpower": {
+      "default_branch": "master",
+      "sha": "265fe97786de235ded987d984d853acec8740087",
+      "branches": {
+        "master": "265fe97786de235ded987d984d853acec8740087"
+      },
+      "latest_tag": "1.01-11200"
+    },
+    "atreyyo/iwin": {
+      "default_branch": "master",
+      "sha": "ee65d68f44c45c26783f707deb22be965ff71bd3",
+      "branches": {
+        "master": "ee65d68f44c45c26783f707deb22be965ff71bd3"
+      }
+    },
+    "pushxd/jim_cooldownpulse": {
+      "default_branch": "master",
+      "sha": "bacb53bdee96dec5054193f5a69d22cb3e920c15",
+      "branches": {
+        "master": "bacb53bdee96dec5054193f5a69d22cb3e920c15"
+      }
+    },
+    "xniko/kallyoautoshot": {
+      "default_branch": "master",
+      "sha": "ee23361084583e26de4afff6685206ba9dcc3d7e",
+      "branches": {
+        "master": "ee23361084583e26de4afff6685206ba9dcc3d7e"
+      }
+    },
+    "keijinde/keijinachievementmonitor": {
+      "default_branch": "main",
+      "sha": "b7d4f1d3bad50446ffacfe460c7dcbb9f22d6381",
+      "branches": {
+        "main": "b7d4f1d3bad50446ffacfe460c7dcbb9f22d6381"
+      },
+      "latest_tag": "250725_1630"
+    },
+    "refaim/kethodoc": {
+      "default_branch": "master",
+      "sha": "b7756d1395867ef87aa4f73d1a63443bc1510651",
+      "branches": {
+        "master": "b7756d1395867ef87aa4f73d1a63443bc1510651"
+      }
+    },
+    "frostshock/killcounter": {
+      "default_branch": "main",
+      "sha": "1a938c71cca7700acff98b513ab49c8ba0c9dac2",
+      "branches": {
+        "main": "1a938c71cca7700acff98b513ab49c8ba0c9dac2"
+      }
+    },
+    "sumowares/killpro": {
+      "default_branch": "master",
+      "sha": "c20362378be481dc445aedddf9769eee197bba21",
+      "branches": {
+        "master": "c20362378be481dc445aedddf9769eee197bba21"
+      }
+    },
+    "sica42/killtrack": {
+      "default_branch": "main",
+      "sha": "4e6132ddffd2669ae7855ef241cb18d839183f83",
+      "branches": {
+        "main": "4e6132ddffd2669ae7855ef241cb18d839183f83"
+      }
+    },
+    "bergador/ktmemeaddon": {
+      "default_branch": "master",
+      "sha": "8c50d875e4089f0720abfadcf575cf18089254be",
+      "branches": {
+        "master": "8c50d875e4089f0720abfadcf575cf18089254be"
+      }
+    },
+    "bergador/ktp3shacklecounter": {
+      "default_branch": "master",
+      "sha": "eb7efedfdcb181f29d69561de1e2d997e873cc09",
+      "branches": {
+        "master": "eb7efedfdcb181f29d69561de1e2d997e873cc09"
+      }
+    },
+    "johnmichael/lagcast": {
+      "default_branch": "master",
+      "sha": "fccc0a815853d7add7994a2c6b31728fb1579384",
+      "branches": {
+        "master": "fccc0a815853d7add7994a2c6b31728fb1579384"
+      }
+    },
+    "road-block/languagefilter": {
+      "default_branch": "master",
+      "sha": "a64db8572ec0912e31b446bb6fd8168a1539f60e",
+      "branches": {
+        "master": "a64db8572ec0912e31b446bb6fd8168a1539f60e"
+      }
+    },
+    "laytya/lazyscript": {
+      "default_branch": "master",
+      "sha": "cf3b7c7220cf2f0fa7062af8033e3e30f8e87a92",
+      "branches": {
+        "master": "cf3b7c7220cf2f0fa7062af8033e3e30f8e87a92"
+      }
+    },
+    "mr-rosh/lern2spell": {
+      "default_branch": "master",
+      "sha": "eb66f354a363b29c7140edd857ea4cbd01b3d8f5",
+      "branches": {
+        "master": "eb66f354a363b29c7140edd857ea4cbd01b3d8f5"
+      }
+    },
+    "ralliartse/lfghelper": {
+      "default_branch": "main",
+      "sha": "4a2c42668e859585c73642e12a03bd1bd3a7636f",
+      "branches": {
+        "main": "4a2c42668e859585c73642e12a03bd1bd3a7636f"
+      }
+    },
+    "turinpt/lhcp": {
+      "default_branch": "master",
+      "sha": "175d68371684b5d73d7cd26eda487791cb825ddf",
+      "branches": {
+        "master": "175d68371684b5d73d7cd26eda487791cb825ddf"
+      }
+    },
+    "jvaneg/libramswap": {
+      "default_branch": "main",
+      "sha": "46114022eb4a33eefcb2189f24ddb4d5b620b364",
+      "branches": {
+        "main": "46114022eb4a33eefcb2189f24ddb4d5b620b364"
+      }
+    },
+    "shirsig/linkmend": {
+      "default_branch": "master",
+      "sha": "d9e96234f589e9d38cdb60bf8e7d53477946e5bf",
+      "branches": {
+        "master": "d9e96234f589e9d38cdb60bf8e7d53477946e5bf"
+      }
+    },
+    "seacrabsam/lockport": {
+      "default_branch": "main",
+      "sha": "24c61e42b683d3b422d5c8744feb195e0137e04a",
+      "branches": {
+        "main": "24c61e42b683d3b422d5c8744feb195e0137e04a"
+      }
+    },
+    "randall05/lockport_plus": {
+      "default_branch": "main",
+      "sha": "1642962c3f3603f87c324815cf5ab6b1f13c1f4b",
+      "branches": {
+        "main": "1642962c3f3603f87c324815cf5ab6b1f13c1f4b"
+      }
+    },
+    "road-block/losecontrol": {
+      "default_branch": "master",
+      "sha": "26f5e1db3aa74565dab0f620795949f2f346f44e",
+      "branches": {
+        "master": "26f5e1db3aa74565dab0f620795949f2f346f44e"
+      }
+    },
+    "woblight/macrotextstop": {
+      "default_branch": "master",
+      "sha": "13e32571bce73afebfc505f81ccaaacde4ebfdd7",
+      "branches": {
+        "master": "13e32571bce73afebfc505f81ccaaacde4ebfdd7"
+      }
+    },
+    "undercityaddons-vanilla/macrott-v": {
+      "default_branch": "master",
+      "sha": "d9d173bda041771f17566353a012c67180331702",
+      "branches": {
+        "master": "d9d173bda041771f17566353a012c67180331702"
+      },
+      "latest_tag": "v1.1.0"
+    },
+    "melbaa/manaminder": {
+      "default_branch": "master",
+      "sha": "ababafd952ef3d4b293c0dd9b64f2cc272fc477a",
+      "branches": {
+        "master": "ababafd952ef3d4b293c0dd9b64f2cc272fc477a"
+      },
+      "latest_tag": "v1.7"
+    },
+    "athenegenesis/vanilla_manyqtitemtooltips": {
+      "default_branch": "master",
+      "sha": "4571462e87ecc91d7eb1d711ff17c27e5c9ffcb8",
+      "branches": {
+        "master": "4571462e87ecc91d7eb1d711ff17c27e5c9ffcb8"
+      },
+      "latest_tag": "v1.0"
+    },
+    "asdaaf/mb-ca-icons": {
+      "default_branch": "master",
+      "sha": "8f4c0fcf61ac2305d60b2f8e8b1366a993e7b5b2",
+      "branches": {
+        "master": "8f4c0fcf61ac2305d60b2f8e8b1366a993e7b5b2"
+      }
+    },
+    "fsuhas/mcp-tw": {
+      "default_branch": "main",
+      "sha": "1f5dc1c2de08584fbf5cb6c2fd4bca9a8cc63aa6",
+      "branches": {
+        "main": "1f5dc1c2de08584fbf5cb6c2fd4bca9a8cc63aa6"
+      }
+    },
+    "phyx1u5/meeting": {
+      "default_branch": "master",
+      "sha": "1d35a221559f15d70e461cb1628858ddea4b5b0c",
+      "branches": {
+        "master": "1d35a221559f15d70e461cb1628858ddea4b5b0c"
+      }
+    },
+    "jejkas/meleestats": {
+      "default_branch": "master",
+      "sha": "eb3adcbe9b1f35734a3a4e7b6f8c4133a3ade5a5",
+      "branches": {
+        "master": "eb3adcbe9b1f35734a3a4e7b6f8c4133a3ade5a5"
+      }
+    },
+    "tilare/messagebox": {
+      "default_branch": "main",
+      "sha": "eede932b062a764b7ff1b548106e2d95a9925737",
+      "branches": {
+        "main": "eede932b062a764b7ff1b548106e2d95a9925737"
+      }
+    },
+    "duvelcorp/metahunt": {
+      "default_branch": "master",
+      "sha": "270da5ab65180a01bfd24f59d126c1e32e06204c",
+      "branches": {
+        "master": "270da5ab65180a01bfd24f59d126c1e32e06204c"
+      },
+      "latest_tag": "v1.5.1"
+    },
+    "robs898/mobinfo2turtle": {
+      "default_branch": "master",
+      "sha": "72f07f7a5c55f84e7436bb192b3ed0f29297a476",
+      "branches": {
+        "master": "72f07f7a5c55f84e7436bb192b3ed0f29297a476"
+      }
+    },
+    "0ldi/mobresist": {
+      "default_branch": "master",
+      "sha": "68c3dc00dedf3a615416b111e81fbe0651b2f0e8",
+      "branches": {
+        "master": "68c3dc00dedf3a615416b111e81fbe0651b2f0e8"
+      }
+    },
+    "idontbyte/mobstolevel": {
+      "default_branch": "master",
+      "sha": "5ea57074ce45d066ba58e321f04685aa8f8ceedb",
+      "branches": {
+        "master": "5ea57074ce45d066ba58e321f04685aa8f8ceedb"
+      },
+      "latest_tag": "1.0"
+    },
+    "abstr4ctz/modernfocusframe": {
+      "default_branch": "main",
+      "sha": "6c6631b174e1a4450c32af801cd5a1f278f6e630",
+      "branches": {
+        "main": "6c6631b174e1a4450c32af801cd5a1f278f6e630"
+      }
+    },
+    "abstr4ctz/modernspellalert": {
+      "default_branch": "main",
+      "sha": "97486297904a360c0e0fddb4fcbc6ada731a476c",
+      "branches": {
+        "main": "97486297904a360c0e0fddb4fcbc6ada731a476c"
+      }
+    },
+    "vegeta1k95/modernspellbook": {
+      "default_branch": "master",
+      "sha": "88afad31729657175d1710c259d9e55081331920",
+      "branches": {
+        "master": "88afad31729657175d1710c259d9e55081331920"
+      }
+    },
+    "obble/modguide": {
+      "default_branch": "master",
+      "sha": "4863fcefbc84680f05d3d989704b2eb983f216f2",
+      "branches": {
+        "master": "4863fcefbc84680f05d3d989704b2eb983f216f2"
+      }
+    },
+    "zebouski/mopgeartooltips": {
+      "default_branch": "master",
+      "sha": "fc9000fab3f5576db2740169652caaa79674fe1f",
+      "branches": {
+        "master": "fc9000fab3f5576db2740169652caaa79674fe1f"
+      }
+    },
+    "goamania/mousehighlightcircle": {
+      "default_branch": "main",
+      "sha": "dced58f6a87b7a7ae7b15cfe098acb951f7b1a0e",
+      "branches": {
+        "main": "dced58f6a87b7a7ae7b15cfe098acb951f7b1a0e"
+      }
+    },
+    "rfelleto/mlooklock": {
+      "default_branch": "main",
+      "sha": "c47a7598c4139cef7420b99da1ad063073f08e73",
+      "branches": {
+        "main": "c47a7598c4139cef7420b99da1ad063073f08e73"
+      }
+    },
+    "ftkun/mouseoversounds": {
+      "default_branch": "main",
+      "sha": "e094b2ae6b4c84dba0d13fcd44c36677644e43e8",
+      "branches": {
+        "main": "e094b2ae6b4c84dba0d13fcd44c36677644e43e8"
+      }
+    },
+    "jembawow/moveanything": {
+      "default_branch": "main",
+      "sha": "01b20a0a35d7526a31f136227beac5b23bf544ab",
+      "branches": {
+        "main": "01b20a0a35d7526a31f136227beac5b23bf544ab"
+      }
+    },
+    "tilare/movementtracker": {
+      "default_branch": "main",
+      "sha": "fb0ac54c3e9a615b766ddcc3cc805ce14b8fb305",
+      "branches": {
+        "main": "fb0ac54c3e9a615b766ddcc3cc805ce14b8fb305"
+      }
+    },
+    "shirsig/mre": {
+      "default_branch": "master",
+      "sha": "f3b5b43b61c83df106439f0b7ac0f2b4f948600d",
+      "branches": {
+        "master": "f3b5b43b61c83df106439f0b7ac0f2b4f948600d"
+      }
+    },
+    "cubenicke/mule": {
+      "default_branch": "master",
+      "sha": "c90acd5139ae8a5bff7d4a04d7024d4071fb5bc0",
+      "branches": {
+        "master": "c90acd5139ae8a5bff7d4a04d7024d4071fb5bc0"
+      }
+    },
+    "kameleonuk/mutecities": {
+      "default_branch": "main",
+      "sha": "2d038834b06ac6b0749479ff2151d2998a66191e",
+      "branches": {
+        "main": "2d038834b06ac6b0749479ff2151d2998a66191e"
+      }
+    },
+    "zirtox1992/namechangescript": {
+      "default_branch": "main",
+      "sha": "6f9915267b6822b4bf7278e9435d9d8a929548a6",
+      "branches": {
+        "main": "6f9915267b6822b4bf7278e9435d9d8a929548a6"
+      }
+    },
+    "road-block/nauticus": {
+      "default_branch": "master",
+      "sha": "a70898e2db91fdca139c336663a0fb3efe7a6890",
+      "branches": {
+        "master": "a70898e2db91fdca139c336663a0fb3efe7a6890"
+      },
+      "latest_tag": "2.01-11200"
+    },
+    "nedlinin/necrosis-twow": {
+      "default_branch": "main",
+      "sha": "91a40cb87a8a452c7882e3e2dc32683883f7cc67",
+      "branches": {
+        "main": "91a40cb87a8a452c7882e3e2dc32683883f7cc67"
+      }
+    },
+    "garethfromwales/nerfedbuttons4wow": {
+      "default_branch": "main",
+      "sha": "59eb02ae49be594df6a234206c0d76079b199311",
+      "branches": {
+        "main": "59eb02ae49be594df6a234206c0d76079b199311"
+      },
+      "latest_tag": "v1.7beta"
+    },
+    "alchem1ster/vanilla-newlevelframe": {
+      "default_branch": "main",
+      "sha": "ae0a23812409ae3c4dc731136b9cdc25cb44b09c",
+      "branches": {
+        "main": "ae0a23812409ae3c4dc731136b9cdc25cb44b09c"
+      },
+      "latest_tag": "1.1"
+    },
+    "beardedrasta/noscursor": {
+      "default_branch": "main",
+      "sha": "fb59ba7dcc739b45ba7aaaa231a5ebe6536510a1",
+      "branches": {
+        "main": "fb59ba7dcc739b45ba7aaaa231a5ebe6536510a1"
+      }
+    },
+    "rgd87/nugcombobar": {
+      "default_branch": "master",
+      "sha": "96638740c04f0532bf098a262006115bf2baeb7d",
+      "branches": {
+        "master": "96638740c04f0532bf098a262006115bf2baeb7d"
+      },
+      "latest_tag": "11.0.7"
+    },
+    "rgd87/nugenergy": {
+      "default_branch": "master",
+      "sha": "8d169f83b4d85834d2d648c62f3256195bd2556f",
+      "branches": {
+        "master": "8d169f83b4d85834d2d648c62f3256195bd2556f"
+      },
+      "latest_tag": "11.0.3"
+    },
+    "laytya/vanilla_ocb": {
+      "default_branch": "master",
+      "sha": "0c6ff25a2acf38cbe0d93e831b7401577c8967aa",
+      "branches": {
+        "master": "0c6ff25a2acf38cbe0d93e831b7401577c8967aa"
+      },
+      "latest_tag": "v3.3.3"
+    },
+    "otari98/omnicc": {
+      "default_branch": "master",
+      "sha": "fd60e8570be099ae4975afb3da4242b48d9a6311",
+      "branches": {
+        "master": "fd60e8570be099ae4975afb3da4242b48d9a6311"
+      }
+    },
+    "geigerkind/onebuttonhunter": {
+      "default_branch": "master",
+      "sha": "f1f5b440014059df63042df8584abc3bac809bfe",
+      "branches": {
+        "master": "f1f5b440014059df63042df8584abc3bac809bfe"
+      },
+      "latest_tag": "b1"
+    },
+    "ericschn/onlyascii": {
+      "default_branch": "main",
+      "sha": "bc9e839976419db0bcc8213c432c94c8a01a6cbe",
+      "branches": {
+        "main": "bc9e839976419db0bcc8213c432c94c8a01a6cbe"
+      }
+    },
+    "jejkas/ooi": {
+      "default_branch": "master",
+      "sha": "fc2bfe8d7ac2ea596295ae87a92d417905b10f2d",
+      "branches": {
+        "master": "fc2bfe8d7ac2ea596295ae87a92d417905b10f2d"
+      }
+    },
+    "pepopo978/outfitter": {
+      "default_branch": "master",
+      "sha": "9e8d2c6101280c995118f2195374ffbd8dbcf283",
+      "branches": {
+        "master": "9e8d2c6101280c995118f2195374ffbd8dbcf283"
+      }
+    },
+    "maxcodk/paladinlibramswap": {
+      "default_branch": "main",
+      "sha": "62142d89d734a03faf4030ad1925a75d981f1dd7",
+      "branches": {
+        "main": "62142d89d734a03faf4030ad1925a75d981f1dd7"
+      }
+    },
+    "ericraio/vanilla-wow-addons": {
+      "default_branch": "master",
+      "sha": "238c6d633d5a5b8a0cc4ee7a8cbb548ea80da081",
+      "branches": {
+        "master": "238c6d633d5a5b8a0cc4ee7a8cbb548ea80da081"
+      }
+    },
+    "cregham/partyplus": {
+      "default_branch": "main",
+      "sha": "81027ce5b13da8ad81dd312dabcbba0f444babf6",
+      "branches": {
+        "main": "81027ce5b13da8ad81dd312dabcbba0f444babf6"
+      }
+    },
+    "shagu/pfdesktop": {
+      "default_branch": "master",
+      "sha": "7d65013e01838d96c8750127850da7d517859141",
+      "branches": {
+        "master": "7d65013e01838d96c8750127850da7d517859141"
+      }
+    },
+    "shagu/pfstudio": {
+      "default_branch": "master",
+      "sha": "01e1dacf6c63d7920dcbb22dc32c624f6bc36f78",
+      "branches": {
+        "master": "01e1dacf6c63d7920dcbb22dc32c624f6bc36f78"
+      }
+    },
+    "shagu/pfui-fonts": {
+      "default_branch": "master",
+      "sha": "21000056503a71c349584c34b159e1a04974de78",
+      "branches": {
+        "master": "21000056503a71c349584c34b159e1a04974de78"
+      }
+    },
+    "doorknob6/pfui-turtle": {
+      "default_branch": "master",
+      "sha": "4cba1b4e07a70b0c3a53122016c25cd9745bec7a",
+      "branches": {
+        "master": "4cba1b4e07a70b0c3a53122016c25cd9745bec7a"
+      }
+    },
+    "neimad-mp/pizzaslices": {
+      "default_branch": "main",
+      "sha": "59bcdda1e70a7f3f93362fbe4d0778f6c3e9c867",
+      "branches": {
+        "main": "59bcdda1e70a7f3f93362fbe4d0778f6c3e9c867"
+      }
+    },
+    "road-block/playerstates": {
+      "default_branch": "master",
+      "sha": "48c53ef9cdd03fcb490b4f50f3cfe8ebfa903ec8",
+      "branches": {
+        "master": "48c53ef9cdd03fcb490b4f50f3cfe8ebfa903ec8"
+      },
+      "latest_tag": "1.1-11200"
+    },
+    "staforddev/poisoncharges": {
+      "default_branch": "Classic",
+      "sha": "1afb71e7138986f30bd6c8fa5d31864705a6052c",
+      "branches": {
+        "Classic": "1afb71e7138986f30bd6c8fa5d31864705a6052c"
+      },
+      "latest_tag": "v1.1"
+    },
+    "porkfriedlumpia/porknotes": {
+      "default_branch": "main",
+      "sha": "229e81106cc1c9da39c200d68999f345a69febf9",
+      "branches": {
+        "main": "229e81106cc1c9da39c200d68999f345a69febf9"
+      },
+      "latest_tag": "0.4.1"
+    },
+    "numielle/priestbinds": {
+      "default_branch": "master",
+      "sha": "3be3a65d19126917bb0aff6e39b0e55ebe76082f",
+      "branches": {
+        "master": "3be3a65d19126917bb0aff6e39b0e55ebe76082f"
+      }
+    },
+    "thezephyrsong/procdoc": {
+      "default_branch": "main",
+      "sha": "7c29a57a9ce28749782dc26aa938bf85ef4e4dc0",
+      "branches": {
+        "main": "7c29a57a9ce28749782dc26aa938bf85ef4e4dc0"
+      }
+    },
+    "cernie/pummeler": {
+      "default_branch": "master",
+      "sha": "5094843163426678e129316910672515af58ee72",
+      "branches": {
+        "master": "5094843163426678e129316910672515af58ee72"
+      }
+    },
+    "attero/punschrulle": {
+      "default_branch": "master",
+      "sha": "92c6fe367a31ba5b1c5a841ea4dc2caf5cc8e354",
+      "branches": {
+        "master": "92c6fe367a31ba5b1c5a841ea4dc2caf5cc8e354"
+      }
+    },
+    "laytya/quartz": {
+      "default_branch": "main",
+      "sha": "2df6312bef7d7d05a122f16cf7e35b3d5b658493",
+      "branches": {
+        "main": "2df6312bef7d7d05a122f16cf7e35b3d5b658493"
+      }
+    },
+    "0ldi/quickchat": {
+      "default_branch": "master",
+      "sha": "52aeb268a9cd1d7ba3cb8dc1b31fdfdf0002ea9e",
+      "branches": {
+        "master": "52aeb268a9cd1d7ba3cb8dc1b31fdfdf0002ea9e"
+      }
+    },
+    "sabinewren/quiver": {
+      "default_branch": "main",
+      "sha": "5a8ecd852efab6b4b0ef74573e33d855f39d1006",
+      "branches": {
+        "main": "5a8ecd852efab6b4b0ef74573e33d855f39d1006"
+      },
+      "latest_tag": "v3.1.5"
+    },
+    "road-block/ragetracker": {
+      "default_branch": "master",
+      "sha": "caede7e5c6acf6bc118e45323dd7996c46cc89e7",
+      "branches": {
+        "master": "caede7e5c6acf6bc118e45323dd7996c46cc89e7"
+      },
+      "latest_tag": "1.0.0m"
+    },
+    "eryzil-github/rais_autoshot": {
+      "default_branch": "master",
+      "sha": "b2aca3d80423e71d661afb232a6f46611b10a237",
+      "branches": {
+        "master": "b2aca3d80423e71d661afb232a6f46611b10a237"
+      }
+    },
+    "0ldi/rangecolor": {
+      "default_branch": "master",
+      "sha": "86e303f1d97b0355010ed3a010bb7c611eb90112",
+      "branches": {
+        "master": "86e303f1d97b0355010ed3a010bb7c611eb90112"
+      }
+    },
+    "fiskehatt/rank14lossa": {
+      "default_branch": "master",
+      "sha": "b1bad3409f185fc96cb59ddd38e028f31490b7ba",
+      "branches": {
+        "master": "b1bad3409f185fc96cb59ddd38e028f31490b7ba"
+      }
+    },
+    "zetone/reagentcounter": {
+      "default_branch": "master",
+      "sha": "a634c6e8e0091df2444d6b78b9c4e827d9766c95",
+      "branches": {
+        "master": "a634c6e8e0091df2444d6b78b9c4e827d9766c95"
+      }
+    },
+    "laytya/reciperadar-vanilla": {
+      "default_branch": "master",
+      "sha": "db200dae1f2d349e8f3fba83188e3950c73307af",
+      "branches": {
+        "master": "db200dae1f2d349e8f3fba83188e3950c73307af"
+      },
+      "latest_tag": "v1.15"
+    },
+    "satan666/reckcounter-fix": {
+      "default_branch": "master",
+      "sha": "f3d3714df928af06858090e0ea78fd3dec079d87",
+      "branches": {
+        "master": "f3d3714df928af06858090e0ea78fd3dec079d87"
+      }
+    },
+    "jsb/resourcecountactionbuttons": {
+      "default_branch": "master",
+      "sha": "aeaeb3aa940ba2cfb4a87b75b2b6f46b22b9ec14",
+      "branches": {
+        "master": "aeaeb3aa940ba2cfb4a87b75b2b6f46b22b9ec14"
+      }
+    },
+    "steelbash/restbar": {
+      "default_branch": "main",
+      "sha": "cd36a894369711bf86e20ad29a624f921922bcae",
+      "branches": {
+        "main": "cd36a894369711bf86e20ad29a624f921922bcae"
+      },
+      "latest_tag": "1.2.1"
+    },
+    "hazlema/rested": {
+      "default_branch": "master",
+      "sha": "8bcc360ddec4b3ca56a89d1cd445c5d19484d0b2",
+      "branches": {
+        "master": "8bcc360ddec4b3ca56a89d1cd445c5d19484d0b2"
+      }
+    },
+    "stokbaek/resurrectionannounce": {
+      "default_branch": "master",
+      "sha": "58a2c8a0d18ea42e4797e86b4bb89782a417c413",
+      "branches": {
+        "master": "58a2c8a0d18ea42e4797e86b4bb89782a417c413"
+      },
+      "latest_tag": "v1.1"
+    },
+    "shirsig/retarget": {
+      "default_branch": "master",
+      "sha": "6ec740eb7b120898426b989a32e410a51c3e0c61",
+      "branches": {
+        "master": "6ec740eb7b120898426b989a32e410a51c3e0c61"
+      }
+    },
+    "einbaum/rezztimer": {
+      "default_branch": "master",
+      "sha": "b649787a3ec103fbc4d55b2b9d0b80d81bfc3d29",
+      "branches": {
+        "master": "b649787a3ec103fbc4d55b2b9d0b80d81bfc3d29"
+      },
+      "latest_tag": "1.0.0"
+    },
+    "marcelinevq/rightclickmodifier": {
+      "default_branch": "master",
+      "sha": "dc40936c0991230c8e92bc099b26c022510603a1",
+      "branches": {
+        "master": "dc40936c0991230c8e92bc099b26c022510603a1"
+      }
+    },
+    "jsb/ringmenu": {
+      "default_branch": "master",
+      "sha": "23db580b0ddc04b8650afdf50179302fbb67128f",
+      "branches": {
+        "master": "23db580b0ddc04b8650afdf50179302fbb67128f"
+      },
+      "latest_tag": "v2.2.1"
+    },
+    "morkahja/roarguild": {
+      "default_branch": "main",
+      "sha": "b5391191dc30a7b63593ff25d9473d7c2d82ec1a",
+      "branches": {
+        "main": "b5391191dc30a7b63593ff25d9473d7c2d82ec1a"
+      }
+    },
+    "road-block/roguefocus": {
+      "default_branch": "master",
+      "sha": "1f0b166192dc8ace0cb42d321eb6b5289b141a49",
+      "branches": {
+        "master": "1f0b166192dc8ace0cb42d321eb6b5289b141a49"
+      },
+      "latest_tag": "1.04.11200"
+    },
+    "monteo/roguepack": {
+      "default_branch": "master",
+      "sha": "1a8d0dba7dd4799e6a1881559665b57b9089f562",
+      "branches": {
+        "master": "1a8d0dba7dd4799e6a1881559665b57b9089f562"
+      }
+    },
+    "geigerkind/roguerota": {
+      "default_branch": "master",
+      "sha": "270af53189c0b14ca5320366f2b50b775687c065",
+      "branches": {
+        "master": "270af53189c0b14ca5320366f2b50b775687c065"
+      },
+      "latest_tag": "b1"
+    },
+    "pseja/roguetick": {
+      "default_branch": "main",
+      "sha": "586ae638e53a0ffc4e6b685030f6d946e4e47790",
+      "branches": {
+        "main": "586ae638e53a0ffc4e6b685030f6d946e4e47790"
+      }
+    },
+    "akzkak/rogueticker": {
+      "default_branch": "master",
+      "sha": "5110f54d89e043fc41fea8343a7e481ca4122d1f",
+      "branches": {
+        "master": "5110f54d89e043fc41fea8343a7e481ca4122d1f"
+      }
+    },
+    "marcelinevq/roid-macros": {
+      "default_branch": "master",
+      "sha": "019afbcc018dc3765bc802b8c2fea2811f300689",
+      "branches": {
+        "master": "019afbcc018dc3765bc802b8c2fea2811f300689"
+      }
+    },
+    "grymskvll/safeshift": {
+      "default_branch": "master",
+      "sha": "c5b4960c8629a4937e632aad8a36a23271bd93ad",
+      "branches": {
+        "master": "c5b4960c8629a4937e632aad8a36a23271bd93ad"
+      }
+    },
+    "determinedpanda/safeshift-twow": {
+      "default_branch": "main",
+      "sha": "8436ae757e4405e939fe22415cf925515c5a179a",
+      "branches": {
+        "main": "8436ae757e4405e939fe22415cf925515c5a179a"
+      }
+    },
+    "goffauxs/salad_cthun": {
+      "default_branch": "master",
+      "sha": "45dd2bc43da9aafa8bbbd88b9103db10d942655c",
+      "branches": {
+        "master": "45dd2bc43da9aafa8bbbd88b9103db10d942655c"
+      }
+    },
+    "terrub/samuel": {
+      "default_branch": "master",
+      "sha": "22e5869ca3fce7dd535443bbca575da609273579",
+      "branches": {
+        "master": "22e5869ca3fce7dd535443bbca575da609273579"
+      },
+      "latest_tag": "latest"
+    },
+    "fiskehatt/saysapped": {
+      "default_branch": "master",
+      "sha": "4ace0c9bb52dfd1694ff52f798f54345e8222cf4",
+      "branches": {
+        "master": "4ace0c9bb52dfd1694ff52f798f54345e8222cf4"
+      }
+    },
+    "fiskehatt/saysapped_extended": {
+      "default_branch": "master",
+      "sha": "3eec8d18c9ddfd1087ca75b72cc198de2bd92e12",
+      "branches": {
+        "master": "3eec8d18c9ddfd1087ca75b72cc198de2bd92e12"
+      }
+    },
+    "jhinzuo/another.screenresolutiondropdownfix": {
+      "default_branch": "main",
+      "sha": "5b7457c6c5df860e6ad6d7e900d8d9ae0a18f38e",
+      "branches": {
+        "main": "5b7457c6c5df860e6ad6d7e900d8d9ae0a18f38e"
+      }
+    },
+    "cryptokn1ght-dev/sealtracker": {
+      "default_branch": "main",
+      "sha": "bad8f173cdbc6b2b10b7984e009ca2d22437ca25",
+      "branches": {
+        "main": "bad8f173cdbc6b2b10b7984e009ca2d22437ca25"
+      }
+    },
+    "shagu/shaguactions": {
+      "default_branch": "master",
+      "sha": "b775fee8974e4ef7876b3a4d8bbd1580871e3da8",
+      "branches": {
+        "master": "b775fee8974e4ef7876b3a4d8bbd1580871e3da8"
+      }
+    },
+    "shagu/shagubam": {
+      "default_branch": "master",
+      "sha": "5fd6bc33e1b0b4d1999a2470d651295163daeab2",
+      "branches": {
+        "master": "5fd6bc33e1b0b4d1999a2470d651295163daeab2"
+      }
+    },
+    "shagu/shaguboat": {
+      "default_branch": "master",
+      "sha": "e2b3877a31cefdc36cf6fe46f4ef7a2f98dc228a",
+      "branches": {
+        "master": "e2b3877a31cefdc36cf6fe46f4ef7a2f98dc228a"
+      }
+    },
+    "shagu/shaguchat": {
+      "default_branch": "master",
+      "sha": "01c37853c5e714b218837d24932c316f68b2728f",
+      "branches": {
+        "master": "01c37853c5e714b218837d24932c316f68b2728f"
+      }
+    },
+    "shagu/shaguclock": {
+      "default_branch": "master",
+      "sha": "3ca9d1d41c9e7327d4c638dd19a65df15e8dbc68",
+      "branches": {
+        "master": "3ca9d1d41c9e7327d4c638dd19a65df15e8dbc68"
+      }
+    },
+    "shagu/shagucolor": {
+      "default_branch": "master",
+      "sha": "b4fd1b82b665c36ea6ef5879ec3707d34585bc62",
+      "branches": {
+        "master": "b4fd1b82b665c36ea6ef5879ec3707d34585bc62"
+      }
+    },
+    "shagu/shagucopy": {
+      "default_branch": "master",
+      "sha": "f6a7e741c7050478306b8eb13d00bbdd5cd0e182",
+      "branches": {
+        "master": "f6a7e741c7050478306b8eb13d00bbdd5cd0e182"
+      }
+    },
+    "shagu/shagudelgado": {
+      "default_branch": "master",
+      "sha": "cbe2dd666f1c0f388d5133412e6b151cb6abb4e7",
+      "branches": {
+        "master": "cbe2dd666f1c0f388d5133412e6b151cb6abb4e7"
+      }
+    },
+    "shagu/shaguerror": {
+      "default_branch": "master",
+      "sha": "da847ea462dd6c3f8c009267ccf8eb9ef35b5916",
+      "branches": {
+        "master": "da847ea462dd6c3f8c009267ccf8eb9ef35b5916"
+      }
+    },
+    "shagu/shagukill": {
+      "default_branch": "master",
+      "sha": "498e2db84d2d666717d04538641add7ebca967cd",
+      "branches": {
+        "master": "498e2db84d2d666717d04538641add7ebca967cd"
+      }
+    },
+    "shagu/shagumount": {
+      "default_branch": "master",
+      "sha": "e688d31e6f7792728d2e9adf5c33bc8d48f72e75",
+      "branches": {
+        "master": "e688d31e6f7792728d2e9adf5c33bc8d48f72e75"
+      }
+    },
+    "shagu/shagunotify": {
+      "default_branch": "master",
+      "sha": "2ecb31ec07b4e815c320c0e4f461adaabb7eca49",
+      "branches": {
+        "master": "2ecb31ec07b4e815c320c0e4f461adaabb7eca49"
+      }
+    },
+    "shagu/shaguscore": {
+      "default_branch": "master",
+      "sha": "b07d25e6a1fa30391d9dca0dd728e33a762c6711",
+      "branches": {
+        "master": "b07d25e6a1fa30391d9dca0dd728e33a762c6711"
+      }
+    },
+    "shagu/shagustance": {
+      "default_branch": "master",
+      "sha": "26cde9d5049018b9b8de745177a79c972f9f78f8",
+      "branches": {
+        "master": "26cde9d5049018b9b8de745177a79c972f9f78f8"
+      }
+    },
+    "shagu/shagutooltips": {
+      "default_branch": "master",
+      "sha": "85abb17f4181b514ef6848e380aafd0616bad12e",
+      "branches": {
+        "master": "85abb17f4181b514ef6848e380aafd0616bad12e"
+      }
+    },
+    "gashole/shagutweaks-druidmanabar": {
+      "default_branch": "main",
+      "sha": "9a661f54515f1c953417ab46a66c181be25e3352",
+      "branches": {
+        "main": "9a661f54515f1c953417ab46a66c181be25e3352"
+      },
+      "latest_tag": "current"
+    },
+    "tokensworth/shagutweaks-mods": {
+      "default_branch": "main",
+      "sha": "b782e1e17fcfd68ec77f9ca96df797a6a977d2e8",
+      "branches": {
+        "main": "b782e1e17fcfd68ec77f9ca96df797a6a977d2e8"
+      }
+    },
+    "crimsonhollow/shagutweaks-more-mods": {
+      "default_branch": "main",
+      "sha": "c1bad7fda3b20fd75b8538570216423121517ada",
+      "branches": {
+        "main": "c1bad7fda3b20fd75b8538570216423121517ada"
+      }
+    },
+    "shagu/shagutweaks-extras": {
+      "default_branch": "master",
+      "sha": "e5140e52fb974e29d554a0c8867f317d24c5285d",
+      "branches": {
+        "master": "e5140e52fb974e29d554a0c8867f317d24c5285d"
+      }
+    },
+    "shagu/shaguvalue": {
+      "default_branch": "master",
+      "sha": "debbde88b68a941b13a614612a7aa867cadbe542",
+      "branches": {
+        "master": "debbde88b68a941b13a614612a7aa867cadbe542"
+      }
+    },
+    "shagu/shaguwidget": {
+      "default_branch": "master",
+      "sha": "c37db5e2609e748eafb05b663cf8eb4a3439ebd0",
+      "branches": {
+        "master": "c37db5e2609e748eafb05b663cf8eb4a3439ebd0"
+      }
+    },
+    "wouterbink/shamanfix": {
+      "default_branch": "master",
+      "sha": "bb5931afb798f4820b36e8b0efdbbc2fe5c6d654",
+      "branches": {
+        "master": "bb5931afb798f4820b36e8b0efdbbc2fe5c6d654"
+      }
+    },
+    "dogmax/shardcap": {
+      "default_branch": "main",
+      "sha": "20dd94969c42f3baa4bd5133ca841e8cc58ed932",
+      "branches": {
+        "main": "20dd94969c42f3baa4bd5133ca841e8cc58ed932"
+      }
+    },
+    "akzkak/shardcapplus": {
+      "default_branch": "main",
+      "sha": "d352a79783f8e6d1a99ac122e7226de4e345b677",
+      "branches": {
+        "main": "d352a79783f8e6d1a99ac122e7226de4e345b677"
+      }
+    },
+    "tr00dudu/shieldbuddy": {
+      "default_branch": "main",
+      "sha": "091c2b3061ada43555b9c668b891488eea4b3167",
+      "branches": {
+        "main": "091c2b3061ada43555b9c668b891488eea4b3167"
+      }
+    },
+    "shikawalepaladin/shikaswap": {
+      "default_branch": "main",
+      "sha": "fb28ae9bceac50fc75a7d70b732c1692d1fe0f86",
+      "branches": {
+        "main": "fb28ae9bceac50fc75a7d70b732c1692d1fe0f86"
+      }
+    },
+    "cdmichaelb/silverdragon": {
+      "default_branch": "master",
+      "sha": "ab6a890bd91b2d946fae440a2f220062d51df606",
+      "branches": {
+        "master": "ab6a890bd91b2d946fae440a2f220062d51df606"
+      }
+    },
+    "beardedrasta/simplelvl": {
+      "default_branch": "main",
+      "sha": "0421ad90bd6b31f02ed8f0e57aa902bc749edb1d",
+      "branches": {
+        "main": "0421ad90bd6b31f02ed8f0e57aa902bc749edb1d"
+      }
+    },
+    "beardedrasta/simplepowershifts": {
+      "default_branch": "master",
+      "sha": "f343c35853c54c824224c3b14ca18786bc4a2183",
+      "branches": {
+        "master": "f343c35853c54c824224c3b14ca18786bc4a2183"
+      }
+    },
+    "neguszek/sleepypeon": {
+      "default_branch": "main",
+      "sha": "979da6c7e3f6f70c37d1778dcbb00f462d7d4165",
+      "branches": {
+        "main": "979da6c7e3f6f70c37d1778dcbb00f462d7d4165"
+      }
+    },
+    "denniswg/smallerrollframes": {
+      "default_branch": "master",
+      "sha": "27f8954f45eb15e671e350f4aa348366623eba23",
+      "branches": {
+        "master": "27f8954f45eb15e671e350f4aa348366623eba23"
+      }
+    },
+    "hitbutton/sniper": {
+      "default_branch": "master",
+      "sha": "05494e1b2a29d7c9a148b806c8a7bb8ae9215a14",
+      "branches": {
+        "master": "05494e1b2a29d7c9a148b806c8a7bb8ae9215a14"
+      }
+    },
+    "vakos1/snowkoban": {
+      "default_branch": "main",
+      "sha": "1236a4c68e3cf5e0e58f003bec0621cb910591cf",
+      "branches": {
+        "main": "1236a4c68e3cf5e0e58f003bec0621cb910591cf"
+      }
+    },
+    "einbaum/sp_overpower": {
+      "default_branch": "master",
+      "sha": "9e09e73604140a65a5c5cc141377c2310b7e90a6",
+      "branches": {
+        "master": "9e09e73604140a65a5c5cc141377c2310b7e90a6"
+      },
+      "latest_tag": "3.0.0"
+    },
+    "aggromemnon/sp_revenge": {
+      "default_branch": "main",
+      "sha": "e19426df9bc586cefd2cc39ae61cfea549b6fd59",
+      "branches": {
+        "main": "e19426df9bc586cefd2cc39ae61cfea549b6fd59"
+      }
+    },
+    "laytya/spamthrottle": {
+      "default_branch": "master",
+      "sha": "14a08db9aa8c0d53fef03dff14345c7005c029a7",
+      "branches": {
+        "master": "14a08db9aa8c0d53fef03dff14345c7005c029a7"
+      },
+      "latest_tag": "1.17"
+    },
+    "daribon/spartanui_spincam": {
+      "default_branch": "master",
+      "sha": "16fa426a517745aa5c267cb8de91c0f695f787f2",
+      "branches": {
+        "master": "16fa426a517745aa5c267cb8de91c0f695f787f2"
+      }
+    },
+    "tomek7667/speed-o-meter": {
+      "default_branch": "master",
+      "sha": "95eb9f99a9cabf73d57870bed0b897cdf0b36cf7",
+      "branches": {
+        "master": "95eb9f99a9cabf73d57870bed0b897cdf0b36cf7"
+      }
+    },
+    "brqje/spellalert": {
+      "default_branch": "master",
+      "sha": "aef5feec2b24a46c04a84596d9a494e4c7af4a5c",
+      "branches": {
+        "master": "aef5feec2b24a46c04a84596d9a494e4c7af4a5c"
+      }
+    },
+    "yutsuku/stealtoverlay": {
+      "default_branch": "master",
+      "sha": "5a8405d6083adeca04883461465e0e9128790615",
+      "branches": {
+        "master": "5a8405d6083adeca04883461465e0e9128790615"
+      },
+      "latest_tag": "1.1"
+    },
+    "geigerkind/stopwatch": {
+      "default_branch": "master",
+      "sha": "d267430f855f4e9ff616d28564a7218628eacf5d",
+      "branches": {
+        "master": "d267430f855f4e9ff616d28564a7218628eacf5d"
+      },
+      "latest_tag": "b1"
+    },
+    "checkem/succ-ecb": {
+      "default_branch": "master",
+      "sha": "e6e753c85f90f6de34093fe4dc2e8c7053dbb864",
+      "branches": {
+        "master": "e6e753c85f90f6de34093fe4dc2e8c7053dbb864"
+      }
+    },
+    "0ldi/summonsmonitor": {
+      "default_branch": "master",
+      "sha": "06c8f377bab24fd59f094a01674f1aaa7376aea0",
+      "branches": {
+        "master": "06c8f377bab24fd59f094a01674f1aaa7376aea0"
+      }
+    },
+    "melbaa/sunderarmor": {
+      "default_branch": "master",
+      "sha": "dc5dff076f131d24f61e1fe31b12c03085c88c3e",
+      "branches": {
+        "master": "dc5dff076f131d24f61e1fe31b12c03085c88c3e"
+      }
+    },
+    "lanrutcon/sunofthenight": {
+      "default_branch": "master",
+      "sha": "35fa987754f7912d6465681bcac8c6dc15f12c9c",
+      "branches": {
+        "master": "35fa987754f7912d6465681bcac8c6dc15f12c9c"
+      },
+      "latest_tag": "v1.1"
+    },
+    "refaim/superignore": {
+      "default_branch": "master",
+      "sha": "da02d908e753d717a52714d2d54907709f997d50",
+      "branches": {
+        "master": "da02d908e753d717a52714d2d54907709f997d50"
+      }
+    },
+    "vakos1/superinspect": {
+      "default_branch": "main",
+      "sha": "3fc7e1dcd44d5bf8772ca89e5af6b643672c1a7c",
+      "branches": {
+        "main": "3fc7e1dcd44d5bf8772ca89e5af6b643672c1a7c"
+      }
+    },
+    "xorann/svt": {
+      "default_branch": "master",
+      "sha": "578170b325e3a6e7e3fb805f07521c73f8a9c636",
+      "branches": {
+        "master": "578170b325e3a6e7e3fb805f07521c73f8a9c636"
+      }
+    },
+    "melbaa/swapondeath": {
+      "default_branch": "master",
+      "sha": "7cb4dae14c14ae4a9f4887d23d9e9f255f3123f1",
+      "branches": {
+        "master": "7cb4dae14c14ae4a9f4887d23d9e9f255f3123f1"
+      }
+    },
+    "gabrielecimolino/swapper": {
+      "default_branch": "master",
+      "sha": "d6b707fbfede36cd9e781ce54a1b07ff55fb9759",
+      "branches": {
+        "master": "d6b707fbfede36cd9e781ce54a1b07ff55fb9759"
+      }
+    },
+    "whtmst/t-oom": {
+      "default_branch": "main",
+      "sha": "3b4d7c1b2529bde2f447f9d1ce63a3ff7384eaa4",
+      "branches": {
+        "main": "3b4d7c1b2529bde2f447f9d1ce63a3ff7384eaa4"
+      }
+    },
+    "whtmst/t-restedxp": {
+      "default_branch": "main",
+      "sha": "5eaf92fdd9f437751e0e405c34b235fc0f5b962d",
+      "branches": {
+        "main": "5eaf92fdd9f437751e0e405c34b235fc0f5b962d"
+      }
+    },
+    "pepopo978/talentsaver": {
+      "default_branch": "master",
+      "sha": "af400696c16e0e0959f6d31861579142db96be86",
+      "branches": {
+        "master": "af400696c16e0e0959f6d31861579142db96be86"
+      }
+    },
+    "balakethelock/tankhelper": {
+      "default_branch": "master",
+      "sha": "8a35b584943445dcfa24a9ae29f4272340fb7f95",
+      "branches": {
+        "master": "8a35b584943445dcfa24a9ae29f4272340fb7f95"
+      }
+    },
+    "gashole/timemanager": {
+      "default_branch": "master",
+      "sha": "4a2bd0af61745cf3d5f01166b470e33982759c56",
+      "branches": {
+        "master": "4a2bd0af61745cf3d5f01166b470e33982759c56"
+      },
+      "latest_tag": "current"
+    },
+    "0ldi/timers": {
+      "default_branch": "master",
+      "sha": "8c5645ad517589600049aacfbb1748297e372629",
+      "branches": {
+        "master": "8c5645ad517589600049aacfbb1748297e372629"
+      }
+    },
+    "jrc13245/timetokill": {
+      "default_branch": "master",
+      "sha": "e9ee2e5520535c19674ed88d63fbd68aa7fa0d56",
+      "branches": {
+        "master": "e9ee2e5520535c19674ed88d63fbd68aa7fa0d56"
+      }
+    },
+    "jejkas/timetracker": {
+      "default_branch": "master",
+      "sha": "ad3f897521aa7cfea62bf0f69da439e441ddf71d",
+      "branches": {
+        "master": "ad3f897521aa7cfea62bf0f69da439e441ddf71d"
+      }
+    },
+    "einbaum/tinytip": {
+      "default_branch": "master",
+      "sha": "c4f4947afc7d907033010ec05d46be14d28ed87b",
+      "branches": {
+        "master": "c4f4947afc7d907033010ec05d46be14d28ed87b"
+      }
+    },
+    "isitlove/titanguild": {
+      "default_branch": "master",
+      "sha": "fc5a45134a1cc796444a9776cf2fa5768201f424",
+      "branches": {
+        "master": "fc5a45134a1cc796444a9776cf2fa5768201f424"
+      },
+      "latest_tag": "2.20"
+    },
+    "daribon/titanwowradio": {
+      "default_branch": "master",
+      "sha": "d54df521e8bcfeacdaeba7bfab990f034129c949",
+      "branches": {
+        "master": "d54df521e8bcfeacdaeba7bfab990f034129c949"
+      }
+    },
+    "sica42/titlerotator": {
+      "default_branch": "main",
+      "sha": "37247bb3903227ad87a745c725178c14bde37f6b",
+      "branches": {
+        "main": "37247bb3903227ad87a745c725178c14bde37f6b"
+      }
+    },
+    "otari98/tmog": {
+      "default_branch": "master",
+      "sha": "870da4a34d803607e62f271a003b797fc6cbcf8b",
+      "branches": {
+        "master": "870da4a34d803607e62f271a003b797fc6cbcf8b"
+      }
+    },
+    "refaim/tne-fivesec": {
+      "default_branch": "master",
+      "sha": "ba7edc3fb5b03cad24ebca9d71d63792e451d3b8",
+      "branches": {
+        "master": "ba7edc3fb5b03cad24ebca9d71d63792e451d3b8"
+      }
+    },
+    "monteo/tne_nightfall": {
+      "default_branch": "main",
+      "sha": "c7bbcdfd7a15946513a1e2457ec69225faad1430",
+      "branches": {
+        "main": "c7bbcdfd7a15946513a1e2457ec69225faad1430"
+      }
+    },
+    "maxcodk/togglegather-by-svarrog": {
+      "default_branch": "main",
+      "sha": "2cccdd58b4acdec885df92c465e6dcd845337641",
+      "branches": {
+        "main": "2cccdd58b4acdec885df92c465e6dcd845337641"
+      }
+    },
+    "therealfayz/totemnesia": {
+      "default_branch": "main",
+      "sha": "13a14ee37e95482f6369d12f358f425cfe502bca",
+      "branches": {
+        "main": "13a14ee37e95482f6369d12f358f425cfe502bca"
+      }
+    },
+    "gregdeichler/totemtimers": {
+      "default_branch": "main",
+      "sha": "eeb49f807d3a18f805cf2e7514efd29ff3f23805",
+      "branches": {
+        "main": "eeb49f807d3a18f805cf2e7514efd29ff3f23805"
+      }
+    },
+    "mouzu/totemtimers-enhanced": {
+      "default_branch": "master",
+      "sha": "a4107a83a4f557bced0c00d592a79e8e1abc475b",
+      "branches": {
+        "master": "a4107a83a4f557bced0c00d592a79e8e1abc475b"
+      },
+      "latest_tag": "1.3"
+    },
+    "azgaardian/totemus": {
+      "default_branch": "main",
+      "sha": "83dbcbd1cc7a25494bb56b21eaf2f9551c4b5d76",
+      "branches": {
+        "main": "83dbcbd1cc7a25494bb56b21eaf2f9551c4b5d76"
+      }
+    },
+    "dogmax/toxictagger": {
+      "default_branch": "master",
+      "sha": "f2b751d9216b9a10b050aa529dd92fc4aad3376a",
+      "branches": {
+        "master": "f2b751d9216b9a10b050aa529dd92fc4aad3376a"
+      }
+    },
+    "liijin/trailblazer": {
+      "default_branch": "main",
+      "sha": "6e448a724eb35381ec63f10576bf013f1251387c",
+      "branches": {
+        "main": "6e448a724eb35381ec63f10576bf013f1251387c"
+      }
+    },
+    "jrc13245/trinketmenu": {
+      "default_branch": "master",
+      "sha": "ad2a196ae8c9dc87c78cbe28e9d13853a89f678f",
+      "branches": {
+        "master": "ad2a196ae8c9dc87c78cbe28e9d13853a89f678f"
+      }
+    },
+    "neimad-mp/turtlecount": {
+      "default_branch": "main",
+      "sha": "f13d103f056431b5073f0ffe40ace550f61f4076",
+      "branches": {
+        "main": "f13d103f056431b5073f0ffe40ace550f61f4076"
+      }
+    },
+    "francisegan/turtledebug": {
+      "default_branch": "main",
+      "sha": "0a98d2aadecd0ab6c7ba498fd2dca844dc3ddc82",
+      "branches": {
+        "main": "0a98d2aadecd0ab6c7ba498fd2dca844dc3ddc82"
+      }
+    },
+    "trangoul/turtlemenagerie": {
+      "default_branch": "main",
+      "sha": "025952539801894d37bc5cc899315a87aa9e769d",
+      "branches": {
+        "main": "025952539801894d37bc5cc899315a87aa9e769d"
+      },
+      "latest_tag": "v2.3.1"
+    },
+    "avery1337/turtlepetsearch": {
+      "default_branch": "main",
+      "sha": "f56a670e0080f8af2c5cf363c6cf8b4580c4e528",
+      "branches": {
+        "main": "f56a670e0080f8af2c5cf363c6cf8b4580c4e528"
+      }
+    },
+    "francisegan/turtlerestedxp": {
+      "default_branch": "main",
+      "sha": "a125622f7391cb6e39be953306a7b58ed7fd8c60",
+      "branches": {
+        "main": "a125622f7391cb6e39be953306a7b58ed7fd8c60"
+      }
+    },
+    "picardebooks/turtletranslator": {
+      "default_branch": "main",
+      "sha": "d246dbbca5f94195b646e39e2a509eb0eba92fb3",
+      "branches": {
+        "main": "d246dbbca5f94195b646e39e2a509eb0eba92fb3"
+      }
+    },
+    "mitjafelicijan/turtletweaks": {
+      "default_branch": "master",
+      "sha": "91ee7f608a6b35085e8b0be8d6d136210daf3b33",
+      "branches": {
+        "master": "91ee7f608a6b35085e8b0be8d6d136210daf3b33"
+      },
+      "latest_tag": "v0.7"
+    },
+    "cosminpop/twbluedragon": {
+      "default_branch": "master",
+      "sha": "f9d691bde37a1e9bd90826d7fbbe7b9804cdf77f",
+      "branches": {
+        "master": "f9d691bde37a1e9bd90826d7fbbe7b9804cdf77f"
+      }
+    },
+    "phobos-programmer/twbuypoisons": {
+      "default_branch": "master",
+      "sha": "e69c62e0a8285b6bc63894900a6ccfb2af10996f",
+      "branches": {
+        "master": "e69c62e0a8285b6bc63894900a6ccfb2af10996f"
+      }
+    },
+    "cosminpop/twowenwilson": {
+      "default_branch": "master",
+      "sha": "8623284a35df001c59fc0ad11265a4857a1e92a0",
+      "branches": {
+        "master": "8623284a35df001c59fc0ad11265a4857a1e92a0"
+      }
+    },
+    "cosminpop/twpulse": {
+      "default_branch": "master",
+      "sha": "bcf66f665defd3a6c8c093706b0dc89b1ecace59",
+      "branches": {
+        "master": "bcf66f665defd3a6c8c093706b0dc89b1ecace59"
+      }
+    },
+    "cosminpop/twsunders": {
+      "default_branch": "master",
+      "sha": "ab3f92bc9b557fc337174bae9d04f24d29fee89d",
+      "branches": {
+        "master": "ab3f92bc9b557fc337174bae9d04f24d29fee89d"
+      }
+    },
+    "yamayaml/twtrans": {
+      "default_branch": "main",
+      "sha": "1bcef7f3f2631cf3a13bbf63cd91da14a7b6f06c",
+      "branches": {
+        "main": "1bcef7f3f2631cf3a13bbf63cd91da14a7b6f06c"
+      }
+    },
+    "yutsuku/uitweaks": {
+      "default_branch": "master",
+      "sha": "4c5dbd523e787ef66efa3f482e2adb38a82f367d",
+      "branches": {
+        "master": "4c5dbd523e787ef66efa3f482e2adb38a82f367d"
+      }
+    },
+    "jrc13245/ultimamacros": {
+      "default_branch": "main",
+      "sha": "67d908144a85b5d4ceed84491e6e80fa034a5d9e",
+      "branches": {
+        "main": "67d908144a85b5d4ceed84491e6e80fa034a5d9e"
+      }
+    },
+    "daribon/unicodefont": {
+      "default_branch": "master",
+      "sha": "f19092f3bf49b5303f9bba16f45d51397b610c0a",
+      "branches": {
+        "master": "f19092f3bf49b5303f9bba16f45d51397b610c0a"
+      }
+    },
+    "marcelinevq/vamper": {
+      "default_branch": "master",
+      "sha": "2306cc10e8d3ea86d04e4fbca3fe4fb1ad76e2d1",
+      "branches": {
+        "master": "2306cc10e8d3ea86d04e4fbca3fe4fb1ad76e2d1"
+      }
+    },
+    "hixio-mh/vanillagraphicboost": {
+      "default_branch": "master",
+      "sha": "0b19da75d19cdb0754171a2167bc533f1337ec01",
+      "branches": {
+        "master": "0b19da75d19cdb0754171a2167bc533f1337ec01"
+      }
+    },
+    "donutsdelivery/vanillaguide-plus": {
+      "default_branch": "main",
+      "sha": "f0a9fb6330c46fe175043f1afc64627fbdb4d3b2",
+      "branches": {
+        "main": "f0a9fb6330c46fe175043f1afc64627fbdb4d3b2"
+      }
+    },
+    "theunprofessionalgamer/vanillaguide": {
+      "default_branch": "main",
+      "sha": "3c839a71607ad6957a5766333ab3e844edf7db40",
+      "branches": {
+        "main": "3c839a71607ad6957a5766333ab3e844edf7db40"
+      }
+    },
+    "jeromem/vanillaguidereloaded": {
+      "default_branch": "master",
+      "sha": "9309495f06cde851461f71d068f7f29c0014db9c",
+      "branches": {
+        "master": "9309495f06cde851461f71d068f7f29c0014db9c"
+      },
+      "latest_tag": "v2.0.3"
+    },
+    "kxseven/vanillaratingbuster": {
+      "default_branch": "master",
+      "sha": "d1c4df6a3a2f59e5a0c794f600090bfe55078818",
+      "branches": {
+        "master": "d1c4df6a3a2f59e5a0c794f600090bfe55078818"
+      },
+      "latest_tag": "0.13"
+    },
+    "otari98/vf_warrioraddon": {
+      "default_branch": "master",
+      "sha": "fa9a2932ebf1ea10900a70323d5aa53eb565decd",
+      "branches": {
+        "master": "fa9a2932ebf1ea10900a70323d5aa53eb565decd"
+      }
+    },
+    "firenahzku/vgattackbar": {
+      "default_branch": "master",
+      "sha": "8cb9ae5c9ac9c4c5a82670cfe92710c7708ec97f",
+      "branches": {
+        "master": "8cb9ae5c9ac9c4c5a82670cfe92710c7708ec97f"
+      }
+    },
+    "firenahzku/vginterrupt": {
+      "default_branch": "master",
+      "sha": "83451262197f5a23e58ae9144cfcdc5f93ac4a64",
+      "branches": {
+        "master": "83451262197f5a23e58ae9144cfcdc5f93ac4a64"
+      }
+    },
+    "zythdr/vpeddler": {
+      "default_branch": "main",
+      "sha": "08a8916743e3ee39c6bde5488d0f187521e1e60e",
+      "branches": {
+        "main": "08a8916743e3ee39c6bde5488d0f187521e1e60e"
+      },
+      "latest_tag": "v1.3"
+    },
+    "cernie/warriortank": {
+      "default_branch": "master",
+      "sha": "0e1dfdb342b6e5c3e38e63d487eb9270c4be580c",
+      "branches": {
+        "master": "0e1dfdb342b6e5c3e38e63d487eb9270c4be580c"
+      }
+    },
+    "goose404/warriortweaks": {
+      "default_branch": "main",
+      "sha": "21fdef525dc6fb92b98756d66c879cfdf86404f1",
+      "branches": {
+        "main": "21fdef525dc6fb92b98756d66c879cfdf86404f1"
+      }
+    },
+    "webdkpthroaway/webdkp_elysium": {
+      "default_branch": "master",
+      "sha": "4b84ffa13168d2b1e10955d6a8cdeea023c596e1",
+      "branches": {
+        "master": "4b84ffa13168d2b1e10955d6a8cdeea023c596e1"
+      }
+    },
+    "jejkas/wfw": {
+      "default_branch": "master",
+      "sha": "71deefad363323bd719d4669c225b1030ae13a5d",
+      "branches": {
+        "master": "71deefad363323bd719d4669c225b1030ae13a5d"
+      }
+    },
+    "francisegan/whatstraining_turtle": {
+      "default_branch": "main",
+      "sha": "81f25d586b63ff4509a49e22d52dd6023d54a3e4",
+      "branches": {
+        "main": "81f25d586b63ff4509a49e22d52dd6023d54a3e4"
+      },
+      "latest_tag": "1.0.8"
+    },
+    "forbium/whisperbind": {
+      "default_branch": "main",
+      "sha": "d3b1472cd45b69ff77e5ae9c42a5492a5131cdd8",
+      "branches": {
+        "main": "d3b1472cd45b69ff77e5ae9c42a5492a5131cdd8"
+      }
+    },
+    "zensociety/whisperprofile": {
+      "default_branch": "main",
+      "sha": "da7f2437b43fa2693dc2d4b6aacc789c7fafc372",
+      "branches": {
+        "main": "da7f2437b43fa2693dc2d4b6aacc789c7fafc372"
+      }
+    },
+    "road-block/whofavorites": {
+      "default_branch": "master",
+      "sha": "04fd2b9eaca0d297a24d1daed103c534c344c921",
+      "branches": {
+        "master": "04fd2b9eaca0d297a24d1daed103c534c344c921"
+      },
+      "latest_tag": "1.0-11200"
+    },
+    "road-block/whohas": {
+      "default_branch": "master",
+      "sha": "cf4cc4e7d4b724f711fd34d1d03af54592346b2f",
+      "branches": {
+        "master": "cf4cc4e7d4b724f711fd34d1d03af54592346b2f"
+      },
+      "latest_tag": "2.33-11200"
+    },
+    "yutsuku/whokicksnow": {
+      "default_branch": "master",
+      "sha": "cdebe08fd20d8057fc3ca787bdd1fe250b6cdb64",
+      "branches": {
+        "master": "cdebe08fd20d8057fc3ca787bdd1fe250b6cdb64"
+      }
+    },
+    "voidmenull/wholist_fix": {
+      "default_branch": "master",
+      "sha": "07ccd926719160dd6461895eef66148ba0e7fde0",
+      "branches": {
+        "master": "07ccd926719160dd6461895eef66148ba0e7fde0"
+      }
+    },
+    "refaim/wim": {
+      "default_branch": "master",
+      "sha": "83498bba3333a96d1fd59415c11be21c2de3df6b",
+      "branches": {
+        "master": "83498bba3333a96d1fd59415c11be21c2de3df6b"
+      }
+    },
+    "mouzu/workaroundselfcast": {
+      "default_branch": "master",
+      "sha": "8587d8bd37b00f5f69c969887812cf21749b2e1c",
+      "branches": {
+        "master": "8587d8bd37b00f5f69c969887812cf21749b2e1c"
+      }
+    },
+    "twothe/worldfilter": {
+      "default_branch": "master",
+      "sha": "005252265b55cd6bfb2bcc6cfddd4eb64612077b",
+      "branches": {
+        "master": "005252265b55cd6bfb2bcc6cfddd4eb64612077b"
+      }
+    },
+    "laytya/wowluavanilla": {
+      "default_branch": "master",
+      "sha": "be006cbbcd6fbf5dcaf769dd300168389225604b",
+      "branches": {
+        "master": "be006cbbcd6fbf5dcaf769dd300168389225604b"
+      },
+      "latest_tag": "v1.0"
+    },
+    "paokkerkir/wowradio-vanilla": {
+      "default_branch": "main",
+      "sha": "572985067fe04b693cf1684c2dd103fc17632faf",
+      "branches": {
+        "main": "572985067fe04b693cf1684c2dd103fc17632faf"
+      }
+    },
+    "einbaum/xfactionchat": {
+      "default_branch": "master",
+      "sha": "22a07d52979359792dafd721c1d9e7d1aa7d57fc",
+      "branches": {
+        "master": "22a07d52979359792dafd721c1d9e7d1aa7d57fc"
+      }
+    },
+    "kmschr/xiaomount": {
+      "default_branch": "main",
+      "sha": "dc5d777c5c16e84e1ba5d93588cc7890165f2f57",
+      "branches": {
+        "main": "dc5d777c5c16e84e1ba5d93588cc7890165f2f57"
+      }
+    },
+    "redbu11dev/x-perl-unitframes": {
+      "default_branch": "main",
+      "sha": "11a423763c17531b0957f909967f3ca1e9ace959",
+      "branches": {
+        "main": "11a423763c17531b0957f909967f3ca1e9ace959"
+      }
+    },
+    "unknauwn/xtranqmanager": {
+      "default_branch": "Classic",
+      "sha": "5c468099500350e0938da703479cb276784dac57",
+      "branches": {
+        "Classic": "5c468099500350e0938da703479cb276784dac57"
+      },
+      "latest_tag": "3.0_classic"
+    },
+    "aspanj/yaht-turtlewowsteady": {
+      "default_branch": "master",
+      "sha": "c117bca876492358f4620a2a76fdcb801a55188c",
+      "branches": {
+        "master": "c117bca876492358f4620a2a76fdcb801a55188c"
+      }
+    },
+    "minexew/zerodb": {
+      "default_branch": "master",
+      "sha": "b77faf7c78b6dcdfa55e7a02c0eb26e798004392",
+      "branches": {
+        "master": "b77faf7c78b6dcdfa55e7a02c0eb26e798004392"
+      },
+      "latest_tag": "r1"
+    },
+    "xian55/zorlen": {
+      "default_branch": "main",
+      "sha": "3d3b72313d02d8a10b9b908946c918ff5dc7cefc",
+      "branches": {
+        "main": "3d3b72313d02d8a10b9b908946c918ff5dc7cefc"
+      }
+    },
+    "hodareh/hardcoredeath": {
+      "default_branch": "main",
+      "sha": "3ee5511f6859e50b8aa8b8373b7d4b9e42e0bde9",
+      "branches": {
+        "main": "3ee5511f6859e50b8aa8b8373b7d4b9e42e0bde9"
+      }
+    },
+    "neimad-mp/hcdeaths": {
+      "default_branch": "main",
+      "sha": "15e16fa4ad80c3b89f4b0dc27318ca6362faa713",
+      "branches": {
+        "main": "15e16fa4ad80c3b89f4b0dc27318ca6362faa713"
+      }
+    },
+    "trumpetx/turtlehcfilter": {
+      "default_branch": "main",
+      "sha": "bf24747d1a18fde163ecefe0c5cc1b07fb1a7696",
+      "branches": {
+        "main": "bf24747d1a18fde163ecefe0c5cc1b07fb1a7696"
+      }
+    },
+    "neimad-mp/hcrank": {
+      "default_branch": "main",
+      "sha": "d28d9bbbc6642de85c34558db963c513177dbec8",
+      "branches": {
+        "main": "d28d9bbbc6642de85c34558db963c513177dbec8"
+      }
+    },
+    "damagepyhun/turtlechatcolors": {
+      "default_branch": "main",
+      "sha": "3360599bccf37e0d7965cddb9c91c85009d931dd",
+      "branches": {
+        "main": "3360599bccf37e0d7965cddb9c91c85009d931dd"
+      },
+      "latest_tag": "Main"
+    },
+    "refaim/turtlehardcorechattamer": {
+      "default_branch": "master",
+      "sha": "d75592277db26e57cdd73445fa1d29477b695ea0",
+      "branches": {
+        "master": "d75592277db26e57cdd73445fa1d29477b695ea0"
+      }
+    },
+    "rmarc29/unifiedtalentguides": {
+      "default_branch": "main",
+      "sha": "186691f8d98ef084e7e1c483380b27d9474a66bf",
+      "branches": {
+        "main": "186691f8d98ef084e7e1c483380b27d9474a66bf"
+      }
+    },
+    "shagu/cartographer": {
+      "default_branch": "master",
+      "sha": "9b2997bf85f2758e9d3a94028fa0ad158b001245",
+      "branches": {
+        "master": "9b2997bf85f2758e9d3a94028fa0ad158b001245"
+      }
+    },
+    "bergador/charactermap": {
+      "default_branch": "master",
+      "sha": "3f4194d5b438cee3ea48bf6fe84871951fb6ca31",
+      "branches": {
+        "master": "3f4194d5b438cee3ea48bf6fe84871951fb6ca31"
+      }
+    },
+    "cryptokn1ght-dev/chatmonitor": {
+      "default_branch": "main",
+      "sha": "2095edc3e5a10c8065304dbb567914424b8d9bf5",
+      "branches": {
+        "main": "2095edc3e5a10c8065304dbb567914424b8d9bf5"
+      }
+    },
+    "turinpt/cmap": {
+      "default_branch": "master",
+      "sha": "3849500c58db047a5455c8e7fa48ce48e80e221b",
+      "branches": {
+        "master": "3849500c58db047a5455c8e7fa48ce48e80e221b"
+      }
+    },
+    "kirchlive/deathlog_vanilla": {
+      "default_branch": "main",
+      "sha": "81e28be99cd026f17d79fa97693899128136095e",
+      "branches": {
+        "main": "81e28be99cd026f17d79fa97693899128136095e"
+      }
+    },
+    "stormhand-dev/dragonflightui-reforged": {
+      "default_branch": "main",
+      "sha": "2a8d2ffb3d9262f0d2af2071b9b47ef27f76f7f8",
+      "branches": {
+        "main": "2a8d2ffb3d9262f0d2af2071b9b47ef27f76f7f8"
+      },
+      "latest_tag": "1.3.4"
+    },
+    "rumchiller/em_yatlas": {
+      "default_branch": "master",
+      "sha": "5147dcb566afd42bcc1c694b004bdc7d6a6f0579",
+      "branches": {
+        "master": "5147dcb566afd42bcc1c694b004bdc7d6a6f0579"
+      }
+    },
+    "bagan95/fadeframeui": {
+      "default_branch": "main",
+      "sha": "cbc475155f193b6553fdd4963e51e432e13e8c70",
+      "branches": {
+        "main": "cbc475155f193b6553fdd4963e51e432e13e8c70"
+      },
+      "latest_tag": "v1.2.0"
+    },
+    "trangoul/flightmap": {
+      "default_branch": "main",
+      "sha": "8231f8f95de2f361774bb55162a731702409a26c",
+      "branches": {
+        "main": "8231f8f95de2f361774bb55162a731702409a26c"
+      }
+    },
+    "tilare/flighttracker": {
+      "default_branch": "main",
+      "sha": "a28d3bdfe6c6e03da70657ef412ff4a423e59824",
+      "branches": {
+        "main": "a28d3bdfe6c6e03da70657ef412ff4a423e59824"
+      }
+    },
+    "nemanuel/forged_mapnotes": {
+      "default_branch": "main",
+      "sha": "ef4ee14d1b94a55312d23aab0ddfac8eb9cea1b7",
+      "branches": {
+        "main": "ef4ee14d1b94a55312d23aab0ddfac8eb9cea1b7"
+      }
+    },
+    "road-block/fubar_tofu": {
+      "default_branch": "master",
+      "sha": "18838b126bd3417b8d32778961dc1e72590b33ab",
+      "branches": {
+        "master": "18838b126bd3417b8d32778961dc1e72590b33ab"
+      },
+      "latest_tag": "r15647"
+    },
+    "haaxor1689/gatherer": {
+      "default_branch": "master",
+      "sha": "81ee08ba49d14b3f2dc670749af7c9821b71d621",
+      "branches": {
+        "master": "81ee08ba49d14b3f2dc670749af7c9821b71d621"
+      }
+    },
+    "haaxor1689/guildmap": {
+      "default_branch": "master",
+      "sha": "e3788a64d7a524430df4bef941a6814ff5bd5635",
+      "branches": {
+        "master": "e3788a64d7a524430df4bef941a6814ff5bd5635"
+      }
+    },
+    "spartelfant/levelrange-turtle": {
+      "default_branch": "main",
+      "sha": "f280a18abe9b32ffd901050c5934f0e60df25f3a",
+      "branches": {
+        "main": "f280a18abe9b32ffd901050c5934f0e60df25f3a"
+      }
+    },
+    "lookino/magnify": {
+      "default_branch": "main",
+      "sha": "3ff15a844a5ade917c6ac63489a9dc375b1411b2",
+      "branches": {
+        "main": "3ff15a844a5ade917c6ac63489a9dc375b1411b2"
+      }
+    },
+    "yutsuku/mapofscars": {
+      "default_branch": "master",
+      "sha": "57733c84d3a1ce23ef213edcfb052ae77ece7ccf",
+      "branches": {
+        "master": "57733c84d3a1ce23ef213edcfb052ae77ece7ccf"
+      }
+    },
+    "einbaum/maptarget": {
+      "default_branch": "master",
+      "sha": "8d2939ad8fbcc954a2f98e3c9f02110572c8d204",
+      "branches": {
+        "master": "8d2939ad8fbcc954a2f98e3c9f02110572c8d204"
+      },
+      "latest_tag": "2.1"
+    },
+    "laytya/metamap-vanilla": {
+      "default_branch": "master",
+      "sha": "8dcc99d182480cac3e44efd9b4ac2ccb9f441e14",
+      "branches": {
+        "master": "8dcc99d182480cac3e44efd9b4ac2ccb9f441e14"
+      },
+      "latest_tag": "11200-10"
+    },
+    "laytya/minimapbuttonframe-vanilla": {
+      "default_branch": "master",
+      "sha": "0923f9e4128c6fcdc97df448c7665ca71bca2a18",
+      "branches": {
+        "master": "0923f9e4128c6fcdc97df448c7665ca71bca2a18"
+      },
+      "latest_tag": "1.12"
+    },
+    "road-block/pingomatic": {
+      "default_branch": "master",
+      "sha": "9f20a088971d43b1152344ddb5a19fea0d65319c",
+      "branches": {
+        "master": "9f20a088971d43b1152344ddb5a19fea0d65319c"
+      },
+      "latest_tag": "1.12-11200"
+    },
+    "acid9000/pizzaworldbuffs": {
+      "default_branch": "main",
+      "sha": "72d6861926c1a2106c8773e8e251da27ab617471",
+      "branches": {
+        "main": "72d6861926c1a2106c8773e8e251da27ab617471"
+      }
+    },
+    "daniilsokolyuk/ripmap": {
+      "default_branch": "master",
+      "sha": "0f864a5e25de22ee7f5dd66ee740434a12d07bba",
+      "branches": {
+        "master": "0f864a5e25de22ee7f5dd66ee740434a12d07bba"
+      }
+    },
+    "mcpewpew/simpleminimap": {
+      "default_branch": "master",
+      "sha": "b02e7be9995ecac8c7055f2f31b5d661fe65cf38",
+      "branches": {
+        "master": "b02e7be9995ecac8c7055f2f31b5d661fe65cf38"
+      }
+    },
+    "montspy/sqminimapfix": {
+      "default_branch": "master",
+      "sha": "407ccee4c0b99db89c8c2191f841d567690c56c0",
+      "branches": {
+        "master": "407ccee4c0b99db89c8c2191f841d567690c56c0"
+      }
+    },
+    "blomma/bc_trackingmenu": {
+      "default_branch": "master",
+      "sha": "0d462546337f620454635bdbc7dfbbdbc51d8636",
+      "branches": {
+        "master": "0d462546337f620454635bdbc7dfbbdbc51d8636"
+      }
+    },
+    "mcpewpew/turtlesnacks": {
+      "default_branch": "main",
+      "sha": "4c0f3b1746ee06e020d4ea94434e8fd90e94f3dc",
+      "branches": {
+        "main": "4c0f3b1746ee06e020d4ea94434e8fd90e94f3dc"
+      }
+    },
+    "ageous27/twmapreveal": {
+      "default_branch": "main",
+      "sha": "49015343ff0bb76366a9b0fcd377902e747fb5d0",
+      "branches": {
+        "main": "49015343ff0bb76366a9b0fcd377902e747fb5d0"
+      }
+    },
+    "0ldi/vanillamaps": {
+      "default_branch": "master",
+      "sha": "38babd3c213a6f1845f7b711f09d17295ef0fd78",
+      "branches": {
+        "master": "38babd3c213a6f1845f7b711f09d17295ef0fd78"
+      }
+    },
+    "arthur-helias/zoneslevel": {
+      "default_branch": "master",
+      "sha": "985652b77532fe09dd3a1044bb736f92d7cfefd1",
+      "branches": {
+        "master": "985652b77532fe09dd3a1044bb736f92d7cfefd1"
+      }
+    },
+    "laytya/advancedtradeskillwindow-vanilla": {
+      "default_branch": "master",
+      "sha": "9f405f0de2f311ea5245585bb86e5c8eb0fcc54a",
+      "branches": {
+        "master": "9f405f0de2f311ea5245585bb86e5c8eb0fcc54a"
+      },
+      "latest_tag": "v0.5.8"
+    },
+    "shellyoung/advancedtradeskillwindow2": {
+      "default_branch": "main",
+      "sha": "9f35415ce20fdea6b42e19b944c17547f2d93f31",
+      "branches": {
+        "main": "9f35415ce20fdea6b42e19b944c17547f2d93f31"
+      },
+      "latest_tag": "2.1.16"
+    },
+    "otari98/artisan": {
+      "default_branch": "main",
+      "sha": "e0ad216e86764120003388d1219574cad715302a",
+      "branches": {
+        "main": "e0ad216e86764120003388d1219574cad715302a"
+      }
+    },
+    "fox2k7/bananarepublicprofs": {
+      "default_branch": "main",
+      "sha": "713dbf916cb3e9be7bead5ecec77fbbce02dae6a",
+      "branches": {
+        "main": "713dbf916cb3e9be7bead5ecec77fbbce02dae6a"
+      }
+    },
+    "arthur-helias/bettercharacterpanel": {
+      "default_branch": "main",
+      "sha": "c81f8b7146fc34927f43331b469d08ce5556b78d",
+      "branches": {
+        "main": "c81f8b7146fc34927f43331b469d08ce5556b78d"
+      }
+    },
+    "cinecom/consumesmanager": {
+      "default_branch": "main",
+      "sha": "9662595123519609bad09ff49061ca969a5249e8",
+      "branches": {
+        "main": "9662595123519609bad09ff49061ca969a5249e8"
+      }
+    },
+    "shirsig/crafty": {
+      "default_branch": "master",
+      "sha": "06ec40f0c4820ae14a1d959fbeb1492fe2b44fe5",
+      "branches": {
+        "master": "06ec40f0c4820ae14a1d959fbeb1492fe2b44fe5"
+      }
+    },
+    "mcpewpew/gfw_disenchantpredictor": {
+      "default_branch": "master",
+      "sha": "54cbcf2f377028253ae7f6a88cb093c83ca6e1b3",
+      "branches": {
+        "master": "54cbcf2f377028253ae7f6a88cb093c83ca6e1b3"
+      }
+    },
+    "carolluparu/gryllsbongos": {
+      "default_branch": "main",
+      "sha": "485e3840c5975e0da1fed4070a0eb71e0f429e85",
+      "branches": {
+        "main": "485e3840c5975e0da1fed4070a0eb71e0f429e85"
+      }
+    },
+    "sica42/guildrecipes": {
+      "default_branch": "main",
+      "sha": "ee10a84da53f5e85fac4da48a98d6fd9adfdde51",
+      "branches": {
+        "main": "ee10a84da53f5e85fac4da48a98d6fd9adfdde51"
+      }
+    },
+    "arthur-helias/instancejournal": {
+      "default_branch": "master",
+      "sha": "b58ebe0ffd9bd7bc1c18d0a7d009795d1c2a942c",
+      "branches": {
+        "master": "b58ebe0ffd9bd7bc1c18d0a7d009795d1c2a942c"
+      }
+    },
+    "refaim/itemtooltipicons": {
+      "default_branch": "master",
+      "sha": "819e7565cc105cf58f54c6193d49b350a66a87c6",
+      "branches": {
+        "master": "819e7565cc105cf58f54c6193d49b350a66a87c6"
+      }
+    },
+    "laytya/lilsparkysworkshop-vanilla": {
+      "default_branch": "master",
+      "sha": "326db62006d5281b749bb0b3587fd0b977575581",
+      "branches": {
+        "master": "326db62006d5281b749bb0b3587fd0b977575581"
+      },
+      "latest_tag": "v0.7"
+    },
+    "trangoul/lookup": {
+      "default_branch": "master",
+      "sha": "4584b55e864f419f6774a52a8620aa86e9ad98f0",
+      "branches": {
+        "master": "4584b55e864f419f6774a52a8620aa86e9ad98f0"
+      }
+    },
+    "refaim/mastertradeskills": {
+      "default_branch": "master",
+      "sha": "3c79aa916488a1703ccd83bdc6ca653c5db99436",
+      "branches": {
+        "master": "3c79aa916488a1703ccd83bdc6ca653c5db99436"
+      }
+    },
+    "laytya/mendeleev": {
+      "default_branch": "main",
+      "sha": "c57c7e66cc48717d776caf5a54a0a61d073b2b1a",
+      "branches": {
+        "main": "c57c7e66cc48717d776caf5a54a0a61d073b2b1a"
+      },
+      "latest_tag": "1.1"
+    },
+    "refaim/missingcrafts": {
+      "default_branch": "master",
+      "sha": "e702ce7d781d68c2ead5f8223e59689edb8cfc91",
+      "branches": {
+        "master": "e702ce7d781d68c2ead5f8223e59689edb8cfc91"
+      }
+    },
+    "refaim/missingtradeskillslist": {
+      "default_branch": "master",
+      "sha": "807469745ce1ad1133073d814e2bb513666300ac",
+      "branches": {
+        "master": "807469745ce1ad1133073d814e2bb513666300ac"
+      }
+    },
+    "tubtubs/panda": {
+      "default_branch": "main",
+      "sha": "a328bbc165db8e8e4fe113d751db74b5d227f96b",
+      "branches": {
+        "main": "a328bbc165db8e8e4fe113d751db74b5d227f96b"
+      }
+    },
+    "niclaseriksen/profesjonell": {
+      "default_branch": "main",
+      "sha": "5c1c57e5a2f8ebc86a0535c9b776ffc71c525c50",
+      "branches": {
+        "main": "5c1c57e5a2f8ebc86a0535c9b776ffc71c525c50"
+      }
+    },
+    "gregdeichler/professionlevels": {
+      "default_branch": "main",
+      "sha": "5b97d211a8096d42b1c8bc76cf2bdbff0f405c65",
+      "branches": {
+        "main": "5b97d211a8096d42b1c8bc76cf2bdbff0f405c65"
+      },
+      "latest_tag": "Release2.8"
+    },
+    "shirsig/profession_query": {
+      "default_branch": "master",
+      "sha": "5386fc98ec9b3cdf3c68a7e47a1fcebe286f5ac6",
+      "branches": {
+        "master": "5386fc98ec9b3cdf3c68a7e47a1fcebe286f5ac6"
+      }
+    },
+    "refaim/reagentdata": {
+      "default_branch": "master",
+      "sha": "546f00fd43ae30f77f62ed3465dfafcebbfffffb",
+      "branches": {
+        "master": "546f00fd43ae30f77f62ed3465dfafcebbfffffb"
+      }
+    },
+    "gbl/tradechat": {
+      "default_branch": "master",
+      "sha": "ef76057e10220d8138955c3e027a238d3b3825d9",
+      "branches": {
+        "master": "ef76057e10220d8138955c3e027a238d3b3825d9"
+      }
+    },
+    "refaim/tradeskillsdata": {
+      "default_branch": "master",
+      "sha": "262734ac1703dd93c4990458e08c52f175bde6ea",
+      "branches": {
+        "master": "262734ac1703dd93c4990458e08c52f175bde6ea"
+      }
+    },
+    "refaim/tradeskillsdata-turtle": {
+      "default_branch": "master",
+      "sha": "a3a09fea9e753d85907fdd7b80b70b742c180950",
+      "branches": {
+        "master": "a3a09fea9e753d85907fdd7b80b70b742c180950"
+      }
+    },
+    "refaim/trainerskills-vanilla": {
+      "default_branch": "master",
+      "sha": "2ee09ea012ba493505772c56162bc61feed7c2dc",
+      "branches": {
+        "master": "2ee09ea012ba493505772c56162bc61feed7c2dc"
+      }
+    },
+    "madamsmall/turtleenchant": {
+      "default_branch": "master",
+      "sha": "79a8aab329f579b995dbb4aae19a62cffb5d5ff9",
+      "branches": {
+        "master": "79a8aab329f579b995dbb4aae19a62cffb5d5ff9"
+      }
+    },
+    "firenahzku/vanguardshamantools": {
+      "default_branch": "master",
+      "sha": "0b521998c335ed6933e3393ea7ee8066a987239b",
+      "branches": {
+        "master": "0b521998c335ed6933e3393ea7ee8066a987239b"
+      },
+      "latest_tag": "1.02"
+    },
+    "fiurs-hearth/wiiiui": {
+      "default_branch": "master",
+      "sha": "e17c352d21585fbacfbc2a0b7b2a422595d4cf18",
+      "branches": {
+        "master": "e17c352d21585fbacfbc2a0b7b2a422595d4cf18"
+      }
+    },
+    "einbaum/_autobg": {
+      "default_branch": "master",
+      "sha": "55899bc3aa9acc1e6659e7481ea4f5e424534cc4",
+      "branches": {
+        "master": "55899bc3aa9acc1e6659e7481ea4f5e424534cc4"
+      },
+      "latest_tag": "1.0.0"
+    },
+    "topfreestyle/avbars": {
+      "default_branch": "main",
+      "sha": "4f86368f80da3cb52c6fd5bd05cb9f3e968e4cfa",
+      "branches": {
+        "main": "4f86368f80da3cb52c6fd5bd05cb9f3e968e4cfa"
+      }
+    },
+    "yutsuku/bgreport": {
+      "default_branch": "master",
+      "sha": "11d5db68c06e913ff211deb79fe447b262acb561",
+      "branches": {
+        "master": "11d5db68c06e913ff211deb79fe447b262acb561"
+      }
+    },
+    "neimad-mp/hcwarn": {
+      "default_branch": "main",
+      "sha": "fa5aff09992d412a6079f5289b0d3b3b81b037b1",
+      "branches": {
+        "main": "fa5aff09992d412a6079f5289b0d3b3b81b037b1"
+      }
+    },
+    "mikefirefly/mouseoversounds_pvp": {
+      "default_branch": "main",
+      "sha": "791787d62a0b0065477bc235f861cf4c2b0b1d5a",
+      "branches": {
+        "main": "791787d62a0b0065477bc235f861cf4c2b0b1d5a"
+      }
+    },
+    "ragedunicorn/wow-pvpwarn": {
+      "default_branch": "master",
+      "sha": "9b26bb247e34209ec73d3858443738ace551c3f6",
+      "branches": {
+        "master": "9b26bb247e34209ec73d3858443738ace551c3f6"
+      },
+      "latest_tag": "v1.1.1"
+    },
+    "shirsig/sentry": {
+      "default_branch": "master",
+      "sha": "4632082624c6c20f445f4c4f26af6a9f96238d8b",
+      "branches": {
+        "master": "4632082624c6c20f445f4c4f26af6a9f96238d8b"
+      }
+    },
+    "einbaum/skmap": {
+      "default_branch": "master",
+      "sha": "bd4301fbd47e76baa482e48345e63f2832f451f9",
+      "branches": {
+        "master": "bd4301fbd47e76baa482e48345e63f2832f451f9"
+      }
+    },
+    "dnkrse/turtlehonorspyenhanced": {
+      "default_branch": "master",
+      "sha": "0ced057f763eb1097a9d96297f530d4c613cfa97",
+      "branches": {
+        "master": "0ced057f763eb1097a9d96297f530d4c613cfa97"
+      }
+    },
+    "clungo/turtlepvp": {
+      "default_branch": "main",
+      "sha": "bd3f5ed3004c2aabf21bdb6825667ccbabd31883",
+      "branches": {
+        "main": "bd3f5ed3004c2aabf21bdb6825667ccbabd31883"
+      }
+    },
+    "yutsuku/voidbattle": {
+      "default_branch": "master",
+      "sha": "0548bf3bb02a007ca031cce3d6c10d36b775603f",
+      "branches": {
+        "master": "0548bf3bb02a007ca031cce3d6c10d36b775603f"
+      }
+    },
+    "whtmst/youvegotredonyou": {
+      "default_branch": "master",
+      "sha": "b61805c0da7b8cbef410af95b703d217b7e56d55",
+      "branches": {
+        "master": "b61805c0da7b8cbef410af95b703d217b7e56d55"
+      }
+    },
+    "bycfm2/atlas-tw": {
+      "default_branch": "main",
+      "sha": "07218cc2e6a43a00f37444abebbee20b71f4e944",
+      "branches": {
+        "main": "07218cc2e6a43a00f37444abebbee20b71f4e944"
+      }
+    },
+    "laytya/autobar-for-turtle-wow": {
+      "default_branch": "main",
+      "sha": "5ea82b9cf57571e48836eff76944ac84ccc0a709",
+      "branches": {
+        "main": "5ea82b9cf57571e48836eff76944ac84ccc0a709"
+      }
+    },
+    "lukeelrod/autoconfirm": {
+      "default_branch": "turtle-wow",
+      "sha": "fe4495d0d32a1d208900a6fed1de8a05af844329",
+      "branches": {
+        "turtle-wow": "fe4495d0d32a1d208900a6fed1de8a05af844329"
+      }
+    },
+    "eritzman/autodb": {
+      "default_branch": "main",
+      "sha": "b7784ff2b162242114c6876f4ce808f490a89008",
+      "branches": {
+        "main": "b7784ff2b162242114c6876f4ce808f490a89008"
+      }
+    },
+    "refaim/autodb2": {
+      "default_branch": "main",
+      "sha": "30969e81d98def1e948426f405e7f510563d78c8",
+      "branches": {
+        "main": "30969e81d98def1e948426f405e7f510563d78c8"
+      }
+    },
+    "mickeypickey/autoquest": {
+      "default_branch": "master",
+      "sha": "0190202588b29d1d7f8bac73845e78ce46301210",
+      "branches": {
+        "master": "0190202588b29d1d7f8bac73845e78ce46301210"
+      },
+      "latest_tag": "v2.0.3"
+    },
+    "valiusha90/autoturnin": {
+      "default_branch": "main",
+      "sha": "9c8c0c08863cab9860b79205ffea1358b65aae29",
+      "branches": {
+        "main": "9c8c0c08863cab9860b79205ffea1358b65aae29"
+      }
+    },
+    "tlplayer/betterquest": {
+      "default_branch": "main",
+      "sha": "73d67930f718bef6fc595495af4099866b04c137",
+      "branches": {
+        "main": "73d67930f718bef6fc595495af4099866b04c137"
+      },
+      "latest_tag": "0.2"
+    },
+    "einbaum/chroniclespi": {
+      "default_branch": "master",
+      "sha": "fca0da346c4f91f50b7a5b44f72ced84b68dd6dd",
+      "branches": {
+        "master": "fca0da346c4f91f50b7a5b44f72ced84b68dd6dd"
+      },
+      "latest_tag": "1.2.0"
+    },
+    "muehe/classicdb": {
+      "default_branch": "master",
+      "sha": "e7ecc0f18fd764694b3acc5c3a31d297b1c4eb3e",
+      "branches": {
+        "master": "e7ecc0f18fd764694b3acc5c3a31d297b1c4eb3e"
+      },
+      "latest_tag": "1.0-beta.2"
+    },
+    "jslquintero/dialogui": {
+      "default_branch": "main",
+      "sha": "99cb4864753c716bbcdd756d49c64edb35c58dcc",
+      "branches": {
+        "main": "99cb4864753c716bbcdd756d49c64edb35c58dcc"
+      }
+    },
+    "rumchiller/em_monkeyquest": {
+      "default_branch": "master",
+      "sha": "e5bc0ce47d3ae5a61ebdfd449ece7c485446cb2a",
+      "branches": {
+        "master": "e5bc0ce47d3ae5a61ebdfd449ece7c485446cb2a"
+      }
+    },
+    "laytya/eql3": {
+      "default_branch": "master",
+      "sha": "a0ced1c73e99aa2662e5d959dd96fcec33ddcfb4",
+      "branches": {
+        "master": "a0ced1c73e99aa2662e5d959dd96fcec33ddcfb4"
+      }
+    },
+    "trashcanhands/explorermap": {
+      "default_branch": "master",
+      "sha": "3f943992dafb32fbcf0cff31260dc7806db2277d",
+      "branches": {
+        "master": "3f943992dafb32fbcf0cff31260dc7806db2277d"
+      }
+    },
+    "goldenpipes/pfquest_fu": {
+      "default_branch": "main",
+      "sha": "c37708cd290b6e06c2a3476f3f05f2c72bf48008",
+      "branches": {
+        "main": "c37708cd290b6e06c2a3476f3f05f2c72bf48008"
+      }
+    },
+    "jeromem/guidelimevanilla": {
+      "default_branch": "master",
+      "sha": "bd87cdb5fc9c3bd125afdb6da5819b5e92f2dec5",
+      "branches": {
+        "master": "bd87cdb5fc9c3bd125afdb6da5819b5e92f2dec5"
+      },
+      "latest_tag": "v0.12.7"
+    },
+    "kameleonuk/lootcrestreminder": {
+      "default_branch": "main",
+      "sha": "927f1a414bba42a817dd3900632e8ea2947bc959",
+      "branches": {
+        "main": "927f1a414bba42a817dd3900632e8ea2947bc959"
+      }
+    },
+    "scoboose/notesuneed-turtle": {
+      "default_branch": "master",
+      "sha": "0f35ca358bc0ea052bd4ce38bd1a13f977dd37ef",
+      "branches": {
+        "master": "0f35ca358bc0ea052bd4ce38bd1a13f977dd37ef"
+      }
+    },
+    "cliencer/pfextend": {
+      "default_branch": "main",
+      "sha": "7281b5d3747591f7b043ccb5656283ce5dec8c7f",
+      "branches": {
+        "main": "7281b5d3747591f7b043ccb5656283ce5dec8c7f"
+      },
+      "latest_tag": "1.0.5"
+    },
+    "the-kludge-bureau/pfquest": {
+      "default_branch": "main",
+      "sha": "6b7085f0d8c49f833c2ff54fc97ae07dccc83379",
+      "branches": {
+        "main": "6b7085f0d8c49f833c2ff54fc97ae07dccc83379"
+      },
+      "latest_tag": "8.0.0"
+    },
+    "shagu/pfquest-icons": {
+      "default_branch": "master",
+      "sha": "709ba275b7198b93713b5b06cf896dc9006ebeea",
+      "branches": {
+        "master": "709ba275b7198b93713b5b06cf896dc9006ebeea"
+      }
+    },
+    "the-kludge-bureau/pfquest-turtle": {
+      "default_branch": "main",
+      "sha": "d11e7631774f390edb5b26b86cd84cf43aee5e20",
+      "branches": {
+        "main": "d11e7631774f390edb5b26b86cd84cf43aee5e20"
+      },
+      "latest_tag": "last-community-based-build"
+    },
+    "elboaf/ppbuddy": {
+      "default_branch": "main",
+      "sha": "3f1ac235717464a176eed5e320118d8666945ef5",
+      "branches": {
+        "main": "3f1ac235717464a176eed5e320118d8666945ef5"
+      }
+    },
+    "moiian/immersivedialogui": {
+      "default_branch": "main",
+      "sha": "6acec0e0c01bbdf846c468c94ac583cd28b33705",
+      "branches": {
+        "main": "6acec0e0c01bbdf846c468c94ac583cd28b33705"
+      },
+      "latest_tag": "1.2"
+    },
+    "ahhh-reptar/questannouncer": {
+      "default_branch": "main",
+      "sha": "cf324e82e89e3eb87d62c3aed717f93ab2656a02",
+      "branches": {
+        "main": "cf324e82e89e3eb87d62c3aed717f93ab2656a02"
+      }
+    },
+    "fusionpit/questframefixer": {
+      "default_branch": "master",
+      "sha": "6eef35fbfcc51039f7d1e3cff78061468abeb69e",
+      "branches": {
+        "master": "6eef35fbfcc51039f7d1e3cff78061468abeb69e"
+      },
+      "latest_tag": "4.0.2"
+    },
+    "grenderg/questhistory": {
+      "default_branch": "master",
+      "sha": "3e2b54a8e5d6b381e4827a305d2879b9d09b6b83",
+      "branches": {
+        "master": "3e2b54a8e5d6b381e4827a305d2879b9d09b6b83"
+      }
+    },
+    "graved/questprogressshare": {
+      "default_branch": "main",
+      "sha": "afbc780d394dc68131fb1244fe322f149c3ba356",
+      "branches": {
+        "main": "afbc780d394dc68131fb1244fe322f149c3ba356"
+      },
+      "latest_tag": "1.6.0"
+    },
+    "marcelinevq/questrepeat": {
+      "default_branch": "master",
+      "sha": "eb577bd4ac51759ff6c7f5d723ca2d270325a4bf",
+      "branches": {
+        "master": "eb577bd4ac51759ff6c7f5d723ca2d270325a4bf"
+      }
+    },
+    "valiusha90/questshell": {
+      "default_branch": "main",
+      "sha": "2c18024c288f48b524175aab1ec1803db5154d60",
+      "branches": {
+        "main": "2c18024c288f48b524175aab1ec1803db5154d60"
+      }
+    },
+    "road-block/questsoundbits": {
+      "default_branch": "master",
+      "sha": "2ddce3ae7d854b37cb4d11df227b796be510ddbe",
+      "branches": {
+        "master": "2ddce3ae7d854b37cb4d11df227b796be510ddbe"
+      },
+      "latest_tag": "2.11-11200"
+    },
+    "gabcinder2004/questtracker": {
+      "default_branch": "master",
+      "sha": "85697ea3837ef3b872e2dc3a0f33780a6e807188",
+      "branches": {
+        "master": "85697ea3837ef3b872e2dc3a0f33780a6e807188"
+      }
+    },
+    "daribon/questtranslator": {
+      "default_branch": "master",
+      "sha": "151667024e19be5640440596e1b41f984eaa9677",
+      "branches": {
+        "master": "151667024e19be5640440596e1b41f984eaa9677"
+      }
+    },
+    "zirtox1992/showchests": {
+      "default_branch": "main",
+      "sha": "844065c7334d4eb97d78167dab6db2729f214e7d",
+      "branches": {
+        "main": "844065c7334d4eb97d78167dab6db2729f214e7d"
+      }
+    },
+    "cralor/tourguide_professions": {
+      "default_branch": "master",
+      "sha": "c5ed92c003f625b1c84d37dfa724b7ef298e21c0",
+      "branches": {
+        "master": "c5ed92c003f625b1c84d37dfa724b7ef298e21c0"
+      },
+      "latest_tag": "1.0.2-beta"
+    },
+    "cyaohiri/triviabot-turtlewow": {
+      "default_branch": "master",
+      "sha": "e11b168dd15d3d0eac358bf2f7c7a75c68dcd63b",
+      "branches": {
+        "master": "e11b168dd15d3d0eac358bf2f7c7a75c68dcd63b"
+      }
+    },
+    "tubtubs/vanillastoryline": {
+      "default_branch": "master",
+      "sha": "47bf6bbd174db51623a1b6bb27879f08e04dc390",
+      "branches": {
+        "master": "47bf6bbd174db51623a1b6bb27879f08e04dc390"
+      }
+    },
+    "jayparry/xtolevel-classic": {
+      "default_branch": "develop",
+      "sha": "41e8a92d79e565959492e6e3c3f704bff5701d1e",
+      "branches": {
+        "develop": "41e8a92d79e565959492e6e3c3f704bff5701d1e"
+      }
+    },
+    "kirchlive/atlasloot-gearfilter": {
+      "default_branch": "main",
+      "sha": "7b24283dc1e428b01d9a9535c5ae9c05e666336d",
+      "branches": {
+        "main": "7b24283dc1e428b01d9a9535c5ae9c05e666336d"
+      },
+      "latest_tag": "v1.1.2"
+    },
+    "balakethelock/automasterlooter": {
+      "default_branch": "master",
+      "sha": "5d2b0cf849120ff7bd4835c1593c4a2e28a843ab",
+      "branches": {
+        "master": "5d2b0cf849120ff7bd4835c1593c4a2e28a843ab"
+      }
+    },
+    "balakethelock/bananabar": {
+      "default_branch": "master",
+      "sha": "d1f000b43d7e5e42f1b249b0a280ccf66aa3fb22",
+      "branches": {
+        "master": "d1f000b43d7e5e42f1b249b0a280ccf66aa3fb22"
+      }
+    },
+    "mcpewpew/bmloot": {
+      "default_branch": "master",
+      "sha": "73585e353410ea0bbf205fc22ef337ad3c850d5b",
+      "branches": {
+        "master": "73585e353410ea0bbf205fc22ef337ad3c850d5b"
+      }
+    },
+    "yamayaml/bossmechanicshelper": {
+      "default_branch": "main",
+      "sha": "11c79323862865d6a110dbb3c40016a1714b84cd",
+      "branches": {
+        "main": "11c79323862865d6a110dbb3c40016a1714b84cd"
+      }
+    },
+    "jrc13245/bosstactics": {
+      "default_branch": "main",
+      "sha": "e21c19dee734cf3f647f8298ad6c37ba253b15b9",
+      "branches": {
+        "main": "e21c19dee734cf3f647f8298ad6c37ba253b15b9"
+      }
+    },
+    "trumpetx/chatlootbidder": {
+      "default_branch": "master",
+      "sha": "bc6c2f807d2c7790308f8abf503b00d83dbc6988",
+      "branches": {
+        "master": "bc6c2f807d2c7790308f8abf503b00d83dbc6988"
+      },
+      "latest_tag": "v1.11.2"
+    },
+    "emyrk/chroniclecompanion": {
+      "default_branch": "main",
+      "sha": "d72ba0e0a1586770f68afb3faec5f4211bc995c2",
+      "branches": {
+        "main": "d72ba0e0a1586770f68afb3faec5f4211bc995c2"
+      }
+    },
+    "einbaum/chroniclesbuffassignments": {
+      "default_branch": "master",
+      "sha": "996ef976bd97c3312bcdb7656c330ef0c95ce7c1",
+      "branches": {
+        "master": "996ef976bd97c3312bcdb7656c330ef0c95ce7c1"
+      },
+      "latest_tag": "1.0.0"
+    },
+    "einbaum/chroniclesptr": {
+      "default_branch": "master",
+      "sha": "027d1dc67cdbaf5a4f10fcba504911eeaba8c0f5",
+      "branches": {
+        "master": "027d1dc67cdbaf5a4f10fcba504911eeaba8c0f5"
+      }
+    },
+    "trumpetx/combatloggingreminder": {
+      "default_branch": "master",
+      "sha": "12aa83d21401fe3cb655258ddf4f5859e18e3f4d",
+      "branches": {
+        "master": "12aa83d21401fe3cb655258ddf4f5859e18e3f4d"
+      }
+    },
+    "mcpewpew/cthunwarner": {
+      "default_branch": "master",
+      "sha": "70f5129730bb96834abab7678ec7e51c402fbbc8",
+      "branches": {
+        "master": "70f5129730bb96834abab7678ec7e51c402fbbc8"
+      }
+    },
+    "dogmax/damagemeters": {
+      "default_branch": "main",
+      "sha": "4b42534ff9c80b128d5830985c812ea08e77e267",
+      "branches": {
+        "main": "4b42534ff9c80b128d5830985c812ea08e77e267"
+      }
+    },
+    "yutsuku/lvbm": {
+      "default_branch": "master",
+      "sha": "84c4311a9c3d6b4af24c94079d6d157705444bf4",
+      "branches": {
+        "master": "84c4311a9c3d6b4af24c94079d6d157705444bf4"
+      }
+    },
+    "jejkas/devilshunters": {
+      "default_branch": "master",
+      "sha": "2b76f0d2647fc8d53adedde1532b74ac652d1e98",
+      "branches": {
+        "master": "2b76f0d2647fc8d53adedde1532b74ac652d1e98"
+      }
+    },
+    "yutsuku/dpepgp": {
+      "default_branch": "master",
+      "sha": "aadc9f40cc0d567922df8d6a9deebe5decdf8dc4",
+      "branches": {
+        "master": "aadc9f40cc0d567922df8d6a9deebe5decdf8dc4"
+      }
+    },
+    "numielle/easyloot": {
+      "default_branch": "master",
+      "sha": "c3ee8e6d4970db3df35ae0d5fb7484e29cd9a6f5",
+      "branches": {
+        "master": "c3ee8e6d4970db3df35ae0d5fb7484e29cd9a6f5"
+      }
+    },
+    "isitlove/epgpexport": {
+      "default_branch": "master",
+      "sha": "9d50d4df254bc50aecb57880c54216df74759864",
+      "branches": {
+        "master": "9d50d4df254bc50aecb57880c54216df74759864"
+      },
+      "latest_tag": "1.0"
+    },
+    "0ldi/exoraidsetup": {
+      "default_branch": "master",
+      "sha": "bb2447fad6623620bf575245f090d268e37f9307",
+      "branches": {
+        "master": "bb2447fad6623620bf575245f090d268e37f9307"
+      }
+    },
+    "geigerkind/expandassist": {
+      "default_branch": "master",
+      "sha": "c002b9b1bf403d4ecb8045a1283baa02ec0ebb69",
+      "branches": {
+        "master": "c002b9b1bf403d4ecb8045a1283baa02ec0ebb69"
+      },
+      "latest_tag": "b1"
+    },
+    "itslusse/fika": {
+      "default_branch": "main",
+      "sha": "062c34120fdc10dddb499f6fd3fef8442af9db94",
+      "branches": {
+        "main": "062c34120fdc10dddb499f6fd3fef8442af9db94"
+      }
+    },
+    "trumpetx/flyertimer": {
+      "default_branch": "master",
+      "sha": "58a1a62caae40c6e4a0147352cc425f5611fe31d",
+      "branches": {
+        "master": "58a1a62caae40c6e4a0147352cc425f5611fe31d"
+      }
+    },
+    "bycfm2/fonzappraiser": {
+      "default_branch": "main",
+      "sha": "924a5521532e0cbac8f90f7f4aac5fe855cc9072",
+      "branches": {
+        "main": "924a5521532e0cbac8f90f7f4aac5fe855cc9072"
+      }
+    },
+    "cubenicke/fury": {
+      "default_branch": "master",
+      "sha": "e832d00beebe52c32989f8621e4eaf05730ecd7e",
+      "branches": {
+        "master": "e832d00beebe52c32989f8621e4eaf05730ecd7e"
+      },
+      "latest_tag": "fury_1_15"
+    },
+    "0ldi/imba": {
+      "default_branch": "master",
+      "sha": "88c87ffd4e73e7542e9f46aa411264419d1b815b",
+      "branches": {
+        "master": "88c87ffd4e73e7542e9f46aa411264419d1b815b"
+      }
+    },
+    "bergador/insigniataken": {
+      "default_branch": "master",
+      "sha": "d0958f91a5246cc970cd350e40b62d380962db51",
+      "branches": {
+        "master": "d0958f91a5246cc970cd350e40b62d380962db51"
+      }
+    },
+    "blackhaste/lazyres": {
+      "default_branch": "master",
+      "sha": "ffed45c8d6912aef7cb8e2531745928edce54af9",
+      "branches": {
+        "master": "ffed45c8d6912aef7cb8e2531745928edce54af9"
+      }
+    },
+    "marcelinevq/lazyweirdo": {
+      "default_branch": "master",
+      "sha": "5e248132d6814788f3154e00445c6f7ea45a74fb",
+      "branches": {
+        "master": "5e248132d6814788f3154e00445c6f7ea45a74fb"
+      }
+    },
+    "zedorff/lockassignment": {
+      "default_branch": "main",
+      "sha": "68b448250b826b7791dfc020d469128c77ea03d8",
+      "branches": {
+        "main": "68b448250b826b7791dfc020d469128c77ea03d8"
+      }
+    },
+    "mitjafelicijan/lootatmouse": {
+      "default_branch": "master",
+      "sha": "b9801539d7366c9f17d76c97fde77f8f42a10d75",
+      "branches": {
+        "master": "b9801539d7366c9f17d76c97fde77f8f42a10d75"
+      }
+    },
+    "marcelinevq/lootblare": {
+      "default_branch": "master",
+      "sha": "eccea47172a2d600aa73001008cc3c1f34b221da",
+      "branches": {
+        "master": "eccea47172a2d600aa73001008cc3c1f34b221da"
+      }
+    },
+    "fsuhas/lootblare-for-roolfor": {
+      "default_branch": "main",
+      "sha": "3f2a2deec0affc69009b91042436355c36ed4a2e",
+      "branches": {
+        "main": "3f2a2deec0affc69009b91042436355c36ed4a2e"
+      }
+    },
+    "wiggen94/lootmonitor": {
+      "default_branch": "main",
+      "sha": "551ec4b89c747b1a87e85b818021867c57fef358",
+      "branches": {
+        "main": "551ec4b89c747b1a87e85b818021867c57fef358"
+      }
+    },
+    "cosminpop/lootres": {
+      "default_branch": "master",
+      "sha": "f757716d8cebc6f75ff8a4de33d91b3207e07191",
+      "branches": {
+        "master": "f757716d8cebc6f75ff8a4de33d91b3207e07191"
+      }
+    },
+    "road-block/loottracker": {
+      "default_branch": "master",
+      "sha": "889856f11922954c04dd179d9fd969d8e4445cb0",
+      "branches": {
+        "master": "889856f11922954c04dd179d9fd969d8e4445cb0"
+      },
+      "latest_tag": "1.38rb"
+    },
+    "otari98/masterlootbyclass": {
+      "default_branch": "master",
+      "sha": "3981dbf0f3c108f7ed7d6c4b58a05585cfb90105",
+      "branches": {
+        "master": "3981dbf0f3c108f7ed7d6c4b58a05585cfb90105"
+      }
+    },
+    "road-block/masterlootremind": {
+      "default_branch": "master",
+      "sha": "ef9e73f27e13095b358897e223f20b626a91d9ed",
+      "branches": {
+        "master": "ef9e73f27e13095b358897e223f20b626a91d9ed"
+      },
+      "latest_tag": "1.21"
+    },
+    "yutsuku/masterlute": {
+      "default_branch": "master",
+      "sha": "94a5ce43e99b952b3dd6b74f910d8efa3e1d2015",
+      "branches": {
+        "master": "94a5ce43e99b952b3dd6b74f910d8efa3e1d2015"
+      }
+    },
+    "mijkrofl/mijksraidassist": {
+      "default_branch": "main",
+      "sha": "a556201bada046e4c4d072d08baf1a638d10710e",
+      "branches": {
+        "main": "a556201bada046e4c4d072d08baf1a638d10710e"
+      }
+    },
+    "tilare/modernmapmarkers": {
+      "default_branch": "main",
+      "sha": "5311be6a24979d4119ed59e9f48f90beb41ecfb4",
+      "branches": {
+        "main": "5311be6a24979d4119ed59e9f48f90beb41ecfb4"
+      }
+    },
+    "trumpetx/notchatlootbidder": {
+      "default_branch": "master",
+      "sha": "3a450b58d3d05bf2fa7efade1d9bc0ba63fe2c1a",
+      "branches": {
+        "master": "3a450b58d3d05bf2fa7efade1d9bc0ba63fe2c1a"
+      },
+      "latest_tag": "v1.9.4"
+    },
+    "zanthor/og-raidhelper": {
+      "default_branch": "main",
+      "sha": "bfed882bfc7714df6d5086fc60e8a1ced6373278",
+      "branches": {
+        "main": "bfed882bfc7714df6d5086fc60e8a1ced6373278"
+      }
+    },
+    "goldenpipes/openclam": {
+      "default_branch": "main",
+      "sha": "c4be429be59a81ee34076d93616d8393720da3c1",
+      "branches": {
+        "main": "c4be429be59a81ee34076d93616d8393720da3c1"
+      }
+    },
+    "maxcodk/paladinsalvaremover": {
+      "default_branch": "main",
+      "sha": "f2c68fd14699b54e4ba3230fc28b94783401987c",
+      "branches": {
+        "main": "f2c68fd14699b54e4ba3230fc28b94783401987c"
+      }
+    },
+    "pepopo978/rabuffs": {
+      "default_branch": "master",
+      "sha": "95eed1f4823f34ff7a85fa4bccaf688fb2385045",
+      "branches": {
+        "master": "95eed1f4823f34ff7a85fa4bccaf688fb2385045"
+      }
+    },
+    "sica42/raidcalendar": {
+      "default_branch": "main",
+      "sha": "0e822dce563bd05886759e9d20cd53592305f5c1",
+      "branches": {
+        "main": "0e822dce563bd05886759e9d20cd53592305f5c1"
+      },
+      "latest_tag": "v0.1"
+    },
+    "jlabranche/raidmemberexport": {
+      "default_branch": "main",
+      "sha": "3dd211673a47e0e03102f4461318d7477abaab40",
+      "branches": {
+        "main": "3dd211673a47e0e03102f4461318d7477abaab40"
+      }
+    },
+    "tylkaw/raidorganizer": {
+      "default_branch": "master",
+      "sha": "747b977e6830ea2b7d152f4d2f0e04599e2c4e36",
+      "branches": {
+        "master": "747b977e6830ea2b7d152f4d2f0e04599e2c4e36"
+      },
+      "latest_tag": "v0.9.910"
+    },
+    "goose404/raidrollbuddy": {
+      "default_branch": "main",
+      "sha": "4d1c7a6ee4be2bcc00dc57eaeefa60ba60c03cd1",
+      "branches": {
+        "main": "4d1c7a6ee4be2bcc00dc57eaeefa60ba60c03cd1"
+      }
+    },
+    "einbaum/raidrollhelper": {
+      "default_branch": "master",
+      "sha": "e1caf2c3bfd343f96f8ea3bc114c162a7545fa0a",
+      "branches": {
+        "master": "e1caf2c3bfd343f96f8ea3bc114c162a7545fa0a"
+      },
+      "latest_tag": "1.0"
+    },
+    "linae-kronos/raidsummon": {
+      "default_branch": "master",
+      "sha": "cd982bfbef2bc88ca5ad5aa654cf3ca86b85c33e",
+      "branches": {
+        "master": "cd982bfbef2bc88ca5ad5aa654cf3ca86b85c33e"
+      },
+      "latest_tag": "latest"
+    },
+    "akzkak/raidsummonplus": {
+      "default_branch": "master",
+      "sha": "dae4221d953f9f7a46d764d05d43a729be594bc5",
+      "branches": {
+        "master": "dae4221d953f9f7a46d764d05d43a729be594bc5"
+      }
+    },
+    "atreyyo/rat": {
+      "default_branch": "master",
+      "sha": "0c3add0173307a955f245f2aec52832b21862a22",
+      "branches": {
+        "master": "0c3add0173307a955f245f2aec52832b21862a22"
+      }
+    },
+    "coryo/rdx": {
+      "default_branch": "master",
+      "sha": "d413628bbca92b0da93a7872523e5a30bc5aaee5",
+      "branches": {
+        "master": "d413628bbca92b0da93a7872523e5a30bc5aaee5"
+      }
+    },
+    "zerf/renewspam": {
+      "default_branch": "master",
+      "sha": "f819bb16eb9d4bad5f4669949de8b71059b2c1ae",
+      "branches": {
+        "master": "f819bb16eb9d4bad5f4669949de8b71059b2c1ae"
+      }
+    },
+    "retherz/retherztargettracker": {
+      "default_branch": "master",
+      "sha": "4f9d4c7851e5bb92d51c7201a3c2d97b6f1fee7a",
+      "branches": {
+        "master": "4f9d4c7851e5bb92d51c7201a3c2d97b6f1fee7a"
+      }
+    },
+    "obszczymucha/roll-for-vanilla": {
+      "default_branch": "master",
+      "sha": "dcfa7b601950564051208335e00cbe590ddc12de",
+      "branches": {
+        "master": "dcfa7b601950564051208335e00cbe590ddc12de"
+      },
+      "latest_tag": "v4.6.5"
+    },
+    "zensociety/roundrobinhood": {
+      "default_branch": "main",
+      "sha": "df93c2b0966e07b25e5daa3d671c7d9246a719c5",
+      "branches": {
+        "main": "df93c2b0966e07b25e5daa3d671c7d9246a719c5"
+      },
+      "latest_tag": "v0.02"
+    },
+    "shirsig/rwsync": {
+      "default_branch": "master",
+      "sha": "798e17d47b24b688e486b23a51d85d2395f609d3",
+      "branches": {
+        "master": "798e17d47b24b688e486b23a51d85d2395f609d3"
+      }
+    },
+    "yutsuku/seethungroups": {
+      "default_branch": "master",
+      "sha": "1dcbc2c4f5c85bd9058717d452965909c5e8493c",
+      "branches": {
+        "master": "1dcbc2c4f5c85bd9058717d452965909c5e8493c"
+      }
+    },
+    "shagu/shagubop": {
+      "default_branch": "master",
+      "sha": "0aa413780b8e2c3e3ed88b195b4fd2e284f158b9",
+      "branches": {
+        "master": "0aa413780b8e2c3e3ed88b195b4fd2e284f158b9"
+      }
+    },
+    "road-block/shootyepgp": {
+      "default_branch": "master",
+      "sha": "402d96b72234ff3a3adbb6e1d56dc6d32e96ffb8",
+      "branches": {
+        "master": "402d96b72234ff3a3adbb6e1d56dc6d32e96ffb8"
+      },
+      "latest_tag": "3.60"
+    },
+    "road-block/simpleraidtargeticons": {
+      "default_branch": "master",
+      "sha": "d3fc111d31165da561be9b71e42e90aa01d8322b",
+      "branches": {
+        "master": "d3fc111d31165da561be9b71e42e90aa01d8322b"
+      },
+      "latest_tag": "2.11"
+    },
+    "azzc0/smartbuff": {
+      "default_branch": "main",
+      "sha": "f5c828b55cf96206fd1d195e86b651103391114c",
+      "branches": {
+        "main": "f5c828b55cf96206fd1d195e86b651103391114c"
+      }
+    },
+    "necroskillz/smartloot": {
+      "default_branch": "master",
+      "sha": "4e06b1800eeb6298d05c9acae07a6ac160185d36",
+      "branches": {
+        "master": "4e06b1800eeb6298d05c9acae07a6ac160185d36"
+      },
+      "latest_tag": "v1.1"
+    },
+    "jejkas/smartroll": {
+      "default_branch": "master",
+      "sha": "fd2ca53c752e198070e032c86ab8f43d8e03ed16",
+      "branches": {
+        "master": "fd2ca53c752e198070e032c86ab8f43d8e03ed16"
+      }
+    },
+    "sentilix/sota": {
+      "default_branch": "master",
+      "sha": "bb7f8d172cc5c9885d2c40c4701e6df78fcf05ab",
+      "branches": {
+        "master": "bb7f8d172cc5c9885d2c40c4701e6df78fcf05ab"
+      },
+      "latest_tag": "sota-1.2.0"
+    },
+    "fsuhas/soundboard": {
+      "default_branch": "main",
+      "sha": "643be948143f8cdc513bc73c8aba1fb3513c6782",
+      "branches": {
+        "main": "643be948143f8cdc513bc73c8aba1fb3513c6782"
+      }
+    },
+    "satan666/sraidframes_improved": {
+      "default_branch": "master",
+      "sha": "4642e662aeb628b1df510666407ace422def6a16",
+      "branches": {
+        "master": "4642e662aeb628b1df510666407ace422def6a16"
+      }
+    },
+    "grimfiendish/statcompare": {
+      "default_branch": "master",
+      "sha": "4b325f1b2d599c171e409f712c84b275294eb9a8",
+      "branches": {
+        "master": "4b325f1b2d599c171e409f712c84b275294eb9a8"
+      }
+    },
+    "grymskvll/swapraidsubgroupbyname": {
+      "default_branch": "master",
+      "sha": "2b2e73ec3abd00478bf64b4dd208f2b54cd17dce",
+      "branches": {
+        "master": "2b2e73ec3abd00478bf64b4dd208f2b54cd17dce"
+      }
+    },
+    "player-doite/tactica": {
+      "default_branch": "main",
+      "sha": "f85e7fb0ded1a9178f207d3940c153e6e06f5e48",
+      "branches": {
+        "main": "f85e7fb0ded1a9178f207d3940c153e6e06f5e48"
+      }
+    },
+    "atreyyo/tankassignments": {
+      "default_branch": "master",
+      "sha": "d465f021627ce56ca857cb825a8d0cd664493e20",
+      "branches": {
+        "master": "d465f021627ce56ca857cb825a8d0cd664493e20"
+      }
+    },
+    "srazdokunebil/tankbuddy": {
+      "default_branch": "main",
+      "sha": "a005cdabc24c2938ca4ad6fe77b1fb3d1be68863",
+      "branches": {
+        "main": "a005cdabc24c2938ca4ad6fe77b1fb3d1be68863"
+      }
+    },
+    "laytya/tankbuddyenh": {
+      "default_branch": "master",
+      "sha": "41823497534e08be7055ff9fe14ac9e280b492a1",
+      "branches": {
+        "master": "41823497534e08be7055ff9fe14ac9e280b492a1"
+      }
+    },
+    "0ldi/targetassist": {
+      "default_branch": "master",
+      "sha": "8167f541f1ba2d2cf8bc28711dad7973042124f7",
+      "branches": {
+        "master": "8167f541f1ba2d2cf8bc28711dad7973042124f7"
+      }
+    },
+    "oozgul/tframes": {
+      "default_branch": "main",
+      "sha": "1fde9bce6df33f19c8209a778e4767b05a761ce8",
+      "branches": {
+        "main": "1fde9bce6df33f19c8209a778e4767b05a761ce8"
+      }
+    },
+    "sentilix/thaliz": {
+      "default_branch": "master",
+      "sha": "501cdab796a711bb4c0a7e22e8fdd360b4d095fe",
+      "branches": {
+        "master": "501cdab796a711bb4c0a7e22e8fdd360b4d095fe"
+      },
+      "latest_tag": "thaliz-1.5.0"
+    },
+    "muellerj/threat": {
+      "default_branch": "master",
+      "sha": "9fa3b290ff864eca3e12bedd4cf0ea1f4546a57e",
+      "branches": {
+        "master": "9fa3b290ff864eca3e12bedd4cf0ea1f4546a57e"
+      }
+    },
+    "zensociety/threatlogger": {
+      "default_branch": "main",
+      "sha": "e0e7f651a4a2b6e07ccd5bfd2d592f62bc33f1bf",
+      "branches": {
+        "main": "e0e7f651a4a2b6e07ccd5bfd2d592f62bc33f1bf"
+      }
+    },
+    "sica42/turtlecalendar": {
+      "default_branch": "main",
+      "sha": "aad7b6a628992ea7d96e59982215e0bcd6901135",
+      "branches": {
+        "main": "aad7b6a628992ea7d96e59982215e0bcd6901135"
+      }
+    },
+    "cosminpop/twlc2c": {
+      "default_branch": "master",
+      "sha": "ced533890980f8e7170c191c27d3aca2363905f0",
+      "branches": {
+        "master": "ced533890980f8e7170c191c27d3aca2363905f0"
+      },
+      "latest_tag": "v1.1.1-beta.1"
+    },
+    "marcelinevq/twthreat": {
+      "default_branch": "master",
+      "sha": "e1af6d03776233569a9d6dc75c3045e13f71e78f",
+      "branches": {
+        "master": "e1af6d03776233569a9d6dc75c3045e13f71e78f"
+      }
+    },
+    "unknauwn/xckmasterlootadvanced": {
+      "default_branch": "Classic",
+      "sha": "1c4234df9cb13d5f6b16aab6bccae46ad0c7fb13",
+      "branches": {
+        "Classic": "1c4234df9cb13d5f6b16aab6bccae46ad0c7fb13"
+      },
+      "latest_tag": "3.7_classic"
+    },
+    "ko0z/xloot": {
+      "default_branch": "master",
+      "sha": "e693b39dcae6254072ec6b663622f36b4e9a783f",
+      "branches": {
+        "master": "e693b39dcae6254072ec6b663622f36b4e9a783f"
+      }
+    },
+    "road-block/xloot_addons": {
+      "default_branch": "master",
+      "sha": "4b7eab944828b061862f1fefb9b95f2f94f836c0",
+      "branches": {
+        "master": "4b7eab944828b061862f1fefb9b95f2f94f836c0"
+      },
+      "latest_tag": "0.93"
+    },
+    "unknauwn/xtraunitframe": {
+      "default_branch": "master",
+      "sha": "46121e25c1c72ea012de28658a29fe83a443a862",
+      "branches": {
+        "master": "46121e25c1c72ea012de28658a29fe83a443a862"
+      },
+      "latest_tag": "4.0"
+    },
+    "lichery/zgloot": {
+      "default_branch": "master",
+      "sha": "ded78b18d4a28f7cd157b763d25116aea698d5be",
+      "branches": {
+        "master": "ded78b18d4a28f7cd157b763d25116aea698d5be"
+      }
+    },
+    "rsheep/zgtracker": {
+      "default_branch": "master",
+      "sha": "b6dee9ff1d670adbd95643b7eff3fea1e5d18bae",
+      "branches": {
+        "master": "b6dee9ff1d670adbd95643b7eff3fea1e5d18bae"
+      },
+      "latest_tag": "v0.095"
+    },
+    "abstr4ctz/enhancer": {
+      "default_branch": "master",
+      "sha": "79a78ada52810a9cf6cb80ae127aeff0a0d45a4e",
+      "branches": {
+        "master": "79a78ada52810a9cf6cb80ae127aeff0a0d45a4e"
+      }
+    },
+    "xalzul/dwarvenizer-1.12": {
+      "default_branch": "master",
+      "sha": "2b28d2a62a61f3d4a5251ef34a541a868d25acb0",
+      "branches": {
+        "master": "2b28d2a62a61f3d4a5251ef34a541a868d25acb0"
+      }
+    },
+    "erea-turtle-addons/erea-rp-addons": {
+      "default_branch": "main",
+      "sha": "36a58f2899b16163b487343c3c39725d350ceb6e",
+      "branches": {
+        "main": "36a58f2899b16163b487343c3c39725d350ceb6e"
+      },
+      "latest_tag": "1.0.9"
+    },
+    "gitstrom/turtle-journal": {
+      "default_branch": "main",
+      "sha": "18200cfd061d7b180cae7cc92fd7783379c9d9a2",
+      "branches": {
+        "main": "18200cfd061d7b180cae7cc92fd7783379c9d9a2"
+      }
+    },
+    "xalzul/roleplayinghelper-1.12": {
+      "default_branch": "master",
+      "sha": "8962fbdfc55fc02bdda4614dd899c2d658e174c5",
+      "branches": {
+        "master": "8962fbdfc55fc02bdda4614dd899c2d658e174c5"
+      }
+    },
+    "vaaslite/turtleroleplayinghelper": {
+      "default_branch": "main",
+      "sha": "07ae5a6de1a0426c2efb085cd45044f910e4067f",
+      "branches": {
+        "main": "07ae5a6de1a0426c2efb085cd45044f910e4067f"
+      }
+    },
+    "oldmanalpha/turtlerp": {
+      "default_branch": "main",
+      "sha": "f82cf3ba85dc5a76a342bf1dcc2ac2feb44232d9",
+      "branches": {
+        "main": "f82cf3ba85dc5a76a342bf1dcc2ac2feb44232d9"
+      },
+      "latest_tag": "1.1.1-Optimized"
+    },
+    "zebouski/adf": {
+      "default_branch": "master",
+      "sha": "f1da671b1c05ef4f94d0ef4d9cf4988006629044",
+      "branches": {
+        "master": "f1da671b1c05ef4f94d0ef4d9cf4988006629044"
+      }
+    },
+    "davidbecht/autolock": {
+      "default_branch": "main",
+      "sha": "4b1f63a28c3e1e335fcc046efc3682fa8adf3cff",
+      "branches": {
+        "main": "4b1f63a28c3e1e335fcc046efc3682fa8adf3cff"
+      }
+    },
+    "marcelinevq/automarker": {
+      "default_branch": "master",
+      "sha": "cd66b7ae08da2a6258f53778a73689aca4ec027b",
+      "branches": {
+        "master": "cd66b7ae08da2a6258f53778a73689aca4ec027b"
+      }
+    },
+    "pepopo978/cursive": {
+      "default_branch": "master",
+      "sha": "e8d46dff3de8ae14fca72c68766862e32892c6c1",
+      "branches": {
+        "master": "e8d46dff3de8ae14fca72c68766862e32892c6c1"
+      }
+    },
+    "kirchlive/cursive-raid": {
+      "default_branch": "master",
+      "sha": "3abd16a5a6c3984be2affeac44c7366dd19e2bce",
+      "branches": {
+        "master": "3abd16a5a6c3984be2affeac44c7366dd19e2bce"
+      },
+      "latest_tag": "v4.0"
+    },
+    "marcelinevq/decursive": {
+      "default_branch": "master",
+      "sha": "44ea26bdcb2e9feded63a42809ce97c6b8cdcd2a",
+      "branches": {
+        "master": "44ea26bdcb2e9feded63a42809ce97c6b8cdcd2a"
+      }
+    },
+    "gashole/druidmanabar": {
+      "default_branch": "master",
+      "sha": "cf9514e4b22438223791073108b5610b1528e462",
+      "branches": {
+        "master": "cf9514e4b22438223791073108b5610b1528e462"
+      },
+      "latest_tag": "current"
+    },
+    "oldmanalpha/fasttot": {
+      "default_branch": "main",
+      "sha": "a001f678d24ac14146c8ee20f73dd54a1fcdfde9",
+      "branches": {
+        "main": "a001f678d24ac14146c8ee20f73dd54a1fcdfde9"
+      },
+      "latest_tag": "v1.0"
+    },
+    "refaim/friend-o-tron": {
+      "default_branch": "master",
+      "sha": "70b9e118d59bb25224b3b386e2e03c7665d07089",
+      "branches": {
+        "master": "70b9e118d59bb25224b3b386e2e03c7665d07089"
+      }
+    },
+    "mrdoufuru/gcdisplay": {
+      "default_branch": "master",
+      "sha": "3f1b6e973508d1a960f16903074e591e834a741d",
+      "branches": {
+        "master": "3f1b6e973508d1a960f16903074e591e834a741d"
+      }
+    },
+    "profiler781/iwinenhanced": {
+      "default_branch": "main",
+      "sha": "e5908a2ea43c6a4bcc0ab7cb1759b95aeca2839d",
+      "branches": {
+        "main": "e5908a2ea43c6a4bcc0ab7cb1759b95aeca2839d"
+      }
+    },
+    "ageous27/jankyplates": {
+      "default_branch": "main",
+      "sha": "c40a9dd6f35eae609071e0d4a5a0fc81a12d706c",
+      "branches": {
+        "main": "c40a9dd6f35eae609071e0d4a5a0fc81a12d706c"
+      }
+    },
+    "carravan/lateral": {
+      "default_branch": "main",
+      "sha": "2f36500c9c3c5804cd790f37785b343f424818a1",
+      "branches": {
+        "main": "2f36500c9c3c5804cd790f37785b343f424818a1"
+      }
+    },
+    "pepopo978/magehud": {
+      "default_branch": "main",
+      "sha": "45aaf4fb03eb9909b31e9ea80f41f7d2cb000e28",
+      "branches": {
+        "main": "45aaf4fb03eb9909b31e9ea80f41f7d2cb000e28"
+      }
+    },
+    "trangoul/monkeyspeed": {
+      "default_branch": "main",
+      "sha": "0f87c5d4e1916d0d055146106f58fe457867be1b",
+      "branches": {
+        "main": "0f87c5d4e1916d0d055146106f58fe457867be1b"
+      }
+    },
+    "shellyoung/ocb-superwow": {
+      "default_branch": "main",
+      "sha": "4a0d93c5be8dce813dfccf6c167344441f2fabe9",
+      "branches": {
+        "main": "4a0d93c5be8dce813dfccf6c167344441f2fabe9"
+      },
+      "latest_tag": "3.8.3"
+    },
+    "otari98/overhead": {
+      "default_branch": "master",
+      "sha": "52ad238305ac3f8b5615b453ff4b2954c97029d8",
+      "branches": {
+        "master": "52ad238305ac3f8b5615b453ff4b2954c97029d8"
+      }
+    },
+    "bombg/pfui-bettertotems": {
+      "default_branch": "main",
+      "sha": "4bcb23338570476c97db89590a70d102b0438b09",
+      "branches": {
+        "main": "4bcb23338570476c97db89590a70d102b0438b09"
+      }
+    },
+    "oldmanalpha/puppeteer": {
+      "default_branch": "main",
+      "sha": "7fa9db6cc1032852733c0dbf77693c881719dbfd",
+      "branches": {
+        "main": "7fa9db6cc1032852733c0dbf77693c881719dbfd"
+      },
+      "latest_tag": "v1.1.3"
+    },
+    "taeko-ar/quickturtledblookup": {
+      "default_branch": "master",
+      "sha": "3b5923f304cc31a2c20a1105780e2af4fd68dd68",
+      "branches": {
+        "master": "3b5923f304cc31a2c20a1105780e2af4fd68dd68"
+      }
+    },
+    "otari98/rinse": {
+      "default_branch": "master",
+      "sha": "7fc044b901ecffd2724abe21b6502a8e419d6dc2",
+      "branches": {
+        "master": "7fc044b901ecffd2724abe21b6502a8e419d6dc2"
+      }
+    },
+    "shagu/shagudps": {
+      "default_branch": "master",
+      "sha": "79c25e60f9ab3f314d69bec3d3edcbf965b7c312",
+      "branches": {
+        "master": "79c25e60f9ab3f314d69bec3d3edcbf965b7c312"
+      }
+    },
+    "shagu/shaguplates": {
+      "default_branch": "master",
+      "sha": "9b2ebdf486864fea61a0bb8a5506cc88983ce37b",
+      "branches": {
+        "master": "9b2ebdf486864fea61a0bb8a5506cc88983ce37b"
+      }
+    },
+    "shagu/shaguscan": {
+      "default_branch": "master",
+      "sha": "93de72eef2527cae356d28274afed8f819dc45c1",
+      "branches": {
+        "master": "93de72eef2527cae356d28274afed8f819dc45c1"
+      }
+    },
+    "shagu/shagutweaks": {
+      "default_branch": "master",
+      "sha": "7d670218a9b1e0a6a9a9062c0f458508398f2e48",
+      "branches": {
+        "master": "7d670218a9b1e0a6a9a9062c0f458508398f2e48"
+      }
+    },
+    "pepopo978/simpleactionsets": {
+      "default_branch": "master",
+      "sha": "e2486ad2169333c1e69f18815224fb7962269ca0",
+      "branches": {
+        "master": "e2486ad2169333c1e69f18815224fb7962269ca0"
+      }
+    },
+    "refaim/soloraidtargeticons": {
+      "default_branch": "master",
+      "sha": "6bfda6cb0a7ba487eb674c15fc67fd6cec599297",
+      "branches": {
+        "master": "6bfda6cb0a7ba487eb674c15fc67fd6cec599297"
+      }
+    },
+    "sorgis-sorgis/sorgis_raid_marks": {
+      "default_branch": "master",
+      "sha": "eb3433adb40ffc20b019d36327973767f42e5de6",
+      "branches": {
+        "master": "eb3433adb40ffc20b019d36327973767f42e5de6"
+      },
+      "latest_tag": "1.2.0"
+    },
+    "marcelinevq/sp_swingtimer": {
+      "default_branch": "master",
+      "sha": "3dc83fce3b59ec473f1637c86ffb13f6facf2fbe",
+      "branches": {
+        "master": "3dc83fce3b59ec473f1637c86ffb13f6facf2fbe"
+      }
+    },
+    "balakethelock/sp_swingtimer": {
+      "default_branch": "master",
+      "sha": "ee0f7d49b0569b7bd4bc7675ae575bc7fdca6b8d",
+      "branches": {
+        "master": "ee0f7d49b0569b7bd4bc7675ae575bc7fdca6b8d"
+      },
+      "latest_tag": "4.2.0"
+    },
+    "marcelinevq/spiritlinker": {
+      "default_branch": "master",
+      "sha": "750d6d168dc601361c3a5a70956114a0dd095834",
+      "branches": {
+        "master": "750d6d168dc601361c3a5a70956114a0dd095834"
+      }
+    },
+    "perks/sundernp": {
+      "default_branch": "main",
+      "sha": "606d69cdf80ee3d139256585773da6d7f078fbfd",
+      "branches": {
+        "main": "606d69cdf80ee3d139256585773da6d7f078fbfd"
+      }
+    },
+    "balakethelock/superapi": {
+      "default_branch": "master",
+      "sha": "901322dc88890a2ea10610b8228fb43c9c2a3610",
+      "branches": {
+        "master": "901322dc88890a2ea10610b8228fb43c9c2a3610"
+      }
+    },
+    "balakethelock/superapi_castlib": {
+      "default_branch": "master",
+      "sha": "4a354bf11fe9c150328301b3db4fcc4de9379170",
+      "branches": {
+        "master": "4a354bf11fe9c150328301b3db4fcc4de9379170"
+      }
+    },
+    "jrc13245/supercleveroidmacros": {
+      "default_branch": "main",
+      "sha": "3a196c484f84dc7b4fbce1b327f117890d24d96d",
+      "branches": {
+        "main": "3a196c484f84dc7b4fbce1b327f117890d24d96d"
+      }
+    },
+    "arimbaud-x/lazyscript": {
+      "default_branch": "superlazyscript",
+      "sha": "2f84c274793f4fcd62831b4a5b2a8ca1e4a6508e",
+      "branches": {
+        "superlazyscript": "2f84c274793f4fcd62831b4a5b2a8ca1e4a6508e"
+      }
+    },
+    "elboaf/supertotem": {
+      "default_branch": "main",
+      "sha": "936405bfe7931e7368f39e3e14e3c9cb807127ce",
+      "branches": {
+        "main": "936405bfe7931e7368f39e3e14e3c9cb807127ce"
+      }
+    },
+    "pepopo978/superwowcombatlogger": {
+      "default_branch": "master",
+      "sha": "c67e198a8a0921747ed4d487d25aa25eb4317779",
+      "branches": {
+        "master": "c67e198a8a0921747ed4d487d25aa25eb4317779"
+      }
+    },
+    "marcelinevq/tankalyze": {
+      "default_branch": "master",
+      "sha": "99cc74be8dd4e1292f57d45365657bc7849398f4",
+      "branches": {
+        "master": "99cc74be8dd4e1292f57d45365657bc7849398f4"
+      }
+    },
+    "marcelinevq/tankplates": {
+      "default_branch": "master",
+      "sha": "8f5c98fed26d3a90e0653db96a64fa9852fc055c",
+      "branches": {
+        "master": "8f5c98fed26d3a90e0653db96a64fa9852fc055c"
+      }
+    },
+    "marcelinevq/tattler": {
+      "default_branch": "master",
+      "sha": "61ec222b47ce8268510aac8e49e9808c8cd20229",
+      "branches": {
+        "master": "61ec222b47ce8268510aac8e49e9808c8cd20229"
+      }
+    },
+    "marcelinevq/tracktarget": {
+      "default_branch": "master",
+      "sha": "f5b28a96cfef537f52c34f73212053646e699208",
+      "branches": {
+        "master": "f5b28a96cfef537f52c34f73212053646e699208"
+      }
+    },
+    "marcelinevq/twister": {
+      "default_branch": "master",
+      "sha": "924829c3f4bfd9b405c3b316082d49f8ea6c673a",
+      "branches": {
+        "master": "924829c3f4bfd9b405c3b316082d49f8ea6c673a"
+      }
+    },
+    "lanrutcon/abreathbeneath": {
+      "default_branch": "master",
+      "sha": "43efe7e36b4272c76e4b2f0b91e24c60e582d8f5",
+      "branches": {
+        "master": "43efe7e36b4272c76e4b2f0b91e24c60e582d8f5"
+      },
+      "latest_tag": "v1.0"
+    },
+    "siventt/actionbarprofiles": {
+      "default_branch": "master",
+      "sha": "b62477f279799808cdfa7398967c43437cff762d",
+      "branches": {
+        "master": "b62477f279799808cdfa7398967c43437cff762d"
+      }
+    },
+    "satan666/ag_unitframes_improved": {
+      "default_branch": "master",
+      "sha": "322a31397bd9cc56d0542629c7c42a01ac085915",
+      "branches": {
+        "master": "322a31397bd9cc56d0542629c7c42a01ac085915"
+      }
+    },
+    "melbaa/apd": {
+      "default_branch": "master",
+      "sha": "0ea3c1b2a1e55b8e1bee9bd21593bcdd5becad84",
+      "branches": {
+        "master": "0ea3c1b2a1e55b8e1bee9bd21593bcdd5becad84"
+      }
+    },
+    "mcpewpew/archud2": {
+      "default_branch": "master",
+      "sha": "06abb11870bce892fd34816e5e54dd1f0e64409c",
+      "branches": {
+        "master": "06abb11870bce892fd34816e5e54dd1f0e64409c"
+      }
+    },
+    "caestielle/beardleysdiabloorbsvanilla": {
+      "default_branch": "master",
+      "sha": "b66186fe9f5de999034bd78f307e50cb8a6a3152",
+      "branches": {
+        "master": "b66186fe9f5de999034bd78f307e50cb8a6a3152"
+      }
+    },
+    "brotalnia/blizzplates": {
+      "default_branch": "master",
+      "sha": "8aa50c0fe0d50aabeab39472abebb3f5f241672b",
+      "branches": {
+        "master": "8aa50c0fe0d50aabeab39472abebb3f5f241672b"
+      }
+    },
+    "jacamo555/bongos": {
+      "default_branch": "main",
+      "sha": "00873e5dca5468f89c384e7d6d471fa0b74f6e73",
+      "branches": {
+        "main": "00873e5dca5468f89c384e7d6d471fa0b74f6e73"
+      }
+    },
+    "phrxqt/combatplates": {
+      "default_branch": "main",
+      "sha": "79343791e4871feb3222d66b592292eede7260a8",
+      "branches": {
+        "main": "79343791e4871feb3222d66b592292eede7260a8"
+      },
+      "latest_tag": "v1.0"
+    },
+    "laytya/customnameplates": {
+      "default_branch": "master",
+      "sha": "5088926b4900cedcf90b34853b974112352b395f",
+      "branches": {
+        "master": "5088926b4900cedcf90b34853b974112352b395f"
+      },
+      "latest_tag": "1.70"
+    },
+    "retrospectx/cycircled": {
+      "default_branch": "master",
+      "sha": "67b8954972240dee686feb118de15fb42ac7e783",
+      "branches": {
+        "master": "67b8954972240dee686feb118de15fb42ac7e783"
+      }
+    },
+    "ennea/eui": {
+      "default_branch": "master",
+      "sha": "294d94545de5553422b3be45ca1fbb25d2f65cb0",
+      "branches": {
+        "master": "294d94545de5553422b3be45ca1fbb25d2f65cb0"
+      },
+      "latest_tag": "v1.0"
+    },
+    "cdnievas/fastbinding": {
+      "default_branch": "main",
+      "sha": "ee17faa82f4aa2faa1fade7d4219d23eee3520f3",
+      "branches": {
+        "main": "ee17faa82f4aa2faa1fade7d4219d23eee3520f3"
+      },
+      "latest_tag": "v1.1.1"
+    },
+    "niclaseriksen/feid": {
+      "default_branch": "main",
+      "sha": "70bf73a175b3f4f4d837b563fc4fcbdb6419bf4c",
+      "branches": {
+        "main": "70bf73a175b3f4f4d837b563fc4fcbdb6419bf4c"
+      }
+    },
+    "moiian/ffxivcrosshotbar": {
+      "default_branch": "main",
+      "sha": "7408d6b40d78bb28850cfe291d02836bfa95d14e",
+      "branches": {
+        "main": "7408d6b40d78bb28850cfe291d02836bfa95d14e"
+      },
+      "latest_tag": "FFXIVCrossHotbar_ver1.3"
+    },
+    "neimad-mp/framefade": {
+      "default_branch": "main",
+      "sha": "70e00676afb21fcb2be677bbb1bf1af8cf57cb24",
+      "branches": {
+        "main": "70e00676afb21fcb2be677bbb1bf1af8cf57cb24"
+      }
+    },
+    "spuxx1701/fulluitoggle": {
+      "default_branch": "master",
+      "sha": "944192f198880d7d8b3786652f58ff16e697d71e",
+      "branches": {
+        "master": "944192f198880d7d8b3786652f58ff16e697d71e"
+      }
+    },
+    "grenderg/gmr": {
+      "default_branch": "master",
+      "sha": "e7ffd2498de4b96e8f11593ebb75d738580f2dfb",
+      "branches": {
+        "master": "e7ffd2498de4b96e8f11593ebb75d738580f2dfb"
+      }
+    },
+    "fsuhas/goblin-brain-saver": {
+      "default_branch": "main",
+      "sha": "2a5948a1f3b034e9cff785ab4e2bea50be8c7920",
+      "branches": {
+        "main": "2a5948a1f3b034e9cff785ab4e2bea50be8c7920"
+      }
+    },
+    "flyinbed/gryllsswingtimer": {
+      "default_branch": "main",
+      "sha": "96abc780c73662726c797b72dd813c4dbd5ef48b",
+      "branches": {
+        "main": "96abc780c73662726c797b72dd813c4dbd5ef48b"
+      }
+    },
+    "vatichild/guda-plates": {
+      "default_branch": "main",
+      "sha": "e5204a4e8035257bbdb66234eab0494231443d5c",
+      "branches": {
+        "main": "e5204a4e8035257bbdb66234eab0494231443d5c"
+      },
+      "latest_tag": "1.3.5"
+    },
+    "yutsuku/hawkenplates": {
+      "default_branch": "master",
+      "sha": "91a53b63ad2139f3903f07a5170172766e8a1ce1",
+      "branches": {
+        "master": "91a53b63ad2139f3903f07a5170172766e8a1ce1"
+      }
+    },
+    "hitbutton/hbactionbars": {
+      "default_branch": "master",
+      "sha": "dc39f5a16a173d58f65a0e6c71ec8f526b667714",
+      "branches": {
+        "master": "dc39f5a16a173d58f65a0e6c71ec8f526b667714"
+      }
+    },
+    "sulpitz/hcspy": {
+      "default_branch": "master",
+      "sha": "840c80c2f6309aae1e8ba410ca4ec1351ab343f1",
+      "branches": {
+        "master": "840c80c2f6309aae1e8ba410ca4ec1351ab343f1"
+      }
+    },
+    "i2ichardt/healersmate": {
+      "default_branch": "main",
+      "sha": "8d4801947edaf07fa8f8dd0145f046c45cb5493b",
+      "branches": {
+        "main": "8d4801947edaf07fa8f8dd0145f046c45cb5493b"
+      },
+      "latest_tag": "v1.3.0"
+    },
+    "hosq/hidenameplates": {
+      "default_branch": "master",
+      "sha": "c95fde46d944690e5db263a6310cb47c5898bf5a",
+      "branches": {
+        "master": "c95fde46d944690e5db263a6310cb47c5898bf5a"
+      }
+    },
+    "jakiraelysium/hideui": {
+      "default_branch": "master",
+      "sha": "ef5f35ff875061d1a51a9081808b9fef870df6ae",
+      "branches": {
+        "master": "ef5f35ff875061d1a51a9081808b9fef870df6ae"
+      }
+    },
+    "stormhand81/immersion": {
+      "default_branch": "main",
+      "sha": "e87aa4b025da9b810866f64f769af1fb48e3ffe6",
+      "branches": {
+        "main": "e87aa4b025da9b810866f64f769af1fb48e3ffe6"
+      },
+      "latest_tag": "1.4"
+    },
+    "warlockbugs/impulse-booster": {
+      "default_branch": "master",
+      "sha": "79eb07d55179526a842d300300ffa20b40390e3a",
+      "branches": {
+        "master": "79eb07d55179526a842d300300ffa20b40390e3a"
+      },
+      "latest_tag": "v3.1-final"
+    },
+    "pushxd/jim_toolbox": {
+      "default_branch": "master",
+      "sha": "e37354207820a739a878892aa2d6cb0f3f897822",
+      "branches": {
+        "master": "e37354207820a739a878892aa2d6cb0f3f897822"
+      }
+    },
+    "road-block/killlog": {
+      "default_branch": "master",
+      "sha": "4e7b4b36433a5b1d20c5336d1ef57965dbc183a1",
+      "branches": {
+        "master": "4e7b4b36433a5b1d20c5336d1ef57965dbc183a1"
+      },
+      "latest_tag": "2.6.3-11200"
+    },
+    "mcggithub/mcgui": {
+      "default_branch": "master",
+      "sha": "bdcdfd6b16f7ec69abcb999b7455cc36785c0485",
+      "branches": {
+        "master": "bdcdfd6b16f7ec69abcb999b7455cc36785c0485"
+      }
+    },
+    "zirtox1992/modui": {
+      "default_branch": "main",
+      "sha": "380bca707ebb05f06f580924ea281a36b553dfd2",
+      "branches": {
+        "main": "380bca707ebb05f06f580924ea281a36b553dfd2"
+      }
+    },
+    "gashole/modui-focusframe": {
+      "default_branch": "master",
+      "sha": "34f6c3af74117461c9f25e0c3f0f3d05cfee6582",
+      "branches": {
+        "master": "34f6c3af74117461c9f25e0c3f0f3d05cfee6582"
+      },
+      "latest_tag": "current"
+    },
+    "gashole/modui-tallhealthbar": {
+      "default_branch": "master",
+      "sha": "8b6d6ce12345299da2676ddb81ab73ba0eb741bc",
+      "branches": {
+        "master": "8b6d6ce12345299da2676ddb81ab73ba0eb741bc"
+      },
+      "latest_tag": "current"
+    },
+    "dogmax/moduicombattextstandalone": {
+      "default_branch": "main",
+      "sha": "0a92ff158429c04d55404e3350225618c9f56dee",
+      "branches": {
+        "main": "0a92ff158429c04d55404e3350225618c9f56dee"
+      }
+    },
+    "shirsig/mouseover": {
+      "default_branch": "master",
+      "sha": "f93b536ad1036f4dced21aa7c1b600e52b58f7ff",
+      "branches": {
+        "master": "f93b536ad1036f4dced21aa7c1b600e52b58f7ff"
+      }
+    },
+    "laytya/niagara": {
+      "default_branch": "master",
+      "sha": "9c09951be42a8a7152a2c67eebc42077618eb39d",
+      "branches": {
+        "master": "9c09951be42a8a7152a2c67eebc42077618eb39d"
+      },
+      "latest_tag": "v1.1"
+    },
+    "wbb1977/perfectshot": {
+      "default_branch": "master",
+      "sha": "36e21f5ffb007f258b70b6874802a2f73576bd6c",
+      "branches": {
+        "master": "36e21f5ffb007f258b70b6874802a2f73576bd6c"
+      },
+      "latest_tag": "v10"
+    },
+    "refaim/petxpbar": {
+      "default_branch": "master",
+      "sha": "2a28c86848d4a6f8e6dd60d78d60d884e82c7493",
+      "branches": {
+        "master": "2a28c86848d4a6f8e6dd60d78d60d884e82c7493"
+      }
+    },
+    "jrc13245/pfui-addonskinner": {
+      "default_branch": "main",
+      "sha": "f9873f69b656c9cb717febbb536beee51b7f910f",
+      "branches": {
+        "main": "f9873f69b656c9cb717febbb536beee51b7f910f"
+      }
+    },
+    "bahamutxd/pfui-autoinvite": {
+      "default_branch": "main",
+      "sha": "e67988f1f28478c2df1163e3b8a2a1b50656ad0a",
+      "branches": {
+        "main": "e67988f1f28478c2df1163e3b8a2a1b50656ad0a"
+      }
+    },
+    "mr-rosh/pfui-custommedia": {
+      "default_branch": "main",
+      "sha": "701bee8b249fbe91050e6e3645bf810841704696",
+      "branches": {
+        "main": "701bee8b249fbe91050e6e3645bf810841704696"
+      }
+    },
+    "shagu/pfui-eliteoverlay": {
+      "default_branch": "master",
+      "sha": "aca68921e9b08139bf48e7762a46e737b9cf0ba0",
+      "branches": {
+        "master": "aca68921e9b08139bf48e7762a46e737b9cf0ba0"
+      }
+    },
+    "arthur-helias/pfui-locationplus": {
+      "default_branch": "master",
+      "sha": "3f861f343bee8616c8ad80691cd349395af6fcc9",
+      "branches": {
+        "master": "3f861f343bee8616c8ad80691cd349395af6fcc9"
+      }
+    },
+    "arthur-helias/pfui-moredatatexts": {
+      "default_branch": "master",
+      "sha": "565d6f3b5d9c37e9892f21dc88e1c9f0940f573b",
+      "branches": {
+        "master": "565d6f3b5d9c37e9892f21dc88e1c9f0940f573b"
+      }
+    },
+    "wanliqiaoxi/pfui-rainbowhealthbar": {
+      "default_branch": "main",
+      "sha": "b119b56718c091d2d20d9e2fa1d8d2f0d88c32ad",
+      "branches": {
+        "main": "b119b56718c091d2d20d9e2fa1d8d2f0d88c32ad"
+      },
+      "latest_tag": "v1.1.1"
+    },
+    "denniswg/quickbind": {
+      "default_branch": "master",
+      "sha": "91e414ec9460db9a9ba4acb391a455b8ac814b3d",
+      "branches": {
+        "master": "91e414ec9460db9a9ba4acb391a455b8ac814b3d"
+      }
+    },
+    "redbu11dev/shaguplates-extra": {
+      "default_branch": "master",
+      "sha": "0567d1f849418ba1a3962abf02f484e676f6cc04",
+      "branches": {
+        "master": "0567d1f849418ba1a3962abf02f484e676f6cc04"
+      }
+    },
+    "beardedrasta/simplebars": {
+      "default_branch": "main",
+      "sha": "fc0bb212cb23a8c976d84a08dbe8a29cab55a856",
+      "branches": {
+        "main": "fc0bb212cb23a8c976d84a08dbe8a29cab55a856"
+      }
+    },
+    "krekog/skelacustomnameplates": {
+      "default_branch": "main",
+      "sha": "8ee5ace1b67d6f88cc070c79dc19990e46277ca1",
+      "branches": {
+        "main": "8ee5ace1b67d6f88cc070c79dc19990e46277ca1"
+      }
+    },
+    "dyaxler/spartanui_vanilla": {
+      "default_branch": "master",
+      "sha": "0e19353f1b689e83bb658e16b494ea16384454a7",
+      "branches": {
+        "master": "0e19353f1b689e83bb658e16b494ea16384454a7"
+      },
+      "latest_tag": "0.9.6.3"
+    },
+    "krekog/specialtalent": {
+      "default_branch": "main",
+      "sha": "12266488dc31939b1fa3845808f52a8cce1782ab",
+      "branches": {
+        "main": "12266488dc31939b1fa3845808f52a8cce1782ab"
+      }
+    },
+    "checkem/succ-ui": {
+      "default_branch": "master",
+      "sha": "11679eac1b16814e1ef3c41a0baffe872c7f698b",
+      "branches": {
+        "master": "11679eac1b16814e1ef3c41a0baffe872c7f698b"
+      },
+      "latest_tag": "0.2"
+    },
+    "vashin1/syncedui": {
+      "default_branch": "master",
+      "sha": "3793fb4c6ae341635eeab54df264fb5f3ed05b04",
+      "branches": {
+        "master": "3793fb4c6ae341635eeab54df264fb5f3ed05b04"
+      }
+    },
+    "phrxqt/targetsoundrestore": {
+      "default_branch": "main",
+      "sha": "7a3a32630fbc62e2c036192a250e0be29921f651",
+      "branches": {
+        "main": "7a3a32630fbc62e2c036192a250e0be29921f651"
+      },
+      "latest_tag": "v1.0"
+    },
+    "francisegan/turtlereagentdisplay": {
+      "default_branch": "main",
+      "sha": "caf7832432607e3e70527bce3cb9069b95924f63",
+      "branches": {
+        "main": "caf7832432607e3e70527bce3cb9069b95924f63"
+      }
+    },
+    "ko0z/unitframesimproved_vanilla": {
+      "default_branch": "master",
+      "sha": "bf6c9cc40b2039f107a2af7b6bc3db2e695661c1",
+      "branches": {
+        "master": "bf6c9cc40b2039f107a2af7b6bc3db2e695661c1"
+      },
+      "latest_tag": "v1.0-beta"
+    },
+    "lordglarthir/vanillastoryline-visual-novel": {
+      "default_branch": "main",
+      "sha": "a1f21276b172a71c1729d4e784ef9cb9d5c169c7",
+      "branches": {
+        "main": "a1f21276b172a71c1729d4e784ef9cb9d5c169c7"
+      }
+    },
+    "mr-rosh/warriorhud": {
+      "default_branch": "master",
+      "sha": "692722c7b68e0a3b5590b53f06866568e6c71051",
+      "branches": {
+        "master": "692722c7b68e0a3b5590b53f06866568e6c71051"
+      }
+    },
+    "ko0z/zui": {
+      "default_branch": "master",
+      "sha": "acec4c0c585ac6b2782ab2705e110d649155bace",
+      "branches": {
+        "master": "acec4c0c585ac6b2782ab2705e110d649155bace"
+      }
+    },
+    "torchlite-bit/aegis_sbr": {
+      "default_branch": "main",
+      "sha": "2a0a12c0e74f9d3f56387a4623e7a5736c759095",
+      "branches": {
+        "main": "2a0a12c0e74f9d3f56387a4623e7a5736c759095"
+      }
+    },
+    "torchlite-bit/aegis_courier": {
+      "default_branch": "main",
+      "sha": "42010149d2623fda2380d09fb360df43d98ef778",
+      "branches": {
+        "main": "42010149d2623fda2380d09fb360df43d98ef778"
+      }
+    },
+    "torchlite-bit/aegis_exchange": {
+      "default_branch": "main",
+      "sha": "f84f423a006bcc202602ddeaf72b38a75d3bfd47",
+      "branches": {
+        "main": "f84f423a006bcc202602ddeaf72b38a75d3bfd47"
+      }
+    },
+    "torchlite-bit/aegis_rallypower": {
+      "default_branch": "main",
+      "sha": "130aff15dbf55b334bf7b392ab79f08daf8300ae",
+      "branches": {
+        "main": "130aff15dbf55b334bf7b392ab79f08daf8300ae"
+      }
+    },
+    "cinos03/bijoucounter": {
+      "default_branch": "main",
+      "sha": "f6ce02e7b66566912b00de739f2f042ab0914323",
+      "branches": {
+        "main": "f6ce02e7b66566912b00de739f2f042ab0914323"
+      }
+    },
+    "cinos03/bankraider": {
+      "default_branch": "main",
+      "sha": "7de9a083e653593daa9285be7aa24650d9726aca",
+      "branches": {
+        "main": "7de9a083e653593daa9285be7aa24650d9726aca"
+      }
+    },
+    "cinos03/surpriseme-1.12": {
+      "default_branch": "main",
+      "sha": "c94436c08c967a35f7a8cd5b9f95f60e2672696c",
+      "branches": {
+        "main": "c94436c08c967a35f7a8cd5b9f95f60e2672696c"
+      }
+    },
     "brndd/vanilla-tweaks": {
       "default_branch": "master",
       "sha": "fbbe31add71b23602d981d70f1a58520fc349b47",
@@ -236,9 +6386,9 @@
     },
     "brues-code/classicapi": {
       "default_branch": "master",
-      "sha": "f000fd6ed751bd5b936c4a8e985903f19da3f5f8",
+      "sha": "3c6b449df53ab29ae3ad1efdb0d885ce5e39b970",
       "branches": {
-        "master": "f000fd6ed751bd5b936c4a8e985903f19da3f5f8"
+        "master": "3c6b449df53ab29ae3ad1efdb0d885ce5e39b970"
       },
       "latest_tag": "v1.12.0"
     },
