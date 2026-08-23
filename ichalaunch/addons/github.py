@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import atexit
 import json
 import re
 import shutil
@@ -31,6 +32,13 @@ from ichalaunch.game.launcher import detect_game, ensure_addons_dir, resolve_add
 
 ProgressCb = Callable[[str], None]
 UA = {"User-Agent": "IchaLaunch/0.1", "Accept": "application/vnd.github+json"}
+
+# PERF: a bare ``requests.get`` opens a fresh TCP connection and completes a full
+# TLS handshake every call. A catalog scan makes hundreds of them and the
+# handshakes dominate the wall clock. One module-level Session keeps the
+# connection to api.github.com alive and reuses it for the whole scan.
+_SESSION = requests.Session()
+_SESSION.headers.update({"User-Agent": UA["User-Agent"]})
 
 RATE_LIMIT_STATUS = "GitHub rate limit hit — add a token in Settings or try later"
 WAITING_RATE_LIMIT_STATUS = "Waiting for GitHub rate limit…"
@@ -908,6 +916,12 @@ def _consume_api_budget() -> None:
     _budget_window_used += 1
 
 
+def _refund_api_budget() -> None:
+    """Give a reserved slot back. A 304 costs no quota, so it must not be charged."""
+    global _budget_window_used
+    _budget_window_used = max(0, _budget_window_used - 1)
+
+
 def _looks_like_rate_limit(response: requests.Response) -> bool:
     if response.status_code == 429:
         return True
@@ -955,31 +969,166 @@ def _unauth_headers() -> dict[str, str]:
     return dict(UA)
 
 
-def _github_api_get(url: str, **kwargs: Any) -> requests.Response:
-    """GET a GitHub API URL; retry without token when a stored token is rejected."""
+def _http_get(url: str, **kwargs: Any) -> requests.Response:
+    """Every GitHub API GET goes through here, over the shared Session.
+
+    Named rather than inlined so the transport has a single seam -- for the
+    connection pool, and for tests that need to stand in for the network.
+    """
+    return _SESSION.get(url, **kwargs)
+
+
+# ---------------------------------------------------------------- ETag cache
+# GitHub does not charge a conditional request against the rate limit when it
+# answers 304 Not Modified, and between two scans almost nothing has changed.
+# Replaying a cached body on a 304 therefore turns the 60-requests/hour
+# unauthenticated ceiling into an effectively unlimited scan.
+# https://docs.github.com/rest/overview/resources-in-the-rest-api#conditional-requests
+_ETAG_MAX_ENTRIES = 1500
+_etag_cache: dict[str, dict[str, Any]] | None = None
+_etag_dirty = False
+
+
+def _etag_cache_path() -> Path:
+    from ichalaunch.config.settings import appdata_root
+
+    return appdata_root() / "etag-cache.json"
+
+
+def _etag_key(url: str, params: Any = None) -> str:
+    """Cache key. Params are part of the identity: /tags?per_page=1 is not /tags."""
+    if not params:
+        return url
+    try:
+        tail = "&".join(f"{k}={params[k]}" for k in sorted(params))
+    except (TypeError, KeyError):
+        return url
+    return f"{url}?{tail}"
+
+
+def _load_etag_cache() -> dict[str, dict[str, Any]]:
+    global _etag_cache
+    if _etag_cache is None:
+        try:
+            loaded = json.loads(_etag_cache_path().read_text(encoding="utf-8"))
+            _etag_cache = loaded if isinstance(loaded, dict) else {}
+        except (OSError, ValueError):
+            _etag_cache = {}
+    return _etag_cache
+
+
+def save_etag_cache() -> None:
+    """Persist the cache. A cheap no-op when nothing changed."""
+    global _etag_dirty
+    if not _etag_dirty or _etag_cache is None:
+        return
+    cache = _etag_cache
+    if len(cache) > _ETAG_MAX_ENTRIES:
+        newest = sorted(cache.items(), key=lambda kv: kv[1].get("ts", 0), reverse=True)
+        cache = dict(newest[:_ETAG_MAX_ENTRIES])
+    try:
+        _etag_cache_path().write_text(json.dumps(cache), encoding="utf-8")
+        _etag_dirty = False
+    except OSError as exc:
+        log.warning("Could not save ETag cache: %s", exc)
+
+
+# Flushed at exit rather than per write: the scan that matters is the FIRST one
+# after a restart, so a cache that only lived for one session would be the wrong
+# half of the benefit.
+atexit.register(save_etag_cache)
+
+
+def _etag_store(key: str, response: requests.Response) -> None:
+    global _etag_dirty
+    etag = response.headers.get("ETag")
+    if not etag:
+        return
+    try:
+        body = response.content.decode("utf-8")
+    except (UnicodeDecodeError, AttributeError):
+        return
+    _load_etag_cache()[key] = {"etag": etag, "body": body, "ts": time.time()}
+    _etag_dirty = True
+
+
+def _etag_replay(key: str) -> requests.Response | None:
+    """Rebuild a 200 response from the cached body, to answer a 304."""
+    entry = _load_etag_cache().get(key)
+    if not entry:
+        return None
+    entry["ts"] = time.time()
+    r = requests.Response()
+    r.status_code = 200
+    r._content = entry["body"].encode("utf-8")  # noqa: SLF001 - no public setter
+    r.url = key
+    r.headers["Content-Type"] = "application/json"
+    r.headers["X-IchaLaunch-FromCache"] = "1"
+    return r
+
+
+def _github_api_get(
+    url: str, *, use_etag: bool = False, **kwargs: Any
+) -> requests.Response:
+    """GET a GitHub API URL; retry without token when a stored token is rejected.
+
+    With *use_etag* the request is made conditional: a stored ETag is sent as
+    ``If-None-Match``, a 304 is answered from cache, and the reserved rate-limit
+    slot is refunded. JSON endpoints only -- ``github_open`` streams archives,
+    and their bodies must never go through the cache.
+    """
     headers = dict(github_headers(url))
     extra_headers = kwargs.pop("headers", None)
     if extra_headers:
         headers.update(extra_headers)
+
+    key = _etag_key(url, kwargs.get("params")) if use_etag else None
+    cached = _load_etag_cache().get(key) if key else None
+    if cached and cached.get("etag"):
+        headers["If-None-Match"] = cached["etag"]
+
     had_token = "Authorization" in headers
+    consumed = 0
     if not had_token:
         _consume_api_budget()
-    r = requests.get(url, headers=headers, **kwargs)
+        consumed += 1
+    r = _http_get(url, headers=headers, **kwargs)
     _note_rate_headers(r)
     if had_token and r.status_code == 401:
         note_github_token_rejected()
         _consume_api_budget()
+        consumed += 1
         retry_headers = _unauth_headers()
+        if cached and cached.get("etag"):
+            retry_headers["If-None-Match"] = cached["etag"]
         if extra_headers:
             retry_headers.update(extra_headers)
-        r = requests.get(url, headers=retry_headers, **kwargs)
+        r = _http_get(url, headers=retry_headers, **kwargs)
         _note_rate_headers(r)
+
+    if not key:
+        return r
+    if r.status_code == 304:
+        replay = _etag_replay(key)
+        if replay is not None:
+            for _ in range(consumed):
+                _refund_api_budget()
+            return replay
+        # The entry was evicted underneath us. Refetch unconditionally rather
+        # than hand the caller a 304 it has no body for.
+        headers.pop("If-None-Match", None)
+        if "Authorization" not in headers:
+            _consume_api_budget()
+        r = _http_get(url, headers=headers, **kwargs)
+        _note_rate_headers(r)
+    if r.status_code == 200:
+        _etag_store(key, r)
     return r
 
 
 def github_get(url: str, *, timeout: int = 30) -> requests.Response:
     """GET a GitHub API URL with auth headers; raise on rate limit."""
-    r = _github_api_get(url, timeout=timeout)
+    r = _github_api_get(url, use_etag=True, timeout=timeout)
     if _looks_like_rate_limit(r):
         raise GitHubRateLimitError(RATE_LIMIT_STATUS)
     if r.status_code == 401:
@@ -1334,7 +1483,7 @@ def github_latest_version_tag(owner: str, repo: str) -> str | None:
     full = f"{owner}/{repo}"
     try:
         latest_url = f"https://api.github.com/repos/{full}/releases/latest"
-        r = _github_api_get(latest_url, timeout=30)
+        r = _github_api_get(latest_url, use_etag=True, timeout=30)
         _note_rate_headers(r)
         if _looks_like_rate_limit(r):
             raise GitHubRateLimitError(RATE_LIMIT_STATUS)
@@ -1352,7 +1501,9 @@ def github_latest_version_tag(owner: str, repo: str) -> str | None:
 
     try:
         tags_url = f"https://api.github.com/repos/{full}/tags"
-        r = _github_api_get(tags_url, timeout=30, params={"per_page": 10})
+        r = _github_api_get(
+            tags_url, use_etag=True, timeout=30, params={"per_page": 10}
+        )
         _note_rate_headers(r)
         if _looks_like_rate_limit(r):
             raise GitHubRateLimitError(RATE_LIMIT_STATUS)
@@ -1472,6 +1623,7 @@ def fetch_repo_readme(owner: str, repo: str, branch: str | None = None) -> dict[
     try:
         r = _github_api_get(
             url,
+            use_etag=True,
             timeout=30,
             params={"ref": branch} if branch else None,
         )

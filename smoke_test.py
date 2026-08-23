@@ -7669,7 +7669,7 @@ def test_github_bad_token_retries_without_auth():
     from ichalaunch.addons import github as G
 
     prev_token = G.settings.get("github_token")
-    orig_get = G.requests.get
+    orig_get = G._http_get
     calls: list[tuple[str, str | None]] = []
 
     class _Resp:
@@ -7702,7 +7702,7 @@ def test_github_bad_token_retries_without_auth():
     try:
         G.settings.set("github_token", "ghp_invalid_token")
         G._token_rejected_pending = False
-        G.requests.get = _fake_get
+        G._http_get = _fake_get
         r = G.github_get("https://api.github.com/repos/hannesmann/vanillafixes/releases/latest")
         assert r.status_code == 200
         assert len(calls) == 2
@@ -7710,7 +7710,7 @@ def test_github_bad_token_retries_without_auth():
         assert calls[1][1] is None
         assert G.take_github_token_warning() == G.GITHUB_TOKEN_REJECTED_MSG
     finally:
-        G.requests.get = orig_get
+        G._http_get = orig_get
         G.settings.set("github_token", prev_token or "")
         G._token_rejected_pending = False
 
