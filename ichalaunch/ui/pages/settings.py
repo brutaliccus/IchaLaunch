@@ -20,6 +20,7 @@ from ichalaunch.config.settings import (
     AUTO_SCAN_COOLDOWN_MINUTES_MAX,
     AUTO_SCAN_COOLDOWN_MINUTES_MIN,
     AUTO_SCAN_COOLDOWN_MINUTES_STEP,
+    clamp_auto_scan_cooldown_minutes,
     format_auto_scan_cooldown_label,
     settings,
 )
@@ -175,9 +176,12 @@ class SettingsPage(QWidget):
         self.cb_auto_updates = ThemeCheckBox("Automatically Check For Updates On Startup")
         self.cb_auto_updates.setChecked(settings.check_updates_on_startup())
         self.cb_auto_updates.setToolTip(
-            "When enabled, quietly checks launcher, addon, and client mod updates "
-            "shortly after launch. While open, only the launcher self-update "
-            "re-checks every 5 minutes (no progress bar)."
+            "When enabled, quietly checks launcher and client mod updates shortly "
+            "after launch. Addon updates need a GitHub token for a full scan; "
+            "without one, enabling this also opts into paced addon scans "
+            "(60 API calls/hour). Add a token under GitHub API below. "
+            "While open, only the launcher self-update re-checks every 5 minutes "
+            "(no progress bar)."
         )
         self.cb_auto_updates.toggled.connect(settings.set_check_updates_on_startup)
         self.cb_auto_updates.setMinimumHeight(28)
@@ -199,8 +203,9 @@ class SettingsPage(QWidget):
         cooldown_header.addWidget(self.cooldown_value_lbl)
         upd_card.body.addLayout(cooldown_header)
 
+        self._cooldown_slider_syncing = False
         self.cooldown_slider = QSlider(Qt.Orientation.Horizontal)
-        self.cooldown_slider.setObjectName("SettingsCooldownScanCooldown")
+        self.cooldown_slider.setObjectName("SettingsAutoScanCooldown")
         self.cooldown_slider.setMinimum(AUTO_SCAN_COOLDOWN_MINUTES_MIN)
         self.cooldown_slider.setMaximum(AUTO_SCAN_COOLDOWN_MINUTES_MAX)
         self.cooldown_slider.setSingleStep(AUTO_SCAN_COOLDOWN_MINUTES_STEP)
@@ -208,10 +213,10 @@ class SettingsPage(QWidget):
         self.cooldown_slider.setTickInterval(60)
         self.cooldown_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
         self.cooldown_slider.setMinimumHeight(28)
-        self.cooldown_slider.setValue(settings.auto_scan_cooldown_minutes())
-        self.cooldown_slider.valueChanged.connect(self._on_cooldown_slider)
         upd_card.body.addWidget(self.cooldown_slider)
-        self._sync_cooldown_label(settings.auto_scan_cooldown_minutes())
+        self.cooldown_slider.valueChanged.connect(self._on_cooldown_slider)
+        self.cooldown_slider.sliderReleased.connect(self._on_cooldown_slider_released)
+        self._set_cooldown_slider_value(settings.auto_scan_cooldown_minutes())
 
         cooldown_note = QLabel(
             "How long to wait before automatic/startup update scans run again. "
@@ -335,17 +340,33 @@ class SettingsPage(QWidget):
     def _sync_cooldown_label(self, minutes: int) -> None:
         self.cooldown_value_lbl.setText(format_auto_scan_cooldown_label(minutes))
 
-    def _on_cooldown_slider(self, value: int) -> None:
-        # Snap to step while dragging so the stored value matches the label.
-        step = AUTO_SCAN_COOLDOWN_MINUTES_STEP
-        snapped = int(round(int(value) / step) * step)
-        snapped = max(AUTO_SCAN_COOLDOWN_MINUTES_MIN, min(AUTO_SCAN_COOLDOWN_MINUTES_MAX, snapped))
-        if snapped != value:
+    def _set_cooldown_slider_value(self, minutes: int) -> None:
+        """Update slider + label from persisted settings without writing back."""
+        snapped = clamp_auto_scan_cooldown_minutes(minutes)
+        self._cooldown_slider_syncing = True
+        try:
             self.cooldown_slider.blockSignals(True)
             self.cooldown_slider.setValue(snapped)
             self.cooldown_slider.blockSignals(False)
-        self._sync_cooldown_label(snapped)
+            self._sync_cooldown_label(snapped)
+        finally:
+            self._cooldown_slider_syncing = False
+
+    def _persist_cooldown_slider(self, value: int) -> None:
+        if self._cooldown_slider_syncing:
+            return
+        snapped = clamp_auto_scan_cooldown_minutes(value)
+        if snapped != int(value):
+            self._set_cooldown_slider_value(snapped)
+        else:
+            self._sync_cooldown_label(snapped)
         settings.set_auto_scan_cooldown_minutes(snapped)
+
+    def _on_cooldown_slider(self, value: int) -> None:
+        self._persist_cooldown_slider(value)
+
+    def _on_cooldown_slider_released(self) -> None:
+        self._persist_cooldown_slider(self.cooldown_slider.value())
 
     def _save_github_token(self, force_feedback: bool = False) -> None:
         self._token_save_timer.stop()
@@ -380,11 +401,7 @@ class SettingsPage(QWidget):
         self.cb_auto_updates.blockSignals(True)
         self.cb_auto_updates.setChecked(settings.check_updates_on_startup())
         self.cb_auto_updates.blockSignals(False)
-        mins = settings.auto_scan_cooldown_minutes()
-        self.cooldown_slider.blockSignals(True)
-        self.cooldown_slider.setValue(mins)
-        self.cooldown_slider.blockSignals(False)
-        self._sync_cooldown_label(mins)
+        self._set_cooldown_slider_value(settings.auto_scan_cooldown_minutes())
         # Avoid clobbering in-progress edits / firing textChanged autosave.
         stored = str(settings.get("github_token") or "")
         if self.token_edit.text() != stored:

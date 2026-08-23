@@ -30,6 +30,20 @@ class DialogResult(Enum):
 _PRIMARY_RESULTS = frozenset({DialogResult.Yes, DialogResult.Ok, DialogResult.Browse})
 
 
+def _themed_dialog_flags() -> Qt.WindowType:
+    """Frameless modal flags without stay-on-top (avoids stealing game clicks)."""
+    return Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint
+
+
+def close_open_themed_dialogs(root: QWidget | None) -> None:
+    """Close visible dialog descendants so they cannot intercept game input."""
+    if root is None:
+        return
+    for dialog in root.findChildren(QDialog):
+        if dialog.isVisible():
+            dialog.close()
+
+
 def _dialog_glue_width(label: str) -> int:
     n = len(label or "")
     if n >= 14:
@@ -57,6 +71,36 @@ def _dialog_glue_button(
     )
 
 
+_LOADING_FORKS_TIP = "Loading forks from GitHub…"
+_LOADING_VERSIONS_TIP = "Loading versions from GitHub…"
+
+
+def _addon_fork_version_row(
+    parent: QWidget,
+    *,
+    fork_combo,
+    version_combo,
+) -> QHBoxLayout:
+    """Fork + version combos side-by-side at standard glue control width."""
+    row = QHBoxLayout()
+    row.setSpacing(10)
+    fork_lbl = QLabel("Fork")
+    fork_lbl.setObjectName("Muted")
+    ver_lbl = QLabel("Version")
+    ver_lbl.setObjectName("Muted")
+    for combo in (fork_combo, version_combo):
+        combo.setSizePolicy(
+            combo.sizePolicy().horizontalPolicy(),
+            combo.sizePolicy().verticalPolicy(),
+        )
+    row.addWidget(fork_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
+    row.addWidget(fork_combo, 0, Qt.AlignmentFlag.AlignVCenter)
+    row.addWidget(ver_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
+    row.addWidget(version_combo, 0, Qt.AlignmentFlag.AlignVCenter)
+    row.addStretch(1)
+    return row
+
+
 class ThemedDialog(QDialog):
     """Frameless dark card dialog with gold title and themed buttons."""
 
@@ -71,11 +115,7 @@ class ThemedDialog(QDialog):
     ):
         super().__init__(parent)
         self.setObjectName("ThemedDialog")
-        self.setWindowFlags(
-            Qt.WindowType.Dialog
-            | Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.WindowStaysOnTopHint
-        )
+        self.setWindowFlags(_themed_dialog_flags())
         self.setModal(True)
         self.setMinimumWidth(380)
         self.setMaximumWidth(620)
@@ -201,11 +241,7 @@ class GitHubImportDialog(QDialog):
     ):
         super().__init__(parent)
         self.setObjectName("ThemedDialog")
-        self.setWindowFlags(
-            Qt.WindowType.Dialog
-            | Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.WindowStaysOnTopHint
-        )
+        self.setWindowFlags(_themed_dialog_flags())
         self.setModal(True)
         self._kind = kind
         self._result = DialogResult.Cancel
@@ -622,11 +658,7 @@ class ThemedPreviewDialog(QDialog):
     ):
         super().__init__(parent)
         self.setObjectName("ThemedDialog")
-        self.setWindowFlags(
-            Qt.WindowType.Dialog
-            | Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.WindowStaysOnTopHint
-        )
+        self.setWindowFlags(_themed_dialog_flags())
         self.setModal(True)
         self.setMinimumSize(560, 480)
         self.resize(720, 620)
@@ -763,11 +795,7 @@ class ThemedInputDialog(QDialog):
     ):
         super().__init__(parent)
         self.setObjectName("ThemedDialog")
-        self.setWindowFlags(
-            Qt.WindowType.Dialog
-            | Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.WindowStaysOnTopHint
-        )
+        self.setWindowFlags(_themed_dialog_flags())
         self.setModal(True)
         self.setMinimumWidth(420)
         self.setMaximumWidth(560)
@@ -810,6 +838,1035 @@ class ThemedInputDialog(QDialog):
 
     def text_value(self) -> str:
         return self.edit.text().strip()
+
+
+class GitHubTokenPromptDialog(QDialog):
+    """Prompt for a GitHub PAT before manual addon update checks."""
+
+    def __init__(self, parent: QWidget | None):
+        super().__init__(parent)
+        self.setObjectName("ThemedDialog")
+        self.setWindowFlags(_themed_dialog_flags())
+        self.setModal(True)
+        self.setMinimumWidth(440)
+        self.setMaximumWidth(580)
+        self._saved_token: str | None = None
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+
+        card = QWidget()
+        card.setObjectName("ThemedDialogCard")
+        body = QVBoxLayout(card)
+        body.setContentsMargins(22, 18, 22, 18)
+        body.setSpacing(12)
+
+        title_lbl = QLabel("GitHub token required")
+        title_lbl.setObjectName("ThemedDialogTitle")
+        body.addWidget(title_lbl)
+
+        hint = QLabel(
+            "Addon update checks use the GitHub API. Create a personal access token "
+            "at github.com/settings/tokens with the public_repo scope, then paste it "
+            "below. You can also add a token later in Settings → GitHub API."
+        )
+        hint.setObjectName("ThemedDialogBody")
+        hint.setWordWrap(True)
+        body.addWidget(hint)
+
+        self.edit = QLineEdit()
+        self.edit.setPlaceholderText("ghp_…")
+        self.edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.edit.returnPressed.connect(self._save_and_accept)
+        body.addWidget(self.edit)
+
+        row = QHBoxLayout()
+        row.setSpacing(10)
+        row.addStretch(1)
+        later_btn = _dialog_glue_button("Later", card, primary=False)
+        later_btn.clicked.connect(self.reject)
+        save_btn = _dialog_glue_button("Save & Check", card, primary=True)
+        save_btn.clicked.connect(self._save_and_accept)
+        row.addWidget(later_btn)
+        row.addWidget(save_btn)
+        body.addLayout(row)
+
+        root.addWidget(card)
+        self.setStyleSheet(
+            "QDialog#ThemedDialog { background: transparent; }"
+            "QWidget#ThemedDialogCard {"
+            "  background-color: #100d0c;"
+            "  border: 1px solid rgba(150, 131, 158, 0.22);"
+            "  border-top: 3px solid #F1C22D;"
+            "  border-radius: 10px;"
+            "}"
+        )
+
+    def _save_and_accept(self) -> None:
+        token = self.edit.text().strip()
+        if not token:
+            return
+        self._saved_token = token
+        self.accept()
+
+    def saved_token(self) -> str | None:
+        return self._saved_token
+
+
+def github_token_prompt_dialog(parent: QWidget | None) -> str | None:
+    """Blocking PAT prompt for manual addon checks.
+
+    Returns the token string if saved via Save & Check, or None if dismissed.
+    """
+    dlg = GitHubTokenPromptDialog(parent)
+    if dlg.exec() != QDialog.DialogCode.Accepted:
+        return None
+    token = dlg.saved_token()
+    if not token:
+        return None
+    from ichalaunch.config.settings import settings
+
+    settings.set("github_token", token)
+    try:
+        from ichalaunch.addons.github import clear_addon_scan_queue
+
+        clear_addon_scan_queue()
+    except Exception:  # noqa: BLE001
+        pass
+    return token
+
+
+class _AddonBrowseFetchThread(QThread):
+  ok = Signal(object, object)
+  err = Signal(str)
+
+  def __init__(self, owner: str, repo: str, parent: QWidget | None = None):
+    super().__init__(parent)
+    self._owner = owner
+    self._repo = repo
+
+  def run(self) -> None:
+    try:
+      from ichalaunch.addons.github import list_repo_forks, list_repo_versions
+
+      forks = list_repo_forks(self._owner, self._repo)
+      versions = list_repo_versions(self._owner, self._repo)
+      self.ok.emit(forks, versions)
+    except Exception as exc:  # noqa: BLE001
+      self.err.emit(str(exc) or exc.__class__.__name__)
+
+
+class AddonInstallPickerDialog(QDialog):
+  """Themed fork + version picker with README preview before catalog addon install."""
+
+  _PREVIEW_MIN = (560, 480)
+
+  def __init__(self, parent: QWidget | None, entry: dict):
+    from ichalaunch.addons.github import (
+      catalog_fork_entries,
+      catalog_pin_tag,
+      parse_entry_owner_repo,
+    )
+    from ichalaunch.ui.widgets.common import addon_fork_label, addon_version_label, fork_combo_label
+    from ichalaunch.ui.widgets.glue_combo import GlueComboBox
+
+    super().__init__(parent)
+    self.setObjectName("ThemedDialog")
+    self.setWindowFlags(_themed_dialog_flags())
+    self.setModal(True)
+    self.setMinimumSize(*self._PREVIEW_MIN)
+    self.resize(680, 560)
+    self._entry = dict(entry)
+    self._result: dict | None = None
+    self._worker: _AddonBrowseFetchThread | None = None
+    self._preview_worker: _PreviewFetchThread | None = None
+    self._preview_gen = 0
+    self._cache_dir = ""
+    self._browse_owner = ""
+    self._browse_repo = ""
+    self._browse_fetch_gen = 0
+    self._preview_url_loaded = ""
+    self._preview_url_loading = ""
+
+    name = str(entry.get("name") or entry.get("folder") or "addon")
+    version_text = addon_version_label(entry)
+
+    root = QVBoxLayout(self)
+    root.setContentsMargins(0, 0, 0, 0)
+
+    card = QWidget()
+    card.setObjectName("ThemedDialogCard")
+    body = QVBoxLayout(card)
+    body.setContentsMargins(22, 18, 22, 18)
+    body.setSpacing(10)
+
+    title_lbl = QLabel(f"Install {name}")
+    title_lbl.setObjectName("ThemedDialogTitle")
+    body.addWidget(title_lbl)
+
+    hint = QLabel(
+      "Choose fork and release, or install now with the defaults below. "
+      "Forks, versions, and the preview load in the background."
+    )
+    hint.setObjectName("ThemedDialogBody")
+    hint.setWordWrap(True)
+    body.addWidget(hint)
+
+    self.fork_combo = GlueComboBox(card, min_width=GLUE_BTN_W)
+    catalog_forks = catalog_fork_entries(entry)
+    for fe in catalog_forks:
+      label = fork_combo_label(fe)
+      self.fork_combo.addItem(label, fe)
+    current_repo = str(entry.get("repo") or "").strip()
+    for i in range(self.fork_combo.count()):
+      fd = self.fork_combo.itemData(i)
+      if isinstance(fd, dict) and str(fd.get("repo") or "") == current_repo:
+        self.fork_combo.setCurrentIndex(i)
+        break
+    pin = str(entry.get("pin_release") or catalog_pin_tag(entry) or "").strip()
+    ver_label = version_text or (f"v{pin}" if pin else "Latest (branch tip)")
+    self.version_combo = GlueComboBox(card, min_width=GLUE_BTN_W)
+    self.version_combo.addItem(ver_label, pin)
+    self.fork_combo.currentIndexChanged.connect(self._on_fork_changed)
+    self.version_combo.currentIndexChanged.connect(self._on_version_changed)
+    body.addLayout(_addon_fork_version_row(card, fork_combo=self.fork_combo, version_combo=self.version_combo))
+    self._set_browse_combos_enabled(False, loading=True)
+
+    self.status_lbl = QLabel("")
+    self.status_lbl.setObjectName("Muted")
+    self.status_lbl.setWordWrap(True)
+    body.addWidget(self.status_lbl)
+
+    self.browser = QTextBrowser()
+    self.browser.setObjectName("ThemedPreviewBrowser")
+    self.browser.setOpenExternalLinks(False)
+    self.browser.setOpenLinks(False)
+    self.browser.anchorClicked.connect(self._open_preview_link)
+    body.addWidget(self.browser, 1)
+
+    row = QHBoxLayout()
+    row.setSpacing(10)
+    row.addStretch(1)
+    cancel_btn = _dialog_glue_button("Cancel", card, primary=False)
+    cancel_btn.clicked.connect(self.reject)
+    self.install_btn = _dialog_glue_button("Install", card, primary=True)
+    self.install_btn.clicked.connect(self._accept_install)
+    row.addWidget(cancel_btn)
+    row.addWidget(self.install_btn)
+    body.addLayout(row)
+
+    root.addWidget(card)
+    self.setStyleSheet(
+      "QDialog#ThemedDialog { background: transparent; }"
+      "QWidget#ThemedDialogCard {"
+      "  background-color: #100d0c;"
+      "  border: 1px solid rgba(150, 131, 158, 0.22);"
+      "  border-top: 3px solid #F1C22D;"
+      "  border-radius: 10px;"
+      "}"
+      "QTextBrowser#ThemedPreviewBrowser {"
+      "  background-color: #181412;"
+      "  color: #e6e0ee;"
+      "  border: 1px solid rgba(150, 131, 158, 0.22);"
+      "  border-radius: 8px;"
+      "  padding: 10px;"
+      "}"
+    )
+
+    pair = parse_entry_owner_repo(entry)
+    can_install = bool(self._preview_url())
+    self.install_btn.setEnabled(can_install)
+    if pair:
+      owner, repo = pair
+      self._browse_owner, self._browse_repo = owner, repo
+      self._browse_fetch_gen += 1
+      fetch_gen = self._browse_fetch_gen
+      self._worker = _AddonBrowseFetchThread(owner, repo, self)
+      self._worker.ok.connect(
+        lambda forks, versions, g=fetch_gen: self._on_fetch_ok(forks, versions, g)
+      )
+      self._worker.err.connect(lambda msg, g=fetch_gen: self._on_fetch_err(msg, g))
+      self._worker.start()
+      self.status_lbl.setText("Loading forks and versions from GitHub…")
+    else:
+      self.status_lbl.setText("Could not resolve a GitHub repository for this addon.")
+
+    QTimer.singleShot(0, self._load_preview)
+
+  def _set_browse_combos_enabled(self, enabled: bool, *, loading: bool = False) -> None:
+    for combo in (self.fork_combo, self.version_combo):
+      try:
+        combo.hidePopup()
+      except RuntimeError:
+        pass
+      combo.setEnabled(bool(enabled))
+    if enabled:
+      self.fork_combo.setToolTip("")
+      self.version_combo.setToolTip("")
+    elif loading:
+      self.fork_combo.setToolTip(_LOADING_FORKS_TIP)
+      self.version_combo.setToolTip(_LOADING_VERSIONS_TIP)
+
+  def _open_preview_link(self, url: QUrl) -> None:
+    QDesktopServices.openUrl(url)
+
+  def _version_tag(self) -> str:
+    return str(self.version_combo.currentData() or "").strip()
+
+  def _preview_url(self) -> str:
+    from ichalaunch.addons.github import addon_install_url_for_choice, github_browse_url
+    from ichalaunch.ui.widgets.common import github_repo_browse_url
+
+    fork = self._current_fork_data()
+    tag = self._version_tag()
+    install = addon_install_url_for_choice(fork, tag or None)
+    if install:
+      return install
+    owner = str(fork.get("owner") or self._browse_owner or "").strip()
+    repo = str(fork.get("repo_name") or self._browse_repo or "").strip()
+    if owner and repo:
+      return github_browse_url(owner, repo)
+    return github_repo_browse_url(
+      self._entry.get("repo"),
+      self._entry.get("url"),
+      self._entry.get("repository"),
+    ) or ""
+
+  def _load_preview(self) -> None:
+    from ichalaunch.addons.github import cleanup_readme_cache
+
+    url = self._preview_url()
+    if not url:
+      self.browser.clear()
+      self._preview_url_loaded = ""
+      self._preview_url_loading = ""
+      return
+    if url == self._preview_url_loaded and self.browser.toPlainText().strip():
+      return
+    if url == self._preview_url_loading:
+      return
+    cleanup_readme_cache(self._cache_dir)
+    self._cache_dir = ""
+    self._preview_url_loading = url
+    if not (self._worker and self._worker.isRunning()):
+      self.status_lbl.setText("Loading preview…")
+    self.browser.clear()
+    self._preview_gen += 1
+    gen = self._preview_gen
+    worker = _PreviewFetchThread("addon", url, self)
+    self._preview_worker = worker
+
+    def on_ok(info: object) -> None:
+      if gen != self._preview_gen:
+        if isinstance(info, dict):
+          cleanup_readme_cache(info.get("readme_cache_dir"))
+        return
+      self._preview_url_loading = ""
+      if not isinstance(info, dict):
+        if not (self._worker and self._worker.isRunning()):
+          self.status_lbl.setText("Preview failed.")
+        return
+      self._cache_dir = str(info.get("readme_cache_dir") or "")
+      self._preview_url_loaded = url
+      md = str(info.get("readme_markdown") or "").strip()
+      base = str(info.get("readme_base_url") or "")
+      if base:
+        self.browser.document().setBaseUrl(QUrl(base))
+      if md:
+        self.browser.setMarkdown(md)
+      else:
+        self.browser.setPlainText(str(info.get("description") or "No README found."))
+      if not (self._worker and self._worker.isRunning()):
+        self.status_lbl.setText("")
+
+    def on_err(msg: str) -> None:
+      if gen != self._preview_gen:
+        return
+      if self._preview_url_loading == url:
+        self._preview_url_loading = ""
+      if not (self._worker and self._worker.isRunning()):
+        self.status_lbl.setText(msg or "Preview failed.")
+
+    worker.ok.connect(on_ok)
+    worker.err.connect(on_err)
+    worker.start()
+
+  def _on_fork_changed(self, _index: int) -> None:
+    fork = self._current_fork_data()
+    owner = str(fork.get("owner") or "").strip()
+    repo = str(fork.get("repo_name") or "").strip()
+    if owner and repo:
+      self._browse_owner = owner
+      self._browse_repo = repo
+    self.install_btn.setEnabled(bool(self._preview_url()))
+    self._load_preview()
+
+  def _on_version_changed(self, _index: int) -> None:
+    self.install_btn.setEnabled(bool(self._preview_url()))
+    self._load_preview()
+
+  def _on_fetch_ok(self, forks: object, versions: object, fetch_gen: int) -> None:
+    if fetch_gen != self._browse_fetch_gen:
+      return
+    before_url = self._preview_url()
+    fork_list = forks if isinstance(forks, list) else []
+    version_list = versions if isinstance(versions, list) else []
+    current = self._current_fork_data()
+    current_repo = str(current.get("repo") or "").strip().lower()
+    self.fork_combo.hidePopup()
+    self.version_combo.hidePopup()
+    self.fork_combo.blockSignals(True)
+    self.fork_combo.clear()
+    seen: set[str] = set()
+    selected = 0
+    for fe in fork_list:
+      if not isinstance(fe, dict):
+        continue
+      repo = str(fe.get("repo") or "").strip()
+      key = repo.lower()
+      if not key or key in seen:
+        continue
+      seen.add(key)
+      from ichalaunch.ui.widgets.common import fork_combo_label
+
+      label = fork_combo_label(fe)
+      idx = self.fork_combo.count()
+      self.fork_combo.addItem(label, fe)
+      if key == current_repo:
+        selected = idx
+    if self.fork_combo.count() == 0 and current_repo:
+      from ichalaunch.ui.widgets.common import fork_combo_label
+
+      self.fork_combo.addItem(
+        fork_combo_label(current),
+        current,
+      )
+    else:
+      self.fork_combo.setCurrentIndex(min(selected, max(0, self.fork_combo.count() - 1)))
+    self.fork_combo.blockSignals(False)
+
+    pin = self._version_tag()
+    if not pin:
+      pin = str(self._entry.get("pin_release") or "").strip()
+    self.version_combo.blockSignals(True)
+    self.version_combo.clear()
+    self.version_combo.addItem("Latest (branch tip)", "")
+    selected_v = 0
+    for tag in version_list:
+      t = str(tag or "").strip()
+      if not t:
+        continue
+      label = t if t.lower().startswith("v") else f"v{t}"
+      idx = self.version_combo.count()
+      self.version_combo.addItem(label, t)
+      if pin and t.lower() == pin.lower():
+        selected_v = idx
+    if self.version_combo.count() == 1 and pin:
+      label = pin if pin.lower().startswith("v") else f"v{pin}"
+      self.version_combo.addItem(label, pin)
+      selected_v = 1
+    self.version_combo.setCurrentIndex(
+      min(selected_v, max(0, self.version_combo.count() - 1))
+    )
+    self.version_combo.blockSignals(False)
+    self._set_browse_combos_enabled(True)
+    self.status_lbl.setText("")
+    self.install_btn.setEnabled(bool(self._preview_url()))
+    after_url = self._preview_url()
+    if after_url != before_url:
+      self._load_preview()
+
+  def _on_fetch_err(self, message: str, fetch_gen: int) -> None:
+    if fetch_gen != self._browse_fetch_gen:
+      return
+    self._set_browse_combos_enabled(True)
+    if not self.browser.toPlainText().strip():
+      self.status_lbl.setText(message or "GitHub request failed.")
+    self.install_btn.setEnabled(bool(self._preview_url()))
+
+  def _current_fork_data(self) -> dict:
+    idx = self.fork_combo.currentIndex()
+    if idx < 0:
+      return {}
+    data = self.fork_combo.itemData(idx)
+    return dict(data) if isinstance(data, dict) else {}
+
+  def _build_result_entry(self) -> dict:
+    from ichalaunch.addons.github import addon_install_url_for_choice
+
+    fork = self._current_fork_data()
+    tag = self._version_tag()
+    url = addon_install_url_for_choice(fork, tag or None)
+    if not url:
+      return {}
+    out = dict(self._entry)
+    out["repo"] = url
+    if tag:
+      out["pin_release"] = tag
+      out["tag"] = tag
+    else:
+      out.pop("pin_release", None)
+      out.pop("tag", None)
+    if fork.get("folder"):
+      out["folder"] = fork.get("folder")
+    owner = str(fork.get("owner") or "").strip()
+    repo_name = str(fork.get("repo_name") or "").strip()
+    if owner and repo_name:
+      out["repository"] = f"{owner}/{repo_name}"
+    return out
+
+  def _cleanup_preview_cache(self) -> None:
+    from ichalaunch.addons.github import cleanup_readme_cache
+
+    cleanup_readme_cache(self._cache_dir)
+    self._cache_dir = ""
+
+  def _accept_install(self) -> None:
+    out = self._build_result_entry()
+    if not out:
+      return
+    self._result = out
+    self.accept()
+
+  def accept(self) -> None:
+    self._browse_fetch_gen += 1
+    self._preview_gen += 1
+    self._set_browse_combos_enabled(False)
+    self._cleanup_preview_cache()
+    super().accept()
+
+  def reject(self) -> None:
+    self._browse_fetch_gen += 1
+    self._preview_gen += 1
+    self._set_browse_combos_enabled(False)
+    self._cleanup_preview_cache()
+    super().reject()
+
+  def closeEvent(self, event) -> None:  # noqa: N802
+    self._browse_fetch_gen += 1
+    self._preview_gen += 1
+    self._set_browse_combos_enabled(False)
+    self._cleanup_preview_cache()
+    super().closeEvent(event)
+
+  def result_data(self) -> dict | None:
+    return self._result
+
+
+def addon_install_picker_dialog(parent: QWidget | None, entry: dict) -> dict | None:
+  """Blocking install picker. Returns updated entry dict or None if cancelled."""
+  dlg = AddonInstallPickerDialog(parent, entry)
+  if dlg.exec() != QDialog.DialogCode.Accepted:
+    return None
+  return dlg.result_data()
+
+
+class AddonSettingsDialog(QDialog):
+  """Installed-addon settings: fork, version, and README preview."""
+
+  _PREVIEW_MIN = (560, 480)
+
+  def __init__(
+    self,
+    parent: QWidget | None,
+    entry: dict,
+    *,
+    meta: dict | None = None,
+  ):
+    from ichalaunch.addons.github import (
+      NO_TOKEN_FORK_TIP,
+      catalog_fork_entries,
+      catalog_pin_tag,
+      has_github_token,
+      parse_entry_owner_repo,
+    )
+    from ichalaunch.ui.widgets.common import (
+      addon_fork_label,
+      fork_combo_label,
+      addon_version_label,
+      github_repo_browse_url,
+    )
+    from ichalaunch.ui.widgets.glue_combo import GlueComboBox
+
+    super().__init__(parent)
+    self.setObjectName("ThemedDialog")
+    self.setWindowFlags(_themed_dialog_flags())
+    self.setModal(True)
+    self.setMinimumSize(*self._PREVIEW_MIN)
+    self.resize(680, 560)
+    self._entry = dict(entry)
+    self._meta = dict(meta) if isinstance(meta, dict) else {}
+    self._result: dict | None = None
+    self._browse_worker: _AddonBrowseFetchThread | None = None
+    self._preview_worker: _PreviewFetchThread | None = None
+    self._preview_gen = 0
+    self._cache_dir = ""
+    self._forks_loaded = False
+    self._versions_loaded = False
+    self._token_ok = bool(has_github_token())
+    self._browse_fetch_gen = 0
+    self._fork_fetch_pending = False
+    self._version_fetch_pending = False
+
+    name = str(entry.get("name") or entry.get("folder") or "addon")
+    root = QVBoxLayout(self)
+    root.setContentsMargins(0, 0, 0, 0)
+
+    card = QWidget()
+    card.setObjectName("ThemedDialogCard")
+    body = QVBoxLayout(card)
+    body.setContentsMargins(22, 18, 22, 18)
+    body.setSpacing(10)
+
+    title_lbl = QLabel(name)
+    title_lbl.setObjectName("ThemedDialogTitle")
+    body.addWidget(title_lbl)
+
+    fork_text = addon_fork_label(entry)
+    version_text = addon_version_label(entry, self._meta)
+    self._fork_combo = None
+    self._version_combo = None
+
+    if self._token_ok:
+      from ichalaunch.ui.widgets.glue_panel_button import GLUE_BTN_W
+
+      self._fork_combo = GlueComboBox(card, min_width=GLUE_BTN_W)
+      for fe in catalog_fork_entries(entry):
+        label = fork_combo_label(fe)
+        self._fork_combo.addItem(label, fe)
+      current_repo = str(entry.get("repo") or "").strip()
+      for i in range(self._fork_combo.count()):
+        fd = self._fork_combo.itemData(i)
+        if isinstance(fd, dict) and str(fd.get("repo") or "") == current_repo:
+          self._fork_combo.setCurrentIndex(i)
+          break
+      self._fork_combo.currentIndexChanged.connect(self._on_fork_changed)
+
+      pin = str(
+        self._meta.get("tag")
+        or self._meta.get("version")
+        or entry.get("pin_release")
+        or entry.get("tag")
+        or catalog_pin_tag(entry)
+        or ""
+      ).strip()
+      ver_label = version_text or (f"v{pin}" if pin else "Latest (branch tip)")
+      self._version_combo = GlueComboBox(card, min_width=GLUE_BTN_W)
+      self._version_combo.addItem(ver_label, pin)
+      self._version_combo.currentIndexChanged.connect(self._on_version_changed)
+      self._version_combo.popupShown.connect(self._lazy_fetch_versions)
+      body.addLayout(
+        _addon_fork_version_row(
+          card, fork_combo=self._fork_combo, version_combo=self._version_combo
+        )
+      )
+      self._set_fork_combo_interactive(False, loading=True)
+      self._set_version_combo_interactive(False)
+    else:
+      meta_line = " · ".join(x for x in (fork_text, version_text) if x)
+      if meta_line:
+        static = QLabel(meta_line)
+        static.setObjectName("Muted")
+        static.setToolTip(NO_TOKEN_FORK_TIP)
+        body.addWidget(static)
+
+    self.status_lbl = QLabel("")
+    self.status_lbl.setObjectName("Muted")
+    self.status_lbl.setWordWrap(True)
+    body.addWidget(self.status_lbl)
+
+    self.browser = QTextBrowser()
+    self.browser.setObjectName("ThemedPreviewBrowser")
+    self.browser.setOpenExternalLinks(False)
+    self.browser.setOpenLinks(False)
+    self.browser.anchorClicked.connect(self._open_preview_link)
+    body.addWidget(self.browser, 1)
+
+    row = QHBoxLayout()
+    row.setSpacing(10)
+    row.addStretch(1)
+    close_btn = _dialog_glue_button("Close", card, primary=False)
+    close_btn.clicked.connect(self.reject)
+    row.addWidget(close_btn)
+    if self._token_ok:
+      save_btn = _dialog_glue_button("Save", card, primary=True)
+      save_btn.clicked.connect(self._accept_save)
+      row.addWidget(save_btn)
+    body.addLayout(row)
+
+    root.addWidget(card)
+    self.setStyleSheet(
+      "QDialog#ThemedDialog { background: transparent; }"
+      "QWidget#ThemedDialogCard {"
+      "  background-color: #100d0c;"
+      "  border: 1px solid rgba(150, 131, 158, 0.22);"
+      "  border-top: 3px solid #F1C22D;"
+      "  border-radius: 10px;"
+      "}"
+      "QTextBrowser#ThemedPreviewBrowser {"
+      "  background-color: #181412;"
+      "  color: #e6e0ee;"
+      "  border: 1px solid rgba(150, 131, 158, 0.22);"
+      "  border-radius: 8px;"
+      "  padding: 10px;"
+      "}"
+    )
+
+    self._browse_owner = ""
+    self._browse_repo = ""
+    pair = parse_entry_owner_repo(entry, self._meta)
+    if pair:
+      self._browse_owner, self._browse_repo = pair
+    QTimer.singleShot(0, self._load_preview)
+    if self._token_ok and self._fork_combo is not None:
+      QTimer.singleShot(0, self._prefetch_forks)
+
+  def _set_fork_combo_interactive(self, enabled: bool, *, loading: bool = False) -> None:
+    if self._fork_combo is None:
+      return
+    try:
+      self._fork_combo.hidePopup()
+    except RuntimeError:
+      pass
+    self._fork_combo.setEnabled(bool(enabled))
+    if enabled:
+      self._fork_combo.setToolTip("")
+    elif loading:
+      self._fork_combo.setToolTip(_LOADING_FORKS_TIP)
+
+  def _set_version_combo_interactive(self, enabled: bool, *, loading: bool = False) -> None:
+    if self._version_combo is None:
+      return
+    try:
+      self._version_combo.hidePopup()
+    except RuntimeError:
+      pass
+    self._version_combo.setEnabled(bool(enabled))
+    if enabled:
+      self._version_combo.setToolTip("")
+    elif loading:
+      self._version_combo.setToolTip(_LOADING_VERSIONS_TIP)
+
+  def _open_preview_link(self, url: QUrl) -> None:
+    QDesktopServices.openUrl(url)
+
+  def _preview_url(self) -> str:
+    from ichalaunch.addons.github import addon_install_url_for_choice, github_browse_url
+    from ichalaunch.ui.widgets.common import github_repo_browse_url
+
+    fork = self._current_fork_data()
+    tag = ""
+    if self._version_combo is not None:
+      tag = str(self._version_combo.currentData() or "").strip()
+    install = addon_install_url_for_choice(fork, tag or None)
+    if install:
+      return install
+    owner = str(fork.get("owner") or self._browse_owner or "").strip()
+    repo = str(fork.get("repo_name") or self._browse_repo or "").strip()
+    if owner and repo:
+      return github_browse_url(owner, repo)
+    return github_repo_browse_url(
+      self._entry.get("repo"),
+      self._entry.get("url"),
+      self._entry.get("repository"),
+    ) or ""
+
+  def _load_preview(self) -> None:
+    from ichalaunch.addons.github import cleanup_readme_cache
+
+    url = self._preview_url()
+    if not url:
+      self.status_lbl.setText("No GitHub repository URL for preview.")
+      self.browser.clear()
+      return
+    cleanup_readme_cache(self._cache_dir)
+    self._cache_dir = ""
+    self.status_lbl.setText("Loading preview…")
+    self.browser.clear()
+    self._preview_gen += 1
+    gen = self._preview_gen
+    worker = _PreviewFetchThread("addon", url, self)
+    self._preview_worker = worker
+
+    def on_ok(info: object) -> None:
+      if gen != self._preview_gen:
+        if isinstance(info, dict):
+          cleanup_readme_cache(info.get("readme_cache_dir"))
+        return
+      if not isinstance(info, dict):
+        self.status_lbl.setText("Preview failed.")
+        return
+      self._cache_dir = str(info.get("readme_cache_dir") or "")
+      md = str(info.get("readme_markdown") or "").strip()
+      base = str(info.get("readme_base_url") or "")
+      if base:
+        self.browser.document().setBaseUrl(QUrl(base))
+      if md:
+        self.browser.setMarkdown(md)
+        self.status_lbl.setText("")
+      else:
+        self.browser.setPlainText(str(info.get("description") or "No README found."))
+        self.status_lbl.setText("")
+
+    def on_err(msg: str) -> None:
+      if gen != self._preview_gen:
+        return
+      self.status_lbl.setText(msg or "Preview failed.")
+
+    worker.ok.connect(on_ok)
+    worker.err.connect(on_err)
+    worker.start()
+
+  def _current_fork_data(self) -> dict:
+    if self._fork_combo is None:
+      from ichalaunch.addons.github import fork_entry_from_repo_url
+
+      return fork_entry_from_repo_url(
+        str(self._entry.get("repo") or self._entry.get("url") or "")
+      )
+    idx = self._fork_combo.currentIndex()
+    if idx < 0:
+      return {}
+    data = self._fork_combo.itemData(idx)
+    return dict(data) if isinstance(data, dict) else {}
+
+  def _prefetch_forks(self) -> None:
+    if not self._token_ok or self._fork_combo is None or self._forks_loaded:
+      return
+    from ichalaunch.addons.github import get_cached_repo_forks
+
+    owner, repo = self._browse_owner, self._browse_repo
+    if not owner or not repo:
+      self._set_fork_combo_interactive(True)
+      self._set_version_combo_interactive(True)
+      return
+    if self._fork_fetch_pending:
+      return
+    cached = get_cached_repo_forks(owner, repo)
+    if cached:
+      self._populate_forks(cached)
+      self._forks_loaded = True
+      self._set_fork_combo_interactive(True)
+      self._set_version_combo_interactive(True)
+      return
+    self._fork_fetch_pending = True
+    self._browse_fetch_gen += 1
+    fetch_gen = self._browse_fetch_gen
+    self._set_fork_combo_interactive(False, loading=True)
+    self._set_version_combo_interactive(False)
+    self.status_lbl.setText("Loading forks from GitHub…")
+    self._browse_worker = _AddonBrowseFetchThread(owner, repo, self)
+    self._browse_worker.ok.connect(
+      lambda forks, versions, g=fetch_gen: self._on_forks_fetched(forks, versions, g)
+    )
+    self._browse_worker.err.connect(
+      lambda msg, g=fetch_gen: self._on_browse_err(msg, g, kind="forks")
+    )
+    self._browse_worker.start()
+
+  def _lazy_fetch_versions(self) -> None:
+    if not self._token_ok or self._version_combo is None or self._versions_loaded:
+      return
+    fork = self._current_fork_data()
+    owner = str(fork.get("owner") or self._browse_owner or "").strip()
+    repo = str(fork.get("repo_name") or self._browse_repo or "").strip()
+    if not owner or not repo:
+      return
+    if self._version_fetch_pending:
+      return
+    from ichalaunch.addons.github import get_cached_repo_versions
+
+    cached = get_cached_repo_versions(owner, repo)
+    if cached:
+      self._populate_versions(cached)
+      self._versions_loaded = True
+      self._set_version_combo_interactive(True)
+      return
+    self._version_fetch_pending = True
+    self._browse_fetch_gen += 1
+    fetch_gen = self._browse_fetch_gen
+    self._set_version_combo_interactive(False, loading=True)
+    self.status_lbl.setText("Loading versions from GitHub…")
+    self._browse_worker = _AddonBrowseFetchThread(owner, repo, self)
+    self._browse_worker.ok.connect(
+      lambda forks, versions, g=fetch_gen: self._on_versions_fetched(forks, versions, g)
+    )
+    self._browse_worker.err.connect(
+      lambda msg, g=fetch_gen: self._on_browse_err(msg, g, kind="versions")
+    )
+    self._browse_worker.start()
+
+  def _on_forks_fetched(self, forks: object, _versions: object, fetch_gen: int) -> None:
+    if fetch_gen != self._browse_fetch_gen:
+      return
+    self._fork_fetch_pending = False
+    if isinstance(forks, list):
+      self._populate_forks(forks)
+      self._forks_loaded = True
+    self._set_fork_combo_interactive(True)
+    if not self._versions_loaded:
+      self._set_version_combo_interactive(True)
+    self.status_lbl.setText("")
+
+  def _on_versions_fetched(self, _forks: object, versions: object, fetch_gen: int) -> None:
+    if fetch_gen != self._browse_fetch_gen:
+      return
+    self._version_fetch_pending = False
+    if isinstance(versions, list):
+      self._populate_versions(versions)
+      self._versions_loaded = True
+    self._set_version_combo_interactive(True)
+    self.status_lbl.setText("")
+
+  def _on_browse_err(self, message: str, fetch_gen: int, *, kind: str = "") -> None:
+    if fetch_gen != self._browse_fetch_gen:
+      return
+    if kind == "forks":
+      self._fork_fetch_pending = False
+      self._set_fork_combo_interactive(True)
+      if not self._versions_loaded:
+        self._set_version_combo_interactive(True)
+    elif kind == "versions":
+      self._version_fetch_pending = False
+      self._set_version_combo_interactive(True)
+    self.status_lbl.setText(message or "GitHub request failed.")
+
+  def _populate_forks(self, forks: list) -> None:
+    from ichalaunch.ui.widgets.common import fork_combo_label
+
+    if self._fork_combo is None:
+      return
+    self._fork_combo.hidePopup()
+    current = self._current_fork_data()
+    current_repo = str(current.get("repo") or "").strip().lower()
+    self._fork_combo.blockSignals(True)
+    self._fork_combo.clear()
+    seen: set[str] = set()
+    selected = 0
+    for fe in forks:
+      if not isinstance(fe, dict):
+        continue
+      repo = str(fe.get("repo") or "").strip()
+      key = repo.lower()
+      if not key or key in seen:
+        continue
+      seen.add(key)
+      label = fork_combo_label(fe)
+      idx = self._fork_combo.count()
+      self._fork_combo.addItem(label, fe)
+      if key == current_repo:
+        selected = idx
+    if self._fork_combo.count() == 0 and current_repo:
+      self._fork_combo.addItem(
+        fork_combo_label(current),
+        current,
+      )
+    else:
+      self._fork_combo.setCurrentIndex(min(selected, max(0, self._fork_combo.count() - 1)))
+    self._fork_combo.blockSignals(False)
+
+  def _populate_versions(self, versions: list) -> None:
+    if self._version_combo is None:
+      return
+    self._version_combo.hidePopup()
+    pin = str(self._version_combo.currentData() or "").strip()
+    if not pin:
+      pin = str(self._entry.get("pin_release") or self._entry.get("tag") or "").strip()
+    self._version_combo.blockSignals(True)
+    self._version_combo.clear()
+    self._version_combo.addItem("Latest (branch tip)", "")
+    selected = 0
+    for tag in versions:
+      t = str(tag or "").strip()
+      if not t:
+        continue
+      label = t if t.lower().startswith("v") else f"v{t}"
+      idx = self._version_combo.count()
+      self._version_combo.addItem(label, t)
+      if pin and t.lower() == pin.lower():
+        selected = idx
+    self._version_combo.setCurrentIndex(min(selected, max(0, self._version_combo.count() - 1)))
+    self._version_combo.blockSignals(False)
+
+  def _on_fork_changed(self, _index: int) -> None:
+    fork = self._current_fork_data()
+    owner = str(fork.get("owner") or "").strip()
+    repo = str(fork.get("repo_name") or "").strip()
+    if owner and repo:
+      self._browse_owner = owner
+      self._browse_repo = repo
+    self._versions_loaded = False
+    self._set_version_combo_interactive(True)
+    self._load_preview()
+
+  def _on_version_changed(self, _index: int) -> None:
+    self._load_preview()
+
+  def _build_result_entry(self) -> dict:
+    from ichalaunch.addons.github import addon_install_url_for_choice
+
+    fork = self._current_fork_data()
+    tag = ""
+    if self._version_combo is not None:
+      tag = str(self._version_combo.currentData() or "").strip()
+    url = addon_install_url_for_choice(fork, tag or None)
+    out = dict(self._entry)
+    if url:
+      out["repo"] = url
+    if tag:
+      out["pin_release"] = tag
+      out["tag"] = tag
+    else:
+      out.pop("pin_release", None)
+      out.pop("tag", None)
+    if fork.get("folder"):
+      out["folder"] = fork.get("folder")
+    owner = str(fork.get("owner") or "").strip()
+    repo_name = str(fork.get("repo_name") or "").strip()
+    if owner and repo_name:
+      out["repository"] = f"{owner}/{repo_name}"
+    return out
+
+  def _accept_save(self) -> None:
+    self._result = self._build_result_entry()
+    self.accept()
+
+  def closeEvent(self, event) -> None:  # noqa: N802
+    from ichalaunch.addons.github import cleanup_readme_cache
+
+    self._browse_fetch_gen += 1
+    self._preview_gen += 1
+    self._fork_fetch_pending = False
+    self._version_fetch_pending = False
+    if self._fork_combo is not None:
+      try:
+        self._fork_combo.hidePopup()
+      except RuntimeError:
+        pass
+    if self._version_combo is not None:
+      try:
+        self._version_combo.hidePopup()
+      except RuntimeError:
+        pass
+    cleanup_readme_cache(self._cache_dir)
+    self._cache_dir = ""
+    super().closeEvent(event)
+
+  def result_data(self) -> dict | None:
+    return self._result
+
+
+def addon_settings_dialog(
+  parent: QWidget | None,
+  entry: dict,
+  *,
+  meta: dict | None = None,
+) -> dict | None:
+  """Blocking settings dialog. Returns updated entry or None if dismissed without save."""
+  dlg = AddonSettingsDialog(parent, entry, meta=meta)
+  if dlg.exec() != QDialog.DialogCode.Accepted:
+    return None
+  return dlg.result_data()
 
 
 def _run(

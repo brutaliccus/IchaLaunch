@@ -325,6 +325,8 @@ def test_mod_toggle_resolution():
         env = resolve_mod_toggle("hd_patch_b", True)
         assert env.get("hd_patch_d") and env.get("hd_patch_e") and env.get("vanilla_helpers")
         apply_mod_toggle("hd_patch_l", True)
+        swap_l = resolve_mod_toggle("hd_patch_l_less_thicc", True)
+        assert swap_l.get("hd_patch_l") is False and swap_l.get("hd_patch_l_less_thicc") is True
         off = resolve_mod_toggle("hd_patch_a", False)
         assert off.get("hd_patch_a") is False and off.get("hd_patch_l") is False
         apply_mod_toggle("hd_patch_t_ultra", True)
@@ -341,6 +343,679 @@ def test_mod_toggle_resolution():
         for k in keys:
             s.set(k, saved[k])
     print("OK mod toggle deps/conflicts")
+
+
+def test_mod_author_labels():
+    from ichalaunch.ui.widgets.common import mod_author
+
+    vf = {"id": "vanillafixes", "source": {"repo": "hannesmann/vanillafixes"}}
+    assert mod_author(vf) == "hannesmann"
+    hd = {"id": "hd_patch_a", "category": "HD Graphics"}
+    assert mod_author(hd) == "Project Reforged"
+    explicit = {"id": "x", "author": "Custom Author"}
+    assert mod_author(explicit) == "Custom Author"
+    print("OK mod author labels")
+
+
+def test_vanillafixes_dxvk_reconcile():
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.mods.installer import (
+        apply_vanillafixes_dxvk_choice,
+        plan_changes,
+        reconcile_vanillafixes_dxvk,
+        vanillafixes_dxvk_both_enabled,
+    )
+
+    keys = ("desired_mods", "user_set_mods", "game_path", "addons_path")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        both = {"vanillafixes": True, "dxvk": True}
+        assert vanillafixes_dxvk_both_enabled(both)
+        fixed = reconcile_vanillafixes_dxvk(
+            both, actual={"vanillafixes": True, "dxvk": True}
+        )
+        assert fixed.get("dxvk") and not fixed.get("vanillafixes")
+        fixed2 = reconcile_vanillafixes_dxvk(both, prefer="vanillafixes")
+        assert fixed2.get("vanillafixes") and not fixed2.get("dxvk")
+
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("desired_mods", {"vanillafixes": True, "dxvk": True})
+            s.set("user_set_mods", [])
+            plan = plan_changes()
+            install_ids = [c["id"] for c in plan if c.get("action") == "install"]
+            assert install_ids.count("vanillafixes") + install_ids.count("dxvk") == 1
+
+        s.set("desired_mods", {"vanillafixes": True, "dxvk": True})
+        changes = apply_vanillafixes_dxvk_choice("vanillafixes")
+        assert s.desired_mods.get("vanillafixes")
+        assert not s.desired_mods.get("dxvk")
+        assert changes.get("dxvk") is False
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+    print("OK vanillafixes dxvk reconcile")
+
+
+def test_dxvk_detect_plan_clean():
+    """DXVK on disk must not leave a phantom vanillafixes remove in plan_changes."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import detect_actual_state, plan_changes
+
+    keys = ("game_path", "addons_path", "desired_mods", "user_set_mods")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            (game / "VanillaFixes.exe").write_bytes(b"MZ")
+            (game / "d3d9.dll").write_bytes(b"MZ")
+            (game / "dxvk.conf").write_text("d3d9.enlargeHardwareCursor = 2\n", encoding="utf-8")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("desired_mods", {"vanillafixes": False, "dxvk": True})
+            s.set("user_set_mods", ["dxvk"])
+            clear_fs_caches()
+
+            actual = detect_actual_state(game)
+            assert actual.get("dxvk") is True, actual
+            assert not actual.get("vanillafixes"), actual
+            assert plan_changes() == [], plan_changes()
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK dxvk detect plan clean")
+
+
+def test_hd_patch_lt_exclusive_planning():
+    """Shared patch-L/T MPQs must not plan phantom removes for unselected variants."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import detect_actual_state, plan_changes
+
+    keys = ("game_path", "addons_path", "desired_mods", "user_set_mods", "installed_mods")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            data = game / "Data"
+            data.mkdir()
+            (game / "WoW.exe").write_bytes(b"MZ")
+            (data / "patch-L.mpq").write_bytes(b"mpq")
+            (data / "patch-T.mpq").write_bytes(b"mpq")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            clear_fs_caches()
+
+            def assert_lt_clean(desired: dict[str, bool]) -> None:
+                s.set("desired_mods", desired)
+                s.set("user_set_mods", [mid for mid, on in desired.items() if on])
+                s.set("installed_mods", {})
+                actual = detect_actual_state(game)
+                if desired.get("hd_patch_l"):
+                    assert actual.get("hd_patch_l") and not actual.get("hd_patch_l_less_thicc"), actual
+                if desired.get("hd_patch_l_less_thicc"):
+                    assert actual.get("hd_patch_l_less_thicc") and not actual.get("hd_patch_l"), actual
+                if desired.get("hd_patch_t"):
+                    assert actual.get("hd_patch_t") and not actual.get("hd_patch_t_ultra"), actual
+                if desired.get("hd_patch_t_ultra"):
+                    assert actual.get("hd_patch_t_ultra") and not actual.get("hd_patch_t"), actual
+                remove_ids = {c["id"] for c in plan_changes() if c.get("action") == "remove"}
+                assert "hd_patch_l" not in remove_ids or not desired.get("hd_patch_l"), remove_ids
+                assert "hd_patch_l_less_thicc" not in remove_ids or not desired.get(
+                    "hd_patch_l_less_thicc"
+                ), remove_ids
+                assert "hd_patch_t" not in remove_ids or not desired.get("hd_patch_t"), remove_ids
+                assert "hd_patch_t_ultra" not in remove_ids or not desired.get(
+                    "hd_patch_t_ultra"
+                ), remove_ids
+                if desired.get("hd_patch_l"):
+                    assert "hd_patch_l_less_thicc" not in remove_ids, remove_ids
+                if desired.get("hd_patch_l_less_thicc"):
+                    assert "hd_patch_l" not in remove_ids, remove_ids
+                if desired.get("hd_patch_t"):
+                    assert "hd_patch_t_ultra" not in remove_ids, remove_ids
+                if desired.get("hd_patch_t_ultra"):
+                    assert "hd_patch_t" not in remove_ids, remove_ids
+
+            assert_lt_clean({"hd_patch_l": True, "hd_patch_t_ultra": True})
+            assert_lt_clean({"hd_patch_l_less_thicc": True, "hd_patch_t": True})
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK hd patch L/T exclusive planning")
+
+
+def test_hd_patch_exclusive_variant_swap():
+    """Switching L/T MPQ siblings must plan reinstall, not a silent no-op."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import apply_mod_toggle, plan_changes
+
+    keys = ("game_path", "addons_path", "desired_mods", "user_set_mods", "installed_mods")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            data = game / "Data"
+            data.mkdir()
+            (game / "WoW.exe").write_bytes(b"MZ")
+            (data / "patch-L.mpq").write_bytes(b"regular")
+            (data / "patch-T.mpq").write_bytes(b"regular")
+            (data / "patch-A.mpq").write_bytes(b"a")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            clear_fs_caches()
+
+            def plan_install_ids() -> set[str]:
+                return {c["id"] for c in plan_changes() if c.get("action") == "install"}
+
+            s.set(
+                "installed_mods",
+                {"hd_patch_l": {"url": "regular"}, "hd_patch_t": {"url": "regular"}},
+            )
+            s.set(
+                "desired_mods",
+                {"hd_patch_l": True, "hd_patch_t": True, "hd_patch_a": True, "vanilla_helpers": True},
+            )
+            apply_mod_toggle("hd_patch_l_less_thicc", True)
+            assert s.desired_mods.get("hd_patch_l_less_thicc")
+            assert not s.desired_mods.get("hd_patch_l")
+            assert "hd_patch_l_less_thicc" in plan_install_ids()
+            assert "hd_patch_l" not in {
+                c["id"] for c in plan_changes() if c.get("action") == "remove"
+            }
+
+            s.set("installed_mods", {"hd_patch_t_ultra": {"url": "ultra"}})
+            s.set("desired_mods", {"hd_patch_t_ultra": True, "hd_patch_a": True, "vanilla_helpers": True})
+            apply_mod_toggle("hd_patch_t", True)
+            assert s.desired_mods.get("hd_patch_t")
+            assert not s.desired_mods.get("hd_patch_t_ultra")
+            assert "hd_patch_t" in plan_install_ids()
+            assert "hd_patch_t_ultra" not in {
+                c["id"] for c in plan_changes() if c.get("action") == "remove"
+            }
+
+            # Detection must reflect the recorded variant, not desired wish.
+            s.set("installed_mods", {"hd_patch_l": {"variant_id": "hd_patch_l"}})
+            s.set(
+                "desired_mods",
+                {"hd_patch_l_less_thicc": True, "hd_patch_a": True, "vanilla_helpers": True},
+            )
+            from ichalaunch.mods.installer import detect_actual_state
+
+            actual = detect_actual_state(game)
+            assert actual.get("hd_patch_l") and not actual.get("hd_patch_l_less_thicc"), actual
+            assert "hd_patch_l_less_thicc" in plan_install_ids()
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK hd patch exclusive variant swap")
+
+
+def test_hd_patch_both_desired_reconciled():
+    """Stale desired_mods with both L/T siblings must reconcile to one each."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import plan_changes, reconcile_exclusive_desired_mods
+
+    keys = ("game_path", "addons_path", "desired_mods", "user_set_mods", "installed_mods")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            data = game / "Data"
+            data.mkdir()
+            (game / "WoW.exe").write_bytes(b"MZ")
+            (data / "patch-L.mpq").write_bytes(b"regular")
+            (data / "patch-T.mpq").write_bytes(b"ultra")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("installed_mods", {"hd_patch_l": {}, "hd_patch_t_ultra": {}})
+            s.set(
+                "desired_mods",
+                {
+                    "hd_patch_l": True,
+                    "hd_patch_l_less_thicc": True,
+                    "hd_patch_t": True,
+                    "hd_patch_t_ultra": True,
+                    "hd_patch_a": True,
+                    "vanilla_helpers": True,
+                },
+            )
+            s.set("user_set_mods", [])
+            clear_fs_caches()
+
+            fixed = reconcile_exclusive_desired_mods(s.desired_mods, actual={"hd_patch_l": True, "hd_patch_t_ultra": True})
+            assert fixed.get("hd_patch_l") and not fixed.get("hd_patch_l_less_thicc"), fixed
+            assert fixed.get("hd_patch_t_ultra") and not fixed.get("hd_patch_t"), fixed
+
+            s.set("desired_mods", {
+                "hd_patch_l": True,
+                "hd_patch_l_less_thicc": True,
+                "hd_patch_t": True,
+                "hd_patch_t_ultra": True,
+                "hd_patch_a": True,
+                "vanilla_helpers": True,
+            })
+            plan_changes()
+            d = s.desired_mods
+            assert d.get("hd_patch_l") and not d.get("hd_patch_l_less_thicc"), d
+            assert d.get("hd_patch_t_ultra") and not d.get("hd_patch_t"), d
+            remove_ids = {c["id"] for c in plan_changes() if c.get("action") == "remove"}
+            assert "hd_patch_l" not in remove_ids, remove_ids
+            assert "hd_patch_t_ultra" not in remove_ids, remove_ids
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK hd patch both desired reconciled")
+
+
+def test_backfill_installed_mods_on_detect():
+    """Detect/update scan backfills installed_mods for on-disk mods missing records."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import apply_mod_toggle, detect_actual_state, plan_changes
+
+    keys = ("game_path", "addons_path", "desired_mods", "user_set_mods", "installed_mods")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            data = game / "Data"
+            data.mkdir()
+            (game / "WoW.exe").write_bytes(b"MZ")
+            (data / "patch-L.mpq").write_bytes(b"regular")
+            (data / "patch-A.mpq").write_bytes(b"a")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("installed_mods", {})
+            s.set(
+                "desired_mods",
+                {"hd_patch_l": True, "hd_patch_a": True, "vanilla_helpers": True},
+            )
+            clear_fs_caches()
+
+            detect_actual_state(game)
+            rec = s.installed_mods.get("hd_patch_l") or {}
+            assert rec.get("variant_id") == "hd_patch_l", rec
+            assert "hd_patch_l_less_thicc" not in s.installed_mods
+
+            apply_mod_toggle("hd_patch_l_less_thicc", True)
+            install_ids = {c["id"] for c in plan_changes() if c.get("action") == "install"}
+            assert "hd_patch_l_less_thicc" in install_ids, install_ids
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK backfill installed mods on detect")
+
+
+def test_resolve_launch_exe():
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.game.launcher import launch_exe_note, resolve_launch_exe
+
+    keys = ("game_path", "vanillafixes_enabled")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            wow = game / "WoW.exe"
+            vf = game / "VanillaFixes.exe"
+            wow.write_bytes(b"MZ")
+            s.set("game_path", str(game))
+            s.set("vanillafixes_enabled", True)
+
+            assert resolve_launch_exe(game) == wow
+            assert launch_exe_note(game, wow) == "VanillaFixes.exe not found in game folder"
+
+            vf.write_bytes(b"MZ")
+            assert resolve_launch_exe(game) == vf
+            assert launch_exe_note(game, vf) is None
+
+            s.set("vanillafixes_enabled", False)
+            assert resolve_launch_exe(game) == wow
+            assert launch_exe_note(game, wow) == "launch through VanillaFixes disabled in Settings"
+    finally:
+        for k, v in saved.items():
+            s.set(k, v)
+    print("OK resolve_launch_exe")
+
+
+def test_vf_mode_labels():
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.game.launcher import (
+        detect_vf_disk_mode,
+        launch_mode_label_for_exe,
+        vf_disk_hint_line,
+        vf_mode_display,
+    )
+
+    assert vf_mode_display("dxvk") == "VanillaFixes + DXVK (Vulkan)"
+    assert vf_mode_display("vanillafixes") == "VanillaFixes (standard)"
+    assert vf_mode_display("none") == "none"
+
+    with tempfile.TemporaryDirectory() as td:
+        game = Path(td)
+        clear_fs_caches()
+        assert detect_vf_disk_mode(game) == "none"
+        (game / "VanillaFixes.exe").write_bytes(b"MZ")
+        clear_fs_caches()
+        assert detect_vf_disk_mode(game) == "vanillafixes"
+        (game / "d3d9.dll").write_bytes(b"x")
+        (game / "dxvk.conf").write_text("x", encoding="utf-8")
+        clear_fs_caches()
+        assert detect_vf_disk_mode(game) == "dxvk"
+        vf = game / "VanillaFixes.exe"
+        assert launch_mode_label_for_exe(game, vf) == "VanillaFixes + DXVK (Vulkan)"
+        (game / "dxvk.conf").unlink()
+        clear_fs_caches()
+        assert launch_mode_label_for_exe(game, vf) == "VanillaFixes (standard)"
+        assert launch_mode_label_for_exe(game, game / "WoW.exe") == "WoW.exe (direct)"
+        hints = vf_disk_hint_line(game)
+        assert "d3d9.dll present" in hints
+        assert "dxvk.conf absent" in hints
+    print("OK vf mode labels")
+
+
+def test_vf_dxvk_roundtrip_plan_clean():
+    """VF → DXVK → VF toggles with apply must end with an empty plan."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import (
+        apply_desired_state,
+        apply_mod_toggle,
+        detect_actual_state,
+        plan_changes,
+    )
+
+    keys = (
+        "game_path",
+        "addons_path",
+        "desired_mods",
+        "user_set_mods",
+        "installed_mods",
+        "vanillafixes_enabled",
+    )
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("installed_mods", {})
+            clear_fs_caches()
+
+            s.set("desired_mods", {"vanillafixes": True})
+            s.set("user_set_mods", ["vanillafixes"])
+            apply_desired_state()
+            assert plan_changes() == [], plan_changes()
+
+            apply_mod_toggle("dxvk", True)
+            apply_desired_state()
+            assert plan_changes() == [], plan_changes()
+            actual = detect_actual_state(game)
+            assert actual.get("dxvk") and not actual.get("vanillafixes"), actual
+
+            apply_mod_toggle("vanillafixes", True)
+            apply_desired_state()
+            actual = detect_actual_state(game)
+            assert actual.get("vanillafixes") and not actual.get("dxvk"), actual
+            assert not (game / "d3d9.dll").exists()
+            assert not (game / "dxvk.conf").exists()
+            assert plan_changes() == [], plan_changes()
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK vf dxvk roundtrip plan clean")
+
+
+def test_vf_dxvk_roundtrip_simulated_plan_clean():
+    """Simulated disk: DXVK artifacts must be removed when switching back to VF."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import (
+        apply_desired_state,
+        apply_mod_toggle,
+        detect_actual_state,
+        plan_changes,
+        remove_mod,
+    )
+
+    keys = (
+        "game_path",
+        "addons_path",
+        "desired_mods",
+        "user_set_mods",
+        "installed_mods",
+        "vanillafixes_enabled",
+    )
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            clear_fs_caches()
+
+            (game / "VanillaFixes.exe").write_bytes(b"VF")
+            (game / "VfPatcher.dll").write_bytes(b"dll")
+            s.set("desired_mods", {"vanillafixes": True})
+            s.set("user_set_mods", ["vanillafixes"])
+            s.set("installed_mods", {"vanillafixes": {"name": "VanillaFixes"}})
+            assert plan_changes() == [], plan_changes()
+
+            apply_mod_toggle("dxvk", True)
+            (game / "d3d9.dll").write_bytes(b"dxvk")
+            (game / "dxvk.conf").write_text("x", encoding="utf-8")
+            s.set("installed_mods", {"dxvk": {"name": "DXVK"}})
+            clear_fs_caches()
+            assert plan_changes() == [], plan_changes()
+
+            apply_mod_toggle("vanillafixes", True)
+            plan = plan_changes()
+            install_ids = {c["id"] for c in plan if c.get("action") == "install"}
+            remove_ids = {c["id"] for c in plan if c.get("action") == "remove"}
+            assert "vanillafixes" in install_ids, plan
+            assert "dxvk" in remove_ids, plan
+
+            for ch in plan:
+                if ch.get("action") == "remove":
+                    remove_mod(ch["id"])
+            (game / "VanillaFixes.exe").write_bytes(b"VF-new")
+            clear_fs_caches()
+            actual = detect_actual_state(game)
+            assert actual.get("vanillafixes") and not actual.get("dxvk"), actual
+            assert plan_changes() == [], plan_changes()
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK vf dxvk roundtrip simulated plan clean")
+
+
+def test_dxvk_switch_keeps_vanillafixes_exe():
+    """Switching VF → DXVK must not delete VanillaFixes.exe (DXVK bundle needs it)."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.game.launcher import launch_exe_note, resolve_launch_exe
+    from ichalaunch.mods.installer import (
+        apply_desired_state,
+        apply_mod_toggle,
+        detect_actual_state,
+        plan_changes,
+    )
+
+    keys = (
+        "game_path",
+        "addons_path",
+        "desired_mods",
+        "user_set_mods",
+        "vanillafixes_enabled",
+    )
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("desired_mods", {"vanillafixes": True})
+            s.set("user_set_mods", [])
+            apply_desired_state()
+            assert (game / "VanillaFixes.exe").is_file()
+
+            apply_mod_toggle("dxvk", True)
+            assert not s.desired_mods.get("vanillafixes")
+            assert s.desired_mods.get("dxvk")
+            plan = plan_changes()
+            assert any(c.get("id") == "dxvk" and c.get("action") == "install" for c in plan)
+            out = apply_desired_state()
+            assert "+ dxvk" in out
+            assert (game / "VanillaFixes.exe").is_file(), out
+            assert (game / "d3d9.dll").is_file(), out
+            assert (game / "dxvk.conf").is_file(), out
+            actual = detect_actual_state(game)
+            assert actual.get("dxvk") is True, actual
+            assert not actual.get("vanillafixes"), actual
+            assert plan_changes() == [], plan_changes()
+            vf = resolve_launch_exe(game)
+            assert vf.name.lower() == "vanillafixes.exe"
+            assert launch_exe_note(game, vf) is None
+
+            # Prior VF on disk, user only wants DXVK — remove step must keep VF.exe.
+            from ichalaunch.core.filesystem import clear_fs_caches
+
+            (game / "VanillaFixes.exe").unlink()
+            (game / "VfPatcher.dll").unlink(missing_ok=True)
+            (game / "d3d9.dll").unlink(missing_ok=True)
+            (game / "dxvk.conf").unlink(missing_ok=True)
+            (game / "VanillaFixes.exe").write_bytes(b"MZ")
+            (game / "VfPatcher.dll").write_bytes(b"dll")
+            s.set("desired_mods", {"vanillafixes": False, "dxvk": True})
+            s.set("user_set_mods", ["dxvk"])
+            clear_fs_caches()
+            apply_desired_state()
+            assert (game / "VanillaFixes.exe").is_file()
+            assert (game / "d3d9.dll").is_file()
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+    print("OK dxvk switch keeps vanillafixes exe")
+
+
+def test_detect_game_ravencraft_subfolder():
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.game.launcher import detect_game
+
+    keys = ("game_path",)
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            parent = Path(td) / "Games"
+            rc = parent / "RavenCraft"
+            rc.mkdir(parents=True)
+            (rc / "WoW.exe").write_bytes(b"MZ")
+            s.set("game_path", str(parent))
+            assert detect_game().resolve() == rc.resolve()
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+    print("OK detect game ravencraft subfolder")
+
+
+def test_assess_dxvk_gpu():
+    from ichalaunch.core import gpu_compat
+
+    orig = gpu_compat.query_gpu_names
+    try:
+        gpu_compat.query_gpu_names = lambda: ("Intel(R) HD Graphics 4000",)
+        if hasattr(gpu_compat.query_gpu_names, "cache_clear"):
+            gpu_compat.query_gpu_names.cache_clear()
+        level, names, msg = gpu_compat.assess_dxvk_gpu()
+        assert level == "bad"
+        assert names and "Intel" in names[0]
+        gpu_compat.query_gpu_names = lambda: ("NVIDIA GeForce RTX 3070",)
+        level2, _, msg2 = gpu_compat.assess_dxvk_gpu()
+        assert level2 == "ok"
+        assert "NVIDIA" in msg2
+    finally:
+        gpu_compat.query_gpu_names = orig
+        if hasattr(orig, "cache_clear"):
+            orig.cache_clear()
+    print("OK assess dxvk gpu")
+
+
+def test_addon_fork_version_labels():
+    from ichalaunch.ui.widgets.common import addon_fork_label, addon_version_label
+
+    entry = {
+        "repo": "https://github.com/McPewPew/MinimapButtonBag",
+        "pin_release": "2.1.0",
+    }
+    assert addon_fork_label(entry) == "McPewPew/MinimapButtonBag"
+    archived = {
+        "repo": "https://github.com/olduser/MinimapButtonBag",
+        "archived": True,
+    }
+    assert addon_fork_label(archived) == "olduser/MinimapButtonBag (archived)"
+    assert addon_version_label(entry) == "v2.1.0"
+    meta = {"version": "1.2.3"}
+    assert addon_version_label(entry, meta) == "v1.2.3"
+    print("OK addon fork version labels")
+
+
+def test_addon_github_browse_helpers():
+    from ichalaunch.addons.github import (
+        addon_install_url_for_choice,
+        catalog_fork_entries,
+        clear_github_browse_cache,
+        fork_entry_from_repo_url,
+        parse_entry_owner_repo,
+        sort_fork_entries,
+    )
+
+    bag = {
+        "repo": "https://github.com/The-Kludge-Bureau/Bagshui/releases/tag/1.5.16",
+        "pin_release": "1.5.16",
+        "forks": [
+            {
+                "label": "NiclasEriksen",
+                "repo": "https://github.com/NiclasEriksen/Bagshui",
+            },
+        ],
+    }
+    forks = catalog_fork_entries(bag)
+    assert len(forks) == 2
+    assert parse_entry_owner_repo(bag) == ("The-Kludge-Bureau", "Bagshui")
+    fe = fork_entry_from_repo_url("https://github.com/shagu/ShaguTweaks")
+    assert fe["owner"] == "shagu" and fe["repo_name"] == "ShaguTweaks"
+    url = addon_install_url_for_choice(fe, "1.2.3")
+    assert url.endswith("/releases/tag/1.2.3")
+    ordered = sort_fork_entries(
+        [
+            {"label": "zeta/archived", "archived": True},
+            {"label": "alpha/active"},
+            {"label": "beta/archived", "archived": True},
+        ]
+    )
+    assert [f["label"] for f in ordered] == [
+        "alpha/active",
+        "beta/archived",
+        "zeta/archived",
+    ]
+    clear_github_browse_cache()
+    print("OK addon github browse helpers")
 
 
 def test_plan_changes_hd_env_set_no_recursion():
@@ -1198,6 +1873,113 @@ def test_auto_scan_cooldown_setting():
     print("OK auto scan cooldown setting")
 
 
+def test_auto_scan_cooldown_persists_to_disk():
+    """Slider changes must survive settings.json save/load and Settings page refresh."""
+    import json
+    import sys
+    import tempfile
+    from pathlib import Path
+
+    from PySide6.QtWidgets import QApplication
+
+    import ichalaunch.config.settings as settings_mod
+    from ichalaunch.config.settings import Settings
+
+    app = QApplication.instance() or QApplication(sys.argv)
+
+    with tempfile.TemporaryDirectory() as td:
+        fake = Path(td) / "settings.json"
+        orig_path = settings_mod.settings_path
+        orig_singleton = settings_mod.settings
+        settings_mod.settings_path = lambda: fake
+        try:
+            settings_mod.settings = Settings()
+            settings_mod.settings.set_auto_scan_cooldown_minutes(90)
+            assert fake.is_file()
+            assert json.loads(fake.read_text(encoding="utf-8"))["auto_scan_cooldown_minutes"] == 90
+
+            settings_mod.settings = Settings()
+            assert settings_mod.settings.auto_scan_cooldown_minutes() == 90
+
+            import ichalaunch.ui.pages.settings as settings_page_mod
+
+            settings_page_mod.settings = settings_mod.settings
+            page = settings_page_mod.SettingsPage()
+            assert page.cooldown_slider.value() == 90
+            page.cooldown_slider.setValue(135)
+            assert settings_mod.settings.auto_scan_cooldown_minutes() == 135
+            assert json.loads(fake.read_text(encoding="utf-8"))["auto_scan_cooldown_minutes"] == 135
+
+            page.refresh()
+            assert page.cooldown_slider.value() == 135
+
+            settings_mod.settings = Settings()
+            assert settings_mod.settings.auto_scan_cooldown_minutes() == 135
+        finally:
+            settings_mod.settings_path = orig_path
+            settings_mod.settings = orig_singleton
+
+    print("OK auto scan cooldown persists to disk")
+
+
+def test_addon_startup_token_gating():
+    """Addon startup scans require token or explicit addon opt-in; migration clears legacy."""
+    from ichalaunch.config.settings import (
+        Settings,
+        migrate_addon_no_token_startup,
+        settings,
+    )
+
+    # Migration: no token → disable addon startup flag once
+    legacy = {
+        "check_updates_on_startup": True,
+        "check_addon_updates_on_startup": True,
+        "github_token": "",
+    }
+    assert migrate_addon_no_token_startup(legacy) is True
+    assert legacy["check_addon_updates_on_startup"] is False
+    assert legacy["addon_no_token_startup_migrated_v1"] is True
+    assert migrate_addon_no_token_startup(legacy) is False
+
+    with_token = {
+        "check_addon_updates_on_startup": True,
+        "github_token": "ghp_test",
+    }
+    assert migrate_addon_no_token_startup(with_token) is False
+    assert with_token["check_addon_updates_on_startup"] is True
+
+    # Startup gate helpers
+    s = Settings()
+    s._data["check_updates_on_startup"] = True
+    s._data["check_addon_updates_on_startup"] = False
+    assert s.should_startup_check_addons(has_token=True) is True
+    assert s.should_startup_check_addons(has_token=False) is False
+
+    s._data["check_addon_updates_on_startup"] = True
+    assert s.should_startup_check_addons(has_token=False) is True
+
+    s._data["check_updates_on_startup"] = False
+    assert s.should_startup_check_addons(has_token=True) is False
+
+    prev = {
+        "check_updates_on_startup": settings.check_updates_on_startup(),
+        "check_mod_updates_on_startup": settings.check_mod_updates_on_startup(),
+        "check_addon_updates_on_startup": settings.check_addon_updates_on_startup(),
+    }
+    try:
+        settings.set_check_updates_on_startup(True)
+        assert settings.check_updates_on_startup() is True
+        assert settings.check_mod_updates_on_startup() is True
+        assert settings.check_addon_updates_on_startup() is True
+        settings.set_check_updates_on_startup(False)
+        assert settings.check_addon_updates_on_startup() is False
+    finally:
+        settings._data.update(prev)
+        settings.save()
+
+    print("OK addon startup token gating")
+
+
 def test_bagshui_catalog_pin():
     """Bagshui is pinned to the 1.12 tag and never auto-updates to 3.3.5."""
     from ichalaunch.addons.github import (
@@ -1624,6 +2406,105 @@ def test_prepare_for_launch_clears_data_readonly():
             s.set(k, saved[k])
         clear_fs_caches()
     print("OK prepare_for_launch clears Data read-only")
+
+
+def test_plan_missing_installs_dxvk():
+    """Desired DXVK with missing VanillaFixes.exe should plan a reinstall before launch."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import (
+        detect_actual_state,
+        plan_changes,
+        plan_missing_installs,
+    )
+
+    keys = (
+        "game_path",
+        "addons_path",
+        "desired_mods",
+        "user_set_mods",
+        "installed_mods",
+        "vanillafixes_enabled",
+    )
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("desired_mods", {"dxvk": True, "vanillafixes": False})
+            s.set("user_set_mods", ["dxvk"])
+            s.set("vanillafixes_enabled", True)
+            clear_fs_caches()
+
+            actual = detect_actual_state(game)
+            assert not actual.get("dxvk"), actual
+            missing = plan_missing_installs()
+            assert any(ch.get("id") == "dxvk" for ch in missing), missing
+            assert not any(ch.get("action") == "remove" for ch in plan_changes()), plan_changes()
+
+            # Partial DXVK files still count as missing — repair should reinstall.
+            (game / "d3d9.dll").write_bytes(b"MZ")
+            (game / "dxvk.conf").write_text("d3d9.enlargeHardwareCursor = 2\n", encoding="utf-8")
+            clear_fs_caches()
+            actual2 = detect_actual_state(game)
+            assert not actual2.get("dxvk"), actual2
+            missing2 = plan_missing_installs()
+            assert any(ch.get("id") == "dxvk" for ch in missing2), missing2
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK plan_missing_installs dxvk")
+
+
+def test_play_prep_plans_remove():
+    """Disabled mod with file on disk should plan remove before PLAY sync."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import (
+        ensure_desired_mods_synced,
+        plan_sync_changes,
+    )
+
+    keys = (
+        "desired_mods",
+        "user_set_mods",
+        "installed_mods",
+        "game_path",
+        "addons_path",
+    )
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            data = game / "Data"
+            data.mkdir()
+            mpq = data / "patch-N.mpq"
+            mpq.write_bytes(b"MPQ")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("desired_mods", {"hd_patch_n": False})
+            s.set("user_set_mods", ["hd_patch_n"])
+            s.set("installed_mods", {})
+            clear_fs_caches()
+
+            sync = plan_sync_changes()
+            assert any(
+                ch["action"] == "remove" and ch["id"] == "hd_patch_n" for ch in sync
+            ), sync
+
+            out = ensure_desired_mods_synced()
+            assert "- hd_patch_n" in out, out
+            assert not mpq.exists()
+            assert plan_sync_changes() == [], plan_sync_changes()
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK play prep plans remove")
 
 
 def test_client_zip_mirrors_and_gofile_parse():
@@ -2073,7 +2954,157 @@ def test_game_permissions_protected_path():
     print("OK game permissions protected path")
 
 
+def test_settings_paths_survive_load_cycle():
+    """game_path and addons_path must survive load → migration → save → reload."""
+    import ichalaunch.config.settings as settings_mod
+    from ichalaunch.config.settings import Settings, migrate_addon_no_token_startup
+
+    with tempfile.TemporaryDirectory() as td:
+        fake = Path(td) / "settings.json"
+        orig_path = settings_mod.settings_path
+        settings_mod.settings_path = lambda: fake
+        try:
+            fake.write_text(
+                json.dumps(
+                    {
+                        "game_path": r"D:\Games\RavenCraft",
+                        "addons_path": r"E:\Custom\AddOns",
+                        "check_addon_updates_on_startup": True,
+                        "github_token": "",
+                        "desired_mods": {"darker_nights": True},
+                        "user_set_mods": ["darker_nights"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            s = Settings()
+            assert s.game_path.replace("\\", "/") == "D:/Games/RavenCraft"
+            assert s.addons_path.replace("\\", "/") == "E:/Custom/AddOns"
+            assert s.desired_mods.get("hd_patch_n") is True
+
+            # Simulate a routine settings write (e.g. desired_mods reconcile).
+            s.set("desired_mods", dict(s.desired_mods))
+            assert migrate_addon_no_token_startup(s._data) is False
+
+            reloaded = Settings()
+            assert reloaded.game_path.replace("\\", "/") == "D:/Games/RavenCraft"
+            assert reloaded.addons_path.replace("\\", "/") == "E:/Custom/AddOns"
+
+            # Accidental empty writes must not wipe saved paths.
+            reloaded.set("game_path", "")
+            reloaded.game_path = ""
+            assert reloaded.game_path.replace("\\", "/") == "D:/Games/RavenCraft"
+        finally:
+            settings_mod.settings_path = orig_path
+    print("OK settings paths survive load cycle")
+
+
+def test_settings_paths_recover_from_backup():
+    """Corrupt settings.json should fall back to the last good .bak copy."""
+    import ichalaunch.config.settings as settings_mod
+    from ichalaunch.config.settings import Settings, _settings_backup_path
+
+    with tempfile.TemporaryDirectory() as td:
+        fake = Path(td) / "settings.json"
+        bak = _settings_backup_path(fake)
+        orig_path = settings_mod.settings_path
+        settings_mod.settings_path = lambda: fake
+        try:
+            good = {
+                "game_path": r"D:\Games\Saved",
+                "addons_path": r"D:\Games\Saved\Interface\AddOns",
+            }
+            fake.write_text(json.dumps(good), encoding="utf-8")
+            s = Settings()
+            s.save()
+            assert bak.is_file()
+            fake.write_text("{not valid json", encoding="utf-8")
+
+            recovered = Settings()
+            assert recovered.game_path.replace("\\", "/") == "D:/Games/Saved"
+            assert "Saved" in recovered.addons_path
+        finally:
+            settings_mod.settings_path = orig_path
+    print("OK settings paths recover from backup")
+
+
+def test_launcher_release_cache():
+    from ichalaunch.config.settings import settings
+    from ichalaunch.core.self_update import (
+        LauncherReleaseInfo,
+        check_latest_launcher_release,
+        launcher_release_info_from_dict,
+        launcher_release_info_to_dict,
+        read_cached_launcher_release,
+        store_cached_launcher_release,
+    )
+    from inspect import signature
+
+    assert "progress" in signature(check_latest_launcher_release).parameters
+
+    info = LauncherReleaseInfo(
+        tag="v9.9.9",
+        version="9.9.9",
+        name="Test",
+        asset_name="IchaLaunch.exe",
+        download_url="https://example.com/IchaLaunch.exe",
+        update_available=True,
+    )
+    restored = launcher_release_info_from_dict(launcher_release_info_to_dict(info))
+    assert restored is not None and restored.version == "9.9.9"
+
+    old_ts = settings.get("last_launcher_release_check")
+    old_cache = settings.get("cached_launcher_release")
+    try:
+        store_cached_launcher_release(info)
+        hit = read_cached_launcher_release(max_age_sec=3600, local_version="1.0.0")
+        assert hit is not None and hit.update_available
+    finally:
+        settings._data["last_launcher_release_check"] = old_ts
+        settings._data["cached_launcher_release"] = old_cache
+        settings.save()
+    print("OK launcher release cache")
+
+
+def test_themed_dialog_flags_and_close():
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication, QDialog, QWidget
+
+    from ichalaunch.ui.widgets.dialogs import (
+        ThemedDialog,
+        _themed_dialog_flags,
+        close_open_themed_dialogs,
+    )
+
+    app = QApplication.instance() or QApplication([])
+    root = QWidget()
+    flags = _themed_dialog_flags()
+    assert not (int(flags) & int(Qt.WindowType.WindowStaysOnTopHint))
+    dlg = ThemedDialog(root, "Test", "Body")
+    assert not (int(dlg.windowFlags()) & int(Qt.WindowType.WindowStaysOnTopHint))
+    dlg.show()
+    assert dlg.isVisible()
+    close_open_themed_dialogs(root)
+    assert not dlg.isVisible()
+    print("OK themed dialog flags and close")
+
+
 def main():
+    import ichalaunch.config.settings as settings_mod
+
+    real_path_fn = settings_mod.settings_path
+    with tempfile.TemporaryDirectory() as td:
+        isolated = Path(td) / "settings.json"
+        settings_mod.settings_path = lambda: isolated
+        settings_mod.settings.load()
+        try:
+            _run_smoke_tests()
+        finally:
+            settings_mod.settings_path = real_path_fn
+            settings_mod.settings.load()
+
+
+def _run_smoke_tests():
     test_catalogs()
     test_github_parse()
     test_protected()
@@ -2083,6 +3114,22 @@ def main():
     test_mod_remove_desired_state()
     test_darker_nights_migration()
     test_mod_toggle_resolution()
+    test_mod_author_labels()
+    test_vanillafixes_dxvk_reconcile()
+    test_dxvk_detect_plan_clean()
+    test_hd_patch_lt_exclusive_planning()
+    test_hd_patch_exclusive_variant_swap()
+    test_hd_patch_both_desired_reconciled()
+    test_backfill_installed_mods_on_detect()
+    test_resolve_launch_exe()
+    test_vf_mode_labels()
+    test_vf_dxvk_roundtrip_simulated_plan_clean()
+    test_vf_dxvk_roundtrip_plan_clean()
+    test_dxvk_switch_keeps_vanillafixes_exe()
+    test_detect_game_ravencraft_subfolder()
+    test_assess_dxvk_gpu()
+    test_addon_fork_version_labels()
+    test_addon_github_browse_helpers()
     test_plan_changes_hd_env_set_no_recursion()
     test_vanilla_helpers_hd_dependency()
     test_discover_game_path_near_launcher()
@@ -2099,6 +3146,10 @@ def main():
     test_github_token_not_sent_to_third_party_readme_hosts()
     test_github_bad_token_retries_without_auth()
     test_auto_scan_cooldown_setting()
+    test_auto_scan_cooldown_persists_to_disk()
+    test_addon_startup_token_gating()
+    test_settings_paths_survive_load_cycle()
+    test_settings_paths_recover_from_backup()
     test_bagshui_catalog_pin()
     test_never_update_persists()
     test_sanitize_filename()
@@ -2109,6 +3160,8 @@ def main():
     test_apply_desired_state_restores_dlls_txt()
     test_prepare_for_launch_syncs_dlls_txt()
     test_prepare_for_launch_clears_data_readonly()
+    test_plan_missing_installs_dxvk()
+    test_play_prep_plans_remove()
     test_client_zip_mirrors_and_gofile_parse()
     test_find_wow_exe_dir_and_extract()
     test_settle_existing_alphanumeric_folder()
@@ -2117,6 +3170,8 @@ def main():
     test_zip_url_from_html()
     test_game_permissions_scan_and_fix()
     test_game_permissions_protected_path()
+    test_launcher_release_cache()
+    test_themed_dialog_flags_and_close()
     print("\nAll smoke tests passed.")
 
 

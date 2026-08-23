@@ -20,6 +20,17 @@
     "repo": "https://github.com/The-Kludge-Bureau/Bagshui/releases/tag/1.5.16",
     "pin_release": "1.5.16",
     "updates": false,
+    "forks": [
+      {
+        "label": "The-Kludge-Bureau (1.12 / Turtle)",
+        "repo": "https://github.com/The-Kludge-Bureau/Bagshui/releases/tag/1.5.16",
+        "pin_release": "1.5.16"
+      },
+      {
+        "label": "NiclasEriksen",
+        "repo": "https://github.com/NiclasEriksen/Bagshui"
+      }
+    ],
     "category": "Bags",
     "description": "All-in-one auto-categorizing and sorting inventory replacement for Bags and Bank with customizable layout and rules. Pinned to 1.5.16 (1.12 / Turtle); newer GitHub releases target 3.3.5 and are not auto-updated. https://github.com/NiclasEriksen/Bagshui Alt",
     "source": "turtle_wiki",

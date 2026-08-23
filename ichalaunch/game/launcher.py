@@ -8,9 +8,11 @@ from pathlib import Path
 from typing import Any
 
 from ichalaunch.config.settings import settings
-from ichalaunch.core.filesystem import is_protected_path
+from ichalaunch.core.filesystem import is_protected_path, listed_basenames, name_present
 from ichalaunch.core.logging_setup import log
 from ichalaunch.core.process import launch_exe
+
+_GAME_HOME_SUBDIR = "RavenCraft"
 
 # Primary: Gofile folder page (CDN links expire — resolve at install time).
 # File metadata from the Gofile Properties dialog (do not bake signed CDN URLs).
@@ -34,12 +36,33 @@ GAME_DOWNLOAD_NOTE = (
 
 
 def detect_game(path: str | Path | None = None) -> Path | None:
+    """Return the folder that contains WoW.exe (game root or ``…/RavenCraft``)."""
     p = Path(path or settings.game_path or "")
     if not p or not str(p):
         return None
-    wow = p / "WoW.exe"
-    if wow.exists():
-        return p
+    try:
+        if (p / "WoW.exe").is_file():
+            return p
+        nested = p / _GAME_HOME_SUBDIR
+        if nested != p and (nested / "WoW.exe").is_file():
+            return nested
+    except OSError:
+        return None
+    return None
+
+
+def resolve_vanilla_fixes_exe(game_path: Path) -> Path | None:
+    """Return VanillaFixes.exe under *game_path* (root or one nested folder)."""
+    game_path = Path(game_path)
+    listing = listed_basenames(game_path)
+    if name_present(game_path, "VanillaFixes.exe", listing):
+        return game_path / "VanillaFixes.exe"
+    try:
+        for vf in game_path.rglob("VanillaFixes.exe"):
+            if vf.is_file():
+                return vf
+    except OSError:
+        return None
     return None
 
 
@@ -133,13 +156,81 @@ def validate_install_location(path: Path) -> tuple[bool, str]:
     return True, "OK"
 
 
+VF_DISK_NONE = "none"
+VF_DISK_STANDARD = "vanillafixes"
+VF_DISK_DXVK = "dxvk"
+
+
+def detect_vf_disk_mode(game_path: Path) -> str:
+    """Return on-disk VF variant: ``dxvk``, ``vanillafixes``, or ``none``."""
+    root_names = listed_basenames(game_path)
+    has_dxvk = name_present(game_path, "d3d9.dll", root_names) and name_present(
+        game_path, "dxvk.conf", root_names
+    )
+    if has_dxvk:
+        return VF_DISK_DXVK
+    if name_present(game_path, "VanillaFixes.exe", root_names):
+        return VF_DISK_STANDARD
+    return VF_DISK_NONE
+
+
+def vf_mode_display(mode: str) -> str:
+    """Grep-friendly label for :func:`detect_vf_disk_mode` result."""
+    return {
+        VF_DISK_DXVK: "VanillaFixes + DXVK (Vulkan)",
+        VF_DISK_STANDARD: "VanillaFixes (standard)",
+        VF_DISK_NONE: "none",
+    }.get(mode, mode)
+
+
+def launch_mode_label_for_exe(game_path: Path, exe: Path) -> str:
+    """Human label for how the game will boot."""
+    if exe.name.lower() == "wow.exe":
+        return "WoW.exe (direct)"
+    if detect_vf_disk_mode(game_path) == VF_DISK_DXVK:
+        return "VanillaFixes + DXVK (Vulkan)"
+    return "VanillaFixes (standard)"
+
+
+def vf_disk_hint_line(game_path: Path) -> str:
+    """Compact on-disk markers for DXVK layer files."""
+    root_names = listed_basenames(game_path)
+    parts: list[str] = []
+    for name in ("d3d9.dll", "dxvk.conf"):
+        state = "present" if name_present(game_path, name, root_names) else "absent"
+        parts.append(f"{name} {state}")
+    return ", ".join(parts)
+
+
 def resolve_launch_exe(game_path: Path) -> Path:
     use_vf = bool(settings.get("vanillafixes_enabled", True))
-    vf = game_path / "VanillaFixes.exe"
     wow = game_path / "WoW.exe"
-    if use_vf and vf.exists():
+    vf = resolve_vanilla_fixes_exe(game_path)
+    if use_vf and vf is not None:
         return vf
     return wow
+
+
+def launch_exe_note(game_path: Path, exe: Path) -> str | None:
+    """Human-readable reason when WoW.exe is used instead of VanillaFixes.exe."""
+    if exe.name.lower() != "wow.exe":
+        return None
+    use_vf = bool(settings.get("vanillafixes_enabled", True))
+    vf = resolve_vanilla_fixes_exe(game_path)
+    checked = game_path / "VanillaFixes.exe"
+    if use_vf and vf is None:
+        log.info(
+            "Launch mode fallback: WoW.exe (direct) — VanillaFixes.exe not found "
+            "(checked=%s exists=%s vanillafixes_enabled=%s)",
+            checked,
+            checked.exists(),
+            use_vf,
+        )
+        return "VanillaFixes.exe not found in game folder"
+    if not use_vf:
+        log.info("Launch mode fallback: WoW.exe (direct) — VanillaFixes disabled in Settings")
+        return "launch through VanillaFixes disabled in Settings"
+    return None
 
 
 def launch_game() -> None:
@@ -147,7 +238,12 @@ def launch_game() -> None:
     if not game:
         raise FileNotFoundError("Game not installed / path not set")
     exe = resolve_launch_exe(game)
-    log.info("Launching %s", exe)
+    log.info("Launch mode: %s", launch_mode_label_for_exe(game, exe))
+    log.info("Launch exe: %s", exe.name)
+    log.info("On-disk hints: %s", vf_disk_hint_line(game))
+    note = launch_exe_note(game, exe)
+    if note:
+        log.info("Launch note: %s", note)
     launch_exe(exe, cwd=game)
 
 

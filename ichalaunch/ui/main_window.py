@@ -152,6 +152,7 @@ from ichalaunch.addons.github import (
     WAITING_RATE_LIMIT_STATUS,
     check_addon_updates,
     format_github_error_message,
+    has_github_token,
     has_pending_addon_scan_queue,
     install_from_github,
     rate_limit_exhausted,
@@ -176,6 +177,7 @@ from ichalaunch.core.self_update import (
     apply_windows_self_replace,
     check_latest_launcher_release,
     perform_launcher_update,
+    read_cached_launcher_release,
 )
 from ichalaunch.game.client_install import (
     apply_bundled_realmlist,
@@ -197,7 +199,10 @@ from ichalaunch.mods.installer import (
     ModUpdateCheckResult,
     apply_desired_state,
     check_mod_updates,
+    ensure_desired_mods_synced,
     install_custom_dll_from_github,
+    plan_manual_missing,
+    plan_sync_changes,
     prepare_for_launch,
     recently_checked_mod_updates,
     update_mod,
@@ -1006,7 +1011,12 @@ class Worker(QThread):
                 result = self.fn(*self.args, **kwargs)
             self.finished_ok.emit(result)
         except Exception as exc:  # noqa: BLE001
-            log.exception("Worker failed")
+            from ichalaunch.addons.github import GitHubRateLimitError
+
+            if isinstance(exc, GitHubRateLimitError):
+                log.warning("Worker failed: %s", exc)
+            else:
+                log.exception("Worker failed")
             self.failed.emit(format_github_error_message(exc))
 
 
@@ -1044,6 +1054,10 @@ class MainWindow(QMainWindow):
         self._fitted = False
         self._startup_checks_scheduled = False
         self._permissions_skipped_path: str | None = None
+        self._play_launch_lock_until = 0.0
+        self._play_launch_timer = QTimer(self)
+        self._play_launch_timer.setSingleShot(True)
+        self._play_launch_timer.timeout.connect(self._release_play_launch_lock)
         self._addon_scan_resume_timer = QTimer(self)
         self._addon_scan_resume_timer.setSingleShot(True)
         self._addon_scan_resume_timer.timeout.connect(self._resume_queued_addon_scan)
@@ -1517,6 +1531,11 @@ class MainWindow(QMainWindow):
             self._addons_preload_scheduled = True
             QTimer.singleShot(0, self._preload_hidden_addon_rows)
 
+    def changeEvent(self, event) -> None:  # noqa: N802
+        if event.type() == QEvent.Type.WindowStateChange and self.isMinimized():
+            themed.close_open_themed_dialogs(self)
+        super().changeEvent(event)
+
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._update_window_mask()
@@ -1781,8 +1800,9 @@ class MainWindow(QMainWindow):
         if rate_limit_exhausted():
             # Still attempt — check_* handlers stop early and surface RATE_LIMIT_STATUS.
             log.info("GitHub rate limit low at startup; attempting checks anyway")
-        self._check_updates(silent=True)
         self._check_mod_updates(silent=True)
+        if settings.should_startup_check_addons(has_token=has_github_token()):
+            self._check_updates(silent=True)
 
     def _periodic_update_check(self) -> None:
         """Recurring silent launcher self-update only (addons/client: launch scan)."""
@@ -1829,8 +1849,54 @@ class MainWindow(QMainWindow):
         except RuntimeError:
             pass
 
+    def _is_play_launch_locked(self) -> bool:
+        return time.monotonic() < self._play_launch_lock_until
+
+    def _arm_play_launch_lock(self) -> None:
+        """Spam guard: keep PLAY disabled for at least 5s during launch prep."""
+        self._play_launch_lock_until = time.monotonic() + 5.0
+        self.play_btn.setEnabled(False)
+        self.play_btn.setText("LAUNCHING…")
+        remaining_ms = int((self._play_launch_lock_until - time.monotonic()) * 1000) + 1
+        self._play_launch_timer.start(max(1, remaining_ms))
+
+    def _release_play_launch_lock(self) -> None:
+        self._play_launch_lock_until = 0.0
+        self._play_launch_timer.stop()
+        if not self._worker_busy():
+            self.play_btn.setEnabled(True)
+            self._refresh_play_button()
+            if self.progress.maximum() == 0:
+                self.progress.hide()
+                self.progress.setRange(0, 100)
+                self.progress.setValue(0)
+                self.progress.setFormat("%p%")
+
+    def _fail_play_launch(self, status: str) -> None:
+        self._play_launch_lock_until = 0.0
+        self._play_launch_timer.stop()
+        if not self._worker_busy():
+            self.play_btn.setEnabled(True)
+            self._refresh_play_button()
+            if self.progress.maximum() == 0:
+                self.progress.hide()
+                self.progress.setRange(0, 100)
+                self.progress.setValue(0)
+                self.progress.setFormat("%p%")
+        self.status_lbl.setText(status)
+
+    def _show_play_launch_progress(self, msg: str) -> None:
+        self.status_lbl.setText(msg)
+        if not self._worker_busy():
+            self.progress.show()
+            self.progress.setRange(0, 0)
+            self.progress.setFormat("")
+
     def _set_busy_ui(self, busy: bool, msg: str = "") -> None:
-        self.play_btn.setEnabled(not busy)
+        if busy:
+            self.play_btn.setEnabled(False)
+        elif not self._is_play_launch_locked():
+            self.play_btn.setEnabled(True)
         self._lock_addon_filters(extra_busy=busy)
         if busy:
             self.progress.show()
@@ -2056,7 +2122,7 @@ class MainWindow(QMainWindow):
         if restarting or (app is not None and app.closingDown()):
             return
         self.home.refresh()
-        self.client.refresh_plan()
+        self.client.refresh_from_settings()
         self.addons.mark_dirty()
         self.addons.refresh()
         self.settings_page.refresh()
@@ -2093,6 +2159,25 @@ class MainWindow(QMainWindow):
         if self._launcher_update_worker and self._launcher_update_worker.isRunning():
             if not silent:
                 self.status_lbl.setText("Launcher update check already running…")
+            return
+
+        if rate_limit_exhausted():
+            if silent:
+                log.info("Skipping launcher update check — GitHub rate limit exhausted")
+                self.status_lbl.setText(RATE_LIMIT_STATUS)
+                return
+            themed.error(self, "Launcher update check failed", RATE_LIMIT_STATUS)
+            return
+
+        cached = read_cached_launcher_release() if silent else None
+        if cached is not None:
+            log.info("Using cached launcher release check")
+            if cached.update_available:
+                self._latest_launcher_release = cached
+                log.info("Launcher update available (cached): v%s", cached.version)
+            else:
+                self._latest_launcher_release = None
+            self._refresh_play_button()
             return
 
         if not silent:
@@ -2161,7 +2246,69 @@ class MainWindow(QMainWindow):
         self._busy(f"Downloading launcher v{info.version}…", worker, on_ok=on_ok)
 
     def _play(self) -> None:
+        self._arm_play_launch_lock()
+        self._show_play_launch_progress("Preparing to launch…")
+        sync = plan_sync_changes()
+        if sync:
+            labels: list[str] = []
+            for ch in sync[:4]:
+                mid = ch.get("id") or "mod"
+                prefix = "+" if ch.get("action") == "install" else "-"
+                labels.append(f"{prefix}{mid}")
+            names = ", ".join(labels)
+            if len(sync) > 4:
+                names += f" (+{len(sync) - 4} more)"
+            worker = Worker(ensure_desired_mods_synced)
+
+            def on_ok(done: list[str]) -> None:
+                failures = [
+                    ln[1:].strip()
+                    for ln in (done or [])
+                    if isinstance(ln, str) and ln.startswith("!")
+                ]
+                if failures:
+                    self._fail_play_launch("Client mod sync failed")
+                    themed.error(
+                        self,
+                        "Could not sync client mods",
+                        "These client mod changes could not be applied:\n\n"
+                        + "\n\n".join(failures),
+                    )
+                    return
+                installed = [ln[2:] for ln in (done or []) if ln.startswith("+ ")]
+                removed = [ln[2:] for ln in (done or []) if ln.startswith("- ")]
+                parts: list[str] = []
+                if installed:
+                    parts.append(
+                        f"installed {len(installed)} mod"
+                        f"{'s' if len(installed) != 1 else ''}"
+                    )
+                if removed:
+                    parts.append(
+                        f"removed {len(removed)} mod"
+                        f"{'s' if len(removed) != 1 else ''}"
+                    )
+                if parts:
+                    line = "Synced client mods before launch: " + ", ".join(parts)
+                    self.status_lbl.setText(line)
+                    log.info("%s — +%s -%s", line, installed, removed)
+                self._launch_prepared()
+
+            self._busy(f"Syncing client mods ({names})…", worker, on_ok=on_ok)
+            return
+        self._launch_prepared()
+
+    def _launch_prepared(self) -> None:
         try:
+            manuals = plan_manual_missing()
+            if manuals:
+                themed.warning(
+                    self,
+                    "Before launch",
+                    "These enabled mods need a manual download:\n\n"
+                    + "\n\n".join(manuals),
+                )
+            self._show_play_launch_progress("Running pre-launch checks…")
             prep = prepare_for_launch()
             if prep.fixes:
                 line = prep.status_line or "Pre-launch fixes applied"
@@ -2174,13 +2321,18 @@ class MainWindow(QMainWindow):
                     prep.permission_scan,
                     allow_launch_anyway=True,
                 ):
+                    self._fail_play_launch("Launch cancelled")
                     return
+            self._show_play_launch_progress("Launching game…")
             launch_game()
+            self.status_lbl.setText("Game launched")
+            themed.close_open_themed_dialogs(self)
             if settings.get("close_on_launch"):
                 self.close()
             elif settings.get("minimize_on_launch"):
                 self.showMinimized()
         except Exception as exc:  # noqa: BLE001
+            self._fail_play_launch(f"Launch failed: {str(exc)[:80]}")
             themed.error(self, "Launch failed", str(exc))
 
     def _offer_permission_fix(
@@ -2546,9 +2698,18 @@ class MainWindow(QMainWindow):
         if not is_installed():
             themed.warning(self, "No game", "Set a valid game path first.")
             return
-        url = entry.get("repo")
-        folder = entry.get("folder") or entry.get("name") or ""
-        name = entry.get("name") or folder or "addon"
+        from ichalaunch.addons.github import has_github_token
+        from ichalaunch.ui.widgets.dialogs import addon_install_picker_dialog
+
+        install_entry = dict(entry)
+        if has_github_token():
+            picked = addon_install_picker_dialog(self, install_entry)
+            if picked is None:
+                return
+            install_entry = picked
+        url = install_entry.get("repo")
+        folder = install_entry.get("folder") or install_entry.get("name") or ""
+        name = install_entry.get("name") or folder or "addon"
         worker = Worker(install_from_github, url, folder)
 
         def on_ok(result_name):
@@ -2732,6 +2893,12 @@ class MainWindow(QMainWindow):
             if not silent:
                 self.status_lbl.setText("Set a game path before checking updates")
             return
+        if not silent and not has_github_token():
+            from ichalaunch.ui.widgets.dialogs import github_token_prompt_dialog
+
+            token = github_token_prompt_dialog(self)
+            if not token:
+                return
         if self._update_worker and self._update_worker.isRunning():
             if not silent:
                 self.status_lbl.setText("Update check already running…")

@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any  # Path used by default_addons_path_for
+from typing import Any, Iterator  # Path used by default_addons_path_for
 
 APP_DIR_NAME = "IchaLaunch"
 
@@ -61,14 +64,17 @@ DEFAULTS: dict[str, Any] = {
     # Unified: covers both addon and client-mod quiet checks on launch.
     "check_updates_on_startup": True,
     # Legacy keys kept for migration from older settings.json files.
-    "check_addon_updates_on_startup": True,
+    "check_addon_updates_on_startup": False,
     "check_mod_updates_on_startup": True,
+    "addon_no_token_startup_migrated_v1": False,
     # Minutes between automatic/startup addon+mod update scans (manual always runs).
     "auto_scan_cooldown_minutes": AUTO_SCAN_COOLDOWN_MINUTES_DEFAULT,
     "auto_install_updates": False,
     "github_token": "",
     "last_addon_update_check": None,
     "last_mod_update_check": None,
+    "last_launcher_release_check": None,
+    "cached_launcher_release": None,
     # Persisted unauthenticated addon update-scan queue (folders + hour budget).
     "addon_update_scan_queue": None,
     "desired_mods": {
@@ -90,9 +96,35 @@ DEFAULTS: dict[str, Any] = {
 }
 
 
+_PATH_KEYS = ("game_path", "addons_path")
+
 _LEGACY_MOD_ALIASES: dict[str, str] = {
     "darker_nights": "hd_patch_n",
 }
+
+
+def _stored_path_value(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def _preserve_loaded_paths(merged: dict[str, Any], loaded: dict[str, Any]) -> None:
+    """Never let empty defaults or bad merges wipe saved folder paths."""
+    for key in _PATH_KEYS:
+        loaded_val = _stored_path_value(loaded.get(key))
+        if loaded_val and not _stored_path_value(merged.get(key)):
+            merged[key] = loaded_val
+
+
+def _read_settings_dict(path: Path) -> dict[str, Any] | None:
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    return raw if isinstance(raw, dict) else None
+
+
+def _settings_backup_path(path: Path) -> Path:
+    return path.with_name(path.name + ".bak")
 
 
 def migrate_legacy_mod_ids(data: dict[str, Any]) -> bool:
@@ -131,57 +163,112 @@ def migrate_legacy_mod_ids(data: dict[str, Any]) -> bool:
     return changed
 
 
+def migrate_addon_no_token_startup(data: dict[str, Any]) -> bool:
+    """One-time: stop auto addon scans on startup when no GitHub token is saved."""
+    if data.get("addon_no_token_startup_migrated_v1"):
+        return False
+    if (data.get("github_token") or "").strip():
+        data["addon_no_token_startup_migrated_v1"] = True
+        return False
+    data["check_addon_updates_on_startup"] = False
+    data["addon_no_token_startup_migrated_v1"] = True
+    return True
+
+
 class Settings:
     def __init__(self) -> None:
         self._data: dict[str, Any] = dict(DEFAULTS)
+        self._allow_empty_paths = False
         self.load()
+
+    def _merge_loaded(self, loaded: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+        merged = dict(DEFAULTS)
+        merged.update(loaded)
+        _preserve_loaded_paths(merged, loaded)
+        # deep-merge desired_mods / installed_addons / installed_mods
+        dm = dict(DEFAULTS["desired_mods"])
+        dm.update(loaded.get("desired_mods") or {})
+        merged["desired_mods"] = dm
+        ia = dict(DEFAULTS["installed_addons"])
+        ia.update(loaded.get("installed_addons") or {})
+        merged["installed_addons"] = ia
+        im = dict(DEFAULTS.get("installed_mods") or {})
+        im.update(loaded.get("installed_mods") or {})
+        merged["installed_mods"] = im
+        um = loaded.get("user_mods")
+        if isinstance(um, list):
+            merged["user_mods"] = um
+        else:
+            merged["user_mods"] = list(DEFAULTS.get("user_mods") or [])
+        usm = loaded.get("user_set_mods")
+        merged["user_set_mods"] = (
+            [str(x) for x in usm if x] if isinstance(usm, list) else []
+        )
+        # Migrate older dual startup toggles into one setting.
+        if "check_updates_on_startup" not in loaded:
+            addon_on = bool(loaded.get("check_addon_updates_on_startup", True))
+            mod_on = bool(loaded.get("check_mod_updates_on_startup", True))
+            merged["check_updates_on_startup"] = addon_on or mod_on
+        changed = migrate_legacy_mod_ids(merged)
+        changed = migrate_addon_no_token_startup(merged) or changed
+        _preserve_loaded_paths(merged, loaded)
+        prev_cooldown = loaded.get("auto_scan_cooldown_minutes")
+        merged["auto_scan_cooldown_minutes"] = clamp_auto_scan_cooldown_minutes(
+            merged.get(
+                "auto_scan_cooldown_minutes",
+                AUTO_SCAN_COOLDOWN_MINUTES_DEFAULT,
+            )
+        )
+        if merged["auto_scan_cooldown_minutes"] != prev_cooldown:
+            changed = True
+        return merged, changed
 
     def load(self) -> None:
         path = settings_path()
-        if path.exists():
-            try:
-                loaded = json.loads(path.read_text(encoding="utf-8"))
-                if isinstance(loaded, dict):
-                    merged = dict(DEFAULTS)
-                    merged.update(loaded)
-                    # deep-merge desired_mods / installed_addons / installed_mods
-                    dm = dict(DEFAULTS["desired_mods"])
-                    dm.update(loaded.get("desired_mods") or {})
-                    merged["desired_mods"] = dm
-                    ia = dict(DEFAULTS["installed_addons"])
-                    ia.update(loaded.get("installed_addons") or {})
-                    merged["installed_addons"] = ia
-                    im = dict(DEFAULTS.get("installed_mods") or {})
-                    im.update(loaded.get("installed_mods") or {})
-                    merged["installed_mods"] = im
-                    um = loaded.get("user_mods")
-                    if isinstance(um, list):
-                        merged["user_mods"] = um
-                    else:
-                        merged["user_mods"] = list(DEFAULTS.get("user_mods") or [])
-                    usm = loaded.get("user_set_mods")
-                    merged["user_set_mods"] = (
-                        [str(x) for x in usm if x] if isinstance(usm, list) else []
-                    )
-                    # Migrate older dual startup toggles into one setting.
-                    if "check_updates_on_startup" not in loaded:
-                        addon_on = bool(loaded.get("check_addon_updates_on_startup", True))
-                        mod_on = bool(loaded.get("check_mod_updates_on_startup", True))
-                        merged["check_updates_on_startup"] = addon_on or mod_on
-                    migrate_legacy_mod_ids(merged)
-                    self._data = merged
-            except (json.JSONDecodeError, OSError):
+        loaded = _read_settings_dict(path) if path.exists() else None
+        if loaded is None and path.exists():
+            loaded = _read_settings_dict(_settings_backup_path(path))
+        if loaded is None:
+            if path.exists():
                 self._data = dict(DEFAULTS)
+            return
+        merged, changed = self._merge_loaded(loaded)
+        self._data = merged
+        if changed:
+            self.save()
+
+    @contextmanager
+    def allow_empty_paths(self) -> Iterator[None]:
+        """Allow explicit clears of saved game/addons paths (reset / unlink)."""
+        prev = self._allow_empty_paths
+        self._allow_empty_paths = True
+        try:
+            yield
+        finally:
+            self._allow_empty_paths = prev
 
     def check_updates_on_startup(self) -> bool:
         return bool(self.get("check_updates_on_startup", True))
+
+    def check_mod_updates_on_startup(self) -> bool:
+        return bool(self.get("check_mod_updates_on_startup", True))
+
+    def check_addon_updates_on_startup(self) -> bool:
+        return bool(self.get("check_addon_updates_on_startup", False))
+
+    def should_startup_check_addons(self, *, has_token: bool) -> bool:
+        """Whether quiet addon update scans should run on launcher startup."""
+        if has_token:
+            return self.check_updates_on_startup()
+        return self.check_addon_updates_on_startup()
 
     def set_check_updates_on_startup(self, enabled: bool) -> None:
         """Persist the unified startup check flag and keep legacy keys in sync."""
         enabled = bool(enabled)
         self._data["check_updates_on_startup"] = enabled
-        self._data["check_addon_updates_on_startup"] = enabled
         self._data["check_mod_updates_on_startup"] = enabled
+        # User opt-in for paced unauthenticated addon scans when no token.
+        self._data["check_addon_updates_on_startup"] = enabled
         self.save()
 
     def auto_scan_cooldown_minutes(self) -> int:
@@ -198,12 +285,33 @@ class Settings:
     def save(self) -> None:
         path = settings_path()
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(self._data, indent=2), encoding="utf-8")
+        payload = json.dumps(self._data, indent=2)
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(payload, encoding="utf-8")
+        if path.is_file():
+            bak = _settings_backup_path(path)
+            try:
+                shutil.copy2(path, bak)
+            except OSError:
+                pass
+        os.replace(tmp, path)
 
     def get(self, key: str, default: Any = None) -> Any:
         return self._data.get(key, default)
 
+    def _reject_accidental_path_clear(self, key: str, value: Any) -> bool:
+        # addons_path may be "" to mean "use default under game_path".
+        if key != "game_path":
+            return False
+        if self._allow_empty_paths:
+            return False
+        if _stored_path_value(value):
+            return False
+        return bool(_stored_path_value(self._data.get(key)))
+
     def set(self, key: str, value: Any) -> None:
+        if self._reject_accidental_path_clear(key, value):
+            return
         self._data[key] = value
         self.save()
 
@@ -233,6 +341,8 @@ class Settings:
     def game_path(self, value: str) -> None:
         """Set game folder; keep AddOns path on the default when user hasn't overridden."""
         new_game = str(value or "").strip()
+        if not new_game and self.game_path and not self._allow_empty_paths:
+            return
         old_game = self.game_path
         old_addons = self.addons_path
         old_default = self.default_addons_path_for(old_game) if old_game else ""
@@ -269,9 +379,10 @@ class Settings:
 
         Does not delete any files on disk.
         """
-        self._data["game_path"] = ""
-        self._data["addons_path"] = ""
-        self.save()
+        with self.allow_empty_paths():
+            self._data["game_path"] = ""
+            self._data["addons_path"] = ""
+            self.save()
 
     def resolved_addons_path(self) -> str:
         """Stored addons_path, or default under game_path when empty."""
@@ -409,8 +520,9 @@ class Settings:
 
     def reset_to_defaults(self) -> None:
         """Reset all persisted settings to factory defaults and save."""
-        self._data = json.loads(json.dumps(DEFAULTS))
-        self.save()
+        with self.allow_empty_paths():
+            self._data = json.loads(json.dumps(DEFAULTS))
+            self.save()
 
 
 def clear_app_data() -> None:

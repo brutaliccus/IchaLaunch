@@ -1,10 +1,11 @@
 # IchaLaunch
 
-> **Fresh install:** Use the launcher's **INSTALL** flow for a clean RavenCraft setup. Do **not** point IchaLaunch at an old TurtleWoW or Capybara client — start fresh for the best results.
-
+[![Release](https://img.shields.io/github/v/release/brutaliccus/IchaLaunch?label=version)](https://github.com/brutaliccus/IchaLaunch/releases/latest)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/jeb32411u)
 
-**IchaLaunch** installs **[RavenCraft](https://ravencraft.io/)** (Turtle WoW–compatible 1.18), manages addons and client mods, and launches the game.
+> **Fresh install:** Use the launcher's **INSTALL** flow for a clean RavenCraft setup. Do **not** point IchaLaunch at an old TurtleWoW or Capybara client — start fresh for the best results.
+
+**IchaLaunch v1.1.0** installs **[RavenCraft](https://ravencraft.io/)** (Turtle WoW–compatible 1.18), manages addons and client mods, and launches the game.
 
 Download **`IchaLaunch.exe`** from **[Releases](https://github.com/brutaliccus/IchaLaunch/releases/latest)**.
 
@@ -12,21 +13,36 @@ A frameless RavenCraft-themed window: **HOME**, **ADDONS**, **CLIENT**, **SETTIN
 
 ---
 
+## What's new in v1.1.0
+
+- **GitHub token gating** — manual addon update checks prompt for a PAT when none is saved; startup addon scans stay off until you opt in or add a token. Tokens are sent only to GitHub over HTTPS (never to README image hosts).
+- **Addon install picker** — catalog **Install** opens fork + version pickers with a live **README preview** before files land on disk.
+- **Archived forks** — fork lists include archived repos (sorted after active forks) so older Turtle forks stay discoverable.
+- **Fork dropdown safety** — install picker fork/version combos stay disabled until the GitHub browse fetch finishes (no half-populated lists).
+- **VanillaFixes / DXVK** — mutual exclusivity in the client mod planner; terminal logs spell out launch mode (`VanillaFixes.exe` vs direct `WoW.exe`) and on-disk VF state.
+- **PLAY pre-launch mod sync** — **PLAY** installs missing enabled mods and removes disabled ones before launch (full desired-state sync, not just `dlls.txt` tweaks).
+- **Reforged HD Patch L/T** — variant tracking with mutual exclusivity (only one HD patch letter at a time).
+- **Settings reliability** — atomic settings writes with `.tmp` + backup recovery; saved game/addons paths are preserved across load/save cycles; auto-scan cooldown slider snaps and persists correctly.
+- **Dialog layering** — themed dialogs no longer use stay-on-top, so prompts do not steal clicks from the game.
+- **Client tab** — mod cards show **author/contributor** labels; **Check Game Permissions** scans and can repair ACL/read-only issues under your game folder.
+- **Launcher self-update** — release metadata cache hardened for smoother in-app **UPDATE** checks.
+
+---
+
 ## Get the launcher
 
 1. Open the latest release: [github.com/brutaliccus/IchaLaunch/releases/latest](https://github.com/brutaliccus/IchaLaunch/releases/latest)
-2. Download **`IchaLaunch.exe`**
+2. Download **`IchaLaunch.exe`** (v1.1.0)
 3. Put it somewhere convenient (next to your game folder is fine — not required)
 4. Run the EXE
 
 No installer. Windows may show a SmartScreen prompt for an unsigned download — **More info** → **Run anyway** if you trust the release.
 
-
 ## Platform support (Windows only)
 
-IchaLaunch ships as a **native Windows** executable for **Windows 10 or 11** (64-bit). Download **IchaLaunch.exe** from [Releases](https://github.com/brutaliccus/IchaLaunch/releases/latest) and run it on Windows.
+IchaLaunch ships as a **native Windows** executable for **Windows 10 or 11** (64-bit).
 
-**Proton, Wine, Linux, and Steam Deck are not supported.** Running the EXE under Proton/Wine or on a Steam Deck (including Desktop Mode) often fails with missing DLL errors (icuuc.dll, Qt6Core.dll, or `ImportError: DLL load failed` when loading Qt). Use Windows natively, dual-boot Windows, or a Windows VM if you are on Linux or a Deck.
+**Proton, Wine, Linux, and Steam Deck are not supported.** Running the EXE under Proton/Wine often fails with missing DLL errors (`icuuc.dll`, `Qt6Core.dll`, or `ImportError: DLL load failed`). Use Windows natively, dual-boot Windows, or a Windows VM.
 
 ---
 
@@ -43,35 +59,50 @@ Otherwise tap **INSTALL** on the bottom bar:
 3. Leave IchaLaunch open. It watches **Downloads**, extracts into a **`RavenCraft`** folder, writes `realmlist.wtf`, then deletes the zip
 4. **PLAY** appears when the client is ready
 
-To unlink and install again, use **Reset Client Link** in **SETTINGS**. That forgets the saved folder; it does not delete files on disk.
+To unlink and install again, use **Reset Client Link** in **SETTINGS**.
 
 ---
 
 ## Play
 
-**PLAY** launches World of Warcraft. If VanillaFixes is installed, the launcher starts through `VanillaFixes.exe` (you can turn that off in Settings).
+**PLAY** runs pre-launch checks, **syncs client mods** to match your enabled list (install missing / remove disabled), then launches World of Warcraft.
+
+When VanillaFixes is installed and enabled in Settings, the launcher prefers `VanillaFixes.exe` and logs the chosen launch path in the terminal. VanillaFixes and **VanillaFixes + DXVK** cannot both be enabled — pick one stack in **CLIENT**.
 
 ---
 
 ## Addons
 
-![Addons](docs/screenshots/addons.png)
+![Addons catalog](docs/screenshots/addons.png)
 
 - Browse the Turtle WoW wiki **catalog**, search, and filter
-- **Install** from the catalog, or **Add from GitHub** (paste any public addon repo)
-- **Preview** a repo’s README before you install
+- **Install** from the catalog opens the **install picker** (fork, version, README preview)
+- **Add from GitHub** — paste any public addon repo with the same preview flow
+- **Settings** on an installed addon — change fork/version when a GitHub token is saved
 - **Update** / **Update All** when a newer version is available
-- Uncheck an addon to **unload** it (it stays on disk, the game just won’t load it)
+- Uncheck an addon to **unload** it (stays on disk; the game won't load it)
+
+### GitHub token & addon scans
+
+Without a token, GitHub allows about **60 API requests per hour**. IchaLaunch can **queue** the rest of a catalog scan and resume automatically — a full pass may take hours. **Check for updates** on **ADDONS** asks for a token first if you have not saved one.
+
+With a token in **SETTINGS → GitHub API**, scans run at full API rate and fork/version browsing works in install and addon settings dialogs.
+
+![Settings — GitHub API & cooldown](docs/screenshots/settings.png)
 
 ---
 
 ## Client mods
 
-![Client](docs/screenshots/client.png)
+![Client mods](docs/screenshots/client.png)
 
-The **CLIENT** tab is for engine and visual packs — VanillaFixes, DXVK, SuperWoW, Nampower, UnitXP, night sky, and similar.
+The **CLIENT** tab covers engine and visual packs — VanillaFixes, DXVK, SuperWoW, Nampower, UnitXP, Reforged HD Patch variants, night sky, and similar.
 
-Tick what you want, then **Apply Changes**. Search across categories; **Open in Git** when a repo link exists.
+- Tick what you want, then **Apply Changes** (or let **PLAY** sync on launch)
+- Search across categories; **Open in Git** when a repo link exists
+- **Author** labels on mod cards
+- **DXVK GPU check** warns when Vulkan may be a poor match
+- **HD Patch L / T** — only one letter variant enabled at a time
 
 ---
 
@@ -80,23 +111,25 @@ Tick what you want, then **Apply Changes**. Search across categories; **Open in 
 ![Settings](docs/screenshots/settings.png)
 
 - **Game location** — folder that contains `WoW.exe`, plus **Verify**
-- **AddOns folder** — defaults to `Interface\AddOns` under the game; override if yours lives elsewhere
-- **Launch** — VanillaFixes, minimize or close the launcher when the game starts
-- **Automatically Check For Updates On Startup** — launcher, addons, and client mods
-- **Auto-scan cooldown** — how long automatic/startup scans wait before running again (15 min–24 hours; default 1 hour). Manual Check for updates always runs.
-- **GitHub API** — optional personal access token (see below); stored locally and sent only to GitHub over HTTPS
+- **AddOns folder** — defaults to `Interface\AddOns` under the game; override if needed
+- **Launch** — VanillaFixes preference, minimize or close the launcher when the game starts
+- **Automatically Check For Updates On Startup** — launcher, addons, and client mods (addon startup scans respect token gating)
+- **Auto-scan cooldown** — 15 min–24 h (default 1 h); manual checks always run
+- **GitHub API** — optional personal access token (fine-grained read-only recommended)
+- **Check Game Permissions** — scan/repair read-only files and deny ACEs under the game tree
 - **Reset Client Link** — unlink the saved WoW folder so **PLAY** becomes **INSTALL** again
 
-### GitHub personal access token
+Settings are written **atomically** (`.tmp` swap + backup) so a crash mid-save does not wipe your paths.
 
-Without a token, GitHub allows only about **60 API requests per hour**. IchaLaunch queues the rest of an addon update scan and continues automatically when budget refreshes — a large catalog may take **several hours** to finish one full pass. With a token, scans complete much faster (thousands of requests per hour).
+### GitHub personal access token
 
 1. Open [GitHub → Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens)
 2. Create a token:
    - **Fine-grained (recommended):** resource owner = your user; repository access = **Public repositories**; permissions = **Contents: Read-only** and **Metadata: Read-only**
-   - **Classic:** `public_repo` works for API reads, but GitHub also grants **write** to public repositories with that scope. Prefer a fine-grained read-only token.
-3. Copy the token, then in IchaLaunch open **SETTINGS → GitHub API** and paste it
-4. Save — the token stays on your PC and is sent only as an `Authorization` header over **HTTPS** to GitHub hosts (`api.github.com`, `github.com`, `*.githubusercontent.com`). It is never sent to third-party image hosts or over HTTP.
+   - **Classic:** `public_repo` works for API reads but also grants write access to public repos — prefer fine-grained read-only.
+3. Paste in **SETTINGS → GitHub API** and save
+
+The token stays on your PC and is sent only as `Authorization` to GitHub hosts (`api.github.com`, `github.com`, `*.githubusercontent.com`).
 
 ---
 
@@ -104,29 +137,39 @@ Without a token, GitHub allows only about **60 API requests per hour**. IchaLaun
 
 ![Home with loading bar](docs/screenshots/home-loading.png)
 
-Downloads, extracts, and update checks show a **determinate** bar on the bottom strip (how far along, not a spinner).
+Downloads, extracts, and update checks show a **determinate** bar on the bottom strip.
 
-When a newer IchaLaunch is on GitHub Releases, **PLAY** becomes **UPDATE**. That replaces the EXE in place — you do not re-download from the site by hand.
+When a newer IchaLaunch is on GitHub Releases, **PLAY** becomes **UPDATE** and replaces the EXE in place.
+
+---
+
+## UI dialogs
+
+![Themed dialog](docs/screenshots/themed_dialog.png)
+
+Frameless themed prompts (token entry, install picker, confirmations) use normal window stacking — they do **not** stay on top of the game window.
 
 ---
 
 ## Troubleshooting
 
-**Launcher won’t start / `ImportError: DLL load failed` / `icuuc.dll` or `Qt6Core.dll` not found**  
-IchaLaunch is a **Windows 10 or 11** app. Run the release **`IchaLaunch.exe` natively** — not under **Proton**, Wine, or Steam Deck desktop mode. Those environments do not reliably load the PySide6/Qt6 bundle.  
-If the EXE still fails on Windows, install the latest **[Microsoft Visual C++ Redistributable (x64)](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist)** and try again.
+**Launcher won't start / `ImportError: DLL load failed` / missing `icuuc.dll` or `Qt6Core.dll`**  
+Run **`IchaLaunch.exe` natively on Windows 10/11** — not under Proton/Wine. Install the latest **[Microsoft Visual C++ Redistributable (x64)](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist)** if needed.
 
 **Windows Defender / Controlled Folder Access blocks VanillaFixes or DLL mods**  
-Allow `IchaLaunch.exe`, `VanillaFixes.exe`, and `WoW.exe`, or move the game out of a protected folder.
+Allow `IchaLaunch.exe`, `VanillaFixes.exe`, and `WoW.exe`, or move the game out of a protected folder. Use **Check Game Permissions** in Settings.
 
-**Addon / update checks fail, feel stuck, or say “queued”**  
-GitHub’s anonymous API limit is about **60 requests/hour**. Without a token, IchaLaunch checks what it can, queues the rest, and resumes automatically (status shows something like `Scanning addons… 60/240 (queued; resumes in ~47 min)`). Paste a personal access token in **SETTINGS → GitHub API** (see Settings above) so a full catalog pass finishes in one go.
+**Addon / update checks fail, feel stuck, or say "queued"**  
+Add a GitHub token (see above) or wait for the hourly anonymous budget to refresh.
 
-**PLAY does nothing / “Client not found”**  
-Confirm **SETTINGS** points at the folder that contains `WoW.exe`, then click **Verify**.
+**GitHub token rejected**  
+Clear or replace the token in Settings — bad tokens are retried without auth for public reads.
+
+**PLAY does nothing / "Client not found"**  
+Confirm **SETTINGS** points at the folder that contains `WoW.exe`, then **Verify**.
 
 **Gold dots on ADDONS or CLIENT**  
-Those tabs have pending updates or unapplied client changes — open the tab and update / apply.
+Pending updates or unapplied client changes — open the tab and update / apply.
 
 More help: **[Releases](https://github.com/brutaliccus/IchaLaunch/releases)**.
 

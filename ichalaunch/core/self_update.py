@@ -9,7 +9,8 @@ import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+import time
+from typing import Any, Callable
 
 import requests
 
@@ -29,6 +30,8 @@ ProgressCb = Callable[[str], None]
 
 LAUNCHER_REPO = "brutaliccus/IchaLaunch"
 PREFERRED_ASSET = "IchaLaunch.exe"
+# Reuse silent startup/periodic check results — avoids GitHub spam on every relaunch.
+LAUNCHER_RELEASE_CACHE_SEC = 3600
 
 
 @dataclass
@@ -128,16 +131,91 @@ def _pick_exe_asset(assets: list[dict]) -> dict | None:
     )
 
 
+def launcher_release_info_to_dict(info: LauncherReleaseInfo) -> dict[str, Any]:
+    return {
+        "tag": info.tag,
+        "version": info.version,
+        "name": info.name,
+        "asset_name": info.asset_name,
+        "download_url": info.download_url,
+        "update_available": info.update_available,
+        "html_url": info.html_url,
+        "asset_id": info.asset_id,
+        "asset_size": info.asset_size,
+    }
+
+
+def launcher_release_info_from_dict(data: dict[str, Any] | None) -> LauncherReleaseInfo | None:
+    if not isinstance(data, dict) or not data.get("version"):
+        return None
+    asset_id = data.get("asset_id")
+    try:
+        asset_id = int(asset_id) if asset_id is not None else None
+    except (TypeError, ValueError):
+        asset_id = None
+    try:
+        asset_size = int(data.get("asset_size") or 0)
+    except (TypeError, ValueError):
+        asset_size = 0
+    return LauncherReleaseInfo(
+        tag=str(data.get("tag") or ""),
+        version=str(data.get("version") or ""),
+        name=str(data.get("name") or ""),
+        asset_name=str(data.get("asset_name") or PREFERRED_ASSET),
+        download_url=str(data.get("download_url") or ""),
+        update_available=bool(data.get("update_available")),
+        html_url=str(data.get("html_url") or ""),
+        asset_id=asset_id,
+        asset_size=asset_size,
+    )
+
+
+def read_cached_launcher_release(
+    *,
+    max_age_sec: int = LAUNCHER_RELEASE_CACHE_SEC,
+    local_version: str | None = None,
+) -> LauncherReleaseInfo | None:
+    """Return persisted launcher release check if still fresh enough."""
+    from ichalaunch.config.settings import settings
+
+    raw_ts = settings.get("last_launcher_release_check")
+    try:
+        checked_at = float(raw_ts)
+    except (TypeError, ValueError):
+        return None
+    if time.time() - checked_at > max(60, int(max_age_sec)):
+        return None
+    info = launcher_release_info_from_dict(settings.get("cached_launcher_release"))
+    if info is None:
+        return None
+    local = local_version if local_version is not None else __version__
+    info.update_available = bool(info.version) and is_newer(info.version, local)
+    return info
+
+
+def store_cached_launcher_release(info: LauncherReleaseInfo | None) -> None:
+    from ichalaunch.config.settings import settings
+
+    settings.set("last_launcher_release_check", time.time())
+    if info is None:
+        settings.set("cached_launcher_release", None)
+    else:
+        settings.set("cached_launcher_release", launcher_release_info_to_dict(info))
+
+
 def check_latest_launcher_release(
     *,
     repo: str = LAUNCHER_REPO,
     local_version: str | None = None,
+    progress: ProgressCb | None = None,
 ) -> LauncherReleaseInfo | None:
     """Fetch latest GitHub release; return info (update_available set by semver compare).
 
     Returns None only when the latest release has no usable .exe asset.
     Raises GitHubRateLimitError on rate limit; other errors propagate.
     """
+    del progress  # release metadata fetch has no byte progress; accepted for Worker compat
+
     if rate_limit_exhausted():
         raise GitHubRateLimitError(RATE_LIMIT_STATUS)
 
@@ -161,7 +239,7 @@ def check_latest_launcher_release(
     except (TypeError, ValueError):
         asset_size = 0
 
-    return LauncherReleaseInfo(
+    info = LauncherReleaseInfo(
         tag=tag,
         version=version or tag,
         name=str(data.get("name") or tag),
@@ -172,6 +250,8 @@ def check_latest_launcher_release(
         asset_id=int(asset_id) if asset_id is not None else None,
         asset_size=asset_size,
     )
+    store_cached_launcher_release(info)
+    return info
 
 
 def _download_asset(

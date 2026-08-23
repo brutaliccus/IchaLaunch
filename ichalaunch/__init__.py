@@ -1,4 +1,5 @@
-"""IchaLaunch — Ravencraft / Turtle-compatible WoW client launcher."""
+﻿"""IchaLaunch â€” Ravencraft / Turtle-compatible WoW client launcher."""
 
-__version__ = "1.0.32"
+__version__ = "1.1.0"
 __app_name__ = "IchaLaunch"
+

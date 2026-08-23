@@ -206,6 +206,340 @@ def clear_addon_scan_queue() -> None:
 def clear_github_url_cache() -> None:
     """Drop in-process GitHub browse URL reachability cache."""
     _url_reach_cache.clear()
+    clear_github_browse_cache()
+
+
+NO_TOKEN_FORK_TIP = "Add GitHub token in Settings to browse forks and versions"
+# GitHub returns up to 100 forks per page; paginate so older/archived forks are not dropped.
+_FORK_LIST_PER_PAGE = 100
+_FORK_LIST_MAX_PAGES = 5
+
+# Session cache for token-gated fork/version dropdowns (keyed by owner/repo).
+_browse_forks_cache: dict[str, list[dict[str, Any]]] = {}
+_browse_versions_cache: dict[str, list[str]] = {}
+
+
+def clear_github_browse_cache() -> None:
+    """Drop in-process fork/version browse caches."""
+    _browse_forks_cache.clear()
+    _browse_versions_cache.clear()
+
+
+def _repo_cache_key(owner: str, repo: str) -> str:
+    return f"{owner.strip().lower()}/{repo.strip().lower()}"
+
+
+def fork_entry_from_repo_url(url: str, label: str | None = None) -> dict[str, Any]:
+    """Build a fork-picker row from a browse URL, owner/repo, or tagged release URL."""
+    text = str(url or "").strip()
+    if not text:
+        return {}
+    if text.count("/") == 1 and "://" not in text and " " not in text:
+        text = f"https://github.com/{text}"
+    parsed = parse_github_url(text)
+    if not parsed:
+        return {"label": label or text, "repo": text}
+    browse = (
+        github_tag_page_url(parsed.owner, parsed.repo, parsed.tag)
+        if parsed.tag
+        else github_browse_url(parsed.owner, parsed.repo)
+    )
+    lbl = (label or "").strip() or f"{parsed.owner}/{parsed.repo}"
+    fe: dict[str, Any] = {
+        "label": lbl,
+        "repo": browse,
+        "owner": parsed.owner,
+        "repo_name": parsed.repo,
+    }
+    if parsed.tag:
+        fe["pin_release"] = parsed.tag
+    return fe
+
+
+def catalog_fork_entries(entry: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Static fork choices from a catalog entry (no API)."""
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    if not entry:
+        return out
+
+    def add(fe: dict[str, Any]) -> None:
+        key = str(fe.get("repo") or "").strip().lower()
+        if key and key not in seen:
+            seen.add(key)
+            out.append(fe)
+
+    main = fork_entry_from_repo_url(str(entry.get("repo") or ""))
+    if main.get("repo"):
+        pin = str(entry.get("pin_release") or "").strip()
+        if pin and not main.get("pin_release"):
+            main["pin_release"] = pin
+            parsed = parse_github_url(str(main.get("repo") or ""))
+            if parsed and not parsed.tag:
+                main["repo"] = github_tag_page_url(parsed.owner, parsed.repo, pin)
+        add(main)
+
+    for fork in entry.get("forks") or []:
+        if not isinstance(fork, dict):
+            continue
+        fe = fork_entry_from_repo_url(
+            str(fork.get("repo") or ""),
+            str(fork.get("label") or "").strip() or None,
+        )
+        if fork.get("pin_release"):
+            fe["pin_release"] = fork.get("pin_release")
+            parsed = parse_github_url(str(fe.get("repo") or ""))
+            if parsed and not parsed.tag:
+                fe["repo"] = github_tag_page_url(
+                    parsed.owner, parsed.repo, str(fork.get("pin_release"))
+                )
+        if fork.get("folder"):
+            fe["folder"] = fork.get("folder")
+        add(fe)
+    return out
+
+
+def parse_entry_owner_repo(
+    entry: dict[str, Any] | None,
+    meta: dict[str, Any] | None = None,
+) -> tuple[str, str] | None:
+    """Resolve GitHub owner/repo from catalog or installed addon fields."""
+    entry = entry if isinstance(entry, dict) else {}
+    meta = meta if isinstance(meta, dict) else {}
+    for raw in (
+        entry.get("repo"),
+        entry.get("url"),
+        meta.get("url"),
+        entry.get("repository"),
+        meta.get("repository"),
+    ):
+        text = str(raw or "").strip()
+        if not text:
+            continue
+        if text.count("/") == 1 and "://" not in text and " " not in text:
+            owner, name = text.split("/", 1)
+            owner, name = owner.strip(), name.strip()
+            if owner and name:
+                return owner, name
+        parsed = parse_github_url(text)
+        if parsed:
+            return parsed.owner, parsed.repo
+    return None
+
+
+def get_cached_repo_forks(owner: str, repo: str) -> list[dict[str, Any]] | None:
+    key = _repo_cache_key(owner, repo)
+    hit = _browse_forks_cache.get(key)
+    return list(hit) if hit is not None else None
+
+
+def get_cached_repo_versions(owner: str, repo: str) -> list[str] | None:
+    key = _repo_cache_key(owner, repo)
+    hit = _browse_versions_cache.get(key)
+    return list(hit) if hit is not None else None
+
+
+def sort_fork_entries(forks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Active forks first, then archived; stable alphabetical tie-break within each group."""
+    return sorted(
+        forks,
+        key=lambda f: (bool(f.get("archived")), str(f.get("label") or "").lower()),
+    )
+
+
+def list_repo_forks(owner: str, repo: str, *, use_cache: bool = True) -> list[dict[str, Any]]:
+    """List fork repos for the token-gated browse UI. Results are session-cached."""
+    key = _repo_cache_key(owner, repo)
+    if use_cache and key in _browse_forks_cache:
+        return list(_browse_forks_cache[key])
+
+    forks: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def add_url(url: str, label: str | None = None, *, archived: bool = False) -> None:
+        fe = fork_entry_from_repo_url(url, label)
+        if archived:
+            fe["archived"] = True
+        browse = str(fe.get("repo") or "").strip().lower()
+        if browse and browse not in seen:
+            seen.add(browse)
+            forks.append(fe)
+
+    add_url(github_browse_url(owner, repo))
+
+    try:
+        r = _github_api_get(
+            f"https://api.github.com/repos/{owner}/{repo}",
+            timeout=30,
+        )
+        _note_rate_headers(r)
+        if _looks_like_rate_limit(r):
+            raise GitHubRateLimitError(RATE_LIMIT_STATUS)
+        if r.status_code == 401:
+            raise requests.HTTPError(GITHUB_TOKEN_REJECTED_MSG, response=r)
+        if r.status_code not in (400, 404):
+            r.raise_for_status()
+            info = r.json()
+            if isinstance(info, dict):
+                parent = info.get("parent")
+                if isinstance(parent, dict):
+                    full = str(parent.get("full_name") or "").strip()
+                    if "/" in full:
+                        po, pr = full.split("/", 1)
+                        add_url(github_browse_url(po, pr), full)
+                source = info.get("source")
+                if isinstance(source, dict):
+                    full = str(source.get("full_name") or "").strip()
+                    if "/" in full:
+                        so, sr = full.split("/", 1)
+                        add_url(github_browse_url(so, sr), full)
+    except GitHubRateLimitError:
+        raise
+    except requests.HTTPError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Repo info failed for %s/%s: %s", owner, repo, exc)
+
+    try:
+        fork_items: list[dict[str, Any]] = []
+        for page in range(1, _FORK_LIST_MAX_PAGES + 1):
+            r = _github_api_get(
+                f"https://api.github.com/repos/{owner}/{repo}/forks",
+                timeout=30,
+                params={
+                    "per_page": _FORK_LIST_PER_PAGE,
+                    "sort": "newest",
+                    "page": page,
+                },
+            )
+            _note_rate_headers(r)
+            if _looks_like_rate_limit(r):
+                raise GitHubRateLimitError(RATE_LIMIT_STATUS)
+            if r.status_code == 401:
+                raise requests.HTTPError(GITHUB_TOKEN_REJECTED_MSG, response=r)
+            if r.status_code in (400, 404):
+                break
+            r.raise_for_status()
+            data = r.json()
+            if not isinstance(data, list) or not data:
+                break
+            fork_items.extend(item for item in data if isinstance(item, dict))
+            if len(data) < _FORK_LIST_PER_PAGE:
+                break
+        for item in fork_items:
+            full = str(item.get("full_name") or "").strip()
+            if "/" not in full:
+                continue
+            fo, fr = full.split("/", 1)
+            add_url(
+                github_browse_url(fo, fr),
+                full,
+                archived=bool(item.get("archived")),
+            )
+    except GitHubRateLimitError:
+        raise
+    except requests.HTTPError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Fork list failed for %s/%s: %s", owner, repo, exc)
+
+    forks = sort_fork_entries(forks)
+    _browse_forks_cache[key] = list(forks)
+    return forks
+
+
+def list_repo_versions(
+    owner: str,
+    repo: str,
+    *,
+    use_cache: bool = True,
+    limit: int = 100,
+) -> list[str]:
+    """Release tags and git tags for the token-gated version picker (session-cached)."""
+    key = _repo_cache_key(owner, repo)
+    if use_cache and key in _browse_versions_cache:
+        return list(_browse_versions_cache[key])
+
+    tags: list[str] = []
+    seen: set[str] = set()
+    cap = max(1, min(int(limit), 100))
+
+    def add(tag: str) -> None:
+        t = str(tag or "").strip()
+        if not t:
+            return
+        low = t.lower()
+        if low in seen:
+            return
+        seen.add(low)
+        tags.append(t)
+
+    try:
+        r = _github_api_get(
+            f"https://api.github.com/repos/{owner}/{repo}/releases",
+            timeout=30,
+            params={"per_page": cap},
+        )
+        _note_rate_headers(r)
+        if _looks_like_rate_limit(r):
+            raise GitHubRateLimitError(RATE_LIMIT_STATUS)
+        if r.status_code == 401:
+            raise requests.HTTPError(GITHUB_TOKEN_REJECTED_MSG, response=r)
+        if r.status_code not in (400, 404):
+            r.raise_for_status()
+            data = r.json()
+            if isinstance(data, list):
+                for item in data:
+                    add(str(item.get("tag_name") or ""))
+    except GitHubRateLimitError:
+        raise
+    except requests.HTTPError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Release list failed for %s/%s: %s", owner, repo, exc)
+
+    try:
+        r = _github_api_get(
+            f"https://api.github.com/repos/{owner}/{repo}/tags",
+            timeout=30,
+            params={"per_page": cap},
+        )
+        _note_rate_headers(r)
+        if _looks_like_rate_limit(r):
+            raise GitHubRateLimitError(RATE_LIMIT_STATUS)
+        if r.status_code == 401:
+            raise requests.HTTPError(GITHUB_TOKEN_REJECTED_MSG, response=r)
+        if r.status_code not in (400, 404):
+            r.raise_for_status()
+            data = r.json()
+            if isinstance(data, list):
+                for item in data:
+                    add(str(item.get("name") or ""))
+    except GitHubRateLimitError:
+        raise
+    except requests.HTTPError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Tag list failed for %s/%s: %s", owner, repo, exc)
+
+    _browse_versions_cache[key] = list(tags)
+    return tags
+
+
+def addon_install_url_for_choice(
+    fork_data: dict[str, Any] | None,
+    tag: str | None = None,
+) -> str:
+    """Build the install URL from fork + optional version tag."""
+    fork_data = fork_data if isinstance(fork_data, dict) else {}
+    raw = str(fork_data.get("repo") or "").strip()
+    parsed = parse_github_url(raw)
+    if not parsed:
+        return raw
+    chosen = str(tag or "").strip() or str(fork_data.get("pin_release") or "").strip()
+    if chosen:
+        return github_tag_page_url(parsed.owner, parsed.repo, chosen)
+    return github_browse_url(parsed.owner, parsed.repo)
 
 
 def has_pending_addon_scan_queue() -> bool:

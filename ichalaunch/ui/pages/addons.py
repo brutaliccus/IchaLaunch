@@ -31,6 +31,8 @@ from ichalaunch.game.launcher import resolve_addons_dir
 from ichalaunch.ui.widgets.casting_bar_search_edit import CastingBarSearchEdit
 from ichalaunch.ui.widgets.common import (
     AddonRow,
+    addon_fork_label,
+    addon_version_label,
     is_turtle_wow_custom_addon,
     open_url_in_browser,
     status_with_stamp,
@@ -418,6 +420,35 @@ class AddonsPage(QWidget):
         if url:
             github_preview_dialog(self, url)
 
+    def open_addon_settings(self, entry: dict) -> None:
+        from ichalaunch.ui.widgets.dialogs import addon_settings_dialog
+
+        folder = str(entry.get("folder") or entry.get("name") or "")
+        meta = settings.installed_addons.get(folder) if folder else None
+        updated = addon_settings_dialog(self, entry, meta=meta)
+        if not updated:
+            return
+        entry.clear()
+        entry.update(updated)
+        folder_key = str(entry.get("folder") or entry.get("name") or "")
+        if folder_key and isinstance(meta, dict):
+            tag = str(entry.get("tag") or entry.get("pin_release") or "").strip()
+            if tag:
+                meta = dict(meta)
+                meta["tag"] = tag
+                meta["version"] = tag
+                settings.installed_addons[folder_key] = meta
+                settings.save()
+        for i in range(self.installed_list.count()):
+            item = self.installed_list.item(i)
+            if item is None:
+                continue
+            row = self.installed_list.itemWidget(item)
+            if isinstance(row, AddonRow) and str(row.entry.get("folder") or "") == folder_key:
+                row.entry.clear()
+                row.entry.update(updated)
+                break
+
     def set_addon_loaded_ui(self, entry: dict, loaded: bool) -> None:
         folder = str(entry.get("folder") or entry.get("name") or "")
         if not folder:
@@ -540,7 +571,8 @@ class AddonsPage(QWidget):
         folder = entry.get("folder") or entry.get("name") or ""
         blob = (
             f"{entry.get('name', '')} {entry.get('description', '')} "
-            f"{entry.get('category', '')} {folder}"
+            f"{entry.get('category', '')} {folder} "
+            f"{addon_fork_label(entry)} {addon_version_label(entry)}"
         ).lower()
         return q in blob
 
@@ -982,7 +1014,6 @@ class AddonsPage(QWidget):
                 row = AddonRow(entry, status="available", parent=self.list)
                 row.install_clicked.connect(self.install_requested.emit)
                 row.open_git_clicked.connect(self.open_git)
-                row.preview_clicked.connect(self.open_preview)
                 item = QListWidgetItem()
                 item.setData(Qt.ItemDataRole.UserRole, entry)
                 item.setSizeHint(QSize(0, INSTALLED_ROW_H))
@@ -1201,24 +1232,25 @@ class AddonsPage(QWidget):
                     else:
                         sort_pri = 1
                     rows_to_show.append(
-                        (sort_pri, name.lower(), entry, status, modules, never_u, loaded)
+                        (sort_pri, name.lower(), entry, status, modules, never_u, loaded, meta)
                     )
 
                 rows_to_show.sort(key=lambda t: (t[0], t[1]))
-                for _pri, _name, entry, status, modules, never_u, loaded in rows_to_show:
+                for _pri, _name, entry, status, modules, never_u, loaded, row_meta in rows_to_show:
                     row = AddonRow(
                         entry,
                         status=status,
                         modules=modules,
                         never_update=never_u,
                         loaded=loaded,
+                        meta=row_meta,
                         parent=self.installed_list,
                     )
                     row.update_clicked.connect(self.update_requested.emit)
                     row.reinstall_clicked.connect(self.reinstall_requested.emit)
                     row.remove_clicked.connect(self.remove_requested.emit)
                     row.open_git_clicked.connect(self.open_git)
-                    row.preview_clicked.connect(self.open_preview)
+                    row.settings_clicked.connect(self.open_addon_settings)
                     row.loaded_toggled.connect(self.set_addon_loaded_ui)
                     row.never_update_changed.connect(self.set_never_update)
                     item = QListWidgetItem()

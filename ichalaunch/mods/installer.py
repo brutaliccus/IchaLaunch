@@ -47,7 +47,13 @@ from ichalaunch.core.filesystem import (
 )
 from ichalaunch.core.logging_setup import log
 from ichalaunch.core.process import download_bytes, download_bytes_cb, download_file, google_drive_url, status_only
-from ichalaunch.game.launcher import detect_game, resolve_addons_dir, ensure_addons_dir, resolve_addons_dir
+from ichalaunch.game.launcher import (
+    detect_game,
+    detect_vf_disk_mode,
+    ensure_addons_dir,
+    resolve_addons_dir,
+    vf_mode_display,
+)
 
 ProgressCb = Callable[[str], None]
 UA = {"User-Agent": "IchaLaunch/0.1"}
@@ -147,6 +153,232 @@ def _collect_mod_dependencies(
 
 _HD_PATCH_PREFIX = "hd_patch_"
 _VANILLA_HELPERS_ID = "vanilla_helpers"
+_VANILLAFIXES_ID = "vanillafixes"
+_DXVK_ID = "dxvk"
+
+
+def vanillafixes_dxvk_both_enabled(desired: dict[str, bool] | None = None) -> bool:
+    """True when regular VanillaFixes and the DXVK bundle are both desired."""
+    d = desired if desired is not None else settings.desired_mods
+    return bool(d.get(_VANILLAFIXES_ID)) and bool(d.get(_DXVK_ID))
+
+
+def _reconcile_vf_dxvk_detected(state: dict[str, bool]) -> dict[str, bool]:
+    """DXVK ships VanillaFixes.exe — only one catalog mod should read as installed."""
+    out = dict(state)
+    if out.get(_DXVK_ID):
+        out[_VANILLAFIXES_ID] = False
+    return out
+
+
+def _vf_sync_action_log_label(mod_id: str, action: str) -> str | None:
+    """Grep-friendly install/remove label for VanillaFixes vs DXVK mod sync."""
+    if mod_id == _VANILLAFIXES_ID:
+        prefix = "+" if action == "install" else "-"
+        return f"{prefix} VanillaFixes (standard)"
+    if mod_id == _DXVK_ID:
+        if action == "install":
+            return "+ VanillaFixes + DXVK (Vulkan)"
+        return "- DXVK layer (d3d9.dll, dxvk.conf)"
+    return None
+
+
+def _log_vf_on_disk_summary(game: Path, context: str) -> None:
+    log.info("VF on-disk [%s]: %s", context, vf_mode_display(detect_vf_disk_mode(game)))
+
+
+def _is_alternate_hd_variant(mod_id: str) -> bool:
+    """True for non-default HD patch variants that share an MPQ with a sibling."""
+    return mod_id.endswith("_less_thicc") or mod_id.endswith("_ultra")
+
+
+def _pick_exclusive_detect_winner(
+    a: str,
+    b: str,
+    desired: dict[str, bool],
+) -> str:
+    """Pick which conflicting mod id should read as installed when both match disk."""
+    installed = settings.installed_mods
+    a_rec, b_rec = a in installed, b in installed
+    if a_rec and not b_rec:
+        return a
+    if b_rec and not a_rec:
+        return b
+    # No install record (manual / pre-migration): fall back to desired-state reconcile.
+    want_a, want_b = bool(desired.get(a)), bool(desired.get(b))
+    if want_a and not want_b:
+        return a
+    if want_b and not want_a:
+        return b
+    if want_a and want_b:
+        if _is_alternate_hd_variant(a) and not _is_alternate_hd_variant(b):
+            return b
+        if _is_alternate_hd_variant(b) and not _is_alternate_hd_variant(a):
+            return a
+        return a
+    if _is_alternate_hd_variant(a) and not _is_alternate_hd_variant(b):
+        return b
+    if _is_alternate_hd_variant(b) and not _is_alternate_hd_variant(a):
+        return a
+    return a
+
+
+def _reconcile_exclusive_variants_detected(
+    state: dict[str, bool],
+    desired: dict[str, bool] | None = None,
+) -> dict[str, bool]:
+    """Shared install artifacts can mark multiple conflict siblings as present."""
+    out = dict(state)
+    desired = desired if desired is not None else settings.desired_mods
+    catalog = mod_catalog_map()
+    seen: set[frozenset[str]] = set()
+    for mid, mod in catalog.items():
+        for conf in mod.get("conflicts") or []:
+            pair = frozenset({mid, conf})
+            if pair in seen or conf not in catalog:
+                continue
+            seen.add(pair)
+            if not (out.get(mid) and out.get(conf)):
+                continue
+            winner = _pick_exclusive_detect_winner(mid, conf, desired)
+            loser = conf if winner == mid else mid
+            out[loser] = False
+    return out
+
+
+def _desired_conflict_sibling_installed(
+    mod_id: str,
+    desired: dict[str, bool],
+    catalog: dict[str, dict[str, Any]],
+) -> bool:
+    """True when a desired conflict sibling is the reconciled installed variant."""
+    for conf in (catalog.get(mod_id) or {}).get("conflicts") or []:
+        if desired.get(conf):
+            return True
+    return False
+
+
+def _mpq_exclusive_variant_needs_reinstall(
+    mod_id: str,
+    desired: dict[str, bool],
+    catalog: dict[str, dict[str, Any]],
+) -> bool:
+    """True when a desired MPQ sibling must replace another variant on disk.
+
+    Shared patch-L/T.mpq detection cannot tell variants apart; installed_mods
+    records which sibling the launcher last applied.
+    """
+    mod = catalog.get(mod_id) or {}
+    if mod.get("kind") != "mpq_file" or not desired.get(mod_id):
+        return False
+    conflicts = [c for c in (mod.get("conflicts") or []) if c in catalog]
+    if not conflicts:
+        return False
+    installed = settings.installed_mods
+    if mod_id in installed:
+        return False
+    return any(conf in installed and not desired.get(conf) for conf in conflicts)
+
+
+def reconcile_exclusive_desired_mods(
+    desired: dict[str, bool],
+    *,
+    prefer: str | None = None,
+    actual: dict[str, bool] | None = None,
+) -> dict[str, bool]:
+    """Ensure at most one mod per catalog conflict pair is desired."""
+    catalog = mod_catalog_map()
+    out = dict(desired)
+    seen: set[frozenset[str]] = set()
+    for mid, mod in catalog.items():
+        for conf in mod.get("conflicts") or []:
+            pair = frozenset({mid, conf})
+            if pair in seen or conf not in catalog:
+                continue
+            seen.add(pair)
+            a, b = sorted(pair)
+            if not (out.get(a) and out.get(b)):
+                continue
+            if pair == frozenset({_VANILLAFIXES_ID, _DXVK_ID}):
+                if prefer in (a, b):
+                    out[b if prefer == a else a] = False
+                elif actual:
+                    if actual.get(_DXVK_ID):
+                        out[_VANILLAFIXES_ID] = False
+                    elif actual.get(_VANILLAFIXES_ID):
+                        out[_DXVK_ID] = False
+                    else:
+                        out[_DXVK_ID] = False
+                else:
+                    out[_DXVK_ID] = False
+                continue
+            if prefer in (a, b):
+                out[b if prefer == a else a] = False
+                continue
+            if actual:
+                a_have, b_have = bool(actual.get(a)), bool(actual.get(b))
+                if a_have and not b_have:
+                    out[b] = False
+                    continue
+                if b_have and not a_have:
+                    out[a] = False
+                    continue
+            winner = _pick_exclusive_detect_winner(a, b, out)
+            out[b if winner == a else a] = False
+    return out
+
+
+def _persist_reconciled_desired_mods(
+    desired: dict[str, bool],
+    *,
+    actual: dict[str, bool] | None = None,
+) -> dict[str, bool]:
+    """Reconcile conflicting desired mods and persist when settings changed."""
+    reconciled = reconcile_exclusive_desired_mods(desired, actual=actual)
+    if reconciled != dict(settings.desired_mods):
+        settings.set("desired_mods", reconciled)
+        if reconciled.get(_VANILLAFIXES_ID) or reconciled.get(_DXVK_ID):
+            settings.set(
+                "vanillafixes_enabled",
+                bool(reconciled.get(_VANILLAFIXES_ID) or reconciled.get(_DXVK_ID)),
+            )
+    return reconciled
+
+
+def reconcile_vanillafixes_dxvk(
+    desired: dict[str, bool],
+    *,
+    prefer: str | None = None,
+    actual: dict[str, bool] | None = None,
+) -> dict[str, bool]:
+    """Ensure at most one of VanillaFixes / DXVK is desired.
+
+    The DXVK bundle ships VanillaFixes.exe, so disk detect can mark both present.
+    *prefer* must be ``vanillafixes`` or ``dxvk`` when the user picks explicitly.
+    """
+    if not vanillafixes_dxvk_both_enabled(desired):
+        return desired
+    return reconcile_exclusive_desired_mods(desired, prefer=prefer, actual=actual)
+
+
+def apply_vanillafixes_dxvk_choice(keep: str) -> dict[str, bool]:
+    """Persist user choice for the VanillaFixes vs DXVK conflict."""
+    if keep not in (_VANILLAFIXES_ID, _DXVK_ID):
+        return {}
+    desired = reconcile_vanillafixes_dxvk(
+        dict(settings.desired_mods), prefer=keep
+    )
+    changes: dict[str, bool] = {}
+    for mid in (_VANILLAFIXES_ID, _DXVK_ID):
+        want = bool(desired.get(mid))
+        if bool(settings.desired_mods.get(mid)) != want:
+            changes[mid] = want
+        settings.set_desired_mod(mid, want)
+    settings.set(
+        "vanillafixes_enabled",
+        bool(desired.get(_VANILLAFIXES_ID) or desired.get(_DXVK_ID)),
+    )
+    return changes
 
 
 def _is_hd_patch_id(mod_id: str) -> bool:
@@ -699,22 +931,117 @@ def detect_actual_state(game_path: Path) -> dict[str, bool]:
         except (IndexError, TypeError, ValueError, KeyError, UnicodeError) as exc:
             log.warning("detect %s skipped (bad catalog/parse): %s", mid, exc)
             state[mid] = False
-    return state
+    reconciled = _reconcile_exclusive_variants_detected(
+        _reconcile_vf_dxvk_detected(state),
+        desired=settings.desired_mods,
+    )
+    _backfill_detected_installed_mods(reconciled)
+    return reconciled
+
+
+def plan_missing_installs(desired: dict[str, bool] | None = None) -> list[dict[str, str]]:
+    """Return install actions for desired mods missing on disk (no removals)."""
+    return [ch for ch in plan_changes(desired) if ch.get("action") == "install"]
+
+
+def plan_manual_missing(desired: dict[str, bool] | None = None) -> list[str]:
+    """Return manual-install notices for desired mods that cannot auto-install."""
+    return [ch["detail"] for ch in plan_changes(desired) if ch.get("action") == "manual"]
+
+
+def _apply_planned_mod_changes(
+    changes: list[dict[str, str]], progress: ProgressCb | None = None
+) -> list[str]:
+    """Apply install/remove actions from plan_changes. Per-mod failures are logged, not raised."""
+    done: list[str] = []
+    for ch in changes:
+        if ch.get("action") not in ("install", "remove"):
+            continue
+        mid = ch.get("id") or ""
+        action = ch["action"]
+        try:
+            vf_label = _vf_sync_action_log_label(mid, action)
+            if vf_label:
+                log.info("Mod sync: %s", vf_label)
+            if action == "install":
+                install_mod(mid, progress=progress)
+                done.append(f"+ {mid}")
+            else:
+                remove_mod(mid, progress=progress)
+                done.append(f"- {mid}")
+            if not vf_label:
+                log.info("Pre-launch mod %s: %s", action, mid)
+        except OSError as exc:
+            log.warning("Mod %s %s skipped (disk/AV): %s", action, mid, exc)
+            done.append(f"! {mid} skipped: {exc}")
+        except (RuntimeError, FileNotFoundError, KeyError, shutil.Error) as exc:
+            log.warning("Mod %s %s failed: %s", action, mid, exc)
+            done.append(f"! {mid} failed: {exc}")
+        except requests.RequestException as exc:
+            log.warning("Mod %s %s failed (download): %s", action, mid, exc)
+            done.append(f"! {mid} failed: {exc}")
+    return done
+
+
+def plan_sync_changes(desired: dict[str, bool] | None = None) -> list[dict[str, str]]:
+    """Return install/remove actions needed to match desired_mods (no manual/error)."""
+    return [
+        ch
+        for ch in plan_changes(desired)
+        if ch.get("action") in ("install", "remove")
+    ]
+
+
+def ensure_desired_mods_on_disk(progress: ProgressCb | None = None) -> list[str]:
+    """Install enabled client mods that are missing on disk. Install-only; never removes."""
+    changes = plan_missing_installs()
+    if not changes:
+        return []
+    done = _apply_planned_mod_changes(changes, progress=progress)
+    game = detect_game()
+    if game:
+        _sync_dlls_txt_for_desired_mods(game)
+    log.info("Pre-launch mod repair: %s", done)
+    return done
+
+
+def ensure_desired_mods_synced(progress: ProgressCb | None = None) -> list[str]:
+    """Install missing and remove extra client mods to match desired_mods."""
+    changes = plan_sync_changes()
+    if not changes:
+        return []
+    done = _apply_planned_mod_changes(changes, progress=progress)
+    game = detect_game()
+    if game:
+        _sync_dlls_txt_for_desired_mods(game)
+        _log_vf_on_disk_summary(game, "pre-launch sync")
+    log.info("Pre-launch mod sync: %s", done)
+    return done
 
 
 def plan_changes(desired: dict[str, bool] | None = None) -> list[dict[str, str]]:
     game = detect_game()
     if not game:
         return [{"action": "error", "id": "", "detail": "Game path not set"}]
+    game_actual = detect_actual_state(game)
     desired = enforce_vanilla_helpers_for_hd_desired(
         dict(desired or settings.desired_mods),
         persist=True,
     )
-    actual = detect_actual_state(game)
+    desired = _persist_reconciled_desired_mods(desired, actual=game_actual)
+    actual = game_actual
     catalog = {m["id"]: m for m in load_mod_catalog()}
     changes: list[dict[str, str]] = []
 
-    to_install = [mid for mid, want in desired.items() if want and not actual.get(mid, False)]
+    to_install = [
+        mid
+        for mid, want in desired.items()
+        if want
+        and (
+            not actual.get(mid, False)
+            or _mpq_exclusive_variant_needs_reinstall(mid, desired, catalog)
+        )
+    ]
     ordered: list[str] = []
     seen: set[str] = set()
 
@@ -750,6 +1077,14 @@ def plan_changes(desired: dict[str, bool] | None = None) -> list[dict[str, str]]
     for mid, want in desired.items():
         have = actual.get(mid, False)
         if not want and have:
+            # DXVK bundle owns VanillaFixes.exe — never remove VF when DXVK is desired.
+            if mid == _VANILLAFIXES_ID and desired.get(_DXVK_ID):
+                continue
+            # VF ↔ DXVK: when switching back to regular VF, remove DXVK layer files.
+            if mid == _DXVK_ID and desired.get(_VANILLAFIXES_ID):
+                pass
+            elif _desired_conflict_sibling_installed(mid, desired, catalog):
+                continue
             if mid == _VANILLA_HELPERS_ID and _any_hd_patch_desired(desired):
                 continue
             mod = catalog.get(mid) or {}
@@ -1088,12 +1423,69 @@ def _remote_identity(source: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
+def _clear_exclusive_sibling_install_records(mod_id: str, mod: dict[str, Any]) -> None:
+    """Drop install metadata for conflict siblings sharing the same install slot."""
+    vf_dxvk_pair = frozenset({_VANILLAFIXES_ID, _DXVK_ID})
+    for conf in mod.get("conflicts") or []:
+        if mod.get("kind") == "mpq_file" or frozenset({mod_id, conf}) == vf_dxvk_pair:
+            settings.remove_installed_mod(conf)
+
+
+def _backfill_installed_mod_meta(mod_id: str, mod: dict[str, Any]) -> dict[str, Any]:
+    """Build install metadata for a mod detected on disk without a saved record."""
+    from ichalaunch.addons.github import iso_date_today
+
+    source = mod.get("source") or {}
+    today = iso_date_today()
+    meta: dict[str, Any] = {
+        "name": mod.get("name"),
+        "kind": mod.get("kind"),
+        "installed_at": today,
+        "updated_at": today,
+        "backfilled": True,
+    }
+    pinned = _tag_from_release_url(source.get("url") or "")
+    if pinned:
+        meta["version_key"] = pinned
+        meta["version_display"] = pinned
+        meta["version_kind"] = "release"
+        meta["tag"] = pinned
+    elif source.get("url"):
+        meta["version_key"] = source["url"]
+        meta["version_display"] = "detected"
+        meta["url"] = source["url"]
+    if mod.get("kind") == "mpq_file":
+        meta["variant_id"] = mod_id
+        src_url = source.get("url")
+        if src_url:
+            meta["source_url"] = src_url
+    return meta
+
+
+def _backfill_detected_installed_mods(actual: dict[str, bool]) -> None:
+    """Persist installed_mods for on-disk mods missing install metadata.
+
+    Uses reconciled detect state so MPQ siblings only get one backfilled record.
+    """
+    catalog = mod_catalog_map()
+    installed = settings.installed_mods
+    for mid, present in actual.items():
+        if not present or mid not in catalog or mid in installed:
+            continue
+        mod = catalog[mid]
+        if mod.get("kind") in ("manual_link", "wdb_block", "config_script_memory"):
+            continue
+        _clear_exclusive_sibling_install_records(mid, mod)
+        settings.set_installed_mod(mid, _backfill_installed_mod_meta(mid, mod))
+
+
 def _record_mod_install(
     mod_id: str, mod: dict[str, Any], source_override: dict[str, Any] | None = None
 ) -> None:
     """Persist installed version fingerprint after a successful install."""
     from ichalaunch.addons.github import iso_date_today
 
+    _clear_exclusive_sibling_install_records(mod_id, mod)
     source = source_override if source_override is not None else (mod.get("source") or {})
     prev = settings.installed_mods.get(mod_id) or {}
     today = iso_date_today()
@@ -1128,6 +1520,11 @@ def _record_mod_install(
         meta["version_key"] = source["url"]
         meta["version_display"] = "catalog"
         meta["url"] = source["url"]
+    if mod.get("kind") == "mpq_file":
+        meta["variant_id"] = mod_id
+        src_url = (source or {}).get("url")
+        if src_url:
+            meta["source_url"] = src_url
     settings.set_installed_mod(mod_id, meta)
 
 
@@ -1218,18 +1615,18 @@ def check_mod_updates(
         if not local_key:
             pinned = _tag_from_release_url((source or {}).get("url") or "")
             if pinned and remote.get("key") and pinned != remote.get("key"):
-                settings.set_installed_mod(
-                    mid,
+                meta = _backfill_installed_mod_meta(mid, mod)
+                meta.pop("backfilled", None)
+                meta.update(
                     {
-                        "name": mod.get("name"),
-                        "kind": kind,
                         "version_key": pinned,
                         "version_display": pinned,
                         "version_kind": "release",
                         "tag": pinned,
                         **{k: remote[k] for k in ("repo",) if remote.get(k)},
-                    },
+                    }
                 )
+                settings.set_installed_mod(mid, meta)
                 updates.append(
                     {
                         "id": mid,
@@ -1243,11 +1640,10 @@ def check_mod_updates(
                     on_count(i + 1, total, f"Checking {label}…")
                 continue
             # First check: baseline remote without flagging an update
-            settings.set_installed_mod(
-                mid,
+            meta = _backfill_installed_mod_meta(mid, mod)
+            meta.pop("backfilled", None)
+            meta.update(
                 {
-                    "name": mod.get("name"),
-                    "kind": kind,
                     "version_key": remote.get("key"),
                     "version_display": remote.get("display"),
                     "version_kind": remote.get("kind"),
@@ -1256,8 +1652,9 @@ def check_mod_updates(
                         for k in ("etag", "last_modified", "tag", "sha", "repo", "branch", "url")
                         if remote.get(k)
                     },
-                },
+                }
             )
+            settings.set_installed_mod(mid, meta)
             if callable(on_count):
                 on_count(i + 1, total, f"Checking {label}…")
             continue
@@ -1577,6 +1974,9 @@ def _mod_owned_paths(mod: dict[str, Any]) -> set[str]:
         add("VanillaFixes.exe")
         add("VfPatcher.dll")
     if mid == "dxvk":
+        # DXVK bundle zip ships VanillaFixes.exe — keep it when swapping off regular VF.
+        add("VanillaFixes.exe")
+        add("VfPatcher.dll")
         add("d3d9.dll")
         add("dxvk.conf")
     return owned
@@ -1857,34 +2257,18 @@ def prepare_for_launch(game: Path | None = None) -> PreLaunchResult:
 
 def _apply_desired_state_inner(progress: ProgressCb | None) -> list[str]:
     changes = plan_changes()
-    done: list[str] = []
-    manuals: list[str] = []
     for ch in changes:
         if ch["action"] == "error":
             raise RuntimeError(ch["detail"])
-        if ch["action"] == "manual":
-            manuals.append(ch["detail"])
-            continue
-        mid = ch.get("id") or ""
-        try:
-            if ch["action"] == "install":
-                install_mod(mid, progress=progress)
-                done.append(f"+ {mid}")
-            elif ch["action"] == "remove":
-                remove_mod(mid, progress=progress)
-                done.append(f"- {mid}")
-        except OSError as exc:
-            log.warning("Mod %s %s skipped (disk/AV): %s", ch["action"], mid, exc)
-            done.append(f"! {mid} skipped: {exc}")
-        except (RuntimeError, FileNotFoundError, KeyError, shutil.Error) as exc:
-            log.warning("Mod %s %s failed: %s", ch["action"], mid, exc)
-            done.append(f"! {mid} failed: {exc}")
-        except requests.RequestException as exc:
-            log.warning("Mod %s %s failed (download): %s", ch["action"], mid, exc)
-            done.append(f"! {mid} failed: {exc}")
+    manuals = [ch["detail"] for ch in changes if ch["action"] == "manual"]
+    actionable = [ch for ch in changes if ch["action"] in ("install", "remove")]
+    done = _apply_planned_mod_changes(actionable, progress=progress)
     game = detect_game()
     if game:
         _sync_dlls_txt_for_desired_mods(game)
+        actual = detect_actual_state(game)
+        _persist_reconciled_desired_mods(dict(settings.desired_mods), actual=actual)
+        _log_vf_on_disk_summary(game, "apply")
     log.info("Applied mod changes: %s manuals=%s", done, manuals)
     if manuals:
         done.append("Manual downloads needed:")

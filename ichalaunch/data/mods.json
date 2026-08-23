@@ -4,18 +4,30 @@
     "name": "Vanilla Tweaks",
     "category": "Performance & Fixes",
     "description": "Widescreen FoV, farclip, quickloot, 4GB LAA, nameplate range, and more. Patches WoW.exe.",
-    "detect": {"any_files": ["WoW-OriginalBackup.exe"]},
-    "source": {"type": "github_release", "url": "https://github.com/brndd/vanilla-tweaks/releases/download/v1.6.0/vanilla-tweaks_v1.6.0_x86_64-pc-windows-gnu.zip"},
+    "detect": {
+      "any_files": [
+        "WoW-OriginalBackup.exe"
+      ]
+    },
+    "source": {
+      "type": "github_release",
+      "url": "https://github.com/brndd/vanilla-tweaks/releases/download/v1.6.0/vanilla-tweaks_v1.6.0_x86_64-pc-windows-gnu.zip"
+    },
     "kind": "exe_patch",
     "dependencies": [],
-    "conflicts": []
+    "conflicts": [],
+    "author": "brndd"
   },
   {
     "id": "vanillafixes",
     "name": "VanillaFixes",
     "category": "Performance & Fixes",
     "description": "Modern launcher that loads DLL mods and reduces stutter / animation lag. Use this to start the game.",
-    "detect": {"any_files": ["VanillaFixes.exe"]},
+    "detect": {
+      "any_files": [
+        "VanillaFixes.exe"
+      ]
+    },
     "source": {
       "type": "github_release_latest",
       "repo": "hannesmann/vanillafixes",
@@ -24,14 +36,23 @@
     },
     "kind": "zip_root",
     "dependencies": [],
-    "conflicts": ["dxvk"]
+    "conflicts": [
+      "dxvk"
+    ],
+    "author": "hannesmann"
   },
   {
     "id": "dxvk",
     "name": "VanillaFixes + DXVK (Vulkan)",
     "category": "Performance & Fixes",
     "description": "Vulkan backend via DXVK. Needs a capable GPU. May conflict with overlays / some Nvidia 50-series setups.",
-    "detect": {"all_files": ["d3d9.dll", "dxvk.conf"]},
+    "detect": {
+      "all_files": [
+        "VanillaFixes.exe",
+        "d3d9.dll",
+        "dxvk.conf"
+      ]
+    },
     "source": {
       "type": "github_release_latest",
       "repo": "hannesmann/vanillafixes",
@@ -39,28 +60,57 @@
     },
     "kind": "zip_root",
     "dependencies": [],
-    "conflicts": ["vanillafixes"]
+    "conflicts": [
+      "vanillafixes"
+    ],
+    "author": "hannesmann"
   },
   {
     "id": "superwow",
     "name": "SuperWoW",
     "category": "Client Enhancements",
     "description": "Advanced Lua API, longer macros (511 chars). Required by many Turtle-era addons.",
-    "detect": {"any_files": ["SuperWoWhook.dll"]},
-    "source": {"type": "github_release_latest", "repo": "balakethelock/SuperWoW", "asset_contains": ".zip"},
-    "addon_source": {"type": "github_zip", "url": "https://github.com/balakethelock/SuperAPI/archive/refs/heads/master.zip", "folder": "SuperAPI"},
-    "files": [{"match": "SuperWoWhook.dll", "destination": "SuperWoWhook.dll"}],
-    "dlls_txt": {"add": ["SuperWoWhook.dll"]},
+    "detect": {
+      "any_files": [
+        "SuperWoWhook.dll"
+      ]
+    },
+    "source": {
+      "type": "github_release_latest",
+      "repo": "balakethelock/SuperWoW",
+      "asset_contains": ".zip"
+    },
+    "addon_source": {
+      "type": "github_zip",
+      "url": "https://github.com/balakethelock/SuperAPI/archive/refs/heads/master.zip",
+      "folder": "SuperAPI"
+    },
+    "files": [
+      {
+        "match": "SuperWoWhook.dll",
+        "destination": "SuperWoWhook.dll"
+      }
+    ],
+    "dlls_txt": {
+      "add": [
+        "SuperWoWhook.dll"
+      ]
+    },
     "kind": "dll_bundle",
     "dependencies": [],
-    "conflicts": []
+    "conflicts": [],
+    "author": "balakethelock"
   },
   {
     "id": "nampower",
     "name": "Nampower",
     "category": "Client Enhancements",
     "description": "Spell queuing and casting QoL that works around vanilla cast acknowledgement lag.",
-    "detect": {"any_files": ["nampower.dll"]},
+    "detect": {
+      "any_files": [
+        "nampower.dll"
+      ]
+    },
     "source": {
       "type": "github_release_latest",
       "repo": "brues-code/nampower",
@@ -72,100 +122,184 @@
       "asset_contains": ".zip",
       "folder": "NampowerSettings"
     },
-    "files": [{"match": "nampower.dll", "destination": "nampower.dll"}],
-    "dlls_txt": {"add": ["nampower.dll"]},
+    "files": [
+      {
+        "match": "nampower.dll",
+        "destination": "nampower.dll"
+      }
+    ],
+    "dlls_txt": {
+      "add": [
+        "nampower.dll"
+      ]
+    },
     "kind": "dll_file",
     "dependencies": [],
-    "conflicts": []
+    "conflicts": [],
+    "author": "brues-code"
   },
   {
     "id": "unitxp",
     "name": "UnitXP Service Pack 3",
     "category": "Client Enhancements",
     "description": "Better nameplates, LoS helpers, camera and network tweaks.",
-    "detect": {"any_files": ["UnitXP_SP3.dll"]},
+    "detect": {
+      "any_files": [
+        "UnitXP_SP3.dll"
+      ]
+    },
     "source": {
       "type": "github_release_latest",
       "repo": "brues-code/UnitXP_SP3",
       "asset_contains": "UnitXP_SP3.dll"
     },
-    "files": [{"match": "UnitXP_SP3.dll", "destination": "UnitXP_SP3.dll"}],
+    "files": [
+      {
+        "match": "UnitXP_SP3.dll",
+        "destination": "UnitXP_SP3.dll"
+      }
+    ],
     "addon_source": {
       "type": "github_release_latest",
       "repo": "brues-code/UnitXP_SP3_Addon",
       "asset_contains": ".zip",
       "folder": "UnitXP_SP3_Addon"
     },
-    "dlls_txt": {"add": ["UnitXP_SP3.dll"]},
+    "dlls_txt": {
+      "add": [
+        "UnitXP_SP3.dll"
+      ]
+    },
     "kind": "dll_bundle",
     "dependencies": [],
-    "conflicts": []
+    "conflicts": [],
+    "author": "brues-code"
   },
   {
     "id": "auction_query_throttle",
     "name": "Auction Query Throttle",
     "category": "Performance & Fixes",
     "description": "Throttles auction-house queries to reduce client freezes when browsing the AH.",
-    "detect": {"any_files": ["AuctionQueryThrottle.dll"]},
+    "detect": {
+      "any_files": [
+        "AuctionQueryThrottle.dll"
+      ]
+    },
     "source": {
       "type": "github_release_latest",
       "repo": "brues-code/AuctionQueryThrottle",
       "asset_contains": "AuctionQueryThrottle.dll"
     },
-    "files": [{"match": "AuctionQueryThrottle.dll", "destination": "AuctionQueryThrottle.dll"}],
-    "dlls_txt": {"add": ["AuctionQueryThrottle.dll"]},
+    "files": [
+      {
+        "match": "AuctionQueryThrottle.dll",
+        "destination": "AuctionQueryThrottle.dll"
+      }
+    ],
+    "dlls_txt": {
+      "add": [
+        "AuctionQueryThrottle.dll"
+      ]
+    },
     "kind": "dll_file",
     "dependencies": [],
-    "conflicts": []
+    "conflicts": [],
+    "author": "brues-code"
   },
   {
     "id": "classic_api",
     "name": "ClassicAPI",
     "category": "Client Enhancements",
     "description": "Classic-era Lua API shims and helpers for vanilla 1.12 clients.",
-    "detect": {"any_files": ["ClassicAPI.dll"]},
+    "detect": {
+      "any_files": [
+        "ClassicAPI.dll"
+      ]
+    },
     "source": {
       "type": "github_release_latest",
       "repo": "brues-code/ClassicAPI",
       "asset_contains": "ClassicAPI.dll"
     },
-    "files": [{"match": "ClassicAPI.dll", "destination": "ClassicAPI.dll"}],
-    "dlls_txt": {"add": ["ClassicAPI.dll"]},
+    "files": [
+      {
+        "match": "ClassicAPI.dll",
+        "destination": "ClassicAPI.dll"
+      }
+    ],
+    "dlls_txt": {
+      "add": [
+        "ClassicAPI.dll"
+      ]
+    },
     "kind": "dll_file",
     "dependencies": [],
-    "conflicts": []
+    "conflicts": [],
+    "author": "brues-code"
   },
   {
     "id": "perfboost",
     "name": "PerfBoost",
     "category": "Performance & Fixes",
     "description": "Selective unit rendering to improve FPS in cities and raids.",
-    "detect": {"any_files": ["perf_boost.dll"]},
-    "source": {"type": "raw", "url": "https://raw.githubusercontent.com/RetroCro/TurtleWoW-Mods/refs/heads/main/Archive/DLL%20BACKUP/perf_boost.dll", "filename": "perf_boost.dll"},
-    "addon_source": {"type": "raw_zip", "url": "https://raw.githubusercontent.com/RetroCro/TurtleWoW-Mods/refs/heads/main/Archive/DLL%20BACKUP/perfboostsettings.zip", "folder": "PerfBoostSettings"},
-    "dlls_txt": {"add": ["perf_boost.dll"]},
+    "detect": {
+      "any_files": [
+        "perf_boost.dll"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://raw.githubusercontent.com/RetroCro/TurtleWoW-Mods/refs/heads/main/Archive/DLL%20BACKUP/perf_boost.dll",
+      "filename": "perf_boost.dll"
+    },
+    "addon_source": {
+      "type": "raw_zip",
+      "url": "https://raw.githubusercontent.com/RetroCro/TurtleWoW-Mods/refs/heads/main/Archive/DLL%20BACKUP/perfboostsettings.zip",
+      "folder": "PerfBoostSettings"
+    },
+    "dlls_txt": {
+      "add": [
+        "perf_boost.dll"
+      ]
+    },
     "kind": "dll_file",
     "dependencies": [],
-    "conflicts": []
+    "conflicts": [],
+    "author": "RetroCro"
   },
   {
     "id": "no1600x1200",
     "name": "no1600x1200",
     "category": "Performance & Fixes",
     "description": "Unlocks modern / widescreen resolutions in video options.",
-    "detect": {"any_files": ["no1600x1200.dll"]},
-    "source": {"type": "raw", "url": "https://raw.githubusercontent.com/RetroCro/TurtleWoW-Mods/refs/heads/main/Archive/DLL%20BACKUP/no1600x1200.dll", "filename": "no1600x1200.dll"},
-    "dlls_txt": {"add": ["no1600x1200.dll"]},
+    "detect": {
+      "any_files": [
+        "no1600x1200.dll"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://raw.githubusercontent.com/RetroCro/TurtleWoW-Mods/refs/heads/main/Archive/DLL%20BACKUP/no1600x1200.dll",
+      "filename": "no1600x1200.dll"
+    },
+    "dlls_txt": {
+      "add": [
+        "no1600x1200.dll"
+      ]
+    },
     "kind": "dll_file",
     "dependencies": [],
-    "conflicts": []
+    "conflicts": [],
+    "author": "RetroCro"
   },
   {
     "id": "wdb_block",
     "name": "Auto-clear WDB cache",
     "category": "Performance & Fixes",
     "description": "Replaces the WDB folder with an empty file so stale cache cannot build up.",
-    "detect": {"wdb_file": true},
+    "detect": {
+      "wdb_file": true
+    },
     "kind": "wdb_block",
     "dependencies": [],
     "conflicts": []
@@ -175,7 +309,9 @@
     "name": "Addon Script Memory = 0",
     "category": "Performance & Fixes",
     "description": "Sets Config.wtf scriptMemory to 0 so addons can use as much memory as needed.",
-    "detect": {"config_contains": "SET scriptMemory \"0\""},
+    "detect": {
+      "config_contains": "SET scriptMemory \"0\""
+    },
     "kind": "config_script_memory",
     "dependencies": [],
     "conflicts": []
@@ -186,13 +322,31 @@
     "category": "HD Graphics",
     "description": "Mandatory DLL for Project Reforged HD patches. Without it, HD MPQs will crash.",
     "info_url": "https://projectreforged.github.io/vanilla/downloads/turtle/",
-    "detect": {"any_files": ["VanillaHelpers.dll"]},
-    "source": {"type": "github_release_latest", "repo": "isfir/VanillaHelpers", "asset_contains": "VanillaHelpers.dll"},
-    "files": [{"match": "VanillaHelpers.dll", "destination": "VanillaHelpers.dll"}],
-    "dlls_txt": {"add": ["VanillaHelpers.dll"]},
+    "detect": {
+      "any_files": [
+        "VanillaHelpers.dll"
+      ]
+    },
+    "source": {
+      "type": "github_release_latest",
+      "repo": "isfir/VanillaHelpers",
+      "asset_contains": "VanillaHelpers.dll"
+    },
+    "files": [
+      {
+        "match": "VanillaHelpers.dll",
+        "destination": "VanillaHelpers.dll"
+      }
+    ],
+    "dlls_txt": {
+      "add": [
+        "VanillaHelpers.dll"
+      ]
+    },
     "kind": "dll_bundle",
     "dependencies": [],
-    "conflicts": []
+    "conflicts": [],
+    "author": "isfir"
   },
   {
     "id": "hd_patch_a",
@@ -200,12 +354,24 @@
     "category": "HD Graphics",
     "description": "Player characters and NPCs including Turtle WoW custom races. Foundation for Patch-L, T and U.",
     "info_url": "https://projectreforged.github.io/vanilla/downloads/turtle/",
-    "detect": {"data_mpq": ["patch-A.mpq", "Patch-A.mpq"]},
-    "source": {"type": "raw", "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-A.mpq", "filename": "patch-A.mpq"},
+    "detect": {
+      "data_mpq": [
+        "patch-A.mpq",
+        "Patch-A.mpq"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-A.mpq",
+      "filename": "patch-A.mpq"
+    },
     "kind": "mpq_file",
     "destination": "Data/patch-A.mpq",
-    "dependencies": ["vanilla_helpers"],
-    "conflicts": []
+    "dependencies": [
+      "vanilla_helpers"
+    ],
+    "conflicts": [],
+    "author": "Project Reforged"
   },
   {
     "id": "hd_patch_b",
@@ -213,12 +379,26 @@
     "category": "HD Graphics",
     "description": "Building HD textures. Install together with Patch-D and Patch-E (environment set).",
     "info_url": "https://projectreforged.github.io/vanilla/downloads/turtle/",
-    "detect": {"data_mpq": ["patch-B.mpq", "Patch-B.mpq"]},
-    "source": {"type": "raw", "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-B.mpq", "filename": "patch-B.mpq"},
+    "detect": {
+      "data_mpq": [
+        "patch-B.mpq",
+        "Patch-B.mpq"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-B.mpq",
+      "filename": "patch-B.mpq"
+    },
     "kind": "mpq_file",
     "destination": "Data/patch-B.mpq",
-    "dependencies": ["vanilla_helpers", "hd_patch_d", "hd_patch_e"],
-    "conflicts": []
+    "dependencies": [
+      "vanilla_helpers",
+      "hd_patch_d",
+      "hd_patch_e"
+    ],
+    "conflicts": [],
+    "author": "Project Reforged"
   },
   {
     "id": "hd_patch_c",
@@ -226,12 +406,24 @@
     "category": "HD Graphics",
     "description": "Creatures and related assets for the classic client.",
     "info_url": "https://projectreforged.github.io/vanilla/downloads/turtle/",
-    "detect": {"data_mpq": ["patch-C.mpq", "Patch-C.mpq"]},
-    "source": {"type": "raw", "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-C.mpq", "filename": "patch-C.mpq"},
+    "detect": {
+      "data_mpq": [
+        "patch-C.mpq",
+        "Patch-C.mpq"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-C.mpq",
+      "filename": "patch-C.mpq"
+    },
     "kind": "mpq_file",
     "destination": "Data/patch-C.mpq",
-    "dependencies": ["vanilla_helpers"],
-    "conflicts": []
+    "dependencies": [
+      "vanilla_helpers"
+    ],
+    "conflicts": [],
+    "author": "Project Reforged"
   },
   {
     "id": "hd_patch_d",
@@ -239,12 +431,26 @@
     "category": "HD Graphics",
     "description": "World doodads and textures. Install together with Patch-B and Patch-E (environment set).",
     "info_url": "https://projectreforged.github.io/vanilla/downloads/turtle/",
-    "detect": {"data_mpq": ["patch-D.mpq", "Patch-D.mpq"]},
-    "source": {"type": "raw", "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-D.mpq", "filename": "patch-D.mpq"},
+    "detect": {
+      "data_mpq": [
+        "patch-D.mpq",
+        "Patch-D.mpq"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-D.mpq",
+      "filename": "patch-D.mpq"
+    },
     "kind": "mpq_file",
     "destination": "Data/patch-D.mpq",
-    "dependencies": ["vanilla_helpers", "hd_patch_b", "hd_patch_e"],
-    "conflicts": []
+    "dependencies": [
+      "vanilla_helpers",
+      "hd_patch_b",
+      "hd_patch_e"
+    ],
+    "conflicts": [],
+    "author": "Project Reforged"
   },
   {
     "id": "hd_patch_e",
@@ -252,12 +458,26 @@
     "category": "HD Graphics",
     "description": "Environment textures and world visuals, including Fog Pushback integration.",
     "info_url": "https://projectreforged.github.io/vanilla/downloads/turtle/",
-    "detect": {"data_mpq": ["patch-E.mpq", "Patch-E.mpq"]},
-    "source": {"type": "raw", "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-E.mpq", "filename": "patch-E.mpq"},
+    "detect": {
+      "data_mpq": [
+        "patch-E.mpq",
+        "Patch-E.mpq"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-E.mpq",
+      "filename": "patch-E.mpq"
+    },
     "kind": "mpq_file",
     "destination": "Data/patch-E.mpq",
-    "dependencies": ["vanilla_helpers", "hd_patch_b", "hd_patch_d"],
-    "conflicts": []
+    "dependencies": [
+      "vanilla_helpers",
+      "hd_patch_b",
+      "hd_patch_d"
+    ],
+    "conflicts": [],
+    "author": "Project Reforged"
   },
   {
     "id": "hd_patch_g",
@@ -265,12 +485,24 @@
     "category": "HD Graphics",
     "description": "Gear and weapon visuals used by multiple HD enhancements.",
     "info_url": "https://projectreforged.github.io/vanilla/downloads/turtle/",
-    "detect": {"data_mpq": ["patch-G.mpq", "Patch-G.mpq"]},
-    "source": {"type": "raw", "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-G.mpq", "filename": "patch-G.mpq"},
+    "detect": {
+      "data_mpq": [
+        "patch-G.mpq",
+        "Patch-G.mpq"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-G.mpq",
+      "filename": "patch-G.mpq"
+    },
     "kind": "mpq_file",
     "destination": "Data/patch-G.mpq",
-    "dependencies": ["vanilla_helpers"],
-    "conflicts": []
+    "dependencies": [
+      "vanilla_helpers"
+    ],
+    "conflicts": [],
+    "author": "Project Reforged"
   },
   {
     "id": "hd_patch_i",
@@ -278,12 +510,24 @@
     "category": "HD Graphics",
     "description": "Interface visuals and SuperWoW selection circle textures, tuned for Turtle WoW.",
     "info_url": "https://projectreforged.github.io/vanilla/downloads/turtle/",
-    "detect": {"data_mpq": ["patch-I.mpq", "Patch-I.mpq"]},
-    "source": {"type": "raw", "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-I.mpq", "filename": "patch-I.mpq"},
+    "detect": {
+      "data_mpq": [
+        "patch-I.mpq",
+        "Patch-I.mpq"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-I.mpq",
+      "filename": "patch-I.mpq"
+    },
     "kind": "mpq_file",
     "destination": "Data/patch-I.mpq",
-    "dependencies": ["vanilla_helpers"],
-    "conflicts": []
+    "dependencies": [
+      "vanilla_helpers"
+    ],
+    "conflicts": [],
+    "author": "Project Reforged"
   },
   {
     "id": "hd_patch_l",
@@ -291,12 +535,27 @@
     "category": "HD Graphics",
     "description": "Optional female body model enhancement (Watchers3D). Requires Patch-A. Install only one Patch-L variant.",
     "info_url": "https://projectreforged.github.io/vanilla/downloads/turtle/",
-    "detect": {"data_mpq": ["patch-L.mpq", "Patch-L.mpq"]},
-    "source": {"type": "raw", "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-L.mpq", "filename": "patch-L.mpq"},
+    "detect": {
+      "data_mpq": [
+        "patch-L.mpq",
+        "Patch-L.mpq"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-L.mpq",
+      "filename": "patch-L.mpq"
+    },
     "kind": "mpq_file",
     "destination": "Data/patch-L.mpq",
-    "dependencies": ["vanilla_helpers", "hd_patch_a"],
-    "conflicts": ["hd_patch_l_less_thicc"]
+    "dependencies": [
+      "vanilla_helpers",
+      "hd_patch_a"
+    ],
+    "conflicts": [
+      "hd_patch_l_less_thicc"
+    ],
+    "author": "Project Reforged"
   },
   {
     "id": "hd_patch_l_less_thicc",
@@ -304,12 +563,27 @@
     "category": "HD Graphics",
     "description": "Optional female body model enhancement (Deezhugs). Requires Patch-A. Install only one Patch-L variant.",
     "info_url": "https://projectreforged.github.io/vanilla/downloads/turtle/",
-    "detect": {"data_mpq": ["patch-L.mpq", "Patch-L.mpq"]},
-    "source": {"type": "raw", "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/extras/patch-L.mpq", "filename": "patch-L.mpq"},
+    "detect": {
+      "data_mpq": [
+        "patch-L.mpq",
+        "Patch-L.mpq"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/extras/patch-L.mpq",
+      "filename": "patch-L.mpq"
+    },
     "kind": "mpq_file",
     "destination": "Data/patch-L.mpq",
-    "dependencies": ["vanilla_helpers", "hd_patch_a"],
-    "conflicts": ["hd_patch_l"]
+    "dependencies": [
+      "vanilla_helpers",
+      "hd_patch_a"
+    ],
+    "conflicts": [
+      "hd_patch_l"
+    ],
+    "author": "Project Reforged"
   },
   {
     "id": "hd_patch_m",
@@ -317,12 +591,24 @@
     "category": "HD Graphics",
     "description": "Enhanced maps and loading screens including Turtle WoW custom zones and continents.",
     "info_url": "https://projectreforged.github.io/vanilla/downloads/turtle/",
-    "detect": {"data_mpq": ["patch-M.mpq", "Patch-M.mpq"]},
-    "source": {"type": "raw", "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-M.mpq", "filename": "patch-M.mpq"},
+    "detect": {
+      "data_mpq": [
+        "patch-M.mpq",
+        "Patch-M.mpq"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-M.mpq",
+      "filename": "patch-M.mpq"
+    },
     "kind": "mpq_file",
     "destination": "Data/patch-M.mpq",
-    "dependencies": ["vanilla_helpers"],
-    "conflicts": []
+    "dependencies": [
+      "vanilla_helpers"
+    ],
+    "conflicts": [],
+    "author": "Project Reforged"
   },
   {
     "id": "hd_patch_n",
@@ -330,12 +616,24 @@
     "category": "HD Graphics",
     "description": "Darker nights for a more atmospheric experience (Project Reforged).",
     "info_url": "https://projectreforged.github.io/vanilla/downloads/turtle/",
-    "detect": {"data_mpq": ["patch-N.mpq", "Patch-N.mpq"]},
-    "source": {"type": "raw", "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-N.mpq", "filename": "patch-N.mpq"},
+    "detect": {
+      "data_mpq": [
+        "patch-N.mpq",
+        "Patch-N.mpq"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-N.mpq",
+      "filename": "patch-N.mpq"
+    },
     "kind": "mpq_file",
     "destination": "Data/patch-N.mpq",
-    "dependencies": ["vanilla_helpers"],
-    "conflicts": []
+    "dependencies": [
+      "vanilla_helpers"
+    ],
+    "conflicts": [],
+    "author": "Project Reforged"
   },
   {
     "id": "hd_patch_p",
@@ -343,12 +641,24 @@
     "category": "HD Graphics",
     "description": "Spell visuals and particle effect enhancements.",
     "info_url": "https://projectreforged.github.io/vanilla/downloads/turtle/",
-    "detect": {"data_mpq": ["patch-P.mpq", "Patch-P.mpq"]},
-    "source": {"type": "raw", "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-P.mpq", "filename": "patch-P.mpq"},
+    "detect": {
+      "data_mpq": [
+        "patch-P.mpq",
+        "Patch-P.mpq"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-P.mpq",
+      "filename": "patch-P.mpq"
+    },
     "kind": "mpq_file",
     "destination": "Data/patch-P.mpq",
-    "dependencies": ["vanilla_helpers"],
-    "conflicts": []
+    "dependencies": [
+      "vanilla_helpers"
+    ],
+    "conflicts": [],
+    "author": "Project Reforged"
   },
   {
     "id": "hd_patch_s",
@@ -356,12 +666,24 @@
     "category": "HD Graphics",
     "description": "Sound and music enhancements for a richer audio experience.",
     "info_url": "https://projectreforged.github.io/vanilla/downloads/turtle/",
-    "detect": {"data_mpq": ["patch-S.mpq", "Patch-S.mpq"]},
-    "source": {"type": "raw", "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-S.mpq", "filename": "patch-S.mpq"},
+    "detect": {
+      "data_mpq": [
+        "patch-S.mpq",
+        "Patch-S.mpq"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-S.mpq",
+      "filename": "patch-S.mpq"
+    },
     "kind": "mpq_file",
     "destination": "Data/patch-S.mpq",
-    "dependencies": ["vanilla_helpers"],
-    "conflicts": []
+    "dependencies": [
+      "vanilla_helpers"
+    ],
+    "conflicts": [],
+    "author": "Project Reforged"
   },
   {
     "id": "hd_patch_t",
@@ -369,12 +691,28 @@
     "category": "HD Graphics",
     "description": "HD character and gear textures (balanced). Requires Patch-A and Patch-G. Use standalone if not installing Patch-U.",
     "info_url": "https://projectreforged.github.io/vanilla/downloads/turtle/",
-    "detect": {"data_mpq": ["patch-T.mpq", "Patch-T.mpq"]},
-    "source": {"type": "raw", "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-T.mpq", "filename": "patch-T.mpq"},
+    "detect": {
+      "data_mpq": [
+        "patch-T.mpq",
+        "Patch-T.mpq"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-T.mpq",
+      "filename": "patch-T.mpq"
+    },
     "kind": "mpq_file",
     "destination": "Data/patch-T.mpq",
-    "dependencies": ["vanilla_helpers", "hd_patch_a", "hd_patch_g"],
-    "conflicts": ["hd_patch_t_ultra"]
+    "dependencies": [
+      "vanilla_helpers",
+      "hd_patch_a",
+      "hd_patch_g"
+    ],
+    "conflicts": [
+      "hd_patch_t_ultra"
+    ],
+    "author": "Project Reforged"
   },
   {
     "id": "hd_patch_t_ultra",
@@ -382,12 +720,28 @@
     "category": "HD Graphics",
     "description": "HD texture base layer for Patch-U ultra tier. Requires Patch-A and Patch-G. Do not install with Patch-T standard.",
     "info_url": "https://projectreforged.github.io/vanilla/downloads/turtle/",
-    "detect": {"data_mpq": ["patch-T.mpq", "Patch-T.mpq"]},
-    "source": {"type": "raw", "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/extras/patch-T.mpq", "filename": "patch-T.mpq"},
+    "detect": {
+      "data_mpq": [
+        "patch-T.mpq",
+        "Patch-T.mpq"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/extras/patch-T.mpq",
+      "filename": "patch-T.mpq"
+    },
     "kind": "mpq_file",
     "destination": "Data/patch-T.mpq",
-    "dependencies": ["vanilla_helpers", "hd_patch_a", "hd_patch_g"],
-    "conflicts": ["hd_patch_t"]
+    "dependencies": [
+      "vanilla_helpers",
+      "hd_patch_a",
+      "hd_patch_g"
+    ],
+    "conflicts": [
+      "hd_patch_t"
+    ],
+    "author": "Project Reforged"
   },
   {
     "id": "hd_patch_u",
@@ -395,19 +749,39 @@
     "category": "HD Graphics",
     "description": "Ultra HD character and gear textures. Heavy — requires Patch-A, Patch-G, and Patch-T (ultra base).",
     "info_url": "https://projectreforged.github.io/vanilla/downloads/turtle/",
-    "detect": {"data_mpq": ["patch-U.mpq", "Patch-U.mpq"]},
-    "source": {"type": "raw", "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-U.mpq", "filename": "patch-U.mpq"},
+    "detect": {
+      "data_mpq": [
+        "patch-U.mpq",
+        "Patch-U.mpq"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://pub-0f05631d243e4046993fc02ca7be9542.r2.dev/patches/patch-U.mpq",
+      "filename": "patch-U.mpq"
+    },
     "kind": "mpq_file",
     "destination": "Data/patch-U.mpq",
-    "dependencies": ["vanilla_helpers", "hd_patch_a", "hd_patch_g", "hd_patch_t_ultra"],
-    "conflicts": []
+    "dependencies": [
+      "vanilla_helpers",
+      "hd_patch_a",
+      "hd_patch_g",
+      "hd_patch_t_ultra"
+    ],
+    "conflicts": [],
+    "author": "Project Reforged"
   },
   {
     "id": "raid_visuals",
     "name": "Raid Visuals (patch-O)",
     "category": "Visual / QoL",
     "description": "Spell visual changes to assist vanilla raiding (MarcelineVQ/twow-raid-visuals).",
-    "detect": {"data_mpq": ["patch-O.mpq", "Patch-O.mpq"]},
+    "detect": {
+      "data_mpq": [
+        "patch-O.mpq",
+        "Patch-O.mpq"
+      ]
+    },
     "source": {
       "type": "github_release_latest",
       "repo": "MarcelineVQ/twow-raid-visuals",
@@ -416,14 +790,20 @@
     "kind": "mpq_file",
     "destination": "Data/patch-O.mpq",
     "dependencies": [],
-    "conflicts": []
+    "conflicts": [],
+    "author": "MarcelineVQ"
   },
   {
     "id": "pretty_night_sky",
     "name": "Pretty Night Sky",
     "category": "Visual / QoL",
     "description": "Enhanced night sky. Installs as Data/patch-9.mpq (also bundled in Reforged Patch-E).",
-    "detect": {"data_mpq": ["patch-9.mpq", "Patch-9.mpq"]},
+    "detect": {
+      "data_mpq": [
+        "patch-9.mpq",
+        "Patch-9.mpq"
+      ]
+    },
     "source": {
       "type": "google_drive",
       "id": "1qu99ZS-SQFfTtYodBmZWYiHmxL8QtUY4",
@@ -440,7 +820,12 @@
     "name": "Epoch Water",
     "category": "Visual / QoL",
     "description": "Best-looking water replacement as Data/patch-W.mpq (also included in Reforged Patch-E).",
-    "detect": {"data_mpq": ["patch-W.mpq", "Patch-W.mpq"]},
+    "detect": {
+      "data_mpq": [
+        "patch-W.mpq",
+        "Patch-W.mpq"
+      ]
+    },
     "source": {
       "type": "google_drive",
       "id": "1xRx9OrznbgbE1uBae3H3OGke9UoXtzmU",
@@ -457,7 +842,12 @@
     "name": "Fog Pushback",
     "category": "Visual / QoL",
     "description": "Pushes fog back for longer view distance (Data/patch-Y.mpq). Pair with Vanilla Tweaks farclip.",
-    "detect": {"data_mpq": ["patch-Y.mpq", "Patch-Y.mpq"]},
+    "detect": {
+      "data_mpq": [
+        "patch-Y.mpq",
+        "Patch-Y.mpq"
+      ]
+    },
     "source": {
       "type": "google_drive",
       "id": "14aHvyfr_ACL-UURbNa_fXRPcfQZoIw8n",
@@ -466,7 +856,9 @@
     },
     "kind": "mpq_file",
     "destination": "Data/patch-Y.mpq",
-    "dependencies": ["vanilla_tweaks"],
+    "dependencies": [
+      "vanilla_tweaks"
+    ],
     "conflicts": []
   },
   {
@@ -474,7 +866,14 @@
     "name": "Pink Herbs",
     "category": "Visual / QoL",
     "description": "Bright pink/purple herbs for easier gathering (Data/patch-H.mpq).",
-    "detect": {"data_mpq": ["patch-H.mpq", "Patch-H.mpq", "patch-J.mpq", "Patch-J.mpq"]},
+    "detect": {
+      "data_mpq": [
+        "patch-H.mpq",
+        "Patch-H.mpq",
+        "patch-J.mpq",
+        "Patch-J.mpq"
+      ]
+    },
     "source": {
       "type": "raw",
       "url": "https://raw.githubusercontent.com/seacrabsam/patch-herb/main/patch-H.mpq",
@@ -483,28 +882,51 @@
     "kind": "mpq_file",
     "destination": "Data/patch-H.mpq",
     "dependencies": [],
-    "conflicts": []
+    "conflicts": [],
+    "author": "seacrabsam"
   },
   {
     "id": "auto_login",
     "name": "Vanilla Auto Login",
     "category": "Visual / QoL",
     "description": "Multi-account auto-login and character select. Requires SuperWoW (or Nampower).",
-    "detect": {"any_files": ["Data/Interface/GlueXML/AutoLogin.lua"]},
-    "source": {"type": "github_zip", "url": "https://github.com/paokkerkir/vanilla-autologin/archive/refs/heads/main.zip"},
+    "detect": {
+      "any_files": [
+        "Data/Interface/GlueXML/AutoLogin.lua"
+      ]
+    },
+    "source": {
+      "type": "github_zip",
+      "url": "https://github.com/paokkerkir/vanilla-autologin/archive/refs/heads/main.zip"
+    },
     "kind": "glue_autologin",
-    "dependencies": ["superwow"],
-    "conflicts": []
+    "dependencies": [
+      "superwow"
+    ],
+    "conflicts": [],
+    "author": "paokkerkir"
   },
   {
     "id": "dxvk_big_cursor",
     "name": "Bigger Mouse Cursor (DXVK)",
     "category": "Visual / QoL",
     "description": "Enlarged hardware cursor via modified DXVK d3d9.dll (sizes 1/2/4). Requires DXVK.",
-    "detect": {"config_file_contains": ["dxvk.conf", "enlargeHardwareCursor"]},
-    "source": {"type": "raw", "url": "https://raw.githubusercontent.com/RetroCro/TurtleWoW-Mods/refs/heads/main/Archive/d3d9.dll", "filename": "d3d9.dll"},
+    "detect": {
+      "config_file_contains": [
+        "dxvk.conf",
+        "enlargeHardwareCursor"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://raw.githubusercontent.com/RetroCro/TurtleWoW-Mods/refs/heads/main/Archive/d3d9.dll",
+      "filename": "d3d9.dll"
+    },
     "kind": "dxvk_cursor",
-    "dependencies": ["dxvk"],
-    "conflicts": []
+    "dependencies": [
+      "dxvk"
+    ],
+    "conflicts": [],
+    "author": "RetroCro"
   }
 ]

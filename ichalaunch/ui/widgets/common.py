@@ -142,6 +142,123 @@ def status_with_stamp(base: str, meta: dict[str, Any] | None = None) -> str:
         return base
     stamp = format_updated_stamp(meta)
     return f"{base} · {stamp}" if stamp else base
+
+
+def mod_author(mod: dict[str, Any] | None) -> str | None:
+    """Best-effort creator credit for a client mod catalog entry."""
+    if not mod:
+        return None
+    explicit = str(mod.get("author") or "").strip()
+    if explicit:
+        return explicit
+    mid = str(mod.get("id") or "")
+    if mid.startswith("hd_patch"):
+        return "Project Reforged"
+    src = mod.get("source") if isinstance(mod.get("source"), dict) else {}
+    addon_src = mod.get("addon_source") if isinstance(mod.get("addon_source"), dict) else {}
+    repo_url = github_repo_browse_url(
+        mod.get("repo"),
+        mod.get("repo_url"),
+        mod.get("repository"),
+        mod.get("github"),
+        mod.get("url"),
+        src.get("repo"),
+        src.get("url"),
+        addon_src.get("repo"),
+        addon_src.get("url"),
+    )
+    if repo_url:
+        try:
+            from ichalaunch.addons.github import parse_github_url
+
+            parsed = parse_github_url(repo_url)
+            if parsed and parsed.owner:
+                return parsed.owner
+        except Exception:  # noqa: BLE001
+            pass
+        parts = repo_url.replace("https://github.com/", "").split("/")
+        if parts and parts[0]:
+            return parts[0]
+    for raw in (src.get("url"), addon_src.get("url")):
+        text = str(raw or "").strip().lower()
+        if "raw.githubusercontent.com/" in text:
+            try:
+                path = urlparse(str(raw)).path.strip("/").split("/")
+                if len(path) >= 1:
+                    return path[0]
+            except Exception:  # noqa: BLE001
+                continue
+    return None
+
+
+def addon_fork_label(entry: dict[str, Any] | None) -> str:
+    """Display owner/repo for an addon catalog or installed row."""
+    if not entry:
+        return ""
+    base = ""
+    for raw in (
+        entry.get("repo"),
+        entry.get("url"),
+        entry.get("repository"),
+    ):
+        url = github_repo_browse_url(raw)
+        if not url:
+            continue
+        try:
+            from ichalaunch.addons.github import parse_github_url
+
+            parsed = parse_github_url(url)
+            if parsed:
+                base = f"{parsed.owner}/{parsed.repo}"
+                break
+        except Exception:  # noqa: BLE001
+            pass
+        tail = url.replace("https://github.com/", "").strip("/")
+        if tail:
+            base = tail.split("/")[0:2] and "/".join(tail.split("/")[0:2]) or tail
+            break
+    if not base:
+        base = str(entry.get("label") or "").strip()
+    if entry.get("archived"):
+        return f"{base} (archived)" if base else "(archived)"
+    return base
+
+
+def fork_combo_label(entry: dict[str, Any] | None) -> str:
+    """Fork picker combo text; prefers parsed repo name and archived suffix."""
+    if not entry:
+        return "?"
+    label = addon_fork_label(entry)
+    if label:
+        return label
+    return str(entry.get("label") or entry.get("repo") or "?")
+
+
+def addon_version_label(
+    entry: dict[str, Any] | None,
+    meta: dict[str, Any] | None = None,
+) -> str:
+    """Installed or catalog version string for addon rows."""
+    meta = meta if isinstance(meta, dict) else {}
+    entry = entry if isinstance(entry, dict) else {}
+    for raw in (
+        meta.get("version"),
+        meta.get("tag"),
+        entry.get("tag"),
+        entry.get("pin_release"),
+    ):
+        text = str(raw or "").strip()
+        if text:
+            return text if text.lower().startswith("v") else f"v{text}"
+    try:
+        from ichalaunch.addons.github import catalog_pin_tag
+
+        pin = catalog_pin_tag(entry)
+        if pin:
+            return pin if pin.lower().startswith("v") else f"v{pin}"
+    except Exception:  # noqa: BLE001
+        pass
+    return ""
 # Hub for Turtle WoW client tweaks/patches that ship without a dedicated repo.
 TURTLEWOW_MODS_HUB = "https://github.com/RetroCro/TurtleWoW-Mods"
 
@@ -366,7 +483,16 @@ class ModCheckRow(QWidget):
     update_clicked = Signal(str)
     reinstall_clicked = Signal(str)
     open_git_clicked = Signal(str)
-    def __init__(self, mod_id: str, title: str, description: str, checked: bool = False, parent=None):
+    def __init__(
+        self,
+        mod_id: str,
+        title: str,
+        description: str,
+        checked: bool = False,
+        *,
+        author: str | None = None,
+        parent=None,
+    ):
         super().__init__(parent)
         # Layout child (not a QListWidget item) — must stay visible. AddonRow uses
         # WA_DontShowOnScreen + hide() because lists reveal via _reveal_item_widgets;
@@ -403,6 +529,14 @@ class ModCheckRow(QWidget):
         self.desc_toggle.setToolTip("Show description")
         self.desc_toggle.setVisible(bool(self._full_desc))
         self.desc_toggle.clicked.connect(self._toggle_desc)
+        self.author_lbl = QLabel("", self)
+        self.author_lbl.setObjectName("Muted")
+        self.author_lbl.setWordWrap(False)
+        self.author_lbl.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+        if author:
+            self.author_lbl.setText(f"created by {author}")
+        else:
+            self.author_lbl.setVisible(False)
         sep2 = QLabel("—", self)
         sep2.setObjectName("Muted")
         self.status_lbl = QLabel("", self)
@@ -425,6 +559,8 @@ class ModCheckRow(QWidget):
         row.addWidget(self.cb, 0)
         row.addWidget(name_lbl, 0)
         row.addWidget(self.desc_toggle, 0, Qt.AlignmentFlag.AlignVCenter)
+        if author:
+            row.addWidget(self.author_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
         row.addStretch(1)
         row.addWidget(sep2, 0)
         row.addWidget(self.status_lbl, 0)
@@ -488,6 +624,8 @@ class ModCheckRow(QWidget):
             self.update()
 
         QTimer.singleShot(max(400, int(ms)), _clear)
+
+
 class AddonRow(QWidget):
     install_clicked = Signal(dict)
     update_clicked = Signal(dict)
@@ -495,8 +633,10 @@ class AddonRow(QWidget):
     remove_clicked = Signal(str)
     open_git_clicked = Signal(dict)
     preview_clicked = Signal(dict)
+    settings_clicked = Signal(dict)
     loaded_toggled = Signal(dict, bool)
     never_update_changed = Signal(dict, bool)
+    fork_changed = Signal(dict)
     height_changed = Signal()
     def __init__(
         self,
@@ -506,6 +646,7 @@ class AddonRow(QWidget):
         modules: list[str] | None = None,
         never_update: bool = False,
         loaded: bool = True,
+        meta: dict | None = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -514,6 +655,7 @@ class AddonRow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_DontCreateNativeAncestors, True)
         self.hide()
         self.entry = entry
+        self._meta = meta if isinstance(meta, dict) else {}
         self._modules = [m for m in (modules or []) if m]
         self._modules_expanded = False
         self._never_update = bool(never_update)
@@ -631,6 +773,15 @@ class AddonRow(QWidget):
             btn_r = GluePanelButton("Remove", self, width=GLUE_ROW_W, height=GLUE_ROW_H)
             btn_r.clicked.connect(lambda: self.remove_clicked.emit(entry.get("folder") or entry.get("name")))
             layout.addWidget(btn_r)
+            if git_url:
+                btn_set = GluePanelButton(
+                    "⚙", self, width=GLUE_ROW_MENU_W, height=GLUE_ROW_H
+                )
+                btn_set.setToolTip(
+                    "Repository settings — fork, version, and README preview"
+                )
+                btn_set.clicked.connect(lambda: self.settings_clicked.emit(entry))
+                layout.addWidget(btn_set)
             self._refresh_never_update_ui()
         else:
             self._update_btn = None
@@ -646,45 +797,15 @@ class AddonRow(QWidget):
                 layout.addWidget(btn_git)
                 self.open_git_btn = btn_git
                 apply_open_git_visibility(btn_git, git_url, self, defer=True)
-                btn_prev = GluePanelButton("Preview", self, width=GLUE_ROW_W, height=GLUE_ROW_H)
-                btn_prev.setToolTip("Show repository README and details")
-                btn_prev.clicked.connect(lambda: self.preview_clicked.emit(entry))
-                layout.addWidget(btn_prev)
         root.addLayout(layout)
         self.modules_panel = QLabel(self)
         self.modules_panel.setObjectName("Muted")
         self.modules_panel.setWordWrap(True)
         self.modules_panel.setVisible(False)
         root.addWidget(self.modules_panel)
-        self._preview_on_click = bool(is_installed and git_url)
-        if self._preview_on_click:
-            preview_tip = "Click to show repository README and details"
-            self.setToolTip(preview_tip)
-            self._name_lbl.setToolTip(preview_tip)
-            self.status_lbl.setToolTip(preview_tip)
-            self.modules_panel.setToolTip(preview_tip)
-            apply_open_hand(self)
-            for lbl in (self._name_lbl, self.status_lbl, self.modules_panel):
-                lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+
     def preferred_height(self) -> int:
         return max(48, self.sizeHint().height())
-
-    def mouseReleaseEvent(self, event) -> None:  # noqa: N802
-        if (
-            self._preview_on_click
-            and event.button() == Qt.MouseButton.LeftButton
-            and self.rect().contains(event.position().toPoint())
-        ):
-            child = self.childAt(event.position().toPoint())
-            while child is not None and child is not self:
-                if isinstance(child, (GluePanelButton, ThemeCheckBox, QPushButton)):
-                    super().mouseReleaseEvent(event)
-                    return
-                child = child.parentWidget()
-            self.preview_clicked.emit(self.entry)
-            event.accept()
-            return
-        super().mouseReleaseEvent(event)
 
     def _on_loaded_toggled(self, checked: bool) -> None:
         self._loaded = bool(checked)

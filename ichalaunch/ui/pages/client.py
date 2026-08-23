@@ -19,14 +19,23 @@ from ichalaunch.config.settings import settings
 from ichalaunch.game.launcher import detect_game
 from ichalaunch.mods.installer import (
     apply_mod_toggle,
+    apply_vanillafixes_dxvk_choice,
     detect_actual_state,
     load_mod_catalog,
     plan_changes,
+    reconcile_exclusive_desired_mods,
+    vanillafixes_dxvk_both_enabled,
 )
 from ichalaunch.ui.widgets.casting_bar_search_edit import CastingBarSearchEdit
-from ichalaunch.ui.widgets.common import ModCheckRow, mod_git_url, open_url_in_browser, status_with_stamp
+from ichalaunch.ui.widgets.common import (
+    ModCheckRow,
+    mod_author,
+    mod_git_url,
+    open_url_in_browser,
+    status_with_stamp,
+)
 from ichalaunch.ui.widgets.cursors import apply_open_hand
-from ichalaunch.ui.widgets.dialogs import github_import_dialog
+from ichalaunch.ui.widgets.dialogs import DialogResult, choice, github_import_dialog, warning
 from ichalaunch.ui.widgets.glue_panel_button import GluePanelButton
 from ichalaunch.ui.widgets.marble_bg import MarblePanel, MarbleScrollArea
 
@@ -117,6 +126,8 @@ class ClientPage(QWidget):
         self._side_layout = side_l
         self._side_stretch_added = False
         self._search_q = ""
+        self._vf_dxvk_prompted = False
+        self._dxvk_gpu_warned = False
 
         by_cat: dict[str, list] = {}
         for mod in load_mod_catalog():
@@ -259,6 +270,7 @@ class ClientPage(QWidget):
             mod["name"],
             desc,
             checked=bool(settings.desired_mods.get(mid, False)),
+            author=mod_author(mod),
             parent=host_l.parentWidget() if host_l is not None else self,
         )
         row.toggled.connect(self._on_toggle)
@@ -271,6 +283,7 @@ class ClientPage(QWidget):
             "name": str(mod.get("name") or mid),
             "description": str(mod.get("description") or ""),
             "note": str(mod.get("note") or ""),
+            "author": str(mod_author(mod) or ""),
         }
         layout = host_l or self._cat_hosts.get(cat)
         if layout is not None:
@@ -355,6 +368,7 @@ class ClientPage(QWidget):
                         str(meta.get("name") or ""),
                         str(meta.get("description") or ""),
                         str(meta.get("note") or ""),
+                        str(meta.get("author") or ""),
                     ]
                 ).lower()
                 hit = (not q) or q in hay
@@ -417,6 +431,44 @@ class ClientPage(QWidget):
     def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
         super().showEvent(event)
         self._reveal_rows(kick=True)
+        QTimer.singleShot(0, self._maybe_prompt_vf_dxvk_conflict)
+
+    def _maybe_prompt_vf_dxvk_conflict(self) -> None:
+        if self._vf_dxvk_prompted or not vanillafixes_dxvk_both_enabled():
+            return
+        self._vf_dxvk_prompted = True
+        result = choice(
+            self,
+            "Choose launcher mode",
+            "Both VanillaFixes and VanillaFixes + DXVK (Vulkan) are enabled, but only "
+            "one can be active.\n\nWhich launcher do you want to keep?",
+            [
+                ("Regular VanillaFixes", DialogResult.No),
+                ("VanillaFixes + DXVK", DialogResult.Yes),
+            ],
+            kind="warning",
+        )
+        keep = "vanillafixes" if result == DialogResult.No else "dxvk"
+        changes = apply_vanillafixes_dxvk_choice(keep)
+        for mid, state in changes.items():
+            row = self.rows.get(mid)
+            if row is None:
+                continue
+            row.cb.blockSignals(True)
+            row.cb.setChecked(state)
+            row.cb.blockSignals(False)
+        self.refresh_plan()
+
+    def _maybe_warn_dxvk_gpu(self) -> None:
+        if self._dxvk_gpu_warned or not settings.desired_mods.get("dxvk"):
+            return
+        from ichalaunch.core.gpu_compat import assess_dxvk_gpu
+
+        level, _gpus, message = assess_dxvk_gpu()
+        if level == "ok":
+            return
+        self._dxvk_gpu_warned = True
+        warning(self, "Graphics compatibility", message)
 
     def _reveal_rows(self, *, kick: bool = False) -> None:
         """Clear HWND-guard flags leftover from AddonRow and show catalog rows."""
@@ -459,6 +511,8 @@ class ClientPage(QWidget):
             "vanillafixes_enabled",
             bool(desired.get("vanillafixes") or desired.get("dxvk")),
         )
+        if enabled and mod_id == "dxvk":
+            QTimer.singleShot(0, self._maybe_warn_dxvk_gpu)
         self.refresh_plan()
 
     @staticmethod
@@ -471,10 +525,19 @@ class ClientPage(QWidget):
 
     def refresh_from_settings(self) -> None:
         self.sync_catalog_rows()
-        desired = settings.desired_mods
-        installed_meta = settings.installed_mods
         game = detect_game()
         actual = detect_actual_state(game) if game else {}
+        desired = reconcile_exclusive_desired_mods(
+            dict(settings.desired_mods), actual=actual
+        )
+        if desired != settings.desired_mods:
+            settings.set("desired_mods", desired)
+            if desired.get("vanillafixes") or desired.get("dxvk"):
+                settings.set(
+                    "vanillafixes_enabled",
+                    bool(desired.get("vanillafixes") or desired.get("dxvk")),
+                )
+        installed_meta = settings.installed_mods
         catalog = {m["id"]: m for m in load_mod_catalog()}
         for mid, row in self.rows.items():
             row.cb.blockSignals(True)
@@ -506,6 +569,8 @@ class ClientPage(QWidget):
         if self._search_q:
             self._apply_search()
         self.refresh_plan()
+        if vanillafixes_dxvk_both_enabled():
+            QTimer.singleShot(0, self._maybe_prompt_vf_dxvk_conflict)
 
     @staticmethod
     def _set_status_style(lbl: QLabel, object_name: str) -> None:
