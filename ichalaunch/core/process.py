@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -313,8 +314,15 @@ def wow_exe_running() -> bool:
 def launch_exe(path: Path, cwd: Path | None = None) -> subprocess.Popen:
     if not path.exists():
         raise FileNotFoundError(str(path))
+    workdir = cwd or path.parent
+    if sys.platform != "win32":
+        # A Windows PE cannot be exec'd here: it needs Proton, and the
+        # supported way to drive Proton outside Steam is umu-launcher.
+        from ichalaunch.game.proton import launch_windows_exe
+
+        return launch_windows_exe(path, workdir)
     return subprocess.Popen(
         [str(path)],
-        cwd=str(cwd or path.parent),
+        cwd=str(workdir),
         shell=False,
     )
