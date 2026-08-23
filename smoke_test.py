@@ -4792,6 +4792,190 @@ def test_linux_dxvk_vulkan_preflight():
     print("OK linux dxvk vulkan pre-flight")
 
 
+def test_wayland_window_move_and_resize_handoff():
+    """On Wayland the compositor gets the drag; everywhere else nothing changes.
+
+    Drives MainWindow's methods against a stub rather than building the real
+    window: the point is which branch runs, and no compositor is available
+    under the offscreen platform anyway.
+    """
+    from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
+    from PySide6.QtGui import QMouseEvent
+    from PySide6.QtWidgets import QApplication, QWidget
+
+    from ichalaunch.ui import main_window as mw
+
+    app = QApplication.instance() or QApplication([])
+
+    def _press(x=400, y=300):
+        return QMouseEvent(
+            QEvent.Type.MouseButtonPress,
+            QPointF(x, y),
+            QPointF(x, y),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+
+    class _Handle:
+        def __init__(self, move_ok=True, resize_ok=True):
+            self.move_ok = move_ok
+            self.resize_ok = resize_ok
+            self.moves = 0
+            self.resizes = 0
+            self.edges = None
+
+        def startSystemMove(self):
+            self.moves += 1
+            return self.move_ok
+
+        def startSystemResize(self, edges):
+            self.resizes += 1
+            self.edges = edges
+            return self.resize_ok
+
+    class _Win:
+        """Just enough MainWindow for the methods under test."""
+
+        def __init__(self, handle, state=Qt.WindowState.WindowNoState):
+            self._handle = handle
+            self._state = state
+            self._drag_pos = "stale"
+            self._resize_edges = "stale"
+            self._resize_origin = "stale"
+            self._resize_geo = "stale"
+            self._system_move_pending = "stale"
+            self.handle_lookups = 0
+
+        def windowHandle(self):
+            self.handle_lookups += 1
+            return self._handle
+
+        def windowState(self):
+            return self._state
+
+        def frameGeometry(self):
+            return QRect(100, 50, 800, 600)
+
+        _start_system_move = mw.MainWindow._start_system_move
+        _start_system_resize = mw.MainWindow._start_system_resize
+        _begin_window_drag = mw.MainWindow._begin_window_drag
+        _apply_edge_resize = mw.MainWindow._apply_edge_resize
+        _compositor_owns_window_state = mw.MainWindow._compositor_owns_window_state
+        _release_pointer_after_handoff = mw.MainWindow._release_pointer_after_handoff
+
+    real_guard = mw._use_system_window_move
+    real_cache = mw._SYSTEM_WINDOW_MOVE
+    real_qgui = mw.QGuiApplication
+    try:
+        mw._use_system_window_move = lambda: True
+
+        # --- edge tuples map to the right compositor edges ---------------
+        for edges, expected in {
+            (True, False, False, False): Qt.Edge.LeftEdge,
+            (False, True, False, False): Qt.Edge.RightEdge,
+            (False, False, True, False): Qt.Edge.TopEdge,
+            (False, False, False, True): Qt.Edge.BottomEdge,
+            (True, False, True, False): Qt.Edge.LeftEdge | Qt.Edge.TopEdge,
+            (False, True, False, True): Qt.Edge.RightEdge | Qt.Edge.BottomEdge,
+        }.items():
+            h = _Handle()
+            assert _Win(h)._start_system_resize(edges) is True, edges
+            assert h.edges == expected, (edges, h.edges, expected)
+
+        # No edge at all is not a resize, and costs nothing to discover.
+        h = _Handle()
+        w = _Win(h)
+        assert w._start_system_resize((False, False, False, False)) is False
+        assert h.resizes == 0 and w.handle_lookups == 0
+
+        # --- a press ARMS the drag; it does not start it ------------------
+        # Starting on the press would consume a plain click on the chrome.
+        h = _Handle()
+        w = _Win(h)
+        w._begin_window_drag(QPoint(400, 300))
+        assert h.moves == 0, "the compositor must not be asked on the press"
+        assert w._system_move_pending is True
+        assert w._drag_pos is None
+        assert w._resize_edges is None and w._resize_origin is None
+        assert w._resize_geo is None
+
+        # A maximized or fullscreen toplevel may be refused silently, so it
+        # is never asked and the press keeps its normal meaning.
+        for state in (Qt.WindowState.WindowMaximized, Qt.WindowState.WindowFullScreen):
+            w = _Win(_Handle(), state=state)
+            w._begin_window_drag(QPoint(400, 300))
+            assert w._system_move_pending is False, state
+
+        # --- the synthetic release reaches the widget that saw the press --
+        class _Spy(QWidget):
+            def __init__(self):
+                super().__init__()
+                self.releases = 0
+
+            def mouseReleaseEvent(self, event):
+                self.releases += 1
+
+        spy = _Spy()
+        _Win(_Handle())._release_pointer_after_handoff(spy, _press())
+        app.processEvents()
+        assert spy.releases == 1, "the pressed widget must be told the button is up"
+
+        # --- no window handle yet: no crash, nothing claimed --------------
+        assert _Win(None)._start_system_move() is False
+        assert _Win(None)._start_system_resize((True, False, False, False)) is False
+
+        # --- the manual resize arithmetic never runs on Wayland -----------
+        w = _Win(_Handle())
+        w._resize_edges = (True, False, False, False)
+        w._resize_origin = QPoint(0, 0)
+        w._resize_geo = QRect(0, 0, 900, 700)
+        w._apply_edge_resize(QPoint(40, 0))  # would call setGeometry, which the stub lacks
+
+        # --- off Wayland the compositor is never consulted ----------------
+        mw._use_system_window_move = lambda: False
+        h = _Handle()
+        w = _Win(h)
+        w._begin_window_drag(QPoint(400, 300))
+        assert h.moves == 0, "startSystemMove must not run off Wayland"
+        assert w.handle_lookups == 0, "windowHandle must not even be read off Wayland"
+        assert w._system_move_pending == "stale", "the Wayland flag must be left alone"
+        assert w._drag_pos == QPoint(300, 250)
+    finally:
+        mw._use_system_window_move = real_guard
+        mw.QGuiApplication = real_qgui
+        mw._SYSTEM_WINDOW_MOVE = real_cache
+
+    # --- the guard itself --------------------------------------------------
+    # platformName() answers "xcb" before the application exists rather than
+    # raising, so asking early and caching would disable this permanently and
+    # silently. Nothing may be memoized until there is an instance.
+    class _NoApp:
+        @staticmethod
+        def instance():
+            return None
+
+        @staticmethod
+        def platformName():
+            raise AssertionError("platformName must not be read without an instance")
+
+    try:
+        mw._SYSTEM_WINDOW_MOVE = None
+        mw.QGuiApplication = _NoApp
+        assert mw._use_system_window_move() is False
+        assert mw._SYSTEM_WINDOW_MOVE is None, "a pre-application answer must not be cached"
+
+        mw.QGuiApplication = real_qgui
+        assert mw._use_system_window_move() is False
+        assert mw._SYSTEM_WINDOW_MOVE is False
+    finally:
+        mw.QGuiApplication = real_qgui
+        mw._SYSTEM_WINDOW_MOVE = real_cache
+
+    print("OK wayland window move/resize handoff")
+
+
+
 def main():
     import ichalaunch.config.settings as settings_mod
 
@@ -4909,6 +5093,7 @@ def _run_smoke_tests():
     test_client_cat_nav_update_alert_badge()
     test_chrome_buttons_clear_metal_tr()
     test_play_stays_right_when_progress_hidden()
+    test_wayland_window_move_and_resize_handoff()
     print("\nAll smoke tests passed.")
 
 
