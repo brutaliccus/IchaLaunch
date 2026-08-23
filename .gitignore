@@ -8,6 +8,7 @@ __pycache__/
 .eggs/
 dist/
 build/
+build_*/
 *.egg
 
 # Virtual environments

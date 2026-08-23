@@ -36,7 +36,7 @@ A frameless RavenCraft-themed window: **HOME**, **ADDONS**, **CLIENT**, **SETTIN
 
 ## What's new in v1.1.0
 
-- **GitHub token gating** — manual addon update checks prompt for a PAT when none is saved; startup addon scans stay off until you opt in or add a token. Tokens are sent only to GitHub over HTTPS (never to README image hosts).
+- **Addon update checks without a token** — scans use git ref discovery (and an optional catalog tip index) so **Check for updates** no longer asks for a personal access token. A token stays optional for fork/version browsing.
 - **Addon install picker** — catalog **Install** opens fork + version pickers with a live **README preview** before files land on disk.
 - **Archived forks** — fork lists include archived repos (sorted after active forks) so older Turtle forks stay discoverable.
 - **Fork dropdown safety** — install picker fork/version combos stay disabled until the GitHub browse fetch finishes (no half-populated lists).
@@ -105,9 +105,11 @@ When VanillaFixes is installed and enabled in Settings, the launcher prefers `Va
 
 ### GitHub token & addon scans
 
-Without a token, GitHub allows about **60 API requests per hour**. IchaLaunch can **queue** the rest of a catalog scan and resume automatically — a full pass may take hours. **Check for updates** on **ADDONS** asks for a token first if you have not saved one.
+**Check for updates** does not need a token. IchaLaunch reads each addon's latest commit from GitHub's git interface (and a shared catalog tip-SHA file when available), which is not the 60-request REST API budget.
 
-With a token in **SETTINGS → GitHub API**, scans run at full API rate and fork/version browsing works in install and addon settings dialogs.
+A token in **SETTINGS → GitHub API** is still optional and unlocks fork/version browsing plus README previews in the install picker. REST is only a fallback if git/Atom fail; that fallback is still paced at 60 requests/hour without a token.
+
+To rebuild the bundled catalog tip index locally: ``python tools/build_addon_tips.py`` (``--limit 20`` for a short test run).
 
 ![Settings — GitHub API & cooldown](docs/screenshots/settings.png)
 
@@ -134,15 +136,17 @@ The **CLIENT** tab covers engine and visual packs — VanillaFixes, DXVK, SuperW
 - **Game location** — folder that contains `WoW.exe`, plus **Verify**
 - **AddOns folder** — defaults to `Interface\AddOns` under the game; override if needed
 - **Launch** — VanillaFixes preference, minimize or close the launcher when the game starts
-- **Automatically Check For Updates On Startup** — launcher, addons, and client mods (addon startup scans respect token gating)
+- **Automatically Check For Updates On Startup** — launcher, addons, and client mods
 - **Auto-scan cooldown** — 15 min–24 h (default 1 h); manual checks always run
-- **GitHub API** — optional personal access token (fine-grained read-only recommended)
+- **GitHub API** — optional personal access token (fine-grained read-only recommended; not required for addon update badges)
 - **Check Game Permissions** — scan/repair read-only files and deny ACEs under the game tree
 - **Reset Client Link** — unlink the saved WoW folder so **PLAY** becomes **INSTALL** again
 
 Settings are written **atomically** (`.tmp` swap + backup) so a crash mid-save does not wipe your paths.
 
 ### GitHub personal access token
+
+Optional — only needed for live fork/version lists and README previews. Update notifications work without one.
 
 1. Open [GitHub → Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens)
 2. Create a token:
@@ -199,7 +203,7 @@ IchaLaunch may show a troubleshooting dialog when it detects this drift or after
 **Manual SuperWoW install** is fine: place `SuperWoWhook.dll` from the [official release zip](https://github.com/balakethelock/SuperWoW/releases) in your WoW folder, install the [SuperAPI](https://github.com/balakethelock/SuperAPI) addon, and ensure `SuperWoWhook.dll` is listed in `dlls.txt` (Turtle-style clients). You do not need `SuperWoWlauncher.exe` when using `dlls.txt`.
 
 **Addon / update checks fail, feel stuck, or say "queued"**  
-Add a GitHub token (see above) or wait for the hourly anonymous budget to refresh.
+Update badges normally use git refs, not the REST API. If a scan still says queued, a REST fallback hit GitHub's anonymous 60/hour budget — wait for the hour or add a token in Settings.
 
 **GitHub token rejected**  
 Clear or replace the token in Settings — bad tokens are retried without auth for public reads.

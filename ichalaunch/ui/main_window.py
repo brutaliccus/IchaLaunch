@@ -1049,6 +1049,12 @@ class MainWindow(QMainWindow):
         self._update_worker: Worker | None = None
         self._mod_update_worker: Worker | None = None
         self._launcher_update_worker: Worker | None = None
+        # Strong refs to every started Worker until its thread has fully
+        # finished. The done/fail slots clear the attributes above while the
+        # QThread can still be inside run(); if that attribute held the last
+        # Python reference, the C++ QThread was destroyed mid-run, which Qt
+        # treats as fatal and aborts the process with no Python traceback.
+        self._live_workers: set[Worker] = set()
         self._latest_launcher_release: LauncherReleaseInfo | None = None
         self._drag_pos: QPoint | None = None
         self._checking_addons = False
@@ -1585,7 +1591,28 @@ class MainWindow(QMainWindow):
             app.removeEventFilter(self)
         if self._resize_edges is not None:
             self.releaseMouse()
+        self._drain_workers_for_shutdown()
         super().closeEvent(event)
+
+    def _drain_workers_for_shutdown(self) -> None:
+        """Stop live worker threads before teardown drops their last references.
+
+        Interpreter shutdown destroys whatever is left in ``_live_workers``;
+        destroying a still-running QThread aborts the process (WER crash dump)
+        even though the user just closed the window normally.
+        """
+        for worker in list(self._live_workers):
+            try:
+                if not worker.isRunning():
+                    continue
+                worker.requestInterruption()
+                if not worker.wait(3000):
+                    log.warning("Worker still running at shutdown; terminating")
+                    worker.terminate()
+                    worker.wait(1000)
+            except RuntimeError:
+                # Wrapper already invalidated — nothing left to stop.
+                continue
 
     def _widget_is_interactive(self, widget: QWidget | None) -> bool:
         """True if clicks should stay with the control (not start a window drag)."""
@@ -1891,6 +1918,24 @@ class MainWindow(QMainWindow):
     def _worker_busy(self) -> bool:
         return bool(self._worker and self._worker.isRunning())
 
+    def _track_worker(self, worker: Worker) -> None:
+        """Hold *worker* alive until its thread has actually terminated.
+
+        Result slots may drop ``self._*_worker`` while ``run()`` is still
+        unwinding on the worker thread. Destroying a running QThread is a
+        Qt fatal error (silent abort), so the release only happens from the
+        thread's own ``finished`` signal, after a guaranteed ``wait()``.
+        """
+        self._live_workers.add(worker)
+        worker.finished.connect(lambda w=worker: self._release_worker(w))
+
+    def _release_worker(self, worker: Worker) -> None:
+        worker.wait()  # finished has fired; returns immediately once run() unwinds
+        self._live_workers.discard(worker)
+        # The tracking connection's closure still references the wrapper, so
+        # let Qt free the C++ thread object (and with it that connection).
+        worker.deleteLater()
+
     def _format_busy_status(self, msg: str) -> str:
         """Append ``· N in queue`` when addon jobs are waiting."""
         base = (msg or "").strip() or "Working…"
@@ -2135,6 +2180,7 @@ class MainWindow(QMainWindow):
         worker.failed.connect(self._on_worker_fail)
         self._worker = worker
         self._pending_ok_handler = on_ok
+        self._track_worker(worker)
         worker.start()
 
     def _pump_addon_queue(self) -> bool:
@@ -2278,6 +2324,7 @@ class MainWindow(QMainWindow):
         worker.finished_ok.connect(done)
         worker.failed.connect(fail)
         self._launcher_update_worker = worker
+        self._track_worker(worker)
         worker.start()
 
     def _apply_launcher_update(self) -> None:
@@ -3001,12 +3048,6 @@ class MainWindow(QMainWindow):
             if not silent:
                 self.status_lbl.setText("Set a game path before checking updates")
             return
-        if not silent and not has_github_token():
-            from ichalaunch.ui.widgets.dialogs import github_token_prompt_dialog
-
-            token = github_token_prompt_dialog(self)
-            if not token:
-                return
         if self._update_worker and self._update_worker.isRunning():
             if not silent:
                 self.status_lbl.setText("Update check already running…")
@@ -3083,6 +3124,7 @@ class MainWindow(QMainWindow):
         worker.finished_ok.connect(done)
         worker.failed.connect(fail)
         self._update_worker = worker
+        self._track_worker(worker)
         worker.start()
 
     def _resume_queued_addon_scan(self) -> None:
@@ -3157,6 +3199,7 @@ class MainWindow(QMainWindow):
         worker.finished_ok.connect(done)
         worker.failed.connect(fail)
         self._mod_update_worker = worker
+        self._track_worker(worker)
         worker.start()
 
     def _update_client_mod(self, mod_id: str) -> None:

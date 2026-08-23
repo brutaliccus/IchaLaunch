@@ -263,18 +263,19 @@ class Settings:
     def check_addon_updates_on_startup(self) -> bool:
         return bool(self.get("check_addon_updates_on_startup", False))
 
-    def should_startup_check_addons(self, *, has_token: bool) -> bool:
-        """Whether quiet addon update scans should run on launcher startup."""
-        if has_token:
-            return self.check_updates_on_startup()
-        return self.check_addon_updates_on_startup()
+    def should_startup_check_addons(self, *, has_token: bool = False) -> bool:
+        """Whether quiet addon update scans should run on launcher startup.
+
+        Token is unused — update checks no longer require a GitHub PAT.
+        """
+        return self.check_updates_on_startup()
 
     def set_check_updates_on_startup(self, enabled: bool) -> None:
         """Persist the unified startup check flag and keep legacy keys in sync."""
         enabled = bool(enabled)
         self._data["check_updates_on_startup"] = enabled
         self._data["check_mod_updates_on_startup"] = enabled
-        # User opt-in for paced unauthenticated addon scans when no token.
+        # Keep the legacy addon-only flag in sync with the unified toggle.
         self._data["check_addon_updates_on_startup"] = enabled
         self.save()
 

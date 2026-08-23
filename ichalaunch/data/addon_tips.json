@@ -1,0 +1,190 @@
+{
+  "generated_at": "2026-08-23T12:58:56Z",
+  "source": "git-upload-pack",
+  "repos": {
+    "shirsig/clean_up": {
+      "default_branch": "master",
+      "sha": "285498f571c445e6ec126165fdeb3ec491575513",
+      "branches": {
+        "master": "285498f571c445e6ec126165fdeb3ec491575513"
+      }
+    },
+    "mcpewpew/bagnon": {
+      "default_branch": "master",
+      "sha": "06ee0b46ebda38470ef60ede699280454a812f97",
+      "branches": {
+        "master": "06ee0b46ebda38470ef60ede699280454a812f97"
+      },
+      "latest_tag": "test"
+    },
+    "dyaxler/blizzmo_vanilla": {
+      "default_branch": "master",
+      "sha": "f599a4c80b80ca2eda534d12934aefb90bd52386",
+      "branches": {
+        "master": "f599a4c80b80ca2eda534d12934aefb90bd52386"
+      },
+      "latest_tag": "v0.1"
+    },
+    "road-block/cooldowntimers": {
+      "default_branch": "master",
+      "sha": "c7fca4a1dddabd69c61ee0590a80100707b2bbe6",
+      "branches": {
+        "master": "c7fca4a1dddabd69c61ee0590a80100707b2bbe6"
+      },
+      "latest_tag": "1.3-11200"
+    },
+    "adrianocastro189/destroy-cursor-item": {
+      "default_branch": "main",
+      "sha": "2e653d867768f52de7c69dfebdc4343619eee64d",
+      "branches": {
+        "main": "2e653d867768f52de7c69dfebdc4343619eee64d"
+      },
+      "latest_tag": "1.1.0"
+    },
+    "laytya/engbags": {
+      "default_branch": "main",
+      "sha": "d01c2c2c25cb563390ecbb6ec108a6bc55abb995",
+      "branches": {
+        "main": "d01c2c2c25cb563390ecbb6ec108a6bc55abb995"
+      }
+    },
+    "brqje/enginventory": {
+      "default_branch": "master",
+      "sha": "10b1471b51bc3472f4a05a9bb7553646d61b47fe",
+      "branches": {
+        "master": "10b1471b51bc3472f4a05a9bb7553646d61b47fe"
+      }
+    },
+    "laytya/eqcompare-vanilla": {
+      "default_branch": "master",
+      "sha": "6871aa28a2e9fd5cdef743d5debfe333da528b05",
+      "branches": {
+        "master": "6871aa28a2e9fd5cdef743d5debfe333da528b05"
+      },
+      "latest_tag": "v1.5"
+    },
+    "trangoul/equipcolor": {
+      "default_branch": "main",
+      "sha": "94894163ec7a3aa1717bd8652554273ffe632b9b",
+      "branches": {
+        "main": "94894163ec7a3aa1717bd8652554273ffe632b9b"
+      }
+    },
+    "anzz1/freebagslots": {
+      "default_branch": "master",
+      "sha": "4833907cba903a48442ae7c246ccc2d9036a76e4",
+      "branches": {
+        "master": "4833907cba903a48442ae7c246ccc2d9036a76e4"
+      }
+    },
+    "marcelinevq/gentlegc": {
+      "default_branch": "master",
+      "sha": "a41404979d9919ebb781e02ea6a493ad604ef2cc",
+      "branches": {
+        "master": "a41404979d9919ebb781e02ea6a493ad604ef2cc"
+      }
+    },
+    "monteo/gfw_feedomatic": {
+      "default_branch": "master",
+      "sha": "2f0586f2fc0efb14ef9d2990056e5822acd97cf8",
+      "branches": {
+        "master": "2f0586f2fc0efb14ef9d2990056e5822acd97cf8"
+      }
+    },
+    "ttcremers/grayautosell": {
+      "default_branch": "master",
+      "sha": "a53ac93bfbe12a1a0b77b588060051e19123697f",
+      "branches": {
+        "master": "a53ac93bfbe12a1a0b77b588060051e19123697f"
+      },
+      "latest_tag": "v0.1.4"
+    },
+    "vatichild/guda": {
+      "default_branch": "main",
+      "sha": "f1618b71bddf816bac82d1a0be67bc1417e8ba20",
+      "branches": {
+        "main": "f1618b71bddf816bac82d1a0be67bc1417e8ba20"
+      },
+      "latest_tag": "2.3.2"
+    },
+    "road-block/guildbank": {
+      "default_branch": "master",
+      "sha": "186dd49ab08936973902216d8a41e2418e2b0cf3",
+      "branches": {
+        "master": "186dd49ab08936973902216d8a41e2418e2b0cf3"
+      },
+      "latest_tag": "2.10-11200"
+    },
+    "jejkas/inventorysale": {
+      "default_branch": "master",
+      "sha": "86242cf1c30e1db2ab509709ad615c1766758cd9",
+      "branches": {
+        "master": "86242cf1c30e1db2ab509709ad615c1766758cd9"
+      }
+    },
+    "linae-kronos/itemrackfu": {
+      "default_branch": "master",
+      "sha": "78c032c3c78f6fa326d04ba2381592024ec94135",
+      "branches": {
+        "master": "78c032c3c78f6fa326d04ba2381592024ec94135"
+      }
+    },
+    "balakethelock/itemsplit": {
+      "default_branch": "master",
+      "sha": "51a435e531ec6822af83ef5960e608a77b608572",
+      "branches": {
+        "master": "51a435e531ec6822af83ef5960e608a77b608572"
+      }
+    },
+    "einbaum/keyringopener": {
+      "default_branch": "master",
+      "sha": "40511af0a994ae284f5057e3cfe3bdee8b41b4ae",
+      "branches": {
+        "master": "40511af0a994ae284f5057e3cfe3bdee8b41b4ae"
+      }
+    },
+    "mcpewpew/minimapbuttonbag": {
+      "default_branch": "master",
+      "sha": "a3ae16a352889ec491b8d917297aecb262d0b437",
+      "branches": {
+        "master": "a3ae16a352889ec491b8d917297aecb262d0b437"
+      },
+      "latest_tag": "v0.508"
+    },
+    "mcpewpew/mrplow": {
+      "default_branch": "master",
+      "sha": "865f76924c37060236ec60a3d7c136637debc6f5",
+      "branches": {
+        "master": "865f76924c37060236ec60a3d7c136637debc6f5"
+      }
+    },
+    "shagu/pfdebug": {
+      "default_branch": "master",
+      "sha": "6f305a9b141cead0d2d141e81dc4e860db3acbbc",
+      "branches": {
+        "master": "6f305a9b141cead0d2d141e81dc4e860db3acbbc"
+      }
+    },
+    "refaim/possessions": {
+      "default_branch": "master",
+      "sha": "71be69c850328e2bfdaa6176a295937a210a20b2",
+      "branches": {
+        "master": "71be69c850328e2bfdaa6176a295937a210a20b2"
+      }
+    },
+    "shagu/shaguinventory": {
+      "default_branch": "master",
+      "sha": "00eeeb2da84d33bb2f51f1a5bda97dc08978772c",
+      "branches": {
+        "master": "00eeeb2da84d33bb2f51f1a5bda97dc08978772c"
+      }
+    },
+    "shirsig/sortbags-vanilla": {
+      "default_branch": "master",
+      "sha": "1b59767ca41749e70d72f2991c27054beebcdfcd",
+      "branches": {
+        "master": "1b59767ca41749e70d72f2991c27054beebcdfcd"
+      }
+    }
+  }
+}

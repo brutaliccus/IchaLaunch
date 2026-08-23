@@ -176,10 +176,9 @@ class SettingsPage(QWidget):
         self.cb_auto_updates = ThemeCheckBox("Automatically Check For Updates On Startup")
         self.cb_auto_updates.setChecked(settings.check_updates_on_startup())
         self.cb_auto_updates.setToolTip(
-            "When enabled, quietly checks launcher and client mod updates shortly "
-            "after launch. Addon updates need a GitHub token for a full scan; "
-            "without one, enabling this also opts into paced addon scans "
-            "(60 API calls/hour). Add a token under GitHub API below. "
+            "When enabled, quietly checks launcher, addon, and client mod updates "
+            "shortly after launch. Addon scans use git ref discovery (no token). "
+            "A GitHub token is optional for fork/version browsing. "
             "While open, only the launcher self-update re-checks every 5 minutes "
             "(no progress bar)."
         )
@@ -264,8 +263,10 @@ class SettingsPage(QWidget):
         token_row.addWidget(self.token_status)
         gh_card.body.addLayout(token_row)
         token_note = QLabel(
-            "Raises the API limit (60 → 5,000 req/hour). Saved in local settings.json. "
-            "Sent only over HTTPS to GitHub (api.github.com / githubusercontent.com), never to other sites."
+            "Optional. Addon update badges do not need a token. A token unlocks "
+            "fork/version pickers and README previews (60 → 5,000 API req/hour). "
+            "Saved in local settings.json. Sent only over HTTPS to GitHub "
+            "(api.github.com / githubusercontent.com), never to other sites."
         )
         token_note.setObjectName("Muted")
         token_note.setWordWrap(True)

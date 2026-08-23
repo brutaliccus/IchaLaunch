@@ -1823,6 +1823,123 @@ def test_unauth_scan_budget_queue():
     print("OK unauth scan budget queue")
 
 
+def test_git_refs_and_tip_index():
+    """Upload-pack / Atom parsers and catalog tip-index lookup stay off REST."""
+    from ichalaunch.addons.git_refs import (
+        newest_version_tag,
+        parse_atom_commit_sha,
+        parse_atom_release_tag,
+        parse_ls_remote,
+        parse_upload_pack_refs,
+    )
+    from ichalaunch.addons.tip_index import (
+        clear_tip_index_cache,
+        lookup_latest_tag,
+        lookup_tip,
+        normalize_index,
+        repo_entry_from_refs,
+    )
+    from ichalaunch.addons import tip_index as tips
+
+    # pkt-line advertisement (protocol v1)
+    def _pkt(payload: bytes) -> bytes:
+        return f"{len(payload) + 4:04x}".encode("ascii") + payload
+
+    blob = b"".join(
+        [
+            _pkt(b"# service=git-upload-pack\n"),
+            b"0000",
+            _pkt(
+                b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa HEAD\0"
+                b"symref=HEAD:refs/heads/master agent=git/github\n"
+            ),
+            _pkt(b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa refs/heads/master\n"),
+            _pkt(b"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb refs/heads/dev\n"),
+            _pkt(b"cccccccccccccccccccccccccccccccccccccccc refs/tags/v1.2.0\n"),
+            _pkt(b"dddddddddddddddddddddddddddddddddddddddd refs/tags/v1.2.0^{}\n"),
+            _pkt(b"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee refs/tags/v1.3.0\n"),
+            b"0000",
+        ]
+    )
+    refs = parse_upload_pack_refs(blob)
+    assert refs.default_branch == "master"
+    assert refs.head_sha.startswith("aaaa")
+    assert refs.tip_sha("master").startswith("aaaa")
+    assert refs.tip_sha("dev").startswith("bbbb")
+    assert refs.tip_sha("v1.2.0").startswith("dddd")  # peeled
+    assert newest_version_tag(refs.tags) == "v1.3.0"
+
+    ls = parse_ls_remote(
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\tHEAD\n"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\trefs/heads/master\n"
+    )
+    assert ls.head_sha.startswith("aaaa")
+    assert ls.default_branch == "master"
+
+    atom = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <id>tag:github.com,2008:Grit::Commit/b2f6df84a93a4ce6adbe1fd8f0372454795151f1</id>
+    <link rel="alternate" href="https://github.com/shagu/pfUI/commit/b2f6df84a93a4ce6adbe1fd8f0372454795151f1"/>
+  </entry>
+</feed>"""
+    assert parse_atom_commit_sha(atom) == "b2f6df84a93a4ce6adbe1fd8f0372454795151f1"
+    rel = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <title>v2.0.1</title>
+    <link rel="alternate" href="https://github.com/foo/bar/releases/tag/v2.0.1"/>
+  </entry>
+</feed>"""
+    assert parse_atom_release_tag(rel) == "v2.0.1"
+
+    index = normalize_index(
+        {
+            "generated_at": "2026-08-23T00:00:00Z",
+            "repos": {
+                "shagu/pfui": repo_entry_from_refs(refs),
+            },
+        }
+    )
+    prev = tips._loaded
+    try:
+        tips._loaded = (0.0, index)
+        hit = lookup_tip("shagu", "pfUI")
+        assert hit is not None
+        assert hit[0].startswith("aaaa")
+        assert hit[1] == "master"
+        assert lookup_tip("shagu", "pfUI", "dev") is None  # not stored in compact index
+        assert lookup_latest_tag("Shagu", "pfUI") == "v1.3.0"
+        assert lookup_tip("nope", "missing") is None
+    finally:
+        tips._loaded = prev
+        if prev is None:
+            clear_tip_index_cache()
+
+    print("OK git refs and tip index")
+
+
+def test_git_refs_live_optional():
+    """Live upload-pack against a public repo — skip if GitHub is unreachable."""
+    from ichalaunch.addons.git_refs import fetch_upload_pack_refs, clear_git_refs_cache
+    from ichalaunch.addons.github import github_remote_tip
+
+    clear_git_refs_cache()
+    try:
+        refs = fetch_upload_pack_refs("shagu", "pfUI", timeout=12)
+    except Exception as exc:  # noqa: BLE001
+        print(f"SKIP git refs live: {exc}")
+        return
+    if refs is None or not refs.head_sha:
+        print("SKIP git refs live: no advertisement")
+        return
+    assert len(refs.head_sha) >= 40
+    assert refs.default_branch
+    tip = github_remote_tip("shagu", "pfUI", refs.default_branch)
+    assert str(tip.get("sha") or "") == refs.head_sha
+    print(f"OK git refs live ({refs.default_branch} {refs.head_sha[:10]})")
+
+
 def test_github_token_not_sent_to_third_party_readme_hosts():
     """README image fetches must not attach the GitHub token to foreign or HTTP URLs."""
     from ichalaunch.addons import github as G
@@ -2051,17 +2168,16 @@ def test_addon_startup_token_gating():
     assert migrate_addon_no_token_startup(with_token) is False
     assert with_token["check_addon_updates_on_startup"] is True
 
-    # Startup gate helpers
+    # Startup gate follows the unified checkbox — token is no longer required.
     s = Settings()
     s._data["check_updates_on_startup"] = True
     s._data["check_addon_updates_on_startup"] = False
     assert s.should_startup_check_addons(has_token=True) is True
-    assert s.should_startup_check_addons(has_token=False) is False
-
-    s._data["check_addon_updates_on_startup"] = True
     assert s.should_startup_check_addons(has_token=False) is True
 
     s._data["check_updates_on_startup"] = False
+    s._data["check_addon_updates_on_startup"] = True
+    assert s.should_startup_check_addons(has_token=False) is False
     assert s.should_startup_check_addons(has_token=True) is False
 
     prev = {
@@ -3331,6 +3447,60 @@ def test_launch_button_down_plate_is_click_only():
     print("OK launch button Down plate is click-only")
 
 
+def test_worker_survives_ref_drop_in_result_slot():
+    """Dropping the only named ref inside done/fail must not destroy a live QThread.
+
+    Regression: startup update-check slots set ``self._*_worker = None`` while
+    the Worker thread could still be unwinding run(). When that attribute held
+    the last Python reference, the C++ QThread was destroyed mid-run — a Qt
+    fatal error that killed the process with no traceback (users saw the app
+    close 1-2s after opening). MainWindow._track_worker must keep each worker
+    alive until the thread has really finished.
+    """
+    from PySide6.QtCore import QCoreApplication, QDeadlineTimer
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.main_window import MainWindow, Worker
+
+    app = QApplication.instance() or QApplication([])
+
+    class Harness:
+        def __init__(self):
+            self._live_workers: set = set()
+
+        _track_worker = MainWindow._track_worker
+        _release_worker = MainWindow._release_worker
+
+    harness = Harness()
+
+    def _boom(progress=None):
+        raise RuntimeError("simulated GitHub failure")
+
+    def _fine(progress=None):
+        return "ok"
+
+    for fn in (_boom, _fine, _boom, _fine):
+        holder = {}
+
+        def _drop(_arg=None):
+            # Mimics ``self._launcher_update_worker = None`` in done/fail.
+            holder.clear()
+
+        worker = Worker(fn)
+        worker.failed.connect(_drop)
+        worker.finished_ok.connect(_drop)
+        holder["w"] = worker
+        harness._track_worker(worker)
+        worker.start()
+        deadline = QDeadlineTimer(5000)
+        while harness._live_workers and not deadline.hasExpired():
+            app.processEvents()
+        assert not holder, "result slot should have dropped its reference"
+        assert not harness._live_workers, "tracker should release finished workers"
+
+    print("OK worker survives ref drop in result slot")
+
+
 def test_loading_bar_reserves_update_button_slot():
     from PySide6.QtWidgets import QApplication
 
@@ -3651,6 +3821,8 @@ def _run_smoke_tests():
     test_repair_missing_addon_git()
     test_copied_addon_update_compare()
     test_unauth_scan_budget_queue()
+    test_git_refs_and_tip_index()
+    test_git_refs_live_optional()
     test_github_token_not_sent_to_third_party_readme_hosts()
     test_github_bad_token_retries_without_auth()
     test_auto_scan_cooldown_setting()
@@ -3687,6 +3859,7 @@ def _run_smoke_tests():
     test_dll_security_dialog_dont_show_again_is_themed_checkbox()
     test_update_launch_button_is_square_and_pulses()
     test_launch_button_down_plate_is_click_only()
+    test_worker_survives_ref_drop_in_result_slot()
     test_loading_bar_reserves_update_button_slot()
     test_launch_buttons_use_glue_panel_chrome()
     test_options_cog_uses_wow_art()

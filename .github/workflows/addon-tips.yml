@@ -1,0 +1,27 @@
+name: Refresh addon tips
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "20 */6 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install deps
+        run: pip install requests
+      - name: Build tip index
+        run: python tools/build_addon_tips.py --sleep 0.08
+      - name: Commit index
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: refresh addon tip SHA index"
+          file_pattern: ichalaunch/data/addon_tips.json

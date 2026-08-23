@@ -205,8 +205,13 @@ def clear_addon_scan_queue() -> None:
 
 def clear_github_url_cache() -> None:
     """Drop in-process GitHub browse URL reachability cache."""
+    from ichalaunch.addons.git_refs import clear_git_refs_cache
+    from ichalaunch.addons.tip_index import clear_tip_index_cache
+
     _url_reach_cache.clear()
     clear_github_browse_cache()
+    clear_git_refs_cache()
+    clear_tip_index_cache()
 
 
 NO_TOKEN_FORK_TIP = "Add GitHub token in Settings to browse forks and versions"
@@ -809,6 +814,34 @@ def github_latest_commit(owner: str, repo: str, branch: str | None = None) -> di
     }
 
 
+def github_remote_tip(owner: str, repo: str, branch: str | None = None) -> dict[str, Any]:
+    """Latest commit SHA without spending REST quota when possible.
+
+    Order: catalog tip index → git upload-pack / ls-remote → commits Atom → REST.
+    """
+    from ichalaunch.addons.git_refs import fetch_commit_atom_sha, fetch_git_refs
+    from ichalaunch.addons.tip_index import lookup_tip
+
+    wanted = str(branch or "").strip() or None
+    hit = lookup_tip(owner, repo, wanted)
+    if hit:
+        sha, resolved = hit
+        return {"sha": sha, "branch": resolved or wanted or "", "message": "", "date": ""}
+
+    refs = fetch_git_refs(owner, repo)
+    if refs is not None:
+        sha = refs.tip_sha(wanted)
+        resolved = wanted or refs.default_branch or ""
+        if sha:
+            return {"sha": sha, "branch": resolved, "message": "", "date": ""}
+
+    atom_sha = fetch_commit_atom_sha(owner, repo, wanted)
+    if atom_sha:
+        return {"sha": atom_sha, "branch": wanted or "", "message": "", "date": ""}
+
+    return github_latest_commit(owner, repo, branch=wanted)
+
+
 def _commits_match(left: str, right: str) -> bool:
     a, b = (left or "").strip().lower(), (right or "").strip().lower()
     if not a or not b:
@@ -938,7 +971,30 @@ def _catalog_pin_for_install(owner: str, repo: str, folder_name: str | None) -> 
 
 
 def github_latest_version_tag(owner: str, repo: str) -> str | None:
-    """Latest GitHub release tag, else newest git tag. None if unknown / 404."""
+    """Latest GitHub release tag, else newest git tag. None if unknown / 404.
+
+    Prefers the catalog tip index, releases Atom, and advertised git tags so
+    copied-addon scans do not spend REST quota.
+    """
+    from ichalaunch.addons.git_refs import (
+        fetch_git_refs,
+        fetch_releases_atom_tag,
+        newest_version_tag,
+    )
+    from ichalaunch.addons.tip_index import lookup_latest_tag
+
+    indexed = lookup_latest_tag(owner, repo)
+    if indexed:
+        return indexed
+    atom_tag = fetch_releases_atom_tag(owner, repo)
+    if atom_tag:
+        return atom_tag
+    refs = fetch_git_refs(owner, repo)
+    if refs is not None:
+        tag = newest_version_tag(refs.tags)
+        if tag:
+            return tag
+
     full = f"{owner}/{repo}"
     try:
         latest_url = f"https://api.github.com/repos/{full}/releases/latest"
@@ -1816,14 +1872,11 @@ def check_addon_updates(
 ) -> AddonUpdateCheckResult:
     """Check installed GitHub addons for newer commits.
 
-    Without a GitHub token, unauthenticated scans are paced to
-    ``UNAUTH_API_BUDGET_PER_HOUR`` API calls per hour. Remaining addons stay in a
-    persisted queue and are checked automatically when budget refreshes.
+    Tip SHAs come from the catalog index, git ref discovery, or Atom feeds —
+    not the REST API — so a personal token is not required for a timely scan.
+    REST is a last resort; if that path hits the unauthenticated 60/hour
+    budget, remaining folders are queued and resumed later.
 
-    With a token, the full set is checked in one pass (no artificial queue).
-
-    On a real GitHub rate limit (403/429 or X-RateLimit-Remaining=0), stops further
-    API calls for this run and queues unfinished folders when unauthenticated.
     Child modules of a multi-folder pack (managed_by) are skipped — only the
     primary entry is checked / listed for Update.
     """
@@ -1870,46 +1923,21 @@ def check_addon_updates(
             owner, name = str(repo).split("/", 1)
         to_check.append((folder, meta, owner, name, str(repo)))
 
-    by_folder = {t[0]: t for t in to_check}
-
     on_count = getattr(progress, "on_count", None) if progress is not None else None
-    use_queue = not has_github_token()
 
-    if not use_queue:
-        clear_addon_scan_queue()
-        work = list(to_check)
-        updates: list[dict[str, Any]] = []
-        done_count = 0
-        total = len(work)
-    else:
-        queued = _load_scan_queue()
-        _sync_budget_from_queue(queued)
-        pending_names = queued.get("pending")
-        if isinstance(pending_names, list) and pending_names:
-            work = []
-            for name in pending_names:
-                item = by_folder.get(str(name))
-                if item is not None:
-                    work.append(item)
-            updates = [
-                u
-                for u in (queued.get("found_updates") or [])
-                if isinstance(u, dict) and u.get("folder")
-            ]
-            done_count = max(0, int(queued.get("done_count") or 0))
-            total = max(int(queued.get("total") or 0), done_count + len(work))
-        else:
-            work = list(to_check)
-            updates = []
-            done_count = 0
-            total = len(work)
-            # Keep any in-progress hour window; only reset folder progress.
-            _persist_scan_queue_progress(
-                pending_folders=[t[0] for t in work],
-                total=total,
-                done_count=0,
-                updates=[],
-            )
+    # Git/index/atom can finish a full pass; drop leftover REST-hour queues.
+    clear_addon_scan_queue()
+    try:
+        from ichalaunch.addons.tip_index import refresh_tip_index
+
+        refresh_tip_index()
+    except Exception as exc:  # noqa: BLE001
+        log.debug("Addon tip index refresh skipped: %s", exc)
+
+    work = list(to_check)
+    updates: list[dict[str, Any]] = []
+    done_count = 0
+    total = len(work)
 
     display_total = max(1, total if total else 1)
     if callable(on_count):
@@ -1922,44 +1950,12 @@ def check_addon_updates(
             on_count(1, 1, "Scanning addons…")
         return AddonUpdateCheckResult(updates=[], checked_count=0, total_count=0)
 
-    if use_queue and work:
-        remaining_budget, reset_in = unauth_budget_remaining()
-        if remaining_budget <= 0:
-            _persist_scan_queue_progress(
-                pending_folders=[t[0] for t in work],
-                total=total,
-                done_count=done_count,
-                updates=updates,
-            )
-            status = format_queued_scan_status(done_count, total, reset_in)
-            if callable(on_count):
-                on_count(done_count, display_total, status)
-            return AddonUpdateCheckResult(
-                updates=list(updates),
-                queued=True,
-                checked_count=done_count,
-                total_count=total,
-                resume_after_sec=reset_in,
-                status_message=status or WAITING_RATE_LIMIT_STATUS,
-            )
-
     checked = 0
     rate_limited = False
     budget_exhausted = False
     remaining_work: list[tuple[str, dict[str, Any], str, str, str]] = []
 
     for i, (folder, meta, owner, name, repo) in enumerate(work):
-        if rate_limit_exhausted():
-            rate_limited = True
-            remaining_work = list(work[i:])
-            break
-        if use_queue:
-            remaining_budget, _ = unauth_budget_remaining()
-            if remaining_budget <= 0:
-                budget_exhausted = True
-                remaining_work = list(work[i:])
-                break
-
         disk = addon_disk_path(folder)
         local_sha = str(meta.get("installed_commit") or "").strip()
         if not local_sha and disk is not None:
@@ -1972,7 +1968,7 @@ def check_addon_updates(
 
         try:
             if local_sha:
-                remote = github_latest_commit(owner, name, meta.get("branch"))
+                remote = github_remote_tip(owner, name, meta.get("branch"))
                 checked += 1
                 remote_sha = str(remote.get("sha") or "")
                 remote_ver = ""
@@ -2030,17 +2026,12 @@ def check_addon_updates(
             )
 
         if rate_limit_exhausted():
+            # REST fallback already spent the anonymous budget; finish via queue.
             rate_limited = True
             remaining_work = list(work[i + 1 :])
             break
-        if use_queue:
-            remaining_budget, _ = unauth_budget_remaining()
-            if remaining_budget <= 0:
-                budget_exhausted = True
-                remaining_work = list(work[i + 1 :])
-                break
 
-    if use_queue and remaining_work:
+    if remaining_work:
         _, reset_in = unauth_budget_remaining()
         if rate_limited:
             header_reset = _resume_after_sec_from_headers()
