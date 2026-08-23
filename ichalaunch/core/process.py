@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import time
@@ -276,12 +277,45 @@ def google_drive_url(file_id: str) -> str:
         f"?id={file_id}&export=download&confirm=t"
     )
 
+def _wow_running_linux() -> bool:
+    """Detect WoW.exe running under wine/Proton by scanning /proc.
+
+    The Windows path below shells out to ``tasklist``, which does not exist
+    here, so the check returned False unconditionally on Linux and callers
+    happily moved addon folders out from under a live game. Wine keeps the
+    Windows-style path in the process cmdline, so this needs no privileges.
+    """
+    # Match only a WINDOWS-style path (backslash separator), which is what the
+    # real wine process carries: "X:\\Games\\RavenCraft\\WoW.exe". The Linux-side
+    # wrappers (umu-run, proton) use forward slashes.
+    names = ("\\wow.exe", "\\vanillafixes.exe", "\\superwowlauncher.exe")
+    try:
+        pids = [d for d in os.listdir("/proc") if d.isdigit()]
+    except OSError:
+        return False
+    for pid in pids:
+        try:
+            with open(f"/proc/{pid}/cmdline", "rb") as fh:
+                raw = fh.read()
+        except OSError:
+            continue
+        if not raw:
+            continue
+        # argv[0] ONLY -- the executable itself. Matching the whole command line
+        # would count any process that merely MENTIONS the path (a shell, an
+        # editor with the file open) as "the game is running".
+        argv0 = raw.split(b"\x00", 1)[0].decode("utf-8", "replace").lower()
+        if argv0.endswith(names):
+            return True
+    return False
+
+
 def wow_exe_running() -> bool:
-    """True when WoW.exe (or VanillaFixes.exe) is running. Windows-only; no admin."""
+    """True when WoW.exe (or VanillaFixes.exe) is running. No admin required."""
     import sys
 
     if sys.platform != "win32":
-        return False
+        return _wow_running_linux()
     names = ("WoW.exe", "VanillaFixes.exe")
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     try:
