@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-23T12:58:56Z",
+  "generated_at": "2026-08-23T16:59:24Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -184,6 +184,99 @@
       "sha": "1b59767ca41749e70d72f2991c27054beebcdfcd",
       "branches": {
         "master": "1b59767ca41749e70d72f2991c27054beebcdfcd"
+      }
+    },
+    "brndd/vanilla-tweaks": {
+      "default_branch": "master",
+      "sha": "fbbe31add71b23602d981d70f1a58520fc349b47",
+      "branches": {
+        "master": "fbbe31add71b23602d981d70f1a58520fc349b47"
+      },
+      "latest_tag": "v1.6.0"
+    },
+    "hannesmann/vanillafixes": {
+      "default_branch": "main",
+      "sha": "a4c42e6a3f12a841a668359e0027c252989867bd",
+      "branches": {
+        "main": "a4c42e6a3f12a841a668359e0027c252989867bd"
+      },
+      "latest_tag": "v1.5.3"
+    },
+    "balakethelock/superwow": {
+      "default_branch": "master",
+      "sha": "60c05fa1bed338f50092ee73894ee4e3b81b5a65",
+      "branches": {
+        "master": "60c05fa1bed338f50092ee73894ee4e3b81b5a65"
+      },
+      "latest_tag": "Patch"
+    },
+    "brues-code/nampower": {
+      "default_branch": "main",
+      "sha": "2c7f51cd436e9b0ce88271e84ce5a77c19f2c23b",
+      "branches": {
+        "main": "2c7f51cd436e9b0ce88271e84ce5a77c19f2c23b"
+      },
+      "latest_tag": "v4.6.1"
+    },
+    "brues-code/unitxp_sp3": {
+      "default_branch": "main",
+      "sha": "cedbf4b59776567db954ce38f681af1cbb9f0e1c",
+      "branches": {
+        "main": "cedbf4b59776567db954ce38f681af1cbb9f0e1c"
+      },
+      "latest_tag": "v90"
+    },
+    "brues-code/auctionquerythrottle": {
+      "default_branch": "main",
+      "sha": "2006eb7a213613513333a03403cddfa53cc0853c",
+      "branches": {
+        "main": "2006eb7a213613513333a03403cddfa53cc0853c"
+      },
+      "latest_tag": "v1.1.0"
+    },
+    "brues-code/classicapi": {
+      "default_branch": "master",
+      "sha": "f000fd6ed751bd5b936c4a8e985903f19da3f5f8",
+      "branches": {
+        "master": "f000fd6ed751bd5b936c4a8e985903f19da3f5f8"
+      },
+      "latest_tag": "v1.12.0"
+    },
+    "retrocro/turtlewow-mods": {
+      "default_branch": "main",
+      "sha": "aeb405ef9f207bfbd7fb63afb4ffc4e58f3589f9",
+      "branches": {
+        "main": "aeb405ef9f207bfbd7fb63afb4ffc4e58f3589f9"
+      }
+    },
+    "isfir/vanillahelpers": {
+      "default_branch": "master",
+      "sha": "4375c03a51778ad440bc14be512e659b39c0c558",
+      "branches": {
+        "master": "4375c03a51778ad440bc14be512e659b39c0c558"
+      },
+      "latest_tag": "v1.1.2"
+    },
+    "marcelinevq/twow-raid-visuals": {
+      "default_branch": "master",
+      "sha": "862af96df93d594b034915893b844eaea051bb9e",
+      "branches": {
+        "master": "862af96df93d594b034915893b844eaea051bb9e"
+      },
+      "latest_tag": "1.4.18"
+    },
+    "seacrabsam/patch-herb": {
+      "default_branch": "main",
+      "sha": "c252bbdc2aef1ac928eb237cf4d28edc21806ed8",
+      "branches": {
+        "main": "c252bbdc2aef1ac928eb237cf4d28edc21806ed8"
+      }
+    },
+    "paokkerkir/vanilla-autologin": {
+      "default_branch": "main",
+      "sha": "2665aeb14d9eaaa51f1532c7dc689c6a18b49a73",
+      "branches": {
+        "main": "2665aeb14d9eaaa51f1532c7dc689c6a18b49a73"
       }
     }
   }

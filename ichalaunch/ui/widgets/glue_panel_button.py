@@ -44,6 +44,7 @@ _LAUNCH_SQUARE_CAP = 20
 _RAW: dict[str, QImage] = {}
 _RECOLOR: dict[tuple[str, str, bool], QPixmap] = {}
 _LAUNCH: dict[tuple[bool, bool, bool, int], QPixmap] = {}
+_ROW_SQUARE: dict[tuple[bool, bool, str, int], QPixmap] = {}
 
 
 def _load_image(bundled: str, external: Path) -> QImage:
@@ -256,6 +257,27 @@ def _squish_plate_to_square(pm: QPixmap, side: int) -> QPixmap:
     p.drawPixmap(QRect(0, 0, side, side), sliced, vis)
     p.end()
     return filled
+
+
+def glue_row_square_chrome(
+    *,
+    pressed: bool = False,
+    role: str = "standard",
+    disabled: bool = False,
+    side: int = GLUE_ROW_H,
+) -> QPixmap:
+    """Square glue-panel chrome for compact addon-row icon buttons (Remove, …)."""
+    if role not in ("standard", "primary", "primary_bright"):
+        role = "standard"
+    key = (pressed, disabled, role, int(side))
+    hit = _ROW_SQUARE.get(key)
+    if hit is not None:
+        return hit
+    pm = glue_chrome_pixmap(pressed=pressed, role=role, disabled=disabled)
+    if not pm.isNull():
+        pm = _squish_plate_to_square(pm, int(side) if side > 0 else GLUE_ROW_H)
+    _ROW_SQUARE[key] = pm
+    return pm
 
 
 def launch_glue_chrome(

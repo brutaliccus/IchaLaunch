@@ -1919,6 +1919,56 @@ def test_git_refs_and_tip_index():
     print("OK git refs and tip index")
 
 
+def test_mod_catalog_repos_in_tip_index_builder():
+    """mods.json GitHub sources are included when building the catalog index."""
+    import tools.build_addon_tips as builder
+
+    addon = builder._catalog_repos()
+    mod = builder._mod_catalog_repos()
+    merged = builder._merge_repos(addon, mod)
+    assert len(mod) >= 5
+    assert len(merged) >= len(addon)
+    keys = {f"{o.lower()}/{n.lower()}" for o, n in merged}
+    assert "hannesmann/vanillafixes" in keys
+    assert "balakethelock/superwow" in keys
+    print("OK mod catalog repos in tip index builder")
+
+
+def test_mod_remote_identity_uses_tip_index():
+    """Client mod release checks prefer the shared tip index over REST."""
+    from ichalaunch.addons import tip_index as tips
+    from ichalaunch.addons.tip_index import clear_tip_index_cache, normalize_index
+    from ichalaunch.mods.installer import _remote_identity
+
+    index = normalize_index(
+        {
+            "generated_at": "2026-08-23T00:00:00Z",
+            "repos": {
+                "hannesmann/vanillafixes": {
+                    "default_branch": "master",
+                    "sha": "a" * 40,
+                    "branches": {"master": "a" * 40},
+                    "latest_tag": "v9.9.9",
+                }
+            },
+        }
+    )
+    prev = tips._loaded
+    try:
+        tips._loaded = (0.0, index)
+        ident = _remote_identity(
+            {"type": "github_release_latest", "repo": "hannesmann/vanillafixes"}
+        )
+        assert ident is not None
+        assert ident["key"] == "v9.9.9"
+        assert ident["tag"] == "v9.9.9"
+    finally:
+        tips._loaded = prev
+        if prev is None:
+            clear_tip_index_cache()
+    print("OK mod remote identity uses tip index")
+
+
 def test_git_refs_live_optional():
     """Live upload-pack against a public repo — skip if GitHub is unreachable."""
     from ichalaunch.addons.git_refs import fetch_upload_pack_refs, clear_git_refs_cache
@@ -3606,6 +3656,88 @@ def test_options_cog_uses_wow_art():
     print("OK addons settings cog uses UI-OptionsButton art")
 
 
+def test_pass_remove_uses_wow_art():
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.core.paths import theme_file
+    from ichalaunch.ui.widgets.common import PassRemoveButton, _pass_icon_pixmap
+    from ichalaunch.ui.widgets.glue_panel_button import glue_row_square_chrome
+
+    app = QApplication.instance() or QApplication([])
+    assert theme_file("UI-GroupLoot-Pass-Up.PNG").is_file()
+    assert theme_file("UI-GroupLoot-Pass-Down.PNG").is_file()
+    up = _pass_icon_pixmap(pressed=False)
+    down = _pass_icon_pixmap(pressed=True)
+    assert not up.isNull()
+    assert not down.isNull()
+    chrome = glue_row_square_chrome(pressed=False, side=28)
+    assert not chrome.isNull()
+    assert chrome.width() == 28
+    assert chrome.height() == 28
+    btn = PassRemoveButton()
+    assert btn.size().width() == 28
+    assert btn.size().height() == 28
+    print("OK addon remove uses GroupLoot Pass art on square glue chrome")
+
+
+def test_nav_tab_update_alert_badge():
+    """Folder tabs use the bundled Adventure Guide alert when updates are pending."""
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.core.paths import theme_file
+    from ichalaunch.ui.main_window import NavTabButton
+    from ichalaunch.ui.widgets.update_alert_badge import TAB_ALERT_NAME, TAB_ALERT_PX, update_alert_badge_pixmap
+
+    app = QApplication.instance() or QApplication([])
+    assert theme_file(TAB_ALERT_NAME).is_file()
+    btn = NavTabButton("HOME")
+    btn.resize(120, 44)
+    pm = update_alert_badge_pixmap()
+    assert not pm.isNull()
+    assert 0 < pm.width() <= TAB_ALERT_PX
+    assert 0 < pm.height() <= TAB_ALERT_PX
+    btn.set_badge_visible(True)
+    assert btn._badge is True
+    btn.set_badge_visible(True)  # idempotent
+    btn.set_badge_visible(False)
+    assert btn._badge is False
+    print("OK nav tab update alert badge")
+
+
+def test_client_cat_nav_update_alert_badge():
+    """Client category sub-tabs show per-category pending update/apply badges."""
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.pages.client import ClientPage
+    from ichalaunch.ui.widgets.update_alert_badge import TAB_ALERT_NAME, TAB_ALERT_PX, update_alert_badge_pixmap
+    from ichalaunch.core.paths import theme_file
+
+    app = QApplication.instance() or QApplication([])
+    assert theme_file(TAB_ALERT_NAME).is_file()
+    pm = update_alert_badge_pixmap()
+    assert not pm.isNull()
+    assert 0 < pm.width() <= TAB_ALERT_PX
+
+    page = ClientPage()
+    assert page.cat_btns, "expected at least one category button"
+    btn = page.cat_btns[0]
+    btn.set_badge_visible(True)
+    assert btn._badge is True
+    btn.set_badge_visible(False)
+    assert btn._badge is False
+
+    # Pending update routes to the mod's category tab.
+    page._pending_updates = {"vanillafixes": {"id": "vanillafixes", "local": "1", "remote": "2"}}
+    cats = page._categories_with_pending_badge()
+    assert "Performance & Fixes" in cats
+
+    page._pending_updates = {}
+    page._apply_pending = False
+    page._refresh_cat_badges()
+    assert not any(b._badge for b in page.cat_btns)
+    print("OK client category nav update alert badge")
+
+
 def test_chrome_buttons_hug_right_edge():
     from ichalaunch.ui import main_window as mw
 
@@ -3822,6 +3954,8 @@ def _run_smoke_tests():
     test_copied_addon_update_compare()
     test_unauth_scan_budget_queue()
     test_git_refs_and_tip_index()
+    test_mod_catalog_repos_in_tip_index_builder()
+    test_mod_remote_identity_uses_tip_index()
     test_git_refs_live_optional()
     test_github_token_not_sent_to_third_party_readme_hosts()
     test_github_bad_token_retries_without_auth()
@@ -3863,6 +3997,9 @@ def _run_smoke_tests():
     test_loading_bar_reserves_update_button_slot()
     test_launch_buttons_use_glue_panel_chrome()
     test_options_cog_uses_wow_art()
+    test_pass_remove_uses_wow_art()
+    test_nav_tab_update_alert_badge()
+    test_client_cat_nav_update_alert_badge()
     test_chrome_buttons_hug_right_edge()
     test_play_stays_right_when_progress_hidden()
     print("\nAll smoke tests passed.")

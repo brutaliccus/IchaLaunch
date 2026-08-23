@@ -105,9 +105,11 @@ When VanillaFixes is installed and enabled in Settings, the launcher prefers `Va
 
 ### GitHub token & addon scans
 
-**Check for updates** does not need a token. IchaLaunch reads each addon's latest commit from GitHub's git interface (and a shared catalog tip-SHA file when available), which is not the 60-request REST API budget.
+**Check for updates** does not need a token. IchaLaunch reads each addon's latest commit from GitHub's git interface (and a shared catalog tip-SHA file when available), which is not the 60-request REST API budget. Client mod update checks (VanillaFixes, SuperWoW, HD patches, etc.) use the same index for release tags when the mod source is on GitHub.
 
 A token in **SETTINGS → GitHub API** is still optional and unlocks fork/version browsing plus README previews in the install picker. REST is only a fallback if git/Atom fail; that fallback is still paced at 60 requests/hour without a token.
+
+The tip index is rebuilt hourly on GitHub (addons + client mods). Launchers refresh their cached copy about once per hour when checking for updates.
 
 To rebuild the bundled catalog tip index locally: ``python tools/build_addon_tips.py`` (``--limit 20`` for a short test run).
 

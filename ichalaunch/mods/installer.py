@@ -22,6 +22,8 @@ from ichalaunch.addons.github import (
     fetch_repo_readme,
     github_get,
     github_latest_commit,
+    github_latest_version_tag,
+    github_remote_tip,
     parse_github_url,
     rate_limit_exhausted,
 )
@@ -1357,6 +1359,15 @@ def _head_identity(url: str) -> dict[str, str]:
     }
 
 
+def _remote_release_tag(repo: str) -> str | None:
+    """Latest release/git tag via tip index → Atom → git refs → REST."""
+    repo = (repo or "").strip()
+    if "/" not in repo:
+        return None
+    owner, name = repo.split("/", 1)
+    return github_latest_version_tag(owner, name)
+
+
 def _remote_identity(source: dict[str, Any]) -> dict[str, Any] | None:
     """Return comparable remote identity for a mod source, or None if unsupported."""
     if not source:
@@ -1366,9 +1377,9 @@ def _remote_identity(source: dict[str, Any]) -> dict[str, Any] | None:
         repo = source.get("repo")
         if not repo:
             return None
-        r = github_get(f"https://api.github.com/repos/{repo}/releases/latest")
-        data = r.json()
-        tag = data.get("tag_name") or data.get("name") or ""
+        tag = _remote_release_tag(str(repo))
+        if not tag:
+            return None
         return {
             "kind": "release",
             "key": tag,
@@ -1382,17 +1393,18 @@ def _remote_identity(source: dict[str, Any]) -> dict[str, Any] | None:
         pinned = _tag_from_release_url(url)
         if repo:
             try:
-                r = github_get(f"https://api.github.com/repos/{repo}/releases/latest")
-                data = r.json()
-                tag = data.get("tag_name") or data.get("name") or ""
-                return {
-                    "kind": "release",
-                    "key": tag,
-                    "display": tag,
-                    "repo": repo,
-                    "tag": tag,
-                    "pinned": pinned,
-                }
+                tag = _remote_release_tag(repo)
+                if tag:
+                    return {
+                        "kind": "release",
+                        "key": tag,
+                        "display": tag,
+                        "repo": repo,
+                        "tag": tag,
+                        "pinned": pinned,
+                    }
+            except GitHubRateLimitError:
+                raise
             except Exception:
                 pass
         if url:
@@ -1406,7 +1418,7 @@ def _remote_identity(source: dict[str, Any]) -> dict[str, Any] | None:
         if not repo:
             return None
         owner, name = repo.split("/", 1)
-        remote = github_latest_commit(owner, name, branch)
+        remote = github_remote_tip(owner, name, branch)
         sha = remote["sha"]
         return {
             "kind": "commit",
@@ -1432,7 +1444,7 @@ def _remote_identity(source: dict[str, Any]) -> dict[str, Any] | None:
                 else:
                     branch = parts[2]
                 try:
-                    remote = github_latest_commit(owner, name, branch)
+                    remote = github_remote_tip(owner, name, branch)
                     sha = remote["sha"]
                     return {
                         "kind": "commit",
@@ -1625,6 +1637,13 @@ def check_mod_updates(
         if callable(on_count):
             on_count(1, 1, "Checking client mod updates…")
         return ModUpdateCheckResult(updates=updates, checked=checked, skipped=skipped)
+
+    try:
+        from ichalaunch.addons.tip_index import refresh_tip_index
+
+        refresh_tip_index()
+    except Exception as exc:  # noqa: BLE001
+        log.debug("Catalog tip index refresh skipped: %s", exc)
 
     for i, mod in enumerate(to_check):
         mid = mod["id"]

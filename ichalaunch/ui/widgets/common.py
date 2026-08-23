@@ -27,6 +27,7 @@ from ichalaunch.ui.widgets.glue_panel_button import (
     GLUE_ROW_MENU_W,
     GLUE_ROW_W,
     GluePanelButton,
+    glue_row_square_chrome,
 )
 from ichalaunch.ui.widgets.theme_checkbox import ThemeCheckBox
 
@@ -34,6 +35,12 @@ _OPTIONS_COG = "UI-OptionsButton.PNG"
 _OPTIONS_COG_EXTERNAL = Path(r"F:\wow-ui-textures\Buttons") / _OPTIONS_COG
 _OPTIONS_COG_PX = 20
 _OPTIONS_COG_CACHE: QPixmap | None = None
+
+_PASS_UP = "UI-GroupLoot-Pass-Up.PNG"
+_PASS_DOWN = "UI-GroupLoot-Pass-Down.PNG"
+_PASS_EXTERNAL = Path(r"F:\wow-ui-textures\Buttons")
+_PASS_ICON_PX = 18
+_PASS_CACHE: dict[str, QPixmap] = {}
 
 
 def _options_cog_pixmap() -> QPixmap:
@@ -111,6 +118,91 @@ class OptionsCogButton(QPushButton):
         y = rect.center().y() - icon.height() // 2 + (1 if self.isDown() else 0)
         painter.drawPixmap(x, y, icon)
         painter.end()
+
+
+def _pass_icon_pixmap(pressed: bool) -> QPixmap:
+    """Bundled WoW GroupLoot Pass art for the addon-row Remove control."""
+    key = "down" if pressed else "up"
+    hit = _PASS_CACHE.get(key)
+    if hit is not None:
+        return hit
+    name = _PASS_DOWN if pressed else _PASS_UP
+    path = theme_file(name)
+    if not path.is_file():
+        path = _PASS_EXTERNAL / name
+    pm = QPixmap()
+    if path.is_file():
+        src = QPixmap(str(path))
+        if not src.isNull():
+            pm = src.scaled(
+                _PASS_ICON_PX,
+                _PASS_ICON_PX,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+    _PASS_CACHE[key] = pm
+    return pm
+
+
+class PassRemoveButton(QPushButton):
+    """Compact square Remove control: glue-panel chrome + GroupLoot Pass icon."""
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setObjectName("PassRemoveButton")
+        apply_open_hand(self)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.setFixedSize(GLUE_ROW_MENU_W, GLUE_ROW_H)
+        self.setFlat(True)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+        self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+        self.setStyleSheet(
+            "QPushButton#PassRemoveButton {"
+            "  background: transparent;"
+            "  border: none;"
+            "  padding: 0;"
+            "  margin: 0;"
+            "  color: transparent;"
+            "}"
+        )
+        glue_row_square_chrome(pressed=False, side=GLUE_ROW_H)
+        glue_row_square_chrome(pressed=True, side=GLUE_ROW_H)
+
+    def enterEvent(self, event) -> None:  # noqa: N802
+        super().enterEvent(event)
+        self.update()
+
+    def leaveEvent(self, event) -> None:  # noqa: N802
+        super().leaveEvent(event)
+        self.update()
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        del event
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        rect = self.rect()
+        chrome = glue_row_square_chrome(
+            pressed=self.isDown(),
+            disabled=not self.isEnabled(),
+            side=GLUE_ROW_H,
+        )
+        if chrome.isNull():
+            painter.setPen(Qt.GlobalColor.darkGray)
+            painter.setBrush(Qt.GlobalColor.transparent)
+            painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 4, 4)
+        else:
+            painter.drawPixmap(rect, chrome)
+        icon = _pass_icon_pixmap(self.isDown())
+        if icon.isNull():
+            painter.setPen(Qt.GlobalColor.white)
+            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "×")
+        else:
+            x = rect.center().x() - icon.width() // 2
+            y = rect.center().y() - icon.height() // 2 + (1 if self.isDown() else 0)
+            painter.drawPixmap(x, y, icon)
+        painter.end()
+
 
 # Turtle WoW custom-addon badge (splash raven / ichalaunch icon).
 _TURTLE_BADGE_PX = 18
@@ -854,8 +946,11 @@ class AddonRow(QWidget):
                 )
                 btn_ri.clicked.connect(lambda: self.reinstall_clicked.emit(entry))
                 layout.addWidget(btn_ri)
-            btn_r = GluePanelButton("Remove", self, width=GLUE_ROW_W, height=GLUE_ROW_H)
-            btn_r.clicked.connect(lambda: self.remove_clicked.emit(entry.get("folder") or entry.get("name")))
+            btn_r = PassRemoveButton(self)
+            btn_r.setToolTip("Remove this addon")
+            btn_r.clicked.connect(
+                lambda: self.remove_clicked.emit(entry.get("folder") or entry.get("name"))
+            )
             layout.addWidget(btn_r)
             if git_url:
                 btn_set = OptionsCogButton(self)

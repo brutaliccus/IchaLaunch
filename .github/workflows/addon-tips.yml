@@ -1,9 +1,9 @@
-name: Refresh addon tips
+name: Refresh catalog tips
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "20 */6 * * *"
+    - cron: "0 * * * *"
 
 permissions:
   contents: write

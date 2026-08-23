@@ -71,7 +71,6 @@ _NAV_BOTTOM_BANNER_H = 30
 _NAV_BOTTOM_BANNER_MID_Y = _NAV_BOTTOM_BANNER_H // 2
 # Draw strip this many px past each side so end spikes clip off (~20px wider total).
 _NAV_BOTTOM_BANNER_OVERDRAW_X = 12
-_GOLD = QColor("#F1C22D")
 _CORNER_RADIUS_F = float(_CORNER_RADIUS)
 # Main purple frame stroke — same as former QSS rgba(124, 92, 196, 0.45).
 _FRAME_STROKE = QColor(124, 92, 196, 115)
@@ -127,6 +126,7 @@ _CHROME_BTN_INSET_Y = 10
 
 from ichalaunch import __version__
 from ichalaunch.core.paths import theme_file
+from ichalaunch.ui.widgets.update_alert_badge import paint_update_alert_badge
 
 
 def _resolve_theme_texture(bundled_name: str, external: Path) -> Path | None:
@@ -241,7 +241,7 @@ def _format_minutes_since(settings_key: str) -> str:
 
 
 class NavTabButton(QPushButton):
-    """Folder tab — Necrolord floor + optional gold pending-update badge."""
+    """Folder tab — Necrolord floor + optional pending-update alert badge."""
 
     def __init__(self, text: str, parent: QWidget | None = None):
         super().__init__(text, parent)
@@ -293,12 +293,8 @@ class NavTabButton(QPushButton):
         if not self._badge:
             return
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        radius = 4.5
-        center = QPointF(self.width() - radius - 7.0, radius + 5.0)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(_GOLD)
-        painter.drawEllipse(center, radius, radius)
+        paint_update_alert_badge(painter, self.rect())
+        painter.end()
 
 
 class RavenCraftFloatingLogo(QWidget):
@@ -1832,7 +1828,7 @@ class MainWindow(QMainWindow):
         return bool(info and info.update_available)
 
     def _refresh_nav_badges(self) -> None:
-        """Gold dots on folder tabs when that area has pending work."""
+        """Adventure Guide alert on folder tabs when that area has pending work."""
         if len(self.nav_btns) < 4:
             return
         # HOME — launcher self-update (square button left of PLAY)

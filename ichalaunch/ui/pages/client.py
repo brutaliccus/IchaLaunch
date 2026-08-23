@@ -8,7 +8,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QProgressBar,
-    QPushButton,
     QSizePolicy,
     QStackedWidget,
     QVBoxLayout,
@@ -45,6 +44,7 @@ from ichalaunch.ui.widgets.cursors import apply_open_hand
 from ichalaunch.ui.widgets.dialogs import DialogResult, choice, dll_security_exclusion_dialog, github_import_dialog, warning
 from ichalaunch.ui.widgets.glue_panel_button import GluePanelButton
 from ichalaunch.ui.widgets.marble_bg import MarblePanel, MarbleScrollArea
+from ichalaunch.ui.widgets.update_alert_badge import BadgeNavButton
 
 CATEGORY_ORDER = [
     "Performance & Fixes",
@@ -115,7 +115,7 @@ class ClientPage(QWidget):
         # (top item must not square-overflow the panel corner).
         side_l.setContentsMargins(4, 4, 4, 4)
         side_l.setSpacing(2)
-        self.cat_btns: list[QPushButton] = []
+        self.cat_btns: list[BadgeNavButton] = []
         self.cat_stack = QStackedWidget()
         self.cat_stack.setObjectName("ClientCatStack")
         self.cat_stack.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -216,7 +216,7 @@ class ClientPage(QWidget):
         self._reveal_rows(kick=False)
 
     def _add_category_page(self, cat: str, mods: list[dict], index: int) -> None:
-        btn = QPushButton(cat)
+        btn = BadgeNavButton(cat)
         btn.setObjectName("CatNavButton")
         btn.setCheckable(True)
         apply_open_hand(btn)
@@ -401,6 +401,37 @@ class ClientPage(QWidget):
         """True when CLIENT tab should show a gold update/apply badge."""
         return bool(self._pending_updates) or bool(self._apply_pending)
 
+    def _mod_category(self, mod_id: str) -> str:
+        meta = self._row_meta.get(mod_id) or {}
+        cat = str(meta.get("category") or "").strip()
+        if cat:
+            return cat
+        mod = get_mod(mod_id) or {}
+        if mod.get("user_defined"):
+            return "Custom"
+        return str(mod.get("category") or "Client Enhancements")
+
+    def _categories_with_pending_badge(self) -> set[str]:
+        """Categories that should show the update alert on the left nav."""
+        cats: set[str] = set()
+        for mid in self._pending_updates:
+            cats.add(self._mod_category(mid))
+        if self._apply_pending:
+            for ch in plan_changes():
+                action = ch.get("action")
+                if action in ("error", ""):
+                    continue
+                mid = str(ch.get("id") or "").strip()
+                if mid:
+                    cats.add(self._mod_category(mid))
+        return cats
+
+    def _refresh_cat_badges(self) -> None:
+        pending_cats = self._categories_with_pending_badge()
+        for cat, idx in self._cat_index.items():
+            if 0 <= idx < len(self.cat_btns):
+                self.cat_btns[idx].set_badge_visible(cat in pending_cats)
+
     def set_checking(self, busy: bool, msg: str = "Checking for updates…") -> None:
         # Progress lives on the bottom bar; keep only the Check Updates button gated.
         self.loading_lbl.setText("")
@@ -418,6 +449,7 @@ class ClientPage(QWidget):
             self.updates_lbl.setText("")
         self.update_all_btn.setEnabled(n > 0)
         self.refresh_from_settings()
+        self._refresh_cat_badges()
         self.badge_state_changed.emit()
 
     def reset_scan_done(self) -> None:
@@ -433,6 +465,7 @@ class ClientPage(QWidget):
             self.updates_lbl.setText("")
         self.update_all_btn.setEnabled(n > 0)
         self.refresh_from_settings()
+        self._refresh_cat_badges()
         self.badge_state_changed.emit()
 
     def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
@@ -612,6 +645,7 @@ class ClientPage(QWidget):
         if vanillafixes_dxvk_both_enabled():
             QTimer.singleShot(0, self._maybe_prompt_vf_dxvk_conflict)
         QTimer.singleShot(0, self._maybe_superwow_client_drift)
+        self._refresh_cat_badges()
 
     @staticmethod
     def _set_status_style(lbl: QLabel, object_name: str) -> None:
@@ -652,6 +686,7 @@ class ClientPage(QWidget):
             self.apply_btn.setEnabled(False)
             self.apply_btn.setToolTip("No pending client mod changes")
         if changed:
+            self._refresh_cat_badges()
             self.badge_state_changed.emit()
 
     def refresh_plan(self) -> None:
