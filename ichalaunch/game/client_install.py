@@ -89,8 +89,44 @@ def bundled_realmlist() -> Path:
     return data_file("realmlist.wtf")
 
 
+def _preserve_existing_realmlist(dest: Path, payload: bytes) -> bool:
+    """Keep an existing realmlist.wtf as .bak / .bak2 / .bak3 before replacing it.
+
+    A hand-edited realmlist is the user's own work and used to be destroyed
+    without warning. A numbered copy beside the original costs a few bytes and
+    leaves the old contents somewhere they can be found.
+
+    Returns True when the caller may go ahead and write.
+    """
+    try:
+        if not dest.is_file():
+            return True
+        if dest.read_bytes() == payload:
+            # Already what we would write -- do not manufacture a backup of it.
+            return False
+    except OSError as exc:
+        log.warning("Could not read %s: %s", dest, exc)
+        return False
+
+    for n in range(1, 100):
+        spare = dest.with_suffix(".bak" if n == 1 else f".bak{n}")
+        if spare.exists():
+            continue
+        try:
+            shutil.copy2(dest, spare)
+        except OSError as exc:
+            # Never trade the user's realmlist for a failed backup.
+            log.warning("Could not preserve %s (%s); leaving it alone", dest, exc)
+            return False
+        log.info("Preserved existing realmlist -> %s", spare)
+        return True
+
+    log.warning("Too many realmlist backups beside %s; leaving it alone", dest)
+    return False
+
+
 def apply_bundled_realmlist(game_root: Path) -> None:
-    """Overwrite realmlist.wtf in the game home (and any copies in the tree)."""
+    """Write the bundled realmlist.wtf, keeping any existing one as .bak."""
     src = bundled_realmlist()
     if not src.is_file():
         log.warning("Bundled realmlist.wtf missing at %s", src)
@@ -98,12 +134,16 @@ def apply_bundled_realmlist(game_root: Path) -> None:
     payload = src.read_bytes()
     targets = {game_root / "realmlist.wtf"}
     try:
-        for found in game_root.rglob("realmlist.wtf"):
-            if found.is_file():
+        # Matched case-insensitively: clients ship both realmlist.wtf and
+        # RealmList.wtf, and only Windows treats those as the same file.
+        for found in game_root.rglob("*.wtf"):
+            if found.name.lower() == "realmlist.wtf" and found.is_file():
                 targets.add(found)
     except OSError:
         pass
     for dest in targets:
+        if not _preserve_existing_realmlist(dest, payload):
+            continue
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(payload)
         log.info("Wrote realmlist.wtf -> %s", dest)
