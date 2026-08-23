@@ -28,6 +28,7 @@ from ichalaunch.addons.github import (
 from ichalaunch.config.settings import settings
 from ichalaunch.core.backup import create_backup
 from ichalaunch.core.filesystem import (
+    PermissionScanResult,
     copy_file_tolerant,
     copy_tree,
     ensure_data_writable,
@@ -37,15 +38,16 @@ from ichalaunch.core.filesystem import (
     is_lock_or_av_error,
     listed_basenames,
     name_present,
-    PermissionScanResult,
     read_dlls_txt,
-    scan_game_permissions,
     remove_path_strict,
+    resolve_ci,
     safe_remove,
     sanitize_filename,
+    scan_game_permissions,
     update_dlls_txt,
 )
 from ichalaunch.core.logging_setup import log
+from ichalaunch.game.launcher import wow_exe_in
 from ichalaunch.core.process import download_bytes, download_bytes_cb, download_file, google_drive_url, status_only
 from ichalaunch.game.launcher import (
     detect_game,
@@ -1714,7 +1716,11 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
         create_backup(
             game,
             f"before_{mod_id}",
-            [game / "WoW.exe", game / "dlls.txt", game / "VanillaFixes.exe"],
+            [
+                wow_exe_in(game) or (game / "WoW.exe"),
+                game / "dlls.txt",
+                game / "VanillaFixes.exe",
+            ],
         )
     except OSError as exc:
         log.warning("Pre-install backup for %s skipped: %s", mod_id, exc)
@@ -1764,13 +1770,15 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
             )
             if not vt:
                 raise FileNotFoundError("vanilla-tweaks.exe not found in archive")
-            wow = game / "WoW.exe"
+            wow = wow_exe_in(game) or (game / "WoW.exe")
             if not (game / "WoW-OriginalBackup.exe").exists():
                 _install_copy(wow, game / "WoW-OriginalBackup.exe", game_path=game)
             # Run patcher; creates WoW_tweaked.exe next to WoW.exe
             status_only(progress, "Patching WoW.exe with Vanilla Tweaks...")
             subprocess.run([str(vt), str(wow)], cwd=str(game), check=True)
-            tweaked = game / "WoW_tweaked.exe"
+            tweaked = game / f"{wow.stem}_tweaked.exe"
+            if not tweaked.exists() and wow.stem != "WoW":
+                tweaked = game / "WoW_tweaked.exe"
             if tweaked.exists():
                 wow.unlink(missing_ok=True)
                 tweaked.rename(wow)
@@ -1902,7 +1910,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 if f.is_file():
                     _install_copy(f, dest / f.name, game_path=game)
             # apply glue signature skip patch (vanilla 1.12.1)
-            wow = game / "WoW.exe"
+            wow = wow_exe_in(game) or (game / "WoW.exe")
             if wow.exists():
                 if not (game / "WoW-OriginalBackup.exe").exists():
                     _install_copy(wow, game / "WoW-OriginalBackup.exe", game_path=game)
@@ -2039,7 +2047,7 @@ def remove_mod(mod_id: str, progress: ProgressCb | None = None) -> None:
     if kind == "exe_patch":
         backup = game / "WoW-OriginalBackup.exe"
         if backup.exists():
-            _install_copy(backup, game / "WoW.exe", game_path=game)
+            _install_copy(backup, wow_exe_in(game) or (game / "WoW.exe"), game_path=game)
         return
 
     if kind == "mpq_file":
@@ -2208,7 +2216,15 @@ def _ensure_enabled_data_writable(game: Path) -> tuple[list[str], list[str]]:
             continue
         for rel in _mod_owned_paths(mod):
             if rel.startswith("data/"):
-                check_path(game / rel)
+                # _mod_owned_paths lowercases for comparison, so `rel` is a
+                # COMPARISON key and not a real filename. On Windows the two are
+                # interchangeable; on Linux "data/patch-a.mpq" does not name the
+                # file stored as "Data/patch-A.mpq", check_path's is_file() guard
+                # returned early, and the read-only bit was never cleared -- with
+                # no warning either, because the warning also sits past the guard.
+                resolved = resolve_ci(game, rel)
+                if resolved is not None:
+                    check_path(resolved)
         if mod.get("kind") == "glue_autologin":
             glue = game / "Data" / "Interface" / "GlueXML"
             for name in ("AutoLogin.lua", "AutoLogin.xml"):

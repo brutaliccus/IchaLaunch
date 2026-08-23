@@ -27,6 +27,7 @@ from ichalaunch.core.paths import data_file
 from ichalaunch.core.process import download_bytes_cb, download_file, status_only, zip_url_from_html
 from ichalaunch.game.launcher import (
     CLIENT_ZIP_MIRRORS,
+    has_wow_exe,
     GAME_DOWNLOAD_URL,
     GOFILE_EXPECTED_SIZE,
     GOFILE_FILE_ID,
@@ -121,10 +122,10 @@ def wow_exe_here(picked: Path) -> Path | None:
     """
     picked = Path(picked)
     try:
-        if (picked / "WoW.exe").is_file():
+        if has_wow_exe(picked):
             return picked
         home = ravencraft_home_for(picked)
-        if home != picked and (home / "WoW.exe").is_file():
+        if home != picked and has_wow_exe(home):
             return home
     except OSError:
         return None
@@ -1122,7 +1123,7 @@ def _extract_client(
     target.mkdir(parents=True, exist_ok=True)
     extract_zip(zip_path, target, progress=progress)
     unwrap_to_ravencraft(target)
-    game = target if (target / "WoW.exe").is_file() else find_wow_exe_dir(target)
+    game = target if has_wow_exe(target) else find_wow_exe_dir(target)
     if game is None:
         raise RuntimeError(
             f"WoW.exe was not found after extracting into {target}. "
@@ -1130,7 +1131,7 @@ def _extract_client(
         )
     if game.resolve() != target.resolve():
         settle_ravencraft_home(dest, game)
-        game = target if (target / "WoW.exe").is_file() else find_wow_exe_dir(target)
+        game = target if has_wow_exe(target) else find_wow_exe_dir(target)
         if game is None:
             raise RuntimeError(
                 f"WoW.exe was not found after extracting into {target}. "
@@ -1141,8 +1142,8 @@ def _extract_client(
         set_status("Writing realmlist.wtf…")
     elif progress:
         progress("Writing realmlist.wtf…")
-    apply_bundled_realmlist(target if (target / "WoW.exe").is_file() else game)
-    home = target if (target / "WoW.exe").is_file() else game
+    apply_bundled_realmlist(target if has_wow_exe(target) else game)
+    home = target if has_wow_exe(target) else game
     commit_game_home(home)
     _log_post_install_permissions(home)
     cleanup_client_zip(dest, zip_path, watch_dirs=watch_dirs)

@@ -8,7 +8,12 @@ from pathlib import Path
 from typing import Any
 
 from ichalaunch.config.settings import settings
-from ichalaunch.core.filesystem import is_protected_path, listed_basenames, name_present
+from ichalaunch.core.filesystem import (
+    is_protected_path,
+    listed_basenames,
+    name_present,
+    resolve_ci,
+)
 from ichalaunch.core.logging_setup import log
 from ichalaunch.core.process import launch_exe
 
@@ -35,16 +40,39 @@ GAME_DOWNLOAD_NOTE = (
 )
 
 
+CLIENT_EXE_NAME = "WoW.exe"
+# Case-insensitive glob for the same name: one rglob pass, no slower than the
+# literal it replaces.
+_CLIENT_EXE_GLOB = "[Ww][Oo][Ww].[Ee][Xx][Ee]"
+_VF_EXE_NAME = "VanillaFixes.exe"
+_VF_EXE_GLOB = "[Vv][Aa][Nn][Ii][Ll][Ll][Aa][Ff][Ii][Xx][Ee][Ss].[Ee][Xx][Ee]"
+
+
+def wow_exe_in(directory: Path | str) -> Path | None:
+    """The client executable inside *directory*, whatever its case.
+
+    Clients ship this as both ``WoW.exe`` (1.12-era) and ``Wow.exe`` (3.3.5-era).
+    On Windows either spelling resolves to the same file; on Linux they are
+    different files, so a literal check makes half of them invisible.
+    """
+    found = resolve_ci(Path(directory), CLIENT_EXE_NAME)
+    return found if found is not None and found.is_file() else None
+
+
+def has_wow_exe(directory: Path | str) -> bool:
+    return wow_exe_in(directory) is not None
+
+
 def detect_game(path: str | Path | None = None) -> Path | None:
     """Return the folder that contains WoW.exe (game root or ``…/RavenCraft``)."""
     p = Path(path or settings.game_path or "")
     if not p or not str(p):
         return None
     try:
-        if (p / "WoW.exe").is_file():
+        if has_wow_exe(p):
             return p
         nested = p / _GAME_HOME_SUBDIR
-        if nested != p and (nested / "WoW.exe").is_file():
+        if nested != p and has_wow_exe(nested):
             return nested
     except OSError:
         return None
@@ -55,10 +83,12 @@ def resolve_vanilla_fixes_exe(game_path: Path) -> Path | None:
     """Return VanillaFixes.exe under *game_path* (root or one nested folder)."""
     game_path = Path(game_path)
     listing = listed_basenames(game_path)
-    if name_present(game_path, "VanillaFixes.exe", listing):
-        return game_path / "VanillaFixes.exe"
+    if name_present(game_path, _VF_EXE_NAME, listing):
+        # name_present matches case-insensitively, so ask the disk which
+        # spelling it actually holds rather than assuming this one.
+        return resolve_ci(game_path, _VF_EXE_NAME) or (game_path / _VF_EXE_NAME)
     try:
-        for vf in game_path.rglob("VanillaFixes.exe"):
+        for vf in game_path.rglob(_VF_EXE_GLOB):
             if vf.is_file():
                 return vf
     except OSError:
@@ -126,7 +156,7 @@ def discover_game_path_near_launcher() -> Path | None:
         if resolved in seen:
             continue
         seen.add(resolved)
-        if (resolved / "WoW.exe").is_file():
+        if has_wow_exe(resolved):
             return resolved
     return None
 
@@ -204,7 +234,9 @@ def vf_disk_hint_line(game_path: Path) -> str:
 
 def resolve_launch_exe(game_path: Path) -> Path:
     use_vf = bool(settings.get("vanillafixes_enabled", True))
-    wow = game_path / "WoW.exe"
+    # Fall back to the literal name so the caller still gets a path to report
+    # in its "missing" error rather than None.
+    wow = wow_exe_in(game_path) or (game_path / CLIENT_EXE_NAME)
     vf = resolve_vanilla_fixes_exe(game_path)
     if use_vf and vf is not None:
         return vf
@@ -294,17 +326,17 @@ def find_wow_exe_dir(root: Path) -> Path | None:
         base = root
     if not base.exists():
         return None
-    if (base / "WoW.exe").is_file():
+    if has_wow_exe(base):
         return base
     try:
         children = [c for c in base.iterdir() if c.name not in (".ichalaunch",)]
     except OSError:
         return None
     dirs = [c for c in children if c.is_dir()]
-    if len(dirs) == 1 and (dirs[0] / "WoW.exe").is_file():
+    if len(dirs) == 1 and has_wow_exe(dirs[0]):
         return dirs[0]
     try:
-        for wow in base.rglob("WoW.exe"):
+        for wow in base.rglob(_CLIENT_EXE_GLOB):
             if wow.is_file():
                 return wow.parent
     except OSError:

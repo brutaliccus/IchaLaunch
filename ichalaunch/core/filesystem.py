@@ -205,6 +205,52 @@ def extract_zip(
     return dest
 
 
+def resolve_ci(base: Path, rel: str | Path) -> Path | None:
+    """Resolve *rel* under *base*, falling back to a case-insensitive match.
+
+    Windows and macOS resolve paths case-insensitively, so code written there
+    can name ``Data/patch-A.MPQ`` and reach a file stored as ``DATA/patch-a.mpq``.
+    On Linux that lookup simply misses, and callers that read the miss as "not
+    present" silently skip their work. The exact path is tried first, so this
+    costs nothing whenever the case already agrees -- which is always, on the
+    platforms that do not need it.
+
+    Returns None when no component matches, in any case.
+    """
+    exact = base / rel
+    if exact.exists():
+        return exact
+    parts = [part for part in Path(rel).parts if part not in ("", ".")]
+    return _resolve_ci_parts(base, parts)
+
+
+def _resolve_ci_parts(current: Path, parts: list[str]) -> Path | None:
+    """Walk *parts* under *current*, trying every casing that could match.
+
+    Taking the first folded match per component and committing to it is not
+    enough: a tree holding both Data/ and data/ can keep the wanted file in
+    either, so a component that matches must still be abandoned when the rest
+    of the path is not under it. Exact case is tried first at every level, so
+    a directory that matches outright is never passed over for one that
+    merely folds to the same name.
+    """
+    if not parts:
+        return current
+    head, rest = parts[0], parts[1:]
+    try:
+        entries = sorted(current.iterdir(), key=lambda c: c.name)
+    except OSError:
+        return None
+    folded = head.lower()
+    candidates = [c for c in entries if c.name == head]
+    candidates += [c for c in entries if c.name != head and c.name.lower() == folded]
+    for candidate in candidates:
+        found = _resolve_ci_parts(candidate, rest)
+        if found is not None:
+            return found
+    return None
+
+
 def ensure_writable(path: Path | str) -> None:
     """Clear the Windows read-only bit so overwrites can succeed."""
     try:
@@ -217,11 +263,15 @@ def ensure_writable(path: Path | str) -> None:
 
 
 def _is_under_data(path: Path, game_path: Path) -> bool:
+    # Compared a component at a time rather than against a literal "Data",
+    # because the path being tested has usually come back from resolve_ci and
+    # so carries the casing the disk actually uses -- data/, DATA/ and Data/
+    # all name the game's own folder.
     try:
-        path.resolve().relative_to((game_path / "Data").resolve())
-        return True
+        rel = Path(path).resolve().relative_to(Path(game_path).resolve())
     except ValueError:
         return False
+    return bool(rel.parts) and rel.parts[0].lower() == "data"
 
 
 def ensure_data_writable(path: Path | str, game_path: Path | str) -> None:

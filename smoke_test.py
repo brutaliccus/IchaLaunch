@@ -3087,6 +3087,39 @@ def test_themed_dialog_flags_and_close():
     close_open_themed_dialogs(root)
     assert not dlg.isVisible()
     print("OK themed dialog flags and close")
+def test_client_exe_probe_is_case_insensitive():
+    """3.3.5-era clients ship "Wow.exe"; 1.12-era ship "WoW.exe".
+
+    On Windows both spellings reach the same file, so a literal check passed
+    there and made half the clients invisible on Linux.
+    """
+    from ichalaunch.core.filesystem import resolve_ci
+    from ichalaunch.game.launcher import has_wow_exe, wow_exe_in
+
+    for spelling in ("WoW.exe", "Wow.exe", "WOW.EXE"):
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / spelling).write_bytes(b"MZ")
+            assert has_wow_exe(game), f"{spelling} not found"
+            assert wow_exe_in(game).name == spelling
+
+    with tempfile.TemporaryDirectory() as td:
+        game = Path(td)
+        (game / "NotAGame.exe").write_bytes(b"MZ")
+        assert not has_wow_exe(game)
+        assert wow_exe_in(game) is None
+
+    # resolve_ci: exact hit, case-corrected hit, and a genuine miss.
+    with tempfile.TemporaryDirectory() as td:
+        base = Path(td)
+        (base / "Data").mkdir()
+        (base / "Data" / "patch-A.mpq").write_bytes(b"mpq")
+        assert resolve_ci(base, "Data/patch-A.mpq") is not None
+        found = resolve_ci(base, "data/patch-a.mpq")
+        assert found is not None and found.name == "patch-A.mpq"
+        assert resolve_ci(base, "data/absent.mpq") is None
+
+    print("OK client exe probe is case-insensitive")
 
 
 def main():
@@ -3159,6 +3192,7 @@ def _run_smoke_tests():
     test_vanillafixes_preserves_dlls_txt()
     test_apply_desired_state_restores_dlls_txt()
     test_prepare_for_launch_syncs_dlls_txt()
+    test_client_exe_probe_is_case_insensitive()
     test_prepare_for_launch_clears_data_readonly()
     test_plan_missing_installs_dxvk()
     test_play_prep_plans_remove()
