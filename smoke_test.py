@@ -62,6 +62,7 @@ def test_dlls_txt():
     from ichalaunch.core.filesystem import (
         clear_fs_caches,
         is_lock_or_av_error,
+        mirror_dlls_txt_updates,
         name_present,
         parse_dlls_txt_text,
         sha256_file,
@@ -140,6 +141,27 @@ def test_dlls_txt():
         finally:
             Path.read_text = original_read  # type: ignore[method-assign]
         assert (game / "dlls.txt").read_text(encoding="utf-8") == "keepme.dll\n"
+
+        # Mirror updates into .ichalaunch/dlls.txt when that copy exists
+        meta = game / ".ichalaunch"
+        meta.mkdir(exist_ok=True)
+        (meta / "dlls.txt").write_text("old.dll\n", encoding="utf-8")
+        mirror_dlls_txt_updates(game, add=["new.dll"], remove=["old.dll"])
+        assert "new.dll" in (meta / "dlls.txt").read_text(encoding="utf-8")
+        assert "old.dll" not in read_dlls_txt(game)
+
+        from ichalaunch.core.filesystem import validate_pe_binary
+
+        good = game / "good.dll"
+        good.write_bytes(b"MZ" + b"\0" * 2048)
+        validate_pe_binary(good, min_size=1024)
+        bad = game / "bad.dll"
+        bad.write_bytes(b"xx")
+        try:
+            validate_pe_binary(bad)
+            raise AssertionError("expected validate_pe_binary to fail")
+        except OSError:
+            pass
     print("OK dlls.txt")
 
 
@@ -3066,9 +3088,62 @@ def test_launcher_release_cache():
     print("OK launcher release cache")
 
 
+def test_dll_injection_mod_detection():
+    from ichalaunch.mods.client_mod_hints import is_dll_injection_mod
+
+    assert is_dll_injection_mod({"kind": "dll_file", "dlls_txt": {"add": ["x.dll"]}})
+    assert is_dll_injection_mod({"kind": "dll_bundle"})
+    assert is_dll_injection_mod({"kind": "dxvk_cursor"})
+    assert is_dll_injection_mod({"kind": "mpq_file", "dlls_txt": {"add": ["hook.dll"]}})
+    assert not is_dll_injection_mod({"kind": "mpq_file"})
+    assert not is_dll_injection_mod({"kind": "exe_patch"})
+    assert not is_dll_injection_mod(None)
+    print("OK dll injection mod detection")
+
+
+def test_superwow_issue_detection():
+    import tempfile
+
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.superwow_support import detect_superwow_issues
+
+    keys = ("desired_mods", "game_path", "addons_path")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            addons = game / "Interface" / "AddOns"
+            addons.mkdir(parents=True)
+            (addons / "SuperAPI").mkdir()
+            (game / "SuperWoWhook.dll").write_bytes(b"MZ" + b"\0" * 64)
+            (game / "dlls.txt").write_text("SuperWoWhook.dll\n", encoding="utf-8")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("desired_mods", {"superwow": False})
+            clear_fs_caches()
+            issues = detect_superwow_issues(game)
+            codes = {i.code for i in issues}
+            assert "stale_hook" in codes
+            assert "stale_superapi" in codes
+            assert "stale_dlls_txt" in codes
+
+            s.set("desired_mods", {"superwow": True})
+            (game / "SuperWoWhook.dll").write_bytes(b"xx")
+            clear_fs_caches()
+            issues = detect_superwow_issues(game)
+            assert any(i.code == "corrupt_hook" for i in issues)
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK superwow issue detection")
+
+
 def test_themed_dialog_flags_and_close():
     from PySide6.QtCore import Qt
-    from PySide6.QtWidgets import QApplication, QDialog, QWidget
+    from PySide6.QtWidgets import QApplication, QWidget
 
     from ichalaunch.ui.widgets.dialogs import (
         ThemedDialog,
@@ -3171,6 +3246,8 @@ def _run_smoke_tests():
     test_game_permissions_scan_and_fix()
     test_game_permissions_protected_path()
     test_launcher_release_cache()
+    test_dll_injection_mod_detection()
+    test_superwow_issue_detection()
     test_themed_dialog_flags_and_close()
     print("\nAll smoke tests passed.")
 

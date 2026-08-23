@@ -208,6 +208,7 @@ from ichalaunch.mods.installer import (
     update_mod,
     update_mods,
 )
+from ichalaunch.mods.superwow_support import maybe_show_superwow_after_mod_failures
 from ichalaunch.ui.pages.addons import AddonsPage
 from ichalaunch.ui.pages.client import ClientPage
 from ichalaunch.ui.pages.home import HomePage
@@ -2274,6 +2275,7 @@ class MainWindow(QMainWindow):
                         "These client mod changes could not be applied:\n\n"
                         + "\n\n".join(failures),
                     )
+                    maybe_show_superwow_after_mod_failures(self, failures, "sync")
                     return
                 installed = [ln[2:] for ln in (done or []) if ln.startswith("+ ")]
                 removed = [ln[2:] for ln in (done or []) if ln.startswith("- ")]
@@ -2690,6 +2692,7 @@ class MainWindow(QMainWindow):
                     "Some mod changes failed",
                     "These changes could not be applied:\n\n" + "\n\n".join(failures),
                 )
+                maybe_show_superwow_after_mod_failures(self, failures, "sync")
 
         worker = Worker(apply_desired_state)
         self._busy("Applying client mods…", worker, on_ok=on_ok)
@@ -3077,7 +3080,12 @@ class MainWindow(QMainWindow):
             self.client.clear_pending_update(mod_id)
             self.status_lbl.setText(f"Reinstalled {mod_id}")
 
+        def on_fail(msg: str) -> None:
+            if mod_id == "superwow":
+                maybe_show_superwow_after_mod_failures(self, [msg], "install")
+
         worker = Worker(update_mod, mod_id)
+        worker.failed.connect(on_fail)
         self._busy(f"Reinstalling {mod_id}…", worker, on_ok=on_ok)
 
     def _open_mod_git(self, mod_id: str) -> None:

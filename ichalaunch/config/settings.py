@@ -93,6 +93,8 @@ DEFAULTS: dict[str, Any] = {
     "user_mods": [],
     "user_set_mods": [],
     "window_geometry": None,
+    "dismissed_dll_security_exclusion_hint": False,
+    "dll_security_exclusion_hint_shown": False,
 }
 
 

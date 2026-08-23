@@ -683,6 +683,40 @@ def read_dlls_txt(game_path: Path) -> list[str]:
     return names
 
 
+def validate_pe_binary(path: Path, *, min_size: int = 1024) -> None:
+    """Reject truncated or non-PE downloads before they land in the game folder."""
+    p = Path(path)
+    try:
+        size = p.stat().st_size
+    except OSError as exc:
+        raise OSError(
+            getattr(exc, "errno", None) or 13,
+            f"Could not verify {p.name}: {exc}",
+            str(p),
+        ) from exc
+    if size < min_size:
+        raise OSError(
+            22,
+            f"{p.name} looks truncated ({size} bytes; expected at least {min_size})",
+            str(p),
+        )
+    try:
+        with p.open("rb") as f:
+            magic = f.read(2)
+    except OSError as exc:
+        raise OSError(
+            getattr(exc, "errno", None) or 13,
+            f"Could not read {p.name} for verification: {exc}",
+            str(p),
+        ) from exc
+    if magic != b"MZ":
+        raise OSError(
+            22,
+            f"{p.name} is not a valid Windows PE file (missing MZ header)",
+            str(p),
+        )
+
+
 def write_dlls_txt(game_path: Path, dlls: list[str]) -> None:
     path = Path(game_path) / "dlls.txt"
     content = "# Managed by IchaLaunch\n" + "\n".join(dlls) + "\n"
@@ -692,9 +726,15 @@ def write_dlls_txt(game_path: Path, dlls: list[str]) -> None:
         _log.warning("Could not write %s: %s", path, exc)
 
 
-def update_dlls_txt(game_path: Path, add: list[str] | None = None, remove: list[str] | None = None) -> None:
+def update_dlls_txt(
+    game_path: Path,
+    add: list[str] | None = None,
+    remove: list[str] | None = None,
+    *,
+    dlls_path: Path | None = None,
+) -> None:
     """Add/remove active entries while preserving comments and blank lines."""
-    path = Path(game_path) / "dlls.txt"
+    path = dlls_path if dlls_path is not None else Path(game_path) / "dlls.txt"
     had_file = path.is_file()
     read_ok = False
     raw_lines: list[str] = []
@@ -739,6 +779,20 @@ def update_dlls_txt(game_path: Path, add: list[str] | None = None, remove: list[
         path.write_text("\n".join(kept).rstrip() + "\n", encoding="utf-8")
     except OSError as exc:
         _log.warning("Could not write %s: %s", path, exc)
+
+
+def mirror_dlls_txt_updates(
+    game_path: Path,
+    add: list[str] | None = None,
+    remove: list[str] | None = None,
+) -> None:
+    """Apply the same dlls.txt add/remove to ``.ichalaunch/dlls.txt`` when present."""
+    mirror = Path(game_path) / ".ichalaunch" / "dlls.txt"
+    if not mirror.is_file():
+        return
+    if not (add or remove):
+        return
+    update_dlls_txt(game_path, add=add, remove=remove, dlls_path=mirror)
 
 
 # --- Game folder permissions (Windows) ---------------------------------------

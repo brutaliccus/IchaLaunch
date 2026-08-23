@@ -7,10 +7,12 @@ from enum import Enum, auto
 from PySide6.QtCore import Qt, QThread, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
+    QCheckBox,
     QDialog,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QScrollArea,
     QTextBrowser,
     QVBoxLayout,
     QWidget,
@@ -193,6 +195,91 @@ class ThemedDialog(QDialog):
     @property
     def result_value(self) -> DialogResult:
         return self._result
+
+
+class DllSecurityExclusionDialog(QDialog):
+    """First-time hint: add the WoW folder to Windows Security exclusions before DLL mods."""
+
+    def __init__(self, parent: QWidget | None, title: str, text: str) -> None:
+        super().__init__(parent)
+        self.setObjectName("ThemedDialog")
+        self.setWindowFlags(_themed_dialog_flags())
+        self.setModal(True)
+        self.setMinimumSize(480, 360)
+        self.resize(560, 420)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+
+        card = QWidget()
+        card.setObjectName("ThemedDialogCard")
+        body = QVBoxLayout(card)
+        body.setContentsMargins(22, 18, 22, 18)
+        body.setSpacing(12)
+
+        title_lbl = QLabel(title)
+        title_lbl.setObjectName("ThemedDialogTitle")
+        title_lbl.setWordWrap(True)
+        body.addWidget(title_lbl)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll_content = QWidget()
+        scroll_content.setObjectName("ThemedDialogScrollBody")
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(0, 0, 4, 0)
+        msg = QLabel(text)
+        msg.setObjectName("ThemedDialogBody")
+        msg.setWordWrap(True)
+        msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        scroll_layout.addWidget(msg)
+        scroll.setWidget(scroll_content)
+        body.addWidget(scroll, 1)
+
+        self._dont_show = QCheckBox("Don't show this again")
+        self._dont_show.setObjectName("ThemedDialogCheckbox")
+        body.addWidget(self._dont_show)
+
+        row = QHBoxLayout()
+        row.setSpacing(10)
+        row.addStretch(1)
+        ok_btn = _dialog_glue_button("OK", card, primary=True)
+        ok_btn.clicked.connect(self.accept)
+        row.addWidget(ok_btn)
+        body.addLayout(row)
+
+        root.addWidget(card)
+        self.setStyleSheet(
+            "QDialog#ThemedDialog { background: transparent; }"
+            "QWidget#ThemedDialogCard {"
+            "  background-color: #100d0c;"
+            "  border: 1px solid rgba(150, 131, 158, 0.22);"
+            "  border-top: 3px solid #F1C22D;"
+            "  border-radius: 10px;"
+            "}"
+        )
+
+    def dismissed_permanently(self) -> bool:
+        return self._dont_show.isChecked()
+
+
+def dll_security_exclusion_dialog(
+    parent: QWidget | None,
+    game_folder: str,
+) -> bool:
+    """Blocking hint before first DLL-mod enable. Returns True if user checked Don't show again."""
+    from ichalaunch.mods.client_mod_hints import dll_security_exclusion_message
+
+    dlg = DllSecurityExclusionDialog(
+        parent,
+        "Add game folder to Windows Security",
+        dll_security_exclusion_message(game_folder),
+    )
+    if dlg.exec() != QDialog.DialogCode.Accepted:
+        return False
+    return dlg.dismissed_permanently()
 
 
 class _PreviewFetchThread(QThread):

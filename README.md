@@ -5,11 +5,19 @@
 
 > **Fresh install:** Use the launcher's **INSTALL** flow for a clean RavenCraft setup. Do **not** point IchaLaunch at an old TurtleWoW or Capybara client — start fresh for the best results.
 
-**IchaLaunch v1.1.0** installs **[RavenCraft](https://ravencraft.io/)** (Turtle WoW–compatible 1.18), manages addons and client mods, and launches the game.
+**IchaLaunch v1.1.1** installs **[RavenCraft](https://ravencraft.io/)** (Turtle WoW–compatible 1.18), manages addons and client mods, and launches the game.
 
 Download **`IchaLaunch.exe`** from **[Releases](https://github.com/brutaliccus/IchaLaunch/releases/latest)**.
 
 A frameless RavenCraft-themed window: **HOME**, **ADDONS**, **CLIENT**, **SETTINGS**, and a **PLAY** bar.
+
+---
+
+## What's new in v1.1.1
+
+- **SuperWoW troubleshooting** — detects broken or leftover SuperWoW installs (corrupt `SuperWoWhook.dll`, stale SuperAPI addon, `dlls.txt` drift) and shows a guided fix dialog after failed install/remove/sync or when you open **CLIENT** with drift on disk.
+- **SuperWoW install hardening** — PE verification after DLL install, automatic rollback from `.ichalaunch/backups/` on failure, mirrored `.ichalaunch/dlls.txt` cleanup, stricter addon removal errors.
+- **DLL mod security hint** — first time you enable a DLL-injecting client mod (SuperWoW, Nampower, VanillaHelpers, etc.), a scrollable dialog explains how to add your game folder to Windows Security exclusions (optional “Don’t show again”).
 
 ---
 
@@ -32,7 +40,7 @@ A frameless RavenCraft-themed window: **HOME**, **ADDONS**, **CLIENT**, **SETTIN
 ## Get the launcher
 
 1. Open the latest release: [github.com/brutaliccus/IchaLaunch/releases/latest](https://github.com/brutaliccus/IchaLaunch/releases/latest)
-2. Download **`IchaLaunch.exe`** (v1.1.0)
+2. Download **`IchaLaunch.exe`** (v1.1.1)
 3. Put it somewhere convenient (next to your game folder is fine — not required)
 4. Run the EXE
 
@@ -158,6 +166,24 @@ Run **`IchaLaunch.exe` natively on Windows 10/11** — not under Proton/Wine. In
 
 **Windows Defender / Controlled Folder Access blocks VanillaFixes or DLL mods**  
 Allow `IchaLaunch.exe`, `VanillaFixes.exe`, and `WoW.exe`, or move the game out of a protected folder. Use **Check Game Permissions** in Settings.
+
+### Broken talents after SuperWoW via IchaLaunch
+
+This usually means Windows Security blocked or damaged `SuperWoWhook.dll` during install, or the **SuperAPI** companion addon was left behind when turning the mod off.
+
+**Fix:**
+
+1. Add your **entire WoW folder** as a Windows Security exclusion (Settings → Privacy & security → Windows Security → Virus & threat protection → Manage settings → Exclusions → Add an exclusion → Folder).
+2. In IchaLaunch **CLIENT** tab: turn **SuperWoW** off, click **Apply**, then turn it on again and **Apply** (or reinstall manually from [SuperWoW releases](https://github.com/balakethelock/SuperWoW/releases)).
+3. When SuperWoW is disabled, confirm these are gone:
+   - `SuperWoWhook.dll` in the WoW folder
+   - `Interface\AddOns\SuperAPI`
+   - `SuperWoWhook.dll` lines in `dlls.txt` and `.ichalaunch\dlls.txt` (if present)
+4. If problems persist, move the game out of Downloads/Desktop (e.g. `C:\Games\YourServer`) and use **Check Game Permissions** in Settings.
+
+IchaLaunch may show a troubleshooting dialog when it detects this drift or after a failed SuperWoW install/remove.
+
+**Manual SuperWoW install** is fine: place `SuperWoWhook.dll` from the [official release zip](https://github.com/balakethelock/SuperWoW/releases) in your WoW folder, install the [SuperAPI](https://github.com/balakethelock/SuperAPI) addon, and ensure `SuperWoWhook.dll` is listed in `dlls.txt` (Turtle-style clients). You do not need `SuperWoWlauncher.exe` when using `dlls.txt`.
 
 **Addon / update checks fail, feel stuck, or say "queued"**  
 Add a GitHub token (see above) or wait for the hourly anonymous budget to refresh.

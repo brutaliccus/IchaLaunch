@@ -26,7 +26,7 @@ from ichalaunch.addons.github import (
     rate_limit_exhausted,
 )
 from ichalaunch.config.settings import settings
-from ichalaunch.core.backup import create_backup
+from ichalaunch.core.backup import create_backup, restore_backup
 from ichalaunch.core.filesystem import (
     copy_file_tolerant,
     copy_tree,
@@ -36,6 +36,7 @@ from ichalaunch.core.filesystem import (
     invalidate_dir_listing,
     is_lock_or_av_error,
     listed_basenames,
+    mirror_dlls_txt_updates,
     name_present,
     PermissionScanResult,
     read_dlls_txt,
@@ -44,6 +45,7 @@ from ichalaunch.core.filesystem import (
     safe_remove,
     sanitize_filename,
     update_dlls_txt,
+    validate_pe_binary,
 )
 from ichalaunch.core.logging_setup import log
 from ichalaunch.core.process import download_bytes, download_bytes_cb, download_file, google_drive_url, status_only
@@ -155,7 +157,6 @@ _HD_PATCH_PREFIX = "hd_patch_"
 _VANILLA_HELPERS_ID = "vanilla_helpers"
 _VANILLAFIXES_ID = "vanillafixes"
 _DXVK_ID = "dxvk"
-
 
 def vanillafixes_dxvk_both_enabled(desired: dict[str, bool] | None = None) -> bool:
     """True when regular VanillaFixes and the DXVK bundle are both desired."""
@@ -1710,239 +1711,255 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
         raise KeyError(mod_id)
 
     kind = mod.get("kind")
+    backup_root: Path | None = None
     try:
-        create_backup(
+        backup_root = create_backup(
             game,
             f"before_{mod_id}",
-            [game / "WoW.exe", game / "dlls.txt", game / "VanillaFixes.exe"],
+            _install_backup_paths(game, mod),
         )
     except OSError as exc:
         log.warning("Pre-install backup for %s skipped: %s", mod_id, exc)
 
-    with tempfile.TemporaryDirectory(prefix="ichalaunch_") as tmp:
-        work = Path(tmp)
-        source = dict(mod.get("source") or {}) if mod.get("source") else None
-        if prefer_latest and source and source.get("type") == "github_release":
-            repo = _repo_from_github_url(source.get("url") or "")
-            if repo:
-                fname = (
-                    source.get("filename")
-                    or (source.get("url") or "").split("/")[-1].split("?")[0]
+    try:
+        with tempfile.TemporaryDirectory(prefix="ichalaunch_") as tmp:
+            work = Path(tmp)
+            source = dict(mod.get("source") or {}) if mod.get("source") else None
+            if prefer_latest and source and source.get("type") == "github_release":
+                repo = _repo_from_github_url(source.get("url") or "")
+                if repo:
+                    fname = (
+                        source.get("filename")
+                        or (source.get("url") or "").split("/")[-1].split("?")[0]
+                    )
+                    # Prefer catalog override; else derive a version-stable needle from
+                    # the pinned filename (vanillafixes-1.5.2-dxvk.zip → "dxvk"), not
+                    # the full versioned name which breaks when the tag bumps.
+                    needle = source.get("asset_contains") or _asset_contains_from_filename(fname)
+                    converted: dict[str, Any] = {
+                        "type": "github_release_latest",
+                        "repo": repo,
+                        "asset_contains": needle if needle else ".zip",
+                        "prefer_filename": fname,
+                    }
+                    if source.get("asset_not_contains"):
+                        converted["asset_not_contains"] = source["asset_not_contains"]
+                    source = converted
+
+            if kind == "wdb_block":
+                wdb = game / "WDB"
+                if wdb.is_dir():
+                    shutil.rmtree(wdb)
+                elif wdb.exists() and not wdb.is_file():
+                    safe_remove(wdb)
+                if not wdb.exists():
+                    wdb.write_text("", encoding="utf-8")
+                status_only(progress, "WDB block applied")
+                _record_mod_install(mod_id, mod, source)
+                return
+
+            if kind == "exe_patch":
+                assert source
+                z = _download_source(source, work, progress)
+                extracted = extract_zip(z, work / "extract", progress=progress)
+                vt = next(extracted.rglob("vanilla-tweaks.exe"), None) or next(
+                    extracted.rglob("vanilla_tweaks.exe"), None
                 )
-                # Prefer catalog override; else derive a version-stable needle from
-                # the pinned filename (vanillafixes-1.5.2-dxvk.zip → "dxvk"), not
-                # the full versioned name which breaks when the tag bumps.
-                needle = source.get("asset_contains") or _asset_contains_from_filename(fname)
-                converted: dict[str, Any] = {
-                    "type": "github_release_latest",
-                    "repo": repo,
-                    "asset_contains": needle if needle else ".zip",
-                    "prefer_filename": fname,
-                }
-                if source.get("asset_not_contains"):
-                    converted["asset_not_contains"] = source["asset_not_contains"]
-                source = converted
-
-        if kind == "wdb_block":
-            wdb = game / "WDB"
-            if wdb.is_dir():
-                shutil.rmtree(wdb)
-            elif wdb.exists() and not wdb.is_file():
-                safe_remove(wdb)
-            if not wdb.exists():
-                wdb.write_text("", encoding="utf-8")
-            status_only(progress, "WDB block applied")
-            _record_mod_install(mod_id, mod, source)
-            return
-
-        if kind == "exe_patch":
-            assert source
-            z = _download_source(source, work, progress)
-            extracted = extract_zip(z, work / "extract", progress=progress)
-            vt = next(extracted.rglob("vanilla-tweaks.exe"), None) or next(
-                extracted.rglob("vanilla_tweaks.exe"), None
-            )
-            if not vt:
-                raise FileNotFoundError("vanilla-tweaks.exe not found in archive")
-            wow = game / "WoW.exe"
-            if not (game / "WoW-OriginalBackup.exe").exists():
-                _install_copy(wow, game / "WoW-OriginalBackup.exe", game_path=game)
-            # Run patcher; creates WoW_tweaked.exe next to WoW.exe
-            status_only(progress, "Patching WoW.exe with Vanilla Tweaks...")
-            subprocess.run([str(vt), str(wow)], cwd=str(game), check=True)
-            tweaked = game / "WoW_tweaked.exe"
-            if tweaked.exists():
-                wow.unlink(missing_ok=True)
-                tweaked.rename(wow)
-            _record_mod_install(mod_id, mod, source)
-            return
-
-        if kind == "zip_root":
-            assert source
-            z = _download_source(source, work, progress)
-            extracted = extract_zip(z, work / "extract", progress=progress)
-            dlls_txt = game / "dlls.txt"
-
-            def _zip_root_copy(src: Path, dest: Path) -> None:
-                # VanillaFixes/DXVK zips ship a template dlls.txt — never replace a
-                # user-managed list (IchaLaunch entries + manual DLL lines).
-                if dest.name.lower() == "dlls.txt" and dlls_txt.is_file():
-                    log.info("Preserving existing dlls.txt while installing %s", mod_id)
-                    return
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                _install_copy(src, dest, game_path=game)
-
-            # copy all files into game root
-            for item in extracted.rglob("*"):
-                if item.is_file():
-                    rel = item.relative_to(extracted)
-                    _zip_root_copy(item, game / rel)
-            # Flatten: if VanillaFixes.exe is nested, find it
-            vf = next(game.rglob("VanillaFixes.exe"), None)
-            if vf and vf.parent != game:
-                for f in vf.parent.iterdir():
-                    if f.is_file():
-                        _zip_root_copy(f, game / f.name)
-            _record_mod_install(mod_id, mod, source)
-            return
-
-        if kind in ("dll_file", "dll_bundle"):
-            assert source
-            artifact = _download_source(source, work, progress)
-            search_root = work
-            if _is_zip_artifact(artifact, source):
-                search_root = extract_zip(artifact, work / "extract", progress=progress)
-            else:
-                # single dll
-                assert isinstance(artifact, Path)
-                dest_name = source.get("filename") or artifact.name
-                _install_copy(artifact, game / dest_name, game_path=game)
-
-            for fspec in mod.get("files") or []:
-                match = fspec["match"]
-                found = next(search_root.rglob(match), None)
-                if found:
-                    _install_copy(found, game / fspec["destination"], game_path=game)
-
-            if mod.get("addon_folder_match"):
-                folder = next(search_root.rglob(mod["addon_folder_match"]), None)
-                if folder and folder.is_dir():
-                    _install_addon_folder(folder, game, preferred_name=mod["addon_folder_match"])
-
-            addon_src = mod.get("addon_source")
-            if addon_src:
-                a = _download_source(addon_src, work / "addon", progress)
-                if _is_zip_artifact(a, addon_src):
-                    aroot = extract_zip(a, work / "addon_extract", progress=progress)
-                else:
-                    assert isinstance(a, Path)
-                    aroot = a.parent
-                _install_addon_folder(aroot, game, preferred_name=addon_src.get("folder"))
-
-            dlls = (mod.get("dlls_txt") or {}).get("add") or []
-            if dlls:
-                update_dlls_txt(game, add=dlls)
-            _record_mod_install(mod_id, mod, source)
-            return
-
-        if kind == "mpq_file":
-            assert source
-            artifact = _download_source(source, work, progress)
-            # Zip sources (e.g. Darker Nights archive) — extract and pick the MPQ
-            if _is_zip_artifact(artifact, source):
-                extracted = extract_zip(artifact, work / "extract", progress=progress)
-                needle = (source.get("mpq_match") or Path(mod.get("destination") or "").name or ".mpq").lower()
-                prefer = (source.get("mpq_prefer_path") or "").replace("\\", "/").lower()
-                candidates = [p for p in extracted.rglob("*.mpq") if p.is_file()]
-                if prefer:
-                    ranked = [p for p in candidates if prefer in str(p).replace("\\", "/").lower()]
-                    candidates = ranked or candidates
-                if needle and needle != ".mpq":
-                    matched = [p for p in candidates if needle in p.name.lower()]
-                    candidates = matched or candidates
-                if not candidates:
-                    raise FileNotFoundError(f"No .mpq found in archive for {mod_id}")
-                artifact = candidates[0]
-            assert isinstance(artifact, Path)
-            dest_rel = mod.get("destination") or f"Data/{source.get('filename') or artifact.name}"
-            dest = game / dest_rel
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            status_only(progress, f"Installing {dest.name} (large file)...")
-            _install_copy(artifact, dest, game_path=game)
-            _record_mod_install(mod_id, mod, source)
-            return
-
-        if kind == "config_script_memory":
-            cfg = game / "WTF" / "Config.wtf"
-            cfg.parent.mkdir(parents=True, exist_ok=True)
-            lines = []
-            if cfg.exists():
-                lines = cfg.read_text(encoding="utf-8", errors="ignore").splitlines()
-                lines = [ln for ln in lines if not ln.strip().upper().startswith("SET SCRIPTMEMORY")]
-            lines.insert(0, 'SET scriptMemory "0"')
-            cfg.write_text("\n".join(lines) + "\n", encoding="utf-8")
-            _record_mod_install(mod_id, mod, source)
-            return
-
-        if kind == "glue_autologin":
-            assert source
-            z = _download_source(source, work, progress)
-            extracted = extract_zip(z, work / "extract", progress=progress)
-            glue_src = next(extracted.rglob("GlueXML"), None)
-            if not glue_src:
-                # repo layout Data/Interface/GlueXML
-                glue_src = next(extracted.rglob("AutoLogin.lua"), None)
-                if glue_src:
-                    glue_src = glue_src.parent
-            if not glue_src:
-                raise FileNotFoundError("GlueXML / AutoLogin files not found")
-            dest = game / "Data" / "Interface" / "GlueXML"
-            dest.mkdir(parents=True, exist_ok=True)
-            for f in glue_src.iterdir():
-                if f.is_file():
-                    _install_copy(f, dest / f.name, game_path=game)
-            # apply glue signature skip patch (vanilla 1.12.1)
-            wow = game / "WoW.exe"
-            if wow.exists():
+                if not vt:
+                    raise FileNotFoundError("vanilla-tweaks.exe not found in archive")
+                wow = game / "WoW.exe"
                 if not (game / "WoW-OriginalBackup.exe").exists():
                     _install_copy(wow, game / "WoW-OriginalBackup.exe", game_path=game)
-                data = bytearray(wow.read_bytes())
-                patches = {
-                    0x2F113A: 0xEB,
-                    0x2F113B: 0x19,
-                    0x2F1158: 0x03,
-                    0x2F11A7: 0x03,
-                    0x2F11F0: 0xEB,
-                    0x2F11F1: 0xB2,
-                }
-                if len(data) > max(patches):
-                    for off, val in patches.items():
-                        data[off] = val
-                    wow.write_bytes(data)
-            _record_mod_install(mod_id, mod, source)
-            return
+                # Run patcher; creates WoW_tweaked.exe next to WoW.exe
+                status_only(progress, "Patching WoW.exe with Vanilla Tweaks...")
+                subprocess.run([str(vt), str(wow)], cwd=str(game), check=True)
+                tweaked = game / "WoW_tweaked.exe"
+                if tweaked.exists():
+                    wow.unlink(missing_ok=True)
+                    tweaked.rename(wow)
+                _record_mod_install(mod_id, mod, source)
+                return
 
-        if kind == "dxvk_cursor":
-            assert source
-            artifact = _download_source(source, work, progress)
-            assert isinstance(artifact, Path)
-            _install_copy(artifact, game / "d3d9.dll", game_path=game)
-            conf = game / "dxvk.conf"
-            text = conf.read_text(encoding="utf-8", errors="ignore") if conf.exists() else ""
-            if "enlargeHardwareCursor" not in text:
-                text = (text.rstrip() + "\n\nd3d9.enlargeHardwareCursor = 2\n")
-                conf.write_text(text, encoding="utf-8")
-            _record_mod_install(mod_id, mod, source)
-            return
+            if kind == "zip_root":
+                assert source
+                z = _download_source(source, work, progress)
+                extracted = extract_zip(z, work / "extract", progress=progress)
+                dlls_txt = game / "dlls.txt"
 
-        if kind == "manual_link":
-            raise RuntimeError(
-                f"{mod.get('name')}: automatic download is not hosted as a direct file. "
-                f"See {mod.get('info_url') or 'the Turtle WoW mods guide'}. "
-                f"{mod.get('note') or ''}"
-            )
+                def _zip_root_copy(src: Path, dest: Path) -> None:
+                    # VanillaFixes/DXVK zips ship a template dlls.txt — never replace a
+                    # user-managed list (IchaLaunch entries + manual DLL lines).
+                    if dest.name.lower() == "dlls.txt" and dlls_txt.is_file():
+                        log.info("Preserving existing dlls.txt while installing %s", mod_id)
+                        return
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    _install_copy(src, dest, game_path=game)
 
-        raise ValueError(f"Unsupported mod kind: {kind}")
+                # copy all files into game root
+                for item in extracted.rglob("*"):
+                    if item.is_file():
+                        rel = item.relative_to(extracted)
+                        _zip_root_copy(item, game / rel)
+                # Flatten: if VanillaFixes.exe is nested, find it
+                vf = next(game.rglob("VanillaFixes.exe"), None)
+                if vf and vf.parent != game:
+                    for f in vf.parent.iterdir():
+                        if f.is_file():
+                            _zip_root_copy(f, game / f.name)
+                _record_mod_install(mod_id, mod, source)
+                return
+
+            if kind in ("dll_file", "dll_bundle"):
+                assert source
+                artifact = _download_source(source, work, progress)
+                search_root = work
+                if _is_zip_artifact(artifact, source):
+                    search_root = extract_zip(artifact, work / "extract", progress=progress)
+                else:
+                    # single dll
+                    assert isinstance(artifact, Path)
+                    dest_name = source.get("filename") or artifact.name
+                    _install_copy(artifact, game / dest_name, game_path=game)
+
+                for fspec in mod.get("files") or []:
+                    match = fspec["match"]
+                    found = next(search_root.rglob(match), None)
+                    if found:
+                        _install_copy(found, game / fspec["destination"], game_path=game)
+
+                if mod.get("addon_folder_match"):
+                    folder = next(search_root.rglob(mod["addon_folder_match"]), None)
+                    if folder and folder.is_dir():
+                        _install_addon_folder(folder, game, preferred_name=mod["addon_folder_match"])
+
+                addon_src = mod.get("addon_source")
+                if addon_src:
+                    a = _download_source(addon_src, work / "addon", progress)
+                    if _is_zip_artifact(a, addon_src):
+                        aroot = extract_zip(a, work / "addon_extract", progress=progress)
+                    else:
+                        assert isinstance(a, Path)
+                        aroot = a.parent
+                    _install_addon_folder(aroot, game, preferred_name=addon_src.get("folder"))
+
+                dlls = (mod.get("dlls_txt") or {}).get("add") or []
+                if dlls:
+                    _update_dlls_txt_all(game, add=dlls)
+                _verify_mod_install(game, mod)
+                _record_mod_install(mod_id, mod, source)
+                return
+
+            if kind == "mpq_file":
+                assert source
+                artifact = _download_source(source, work, progress)
+                # Zip sources (e.g. Darker Nights archive) — extract and pick the MPQ
+                if _is_zip_artifact(artifact, source):
+                    extracted = extract_zip(artifact, work / "extract", progress=progress)
+                    needle = (source.get("mpq_match") or Path(mod.get("destination") or "").name or ".mpq").lower()
+                    prefer = (source.get("mpq_prefer_path") or "").replace("\\", "/").lower()
+                    candidates = [p for p in extracted.rglob("*.mpq") if p.is_file()]
+                    if prefer:
+                        ranked = [p for p in candidates if prefer in str(p).replace("\\", "/").lower()]
+                        candidates = ranked or candidates
+                    if needle and needle != ".mpq":
+                        matched = [p for p in candidates if needle in p.name.lower()]
+                        candidates = matched or candidates
+                    if not candidates:
+                        raise FileNotFoundError(f"No .mpq found in archive for {mod_id}")
+                    artifact = candidates[0]
+                assert isinstance(artifact, Path)
+                dest_rel = mod.get("destination") or f"Data/{source.get('filename') or artifact.name}"
+                dest = game / dest_rel
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                status_only(progress, f"Installing {dest.name} (large file)...")
+                _install_copy(artifact, dest, game_path=game)
+                _record_mod_install(mod_id, mod, source)
+                return
+
+            if kind == "config_script_memory":
+                cfg = game / "WTF" / "Config.wtf"
+                cfg.parent.mkdir(parents=True, exist_ok=True)
+                lines = []
+                if cfg.exists():
+                    lines = cfg.read_text(encoding="utf-8", errors="ignore").splitlines()
+                    lines = [ln for ln in lines if not ln.strip().upper().startswith("SET SCRIPTMEMORY")]
+                lines.insert(0, 'SET scriptMemory "0"')
+                cfg.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                _record_mod_install(mod_id, mod, source)
+                return
+
+            if kind == "glue_autologin":
+                assert source
+                z = _download_source(source, work, progress)
+                extracted = extract_zip(z, work / "extract", progress=progress)
+                glue_src = next(extracted.rglob("GlueXML"), None)
+                if not glue_src:
+                    # repo layout Data/Interface/GlueXML
+                    glue_src = next(extracted.rglob("AutoLogin.lua"), None)
+                    if glue_src:
+                        glue_src = glue_src.parent
+                if not glue_src:
+                    raise FileNotFoundError("GlueXML / AutoLogin files not found")
+                dest = game / "Data" / "Interface" / "GlueXML"
+                dest.mkdir(parents=True, exist_ok=True)
+                for f in glue_src.iterdir():
+                    if f.is_file():
+                        _install_copy(f, dest / f.name, game_path=game)
+                # apply glue signature skip patch (vanilla 1.12.1)
+                wow = game / "WoW.exe"
+                if wow.exists():
+                    if not (game / "WoW-OriginalBackup.exe").exists():
+                        _install_copy(wow, game / "WoW-OriginalBackup.exe", game_path=game)
+                    data = bytearray(wow.read_bytes())
+                    patches = {
+                        0x2F113A: 0xEB,
+                        0x2F113B: 0x19,
+                        0x2F1158: 0x03,
+                        0x2F11A7: 0x03,
+                        0x2F11F0: 0xEB,
+                        0x2F11F1: 0xB2,
+                    }
+                    if len(data) > max(patches):
+                        for off, val in patches.items():
+                            data[off] = val
+                        wow.write_bytes(data)
+                _record_mod_install(mod_id, mod, source)
+                return
+
+            if kind == "dxvk_cursor":
+                assert source
+                artifact = _download_source(source, work, progress)
+                assert isinstance(artifact, Path)
+                _install_copy(artifact, game / "d3d9.dll", game_path=game)
+                conf = game / "dxvk.conf"
+                text = conf.read_text(encoding="utf-8", errors="ignore") if conf.exists() else ""
+                if "enlargeHardwareCursor" not in text:
+                    text = (text.rstrip() + "\n\nd3d9.enlargeHardwareCursor = 2\n")
+                    conf.write_text(text, encoding="utf-8")
+                _verify_mod_install(game, mod)
+                _record_mod_install(mod_id, mod, source)
+                return
+
+            if kind == "manual_link":
+                raise RuntimeError(
+                    f"{mod.get('name')}: automatic download is not hosted as a direct file. "
+                    f"See {mod.get('info_url') or 'the Turtle WoW mods guide'}. "
+                    f"{mod.get('note') or ''}"
+                )
+
+            raise ValueError(f"Unsupported mod kind: {kind}")
+    except (
+        OSError,
+        RuntimeError,
+        FileNotFoundError,
+        KeyError,
+        shutil.Error,
+        ValueError,
+        requests.RequestException,
+    ) as exc:
+        log.warning("Install %s failed, rolling back: %s", mod_id, exc)
+        _revert_failed_mod_install(game, mod, backup_root)
+        raise
 
 
 def _norm_rel_path(rel: str | Path) -> str:
@@ -1980,6 +1997,108 @@ def _mod_owned_paths(mod: dict[str, Any]) -> set[str]:
         add("d3d9.dll")
         add("dxvk.conf")
     return owned
+
+
+_DLL_PE_MIN_BYTES = 1024
+_SUPERWOW_DLL_MIN_BYTES = 200_000
+
+
+def _install_backup_paths(game: Path, mod: dict[str, Any]) -> list[Path]:
+    """Files to snapshot before applying a mod (owned paths + core launch files)."""
+    paths: list[Path] = [
+        game / "WoW.exe",
+        game / "dlls.txt",
+        game / "VanillaFixes.exe",
+        game / ".ichalaunch" / "dlls.txt",
+    ]
+    seen: set[str] = set()
+    for rel in _mod_owned_paths(mod):
+        key = _norm_rel_path(rel)
+        if key in seen:
+            continue
+        seen.add(key)
+        paths.append(game / rel)
+    return paths
+
+
+def _pe_min_bytes_for_rel(rel: str) -> int:
+    name = Path(str(rel).replace("\\", "/")).name.lower()
+    if name == "superwowhook.dll":
+        return _SUPERWOW_DLL_MIN_BYTES
+    return _DLL_PE_MIN_BYTES
+
+
+def _verify_mod_install(game: Path, mod: dict[str, Any]) -> None:
+    """Ensure downloaded DLL/EXE artifacts are present and look like valid PE files."""
+    kind = mod.get("kind")
+    if kind not in ("dll_file", "dll_bundle", "dxvk_cursor"):
+        return
+    failures: list[str] = []
+    for rel in sorted(_mod_owned_paths(mod)):
+        low = rel.lower()
+        if not (low.endswith(".dll") or low.endswith(".exe")):
+            continue
+        dest = game / rel
+        if not dest.is_file():
+            failures.append(f"{rel} was not installed")
+            continue
+        try:
+            validate_pe_binary(dest, min_size=_pe_min_bytes_for_rel(rel))
+        except OSError as exc:
+            failures.append(str(exc.args[1] if len(exc.args) > 1 else exc))
+    if failures:
+        raise OSError(22, "; ".join(failures))
+
+
+def _revert_failed_mod_install(
+    game: Path,
+    mod: dict[str, Any],
+    backup_root: Path | None,
+) -> None:
+    """Restore pre-install backup and drop artifacts that were not in the snapshot."""
+    manifest_files: set[str] = set()
+    if backup_root and (backup_root / "manifest.json").is_file():
+        try:
+            manifest = json.loads((backup_root / "manifest.json").read_text(encoding="utf-8"))
+            manifest_files = {
+                str(f).replace("\\", "/").lower() for f in manifest.get("files", [])
+            }
+        except (OSError, json.JSONDecodeError) as exc:
+            log.warning("Could not read install backup manifest: %s", exc)
+
+    if backup_root:
+        try:
+            restore_backup(game, backup_root)
+        except OSError as exc:
+            log.warning("Install rollback restore failed: %s", exc)
+
+    for rel in _mod_owned_paths(mod):
+        norm = _norm_rel_path(rel)
+        if norm in manifest_files:
+            continue
+        try:
+            remove_path_strict(game / rel)
+        except OSError as exc:
+            log.warning("Rollback cleanup skipped %s: %s", rel, exc)
+
+    folder = (mod.get("addon_source") or {}).get("folder") or mod.get("addon_folder_match")
+    if folder:
+        addons = resolve_addons_dir(create=False)
+        if addons is None:
+            addons = game / "Interface" / "AddOns"
+        try:
+            remove_path_strict(addons / folder)
+        except OSError as exc:
+            log.warning("Rollback cleanup skipped addon %s: %s", folder, exc)
+
+
+def _update_dlls_txt_all(
+    game: Path,
+    add: list[str] | None = None,
+    remove: list[str] | None = None,
+) -> None:
+    update_dlls_txt(game, add=add, remove=remove)
+    mirror_dlls_txt_updates(game, add=add, remove=remove)
 
 
 def _paths_shared_with_enabled(mod_id: str) -> dict[str, list[str]]:
@@ -2082,7 +2201,7 @@ def remove_mod(mod_id: str, progress: ProgressCb | None = None) -> None:
     removable_dlls = [d for d in dlls if not shared.get(_norm_rel_path(d))]
     kept_dlls = [d for d in dlls if d not in removable_dlls]
     if removable_dlls:
-        update_dlls_txt(game, remove=removable_dlls)
+        _update_dlls_txt_all(game, remove=removable_dlls)
     for dll in removable_dlls:
         remove_owned(dll)
     for dll in kept_dlls:
@@ -2098,7 +2217,10 @@ def remove_mod(mod_id: str, progress: ProgressCb | None = None) -> None:
         addons = resolve_addons_dir(create=False)
         if addons is None:
             addons = game / "Interface" / "AddOns"
-        safe_remove(addons / folder)
+        try:
+            remove_path_strict(addons / folder)
+        except OSError as exc:
+            failures.append(str(exc))
 
     if mod_id == "vanillafixes":
         for name in ("VanillaFixes.exe", "VfPatcher.dll"):
@@ -2159,7 +2281,7 @@ def _sync_dlls_txt_for_desired_mods(game: Path) -> tuple[list[str], list[str]]:
     to_add = [to_add_by_lower[k] for k in should_have if k not in current]
     to_remove = [current[k] for k in current if k not in should_have and k in disabled_catalog]
     if to_add or to_remove:
-        update_dlls_txt(game, add=to_add, remove=to_remove)
+        _update_dlls_txt_all(game, add=to_add, remove=to_remove)
     return to_add, to_remove
 
 

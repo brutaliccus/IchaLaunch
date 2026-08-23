@@ -17,14 +17,21 @@ from PySide6.QtWidgets import (
 
 from ichalaunch.config.settings import settings
 from ichalaunch.game.launcher import detect_game
+from ichalaunch.mods.client_mod_hints import is_dll_injection_mod
 from ichalaunch.mods.installer import (
     apply_mod_toggle,
     apply_vanillafixes_dxvk_choice,
     detect_actual_state,
+    get_mod,
     load_mod_catalog,
     plan_changes,
     reconcile_exclusive_desired_mods,
     vanillafixes_dxvk_both_enabled,
+)
+from ichalaunch.mods.superwow_support import (
+    SuperWoWTrigger,
+    detect_superwow_issues,
+    maybe_show_superwow_troubleshoot,
 )
 from ichalaunch.ui.widgets.casting_bar_search_edit import CastingBarSearchEdit
 from ichalaunch.ui.widgets.common import (
@@ -35,7 +42,7 @@ from ichalaunch.ui.widgets.common import (
     status_with_stamp,
 )
 from ichalaunch.ui.widgets.cursors import apply_open_hand
-from ichalaunch.ui.widgets.dialogs import DialogResult, choice, github_import_dialog, warning
+from ichalaunch.ui.widgets.dialogs import DialogResult, choice, dll_security_exclusion_dialog, github_import_dialog, warning
 from ichalaunch.ui.widgets.glue_panel_button import GluePanelButton
 from ichalaunch.ui.widgets.marble_bg import MarblePanel, MarbleScrollArea
 
@@ -470,6 +477,23 @@ class ClientPage(QWidget):
         self._dxvk_gpu_warned = True
         warning(self, "Graphics compatibility", message)
 
+    def _maybe_show_dll_security_hint(self, mod_id: str, enabled: bool) -> None:
+        if not enabled:
+            return
+        if settings.get("dismissed_dll_security_exclusion_hint"):
+            return
+        if settings.get("dll_security_exclusion_hint_shown"):
+            return
+        mod = get_mod(mod_id)
+        if not is_dll_injection_mod(mod):
+            return
+        game = detect_game()
+        folder = str(game) if game else (settings.game_path or "").strip()
+        dismissed = dll_security_exclusion_dialog(self, folder)
+        settings.set("dll_security_exclusion_hint_shown", True)
+        if dismissed:
+            settings.set("dismissed_dll_security_exclusion_hint", True)
+
     def _reveal_rows(self, *, kick: bool = False) -> None:
         """Clear HWND-guard flags leftover from AddonRow and show catalog rows."""
         q = self._search_q
@@ -513,7 +537,23 @@ class ClientPage(QWidget):
         )
         if enabled and mod_id == "dxvk":
             QTimer.singleShot(0, self._maybe_warn_dxvk_gpu)
+        if enabled:
+            QTimer.singleShot(0, lambda: self._maybe_show_dll_security_hint(mod_id, enabled))
+        if enabled and mod_id == "superwow":
+            QTimer.singleShot(0, self._maybe_superwow_enable_check)
         self.refresh_plan()
+
+    def _maybe_superwow_enable_check(self) -> None:
+        issues = detect_superwow_issues()
+        if not issues:
+            return
+        maybe_show_superwow_troubleshoot(self, SuperWoWTrigger.ENABLE_BAD_DLL, issues=issues)
+
+    def _maybe_superwow_client_drift(self) -> None:
+        if not settings.desired_mods.get("superwow", False):
+            issues = detect_superwow_issues()
+            if issues:
+                maybe_show_superwow_troubleshoot(self, SuperWoWTrigger.CLIENT_DRIFT, issues=issues)
 
     @staticmethod
     def _mod_can_reinstall(mod: dict) -> bool:
@@ -571,6 +611,7 @@ class ClientPage(QWidget):
         self.refresh_plan()
         if vanillafixes_dxvk_both_enabled():
             QTimer.singleShot(0, self._maybe_prompt_vf_dxvk_conflict)
+        QTimer.singleShot(0, self._maybe_superwow_client_drift)
 
     @staticmethod
     def _set_status_style(lbl: QLabel, object_name: str) -> None:
