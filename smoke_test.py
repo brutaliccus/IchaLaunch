@@ -3178,7 +3178,14 @@ def test_client_exe_probe_is_case_insensitive():
             game = Path(td)
             (game / spelling).write_bytes(b"MZ")
             assert has_wow_exe(game), f"{spelling} not found"
-            assert wow_exe_in(game).name == spelling
+            found = wow_exe_in(game)
+            assert found is not None
+            # Windows returns the requested spelling when the exact path exists
+            # (NTFS is case-insensitive). Linux must report the on-disk name.
+            if sys.platform == "win32":
+                assert found.name.lower() == "wow.exe"
+            else:
+                assert found.name == spelling
 
     with tempfile.TemporaryDirectory() as td:
         game = Path(td)
@@ -3193,7 +3200,11 @@ def test_client_exe_probe_is_case_insensitive():
         (base / "Data" / "patch-A.mpq").write_bytes(b"mpq")
         assert resolve_ci(base, "Data/patch-A.mpq") is not None
         found = resolve_ci(base, "data/patch-a.mpq")
-        assert found is not None and found.name == "patch-A.mpq"
+        assert found is not None
+        if sys.platform == "win32":
+            assert found.name.lower() == "patch-a.mpq"
+        else:
+            assert found.name == "patch-A.mpq"
         assert resolve_ci(base, "data/absent.mpq") is None
 
     print("OK client exe probe is case-insensitive")
