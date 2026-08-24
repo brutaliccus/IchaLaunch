@@ -7552,5 +7552,12 @@
     "source": "manual",
     "folder": "SurpriseMe",
     "installable": true
+  },
+  {
+    "name": "Prat-Turtle",
+    "repo": "https://github.com/buhfur/Prat-Turtle",
+    "category": "General",
+    "source": "community",
+    "folder": "Prat-Turtle"
   }
 ]
