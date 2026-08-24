@@ -16,6 +16,7 @@ from PySide6.QtGui import (
     QFontMetrics,
     QGuiApplication,
     QIcon,
+    QMouseEvent,
     QPainter,
     QPainterPath,
     QPixmap,
@@ -221,6 +222,34 @@ def _pixmap_opaque_bottom(pix: QPixmap) -> int:
             if img.pixelColor(x, y).alpha() > 16:
                 return y + 1
     return h
+
+
+# Resolved once on first use: a platform name cannot change inside a process,
+# and this is consulted on every mouse move during a drag.
+_SYSTEM_WINDOW_MOVE: bool | None = None
+
+
+def _use_system_window_move() -> bool:
+    """True on Wayland, where a client may not position its own window.
+
+    Wayland has no protocol for setting a top-level's global position, so
+    ``QWidget.move()`` on the window is discarded and ``setGeometry()`` cannot
+    move an origin: the frameless window looks frozen, and dragging the left
+    or top edge resizes from the wrong side. The compositor-side equivalents
+    are ``QWindow.startSystemMove`` and ``startSystemResize``.
+
+    False on Windows and X11, where the existing code path is correct.
+    """
+    global _SYSTEM_WINDOW_MOVE
+    if _SYSTEM_WINDOW_MOVE is None:
+        # platformName() does not raise before the application exists; it
+        # answers "xcb" regardless of the real session, so asking early and
+        # caching that would disable this silently and permanently.
+        if QGuiApplication.instance() is None:
+            return False
+        name = QGuiApplication.platformName() or ""
+        _SYSTEM_WINDOW_MOVE = name.lower().startswith("wayland")
+    return _SYSTEM_WINDOW_MOVE
 
 
 def _resolve_theme_texture(bundled_name: str, external: Path) -> Path | None:
@@ -1374,6 +1403,9 @@ class MainWindow(QMainWindow):
         self._live_workers: set[Worker] = set()
         self._latest_launcher_release: LauncherReleaseInfo | None = None
         self._drag_pos: QPoint | None = None
+        # Wayland only: a press landed on chrome and the compositor drag
+        # starts if the pointer actually moves. See _use_system_window_move.
+        self._system_move_pending = False
         self._checking_addons = False
         self._checking_mods = False
         self._check_addon_pct = 0
@@ -1764,6 +1796,10 @@ class MainWindow(QMainWindow):
             self._clamp_on_screen()
 
     def _clamp_on_screen(self) -> None:
+        if _use_system_window_move():
+            # move() is discarded on Wayland, so there is nothing this can do;
+            # keeping a window reachable is the compositor's job there.
+            return
         avail = self._available_geo()
         geo = self.frameGeometry()
         x = min(max(geo.x(), avail.left()), avail.right() - geo.width() + 1)
@@ -1981,11 +2017,91 @@ class MainWindow(QMainWindow):
             w = w.parentWidget()
         return False
 
+    def _release_pointer_after_handoff(self, target, event) -> None:
+        """Tell the pressed widget the button is up, once the compositor has it.
+
+        qtwayland delivers the release of a compositor-run drag to a null
+        surface, so the widget that saw the press keeps its pressed and
+        hovered look for good. Qt has fixed and un-fixed this more than once
+        (QTBUG-97037), so post the release rather than assume; a duplicate
+        release is harmless. This is what FramelessHelper, Telegram Desktop
+        and Chromium's Ozone backend all do at the same point.
+        """
+        if not isinstance(target, QWidget):
+            return
+        QApplication.postEvent(
+            target,
+            QMouseEvent(
+                QEvent.Type.MouseButtonRelease,
+                QPointF(event.position()),
+                QPointF(event.globalPosition()),
+                Qt.MouseButton.LeftButton,
+                Qt.MouseButton.NoButton,
+                Qt.KeyboardModifier.NoModifier,
+            ),
+        )
+
+    def _compositor_owns_window_state(self) -> bool:
+        """True while the compositor may refuse a move or resize outright.
+
+        xdg-shell lets the server ignore both requests for a maximized or
+        fullscreen toplevel, and neither Qt nor the protocol reports the
+        refusal, so the only way not to eat the click is to not ask.
+        """
+        state = self.windowState()
+        return bool(
+            state & (Qt.WindowState.WindowMaximized | Qt.WindowState.WindowFullScreen)
+        )
+
+    def _start_system_move(self) -> bool:
+        """Ask the compositor to drag the window.
+
+        True means the platform made the request, not that the compositor
+        honoured it: there is no acknowledgement in the protocol, and the
+        Wayland backend returns true whenever the toplevel is initialised.
+        """
+        handle = self.windowHandle()
+        if handle is None:
+            return False
+        try:
+            return bool(handle.startSystemMove())
+        except (RuntimeError, TypeError):
+            return False
+
+    def _start_system_resize(self, edges: tuple[bool, bool, bool, bool]) -> bool:
+        """Ask the compositor to resize from *edges*. See _start_system_move."""
+        left, right, top, bottom = edges
+        qedges = Qt.Edge(0)  # falsy when no edge was hit
+        if left:
+            qedges |= Qt.Edge.LeftEdge
+        if right:
+            qedges |= Qt.Edge.RightEdge
+        if top:
+            qedges |= Qt.Edge.TopEdge
+        if bottom:
+            qedges |= Qt.Edge.BottomEdge
+        if not qedges:
+            return False
+        handle = self.windowHandle()
+        if handle is None:
+            return False
+        try:
+            return bool(handle.startSystemResize(qedges))
+        except (RuntimeError, TypeError):
+            return False
+
     def _begin_window_drag(self, global_pos: QPoint) -> None:
-        self._drag_pos = global_pos - self.frameGeometry().topLeft()
         self._resize_edges = None
         self._resize_origin = None
         self._resize_geo = None
+        if _use_system_window_move():
+            # Arm only. The compositor drag starts on the first movement, not
+            # here: asking on the press would consume a plain click on the
+            # chrome, and _drag_pos stays None so the move() path is dormant.
+            self._system_move_pending = not self._compositor_owns_window_state()
+            self._drag_pos = None
+            return
+        self._drag_pos = global_pos - self.frameGeometry().topLeft()
 
     def eventFilter(self, obj, event):
         """Edge-resize on border; drag window from non-interactive chrome."""
@@ -2000,6 +2116,23 @@ class MainWindow(QMainWindow):
                 pos = self.mapFromGlobal(event.globalPosition().toPoint())
                 edges = self._hit_resize_edges(pos)
                 if any(edges) and not isinstance(obj, QSizeGrip):
+                    # Hand the resize over instead of grabbing the mouse: on
+                    # Wayland the compositor takes the pointer, so a grab
+                    # taken here would never see its own release. Unlike the
+                    # drag this stays on the press, which is where Qt's own
+                    # QSizeGrip does it — a resize border has no click to
+                    # protect.
+                    if _use_system_window_move():
+                        self._drag_pos = None
+                        self._resize_edges = None
+                        self._resize_origin = None
+                        self._resize_geo = None
+                        self._system_move_pending = False
+                        if self._compositor_owns_window_state():
+                            return super().eventFilter(obj, event)
+                        self._start_system_resize(edges)
+                        self._release_pointer_after_handoff(obj, event)
+                        return True
                     self._resize_edges = edges
                     self._resize_origin = event.globalPosition().toPoint()
                     self._resize_geo = QRect(self.geometry())
@@ -2010,6 +2143,11 @@ class MainWindow(QMainWindow):
                     self._begin_window_drag(event.globalPosition().toPoint())
                     # Do not consume — labels/panels still get the press; move is tracked below
             elif et == QEvent.Type.MouseMove:
+                if self._system_move_pending and event.buttons() & Qt.MouseButton.LeftButton:
+                    self._system_move_pending = False
+                    self._start_system_move()
+                    self._release_pointer_after_handoff(obj, event)
+                    return True
                 if self._resize_edges is not None and self._resize_origin is not None and self._resize_geo is not None:
                     self._apply_edge_resize(event.globalPosition().toPoint())
                     return True
@@ -2030,6 +2168,10 @@ class MainWindow(QMainWindow):
                     pos = self.mapFromGlobal(event.globalPosition().toPoint())
                     self._update_resize_cursor(self._hit_resize_edges(pos))
                     return True
+                if self._system_move_pending:
+                    # Pressed and released without moving: a plain click, and
+                    # the widget under it has already had both events.
+                    self._system_move_pending = False
                 if self._drag_pos is not None:
                     self._drag_pos = None
                     self._clamp_on_screen()
@@ -2038,6 +2180,12 @@ class MainWindow(QMainWindow):
         return super().eventFilter(obj, event)
 
     def _apply_edge_resize(self, global_pos: QPoint) -> None:
+        if _use_system_window_move():
+            # setGeometry() cannot move an origin on Wayland, so a left- or
+            # top-edge drag would resize from the wrong side. Stated here as
+            # well as at the call sites: this is the arithmetic that would be
+            # wrong, and it should not depend on state set three frames away.
+            return
         if self._resize_edges is None or self._resize_origin is None or self._resize_geo is None:
             return
         delta = global_pos - self._resize_origin
@@ -2079,6 +2227,19 @@ class MainWindow(QMainWindow):
             pos = event.position().toPoint()
             edges = self._hit_resize_edges(pos)
             if any(edges):
+                if _use_system_window_move():
+                    self._drag_pos = None
+                    self._resize_edges = None
+                    self._resize_origin = None
+                    self._resize_geo = None
+                    self._system_move_pending = False
+                    if self._compositor_owns_window_state():
+                        super().mousePressEvent(event)
+                        return
+                    self._start_system_resize(edges)
+                    self._release_pointer_after_handoff(self, event)
+                    event.accept()
+                    return
                 self._resize_edges = edges
                 self._resize_origin = event.globalPosition().toPoint()
                 self._resize_geo = QRect(self.geometry())
@@ -2092,6 +2253,12 @@ class MainWindow(QMainWindow):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
+        if self._system_move_pending and event.buttons() & Qt.MouseButton.LeftButton:
+            self._system_move_pending = False
+            self._start_system_move()
+            self._release_pointer_after_handoff(self, event)
+            event.accept()
+            return
         if self._resize_edges is not None and self._resize_origin is not None and self._resize_geo is not None:
             if event.buttons() & Qt.MouseButton.LeftButton:
                 self._apply_edge_resize(event.globalPosition().toPoint())
@@ -2106,6 +2273,7 @@ class MainWindow(QMainWindow):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
+        self._system_move_pending = False
         was_moving = self._drag_pos is not None or self._resize_edges is not None
         if self._resize_edges is not None:
             self.releaseMouse()
