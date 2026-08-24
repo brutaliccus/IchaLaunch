@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-24T19:26:54Z",
+  "generated_at": "2026-08-24T20:24:42Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -6334,6 +6334,20 @@
       "sha": "c94436c08c967a35f7a8cd5b9f95f60e2672696c",
       "branches": {
         "main": "c94436c08c967a35f7a8cd5b9f95f60e2672696c"
+      }
+    },
+    "bycfm2/atlas-cfm": {
+      "default_branch": "main",
+      "sha": "07218cc2e6a43a00f37444abebbee20b71f4e944",
+      "branches": {
+        "main": "07218cc2e6a43a00f37444abebbee20b71f4e944"
+      }
+    },
+    "sica42/callofelements": {
+      "default_branch": "master",
+      "sha": "afc5398aef1f2f31ed34732ec89eaf77bce06d2f",
+      "branches": {
+        "master": "afc5398aef1f2f31ed34732ec89eaf77bce06d2f"
       }
     },
     "brndd/vanilla-tweaks": {
