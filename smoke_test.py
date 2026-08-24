@@ -3667,6 +3667,7 @@ def test_game_permissions_scan_and_fix():
         (game / "WoW.exe").write_bytes(b"MZ")
         for name in ("Data", "WTF", "Interface"):
             (game / name).mkdir()
+        # Target selection is platform-neutral and is checked everywhere.
         targets = iter_game_permission_targets(game)
         assert (game / "WoW.exe") not in targets
         assert game in targets
@@ -3674,6 +3675,25 @@ def test_game_permissions_scan_and_fix():
 
         scan = scan_game_permissions(game)
         assert not scan.has_issues, scan.issues
+
+        if sys.platform != "win32":
+            # Read-only attributes and ACLs are a Windows concept, and both
+            # entry points say so by returning early. Pin that contract rather
+            # than skipping: a read-only Data/ must stay quiet here, because a
+            # POSIX mode bit is not the problem this feature exists to fix.
+            data_dir = game / "Data"
+            os.chmod(data_dir, stat.S_IREAD)
+            try:
+                assert not scan_game_permissions(game).has_issues
+                fix = fix_game_permissions(game)
+                assert not fix.fixes
+                assert any("only supported on windows" in w.lower() for w in fix.warnings), (
+                    fix.warnings
+                )
+            finally:
+                os.chmod(data_dir, stat.S_IREAD | stat.S_IWRITE | stat.S_IEXEC)
+            print("OK game permissions scan/fix (no-op off Windows)")
+            return
 
         data = game / "Data"
         os.chmod(data, stat.S_IREAD)
@@ -3714,6 +3734,19 @@ def test_game_permissions_protected_path():
         (game / "WoW.exe").write_bytes(b"MZ")
         (game / "Data").mkdir()
         os.chmod(game / "Data", stat.S_IREAD)
+
+        if sys.platform != "win32":
+            # No protected-location concept off Windows; the repair path still
+            # has to decline politely instead of pretending it fixed something.
+            try:
+                assert not scan_game_permissions(game).has_issues
+                fix = fix_game_permissions(game)
+                assert not fix.fixes
+                assert fix.warnings
+            finally:
+                os.chmod(game / "Data", stat.S_IREAD | stat.S_IWRITE | stat.S_IEXEC)
+            print("OK game permissions protected path (no-op off Windows)")
+            return
 
         scan = scan_game_permissions(game)
         assert scan.protected_path
