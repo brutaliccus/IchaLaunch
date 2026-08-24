@@ -867,9 +867,7 @@
     "detect": {
       "data_mpq": [
         "patch-H.mpq",
-        "Patch-H.mpq",
-        "patch-J.mpq",
-        "Patch-J.mpq"
+        "Patch-H.mpq"
       ]
     },
     "source": {
