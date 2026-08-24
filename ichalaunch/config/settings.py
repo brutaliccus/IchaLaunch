@@ -11,38 +11,10 @@ from typing import Any, Iterator  # Path used by default_addons_path_for
 
 APP_DIR_NAME = "IchaLaunch"
 
-# Automatic (startup/silent) update-scan cooldown — also the Settings slider default.
-AUTO_SCAN_COOLDOWN_MINUTES_DEFAULT = 60
-AUTO_SCAN_COOLDOWN_MINUTES_MIN = 15
-AUTO_SCAN_COOLDOWN_MINUTES_MAX = 24 * 60  # 24 hours
-AUTO_SCAN_COOLDOWN_MINUTES_STEP = 15
-
-
-def clamp_auto_scan_cooldown_minutes(value: Any) -> int:
-    """Clamp/snap cooldown minutes to the Settings slider range (15 min … 24 h)."""
-    try:
-        n = int(value)
-    except (TypeError, ValueError):
-        n = AUTO_SCAN_COOLDOWN_MINUTES_DEFAULT
-    step = AUTO_SCAN_COOLDOWN_MINUTES_STEP
-    n = max(AUTO_SCAN_COOLDOWN_MINUTES_MIN, min(AUTO_SCAN_COOLDOWN_MINUTES_MAX, n))
-    # Snap to step (prefer nearest; ties round up).
-    snapped = int(round(n / step) * step)
-    return max(AUTO_SCAN_COOLDOWN_MINUTES_MIN, min(AUTO_SCAN_COOLDOWN_MINUTES_MAX, snapped))
-
-
-def format_auto_scan_cooldown_label(minutes: int) -> str:
-    """Human label for the Settings slider, e.g. ``15 min``, ``1 hour``, ``6 hours``."""
-    mins = clamp_auto_scan_cooldown_minutes(minutes)
-    if mins < 60:
-        return f"{mins} min"
-    if mins % 60 == 0:
-        hours = mins // 60
-        return "1 hour" if hours == 1 else f"{hours} hours"
-    # e.g. 90 → 1.5 hours
-    hours = mins / 60
-    text = f"{hours:.1f}".rstrip("0").rstrip(".")
-    return f"{text} hours"
+# Automatic (startup / while-open) addon + client update refresh interval.
+# Not user-adjustable — catalog checks are one JSON request, then a local compare.
+AUTO_SCAN_COOLDOWN_MINUTES = 15
+AUTO_SCAN_COOLDOWN_SEC = AUTO_SCAN_COOLDOWN_MINUTES * 60
 
 
 def appdata_root() -> Path:
@@ -72,8 +44,9 @@ DEFAULTS: dict[str, Any] = {
     "check_addon_updates_on_startup": False,
     "check_mod_updates_on_startup": True,
     "addon_no_token_startup_migrated_v1": False,
-    # Minutes between automatic/startup addon+mod update scans (manual always runs).
-    "auto_scan_cooldown_minutes": AUTO_SCAN_COOLDOWN_MINUTES_DEFAULT,
+    "stock_patch9_collision_migrated_v1": False,
+    # Legacy key — ignored; refresh interval is AUTO_SCAN_COOLDOWN_MINUTES.
+    "auto_scan_cooldown_minutes": AUTO_SCAN_COOLDOWN_MINUTES,
     "auto_install_updates": False,
     "github_token": "",
     "last_addon_update_check": None,
@@ -100,6 +73,7 @@ DEFAULTS: dict[str, Any] = {
     "window_geometry": None,
     "dismissed_dll_security_exclusion_hint": False,
     "dll_security_exclusion_hint_shown": False,
+    "dismissed_mpq_patch_warning": False,
 }
 
 
@@ -170,6 +144,28 @@ def migrate_legacy_mod_ids(data: dict[str, Any]) -> bool:
     return changed
 
 
+def migrate_stock_patch9_collision(data: dict[str, Any]) -> bool:
+    """Drop auto-seeded Pretty Night Sky state that mistook official patch-9.mpq.
+
+    Detecting Data/patch-9.mpq as this mod seeded desired_mods. Uncheck / Apply /
+    Play then deleted Turtle/RavenCraft's stock archive.
+    """
+    if data.get("stock_patch9_collision_migrated_v1"):
+        return False
+    data["stock_patch9_collision_migrated_v1"] = True
+    mid = "pretty_night_sky"
+    usm = {str(x) for x in (data.get("user_set_mods") or []) if x}
+    dm = dict(data.get("desired_mods") or {})
+    im = dict(data.get("installed_mods") or {})
+    if mid in dm and mid not in usm:
+        dm.pop(mid, None)
+        data["desired_mods"] = dm
+    if mid in im:
+        im.pop(mid, None)
+        data["installed_mods"] = im
+    return True
+
+
 def migrate_addon_no_token_startup(data: dict[str, Any]) -> bool:
     """One-time: stop auto addon scans on startup when no GitHub token is saved."""
     if data.get("addon_no_token_startup_migrated_v1"):
@@ -217,17 +213,9 @@ class Settings:
             mod_on = bool(loaded.get("check_mod_updates_on_startup", True))
             merged["check_updates_on_startup"] = addon_on or mod_on
         changed = migrate_legacy_mod_ids(merged)
+        changed = migrate_stock_patch9_collision(merged) or changed
         changed = migrate_addon_no_token_startup(merged) or changed
         _preserve_loaded_paths(merged, loaded)
-        prev_cooldown = loaded.get("auto_scan_cooldown_minutes")
-        merged["auto_scan_cooldown_minutes"] = clamp_auto_scan_cooldown_minutes(
-            merged.get(
-                "auto_scan_cooldown_minutes",
-                AUTO_SCAN_COOLDOWN_MINUTES_DEFAULT,
-            )
-        )
-        if merged["auto_scan_cooldown_minutes"] != prev_cooldown:
-            changed = True
         return merged, changed
 
     def load(self) -> None:
@@ -280,15 +268,10 @@ class Settings:
         self.save()
 
     def auto_scan_cooldown_minutes(self) -> int:
-        return clamp_auto_scan_cooldown_minutes(
-            self.get("auto_scan_cooldown_minutes", AUTO_SCAN_COOLDOWN_MINUTES_DEFAULT)
-        )
+        return AUTO_SCAN_COOLDOWN_MINUTES
 
     def auto_scan_cooldown_sec(self) -> int:
-        return self.auto_scan_cooldown_minutes() * 60
-
-    def set_auto_scan_cooldown_minutes(self, minutes: int) -> None:
-        self.set("auto_scan_cooldown_minutes", clamp_auto_scan_cooldown_minutes(minutes))
+        return AUTO_SCAN_COOLDOWN_SEC
 
     def save(self) -> None:
         path = settings_path()
@@ -491,6 +474,53 @@ class Settings:
         addons = self.installed_addons
         addons.pop(folder, None)
         self.set("installed_addons", addons)
+
+    def retarget_installed_addon(self, old_name: str, new_name: str) -> bool:
+        """Move a tracked ``installed_addons`` entry from *old_name* to *new_name*.
+
+        Also rewrites ``managed_by`` / ``folders`` references. Does not overwrite
+        an existing entry under *new_name*. Returns True when a key was moved.
+        """
+        old_name = (old_name or "").strip()
+        new_name = (new_name or "").strip()
+        if not old_name or not new_name or old_name.lower() == new_name.lower():
+            return False
+        addons = self.installed_addons
+        old_key = next((k for k in addons if k.lower() == old_name.lower()), None)
+        if old_key is None:
+            return False
+        if any(
+            k.lower() == new_name.lower() and k.lower() != old_key.lower()
+            for k in addons
+        ):
+            return False
+        meta = dict(addons.pop(old_key))
+        folders = meta.get("folders")
+        if isinstance(folders, list):
+            meta["folders"] = [
+                new_name if str(f).lower() == old_key.lower() else f for f in folders
+            ]
+        addons[new_name] = meta
+        for key, other in list(addons.items()):
+            if not isinstance(other, dict):
+                continue
+            changed = dict(other)
+            dirty = False
+            if str(changed.get("managed_by") or "").lower() == old_key.lower():
+                changed["managed_by"] = new_name
+                dirty = True
+            fl = changed.get("folders")
+            if isinstance(fl, list):
+                updated = [
+                    new_name if str(f).lower() == old_key.lower() else f for f in fl
+                ]
+                if updated != fl:
+                    changed["folders"] = updated
+                    dirty = True
+            if dirty:
+                addons[key] = changed
+        self.set("installed_addons", addons)
+        return True
 
     @property
     def installed_mods(self) -> dict[str, Any]:

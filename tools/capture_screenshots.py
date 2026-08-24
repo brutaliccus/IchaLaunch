@@ -226,10 +226,8 @@ def main() -> int:
         _set_loading_bar(win, loading)
         app.processEvents()
         win._position_frame_stroke()
-        win._position_side_corners()
         win._position_rc_logo()
         win._position_chrome_buttons()
-        win._raise_side_corners()
         app.processEvents()
 
         def snap() -> None:

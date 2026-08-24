@@ -9,26 +9,18 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QScrollArea,
     QSizePolicy,
-    QSlider,
     QVBoxLayout,
     QWidget,
 )
 
 from ichalaunch import __version__
 from ichalaunch.core.logging_setup import log_dir
-from ichalaunch.config.settings import (
-    AUTO_SCAN_COOLDOWN_MINUTES_MAX,
-    AUTO_SCAN_COOLDOWN_MINUTES_MIN,
-    AUTO_SCAN_COOLDOWN_MINUTES_STEP,
-    clamp_auto_scan_cooldown_minutes,
-    format_auto_scan_cooldown_label,
-    settings,
-)
+from ichalaunch.config.settings import settings
 from ichalaunch.ui.widgets.casting_bar_search_edit import (
     SETTINGS_MIN_H,
     CastingBarSearchEdit,
 )
-from ichalaunch.ui.widgets.glue_panel_button import GluePanelButton
+from ichalaunch.ui.widgets.glue_panel_button import GLUE_BTN_H, GluePanelButton
 from ichalaunch.ui.widgets.marble_bg import MarbleCard
 from ichalaunch.ui.widgets.theme_checkbox import ThemeCheckBox
 
@@ -177,10 +169,10 @@ class SettingsPage(QWidget):
         self.cb_auto_updates.setChecked(settings.check_updates_on_startup())
         self.cb_auto_updates.setToolTip(
             "When enabled, quietly checks launcher, addon, and client mod updates "
-            "shortly after launch. Addon scans use git ref discovery (no token). "
-            "A GitHub token is optional for fork/version browsing. "
-            "While open, only the launcher self-update re-checks every 5 minutes "
-            "(no progress bar)."
+            "shortly after launch, then every 15 minutes while the launcher stays open. "
+            "Addon and client updates compare your install to the shared catalog JSON "
+            "(one request). Launcher, addon, and client checks share the same "
+            "15-minute refresh. A GitHub token is optional for fork/version browsing."
         )
         self.cb_auto_updates.toggled.connect(settings.set_check_updates_on_startup)
         self.cb_auto_updates.setMinimumHeight(28)
@@ -188,42 +180,6 @@ class SettingsPage(QWidget):
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
         upd_card.body.addWidget(self.cb_auto_updates)
-
-        cooldown_header = QHBoxLayout()
-        cooldown_header.setSpacing(8)
-        cooldown_title = QLabel("Auto-scan cooldown")
-        cooldown_title.setObjectName("CardTitle")
-        self.cooldown_value_lbl = QLabel("")
-        self.cooldown_value_lbl.setObjectName("Muted")
-        self.cooldown_value_lbl.setAlignment(
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-        )
-        cooldown_header.addWidget(cooldown_title, 1)
-        cooldown_header.addWidget(self.cooldown_value_lbl)
-        upd_card.body.addLayout(cooldown_header)
-
-        self._cooldown_slider_syncing = False
-        self.cooldown_slider = QSlider(Qt.Orientation.Horizontal)
-        self.cooldown_slider.setObjectName("SettingsAutoScanCooldown")
-        self.cooldown_slider.setMinimum(AUTO_SCAN_COOLDOWN_MINUTES_MIN)
-        self.cooldown_slider.setMaximum(AUTO_SCAN_COOLDOWN_MINUTES_MAX)
-        self.cooldown_slider.setSingleStep(AUTO_SCAN_COOLDOWN_MINUTES_STEP)
-        self.cooldown_slider.setPageStep(60)
-        self.cooldown_slider.setTickInterval(60)
-        self.cooldown_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
-        self.cooldown_slider.setMinimumHeight(28)
-        upd_card.body.addWidget(self.cooldown_slider)
-        self.cooldown_slider.valueChanged.connect(self._on_cooldown_slider)
-        self.cooldown_slider.sliderReleased.connect(self._on_cooldown_slider_released)
-        self._set_cooldown_slider_value(settings.auto_scan_cooldown_minutes())
-
-        cooldown_note = QLabel(
-            "How long to wait before automatic/startup update scans run again. "
-            "Manual Check for updates always runs. Applies to addons and client mods."
-        )
-        cooldown_note.setObjectName("Muted")
-        cooldown_note.setWordWrap(True)
-        upd_card.body.addWidget(cooldown_note)
 
         gh_card = MarbleCard()
         gh_card.body.setSpacing(10)
@@ -277,14 +233,17 @@ class SettingsPage(QWidget):
         maint_title = QLabel("Maintenance")
         maint_title.setObjectName("CardTitle")
         maint_card.body.addWidget(maint_title)
-        clear_cache = GluePanelButton("Clear Cache", width=148)
+        maint_row = QHBoxLayout()
+        maint_row.setSpacing(8)
+        clear_cache = GluePanelButton("Clear Cache", width=148, height=GLUE_BTN_H)
         clear_cache.setToolTip(
             "Reset launcher settings, cached scan data, and saved preferences. "
             "Does not delete game or addon files on disk."
         )
         clear_cache.clicked.connect(self.clear_cache_clicked.emit)
-        maint_card.body.addWidget(clear_cache)
-        check_permissions = GluePanelButton("Check Game Permissions", width=188)
+        check_permissions = GluePanelButton(
+            "Check Game Permissions", width=220, height=GLUE_BTN_H
+        )
         check_permissions.setToolTip(
             "Scan the linked WoW folder for read-only files and Windows permission "
             "problems that can cause access-denied crashes. If the game is in "
@@ -292,7 +251,10 @@ class SettingsPage(QWidget):
             "to the new location and run this check again."
         )
         check_permissions.clicked.connect(self.check_permissions_clicked.emit)
-        maint_card.body.addWidget(check_permissions)
+        maint_row.addWidget(clear_cache)
+        maint_row.addWidget(check_permissions)
+        maint_row.addStretch(1)
+        maint_card.body.addLayout(maint_row)
         maint_note = QLabel(
             "Clears saved paths, mod/addon tracking, GitHub token, update scan "
             "queues, and other launcher preferences. Your WoW client and AddOn "
@@ -338,37 +300,6 @@ class SettingsPage(QWidget):
         scroll.setWidget(host)
         outer.addWidget(scroll)
 
-    def _sync_cooldown_label(self, minutes: int) -> None:
-        self.cooldown_value_lbl.setText(format_auto_scan_cooldown_label(minutes))
-
-    def _set_cooldown_slider_value(self, minutes: int) -> None:
-        """Update slider + label from persisted settings without writing back."""
-        snapped = clamp_auto_scan_cooldown_minutes(minutes)
-        self._cooldown_slider_syncing = True
-        try:
-            self.cooldown_slider.blockSignals(True)
-            self.cooldown_slider.setValue(snapped)
-            self.cooldown_slider.blockSignals(False)
-            self._sync_cooldown_label(snapped)
-        finally:
-            self._cooldown_slider_syncing = False
-
-    def _persist_cooldown_slider(self, value: int) -> None:
-        if self._cooldown_slider_syncing:
-            return
-        snapped = clamp_auto_scan_cooldown_minutes(value)
-        if snapped != int(value):
-            self._set_cooldown_slider_value(snapped)
-        else:
-            self._sync_cooldown_label(snapped)
-        settings.set_auto_scan_cooldown_minutes(snapped)
-
-    def _on_cooldown_slider(self, value: int) -> None:
-        self._persist_cooldown_slider(value)
-
-    def _on_cooldown_slider_released(self) -> None:
-        self._persist_cooldown_slider(self.cooldown_slider.value())
-
     def _save_github_token(self, force_feedback: bool = False) -> None:
         self._token_save_timer.stop()
         value = self.token_edit.text().strip()
@@ -402,7 +333,6 @@ class SettingsPage(QWidget):
         self.cb_auto_updates.blockSignals(True)
         self.cb_auto_updates.setChecked(settings.check_updates_on_startup())
         self.cb_auto_updates.blockSignals(False)
-        self._set_cooldown_slider_value(settings.auto_scan_cooldown_minutes())
         # Avoid clobbering in-progress edits / firing textChanged autosave.
         stored = str(settings.get("github_token") or "")
         if self.token_edit.text() != stored:

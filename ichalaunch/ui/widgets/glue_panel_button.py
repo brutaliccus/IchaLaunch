@@ -41,10 +41,22 @@ _FILL_PRIMARY_BRIGHT = (265, 200, 1.35)
 _LAUNCH_SQUARE_SIDE = 56
 _LAUNCH_SQUARE_CAP = 20
 
+# ContentPanel floor / _FLOOR_BASE — tab plates tint toward this, not purple.
+GLUE_FLOOR_TINT = QColor("#181315")
+# Typical luminance of the glue-plate red fill (center ~107,0,0) so idle
+# fill maps onto GLUE_FLOOR_TINT while metal bevels keep relative contrast.
+_FLOOR_REF_LUM = 32.0
+_FLOOR_SHADE_LIFT = {
+    "idle": 1.00,
+    "hover": 1.22,
+    "selected": 1.45,
+}
+
 _RAW: dict[str, QImage] = {}
 _RECOLOR: dict[tuple[str, str, bool], QPixmap] = {}
 _LAUNCH: dict[tuple[bool, bool, bool, int], QPixmap] = {}
 _ROW_SQUARE: dict[tuple[bool, bool, str, int], QPixmap] = {}
+_FLOOR_CHROME: dict[tuple[bool, str], QPixmap] = {}
 
 
 def _load_image(bundled: str, external: Path) -> QImage:
@@ -127,6 +139,63 @@ def glue_chrome_pixmap(
         role = "standard"
     name, ext = (_DOWN_NAME, _DOWN_EXTERNAL) if pressed else (_UP_NAME, _UP_EXTERNAL)
     return _colored_pm(name, ext, role, disabled)
+
+
+def _luminance(c: QColor) -> float:
+    return 0.299 * c.red() + 0.587 * c.green() + 0.114 * c.blue()
+
+
+def _tint_art_toward_floor(src: QImage, target: QColor, lift: float) -> QPixmap:
+    """Pixel-filter every opaque texel toward ``target``, keeping bevel contrast.
+
+    Fill luminance (~32) maps onto the target; brighter metal stays relatively
+    lighter so the plate still reads as Glue-Panel chrome, not a flat swatch.
+    """
+    if src.isNull():
+        return QPixmap()
+    out = src.copy()
+    tr, tg, tb = target.red(), target.green(), target.blue()
+    ref = _FLOOR_REF_LUM
+    for y in range(out.height()):
+        for x in range(out.width()):
+            c = QColor.fromRgba(out.pixel(x, y))
+            a = c.alpha()
+            if a < 8:
+                continue
+            factor = (_luminance(c) / ref) * lift
+            out.setPixel(
+                x,
+                y,
+                QColor(
+                    max(0, min(255, int(round(tr * factor)))),
+                    max(0, min(255, int(round(tg * factor)))),
+                    max(0, min(255, int(round(tb * factor)))),
+                    a,
+                ).rgba(),
+            )
+    return QPixmap.fromImage(out)
+
+
+def glue_floor_chrome_pixmap(*, pressed: bool = False, shade: str = "idle") -> QPixmap:
+    """Standard Glue-Panel Up/Down art tinted to the ContentPanel floor color."""
+    if shade not in _FLOOR_SHADE_LIFT:
+        shade = "idle"
+    key = (bool(pressed), shade)
+    hit = _FLOOR_CHROME.get(key)
+    if hit is not None:
+        return hit
+    name, ext = (_DOWN_NAME, _DOWN_EXTERNAL) if pressed else (_UP_NAME, _UP_EXTERNAL)
+    pm = _tint_art_toward_floor(
+        _load_image(name, ext),
+        GLUE_FLOOR_TINT,
+        _FLOOR_SHADE_LIFT[shade],
+    )
+    if not pm.isNull():
+        bounds = _opaque_rect(pm.toImage())
+        if bounds.isValid() and bounds != pm.rect():
+            pm = pm.copy(bounds)
+    _FLOOR_CHROME[key] = pm
+    return pm
 
 
 def _embellish_launch_fill(src: QImage) -> QPixmap:

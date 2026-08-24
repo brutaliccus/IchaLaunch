@@ -18,14 +18,12 @@ import requests
 
 from ichalaunch.addons.github import (
     GitHubRateLimitError,
-    RATE_LIMIT_STATUS,
     fetch_repo_readme,
     github_get,
     github_latest_commit,
     github_latest_version_tag,
     github_remote_tip,
     parse_github_url,
-    rate_limit_exhausted,
 )
 from ichalaunch.config.settings import settings
 from ichalaunch.core.backup import create_backup, restore_backup
@@ -34,7 +32,10 @@ from ichalaunch.core.filesystem import (
     copy_tree,
     ensure_data_writable,
     extract_zip,
-    find_toc_roots,
+    note_pending_toc_mismatch,
+    place_install_addon_root,
+    resolve_install_addon_roots,
+    TOC_FOLDER_MISMATCH_MSG,
     invalidate_dir_listing,
     is_lock_or_av_error,
     listed_basenames,
@@ -66,10 +67,69 @@ ProgressCb = Callable[[str], None]
 UA = {"User-Agent": "IchaLaunch/0.1"}
 # Re-entrancy guard: apply is one-shot. A timer must never stack retries.
 _APPLY_IN_PROGRESS = False
+# Turtle/RavenCraft ships numeric Data patches. Letter slots are community/HD.
+_STOCK_DATA_MPQ_RE = re.compile(r"^patch(-[0-9])?\.mpq$", re.IGNORECASE)
+
+
+def is_stock_data_mpq(rel: str | Path) -> bool:
+    """True for official numeric client patches (``patch.mpq``, ``patch-2``…``patch-9``)."""
+    name = Path(str(rel).replace("\\", "/")).name
+    return bool(_STOCK_DATA_MPQ_RE.fullmatch(name))
+
+
+def _mpq_dest_basename(dest_rel: str | Path) -> str:
+    """Game Data basename for an MPQ destination (``Data/patch-Y.mpq`` → ``patch-Y.mpq``)."""
+    name = sanitize_filename(Path(str(dest_rel).replace("\\", "/")).name)
+    if name and not name.lower().endswith(".mpq"):
+        name = f"{name}.mpq"
+    return name
+
+
+def stage_mpq_before_data(artifact: Path, dest_rel: str | Path, work: Path) -> Path:
+    """Rename the downloaded MPQ to the install basename before any Data/ copy.
+
+    The Pretty Night Sky host file is still named patch-9.mpq (same as the
+    official Turtle/RavenCraft archive). Staging under the letter slot in
+    the work directory means Data/ never sees that stock name.
+    """
+    dest_name = _mpq_dest_basename(dest_rel)
+    if not dest_name:
+        raise RuntimeError("MPQ destination is missing a filename")
+    if is_stock_data_mpq(dest_name):
+        raise RuntimeError(
+            f"Refusing to stage official client MPQ name {dest_name}"
+        )
+    staged = work / dest_name
+    try:
+        same = artifact.resolve() == staged.resolve()
+    except OSError:
+        same = artifact.name.lower() == dest_name.lower()
+    if same:
+        if is_stock_data_mpq(staged.name):
+            raise RuntimeError(
+                f"Refusing to copy official client MPQ name {staged.name} into Data"
+            )
+        return staged
+    if is_stock_data_mpq(artifact.name):
+        log.info(
+            "Renaming downloaded %s → %s before Data copy",
+            artifact.name,
+            dest_name,
+        )
+    if staged.exists():
+        staged.unlink()
+    artifact.replace(staged)
+    return staged
 
 
 def _install_copy(src: Path, dest: Path, game_path: Path | None = None) -> None:
     """Copy into the game tree. DLLs/EXEs are never LoadLibrary'd; lock/AV → OSError skip."""
+    if is_stock_data_mpq(dest):
+        raise OSError(
+            13,
+            f"Refusing to overwrite official client MPQ {dest.name}",
+            str(dest),
+        )
     if dest.suffix.lower() in {".dll", ".exe"}:
         if not copy_file_tolerant(src, dest):
             raise OSError(
@@ -913,7 +973,10 @@ def _detect_mod(
     if det.get("data_mpq"):
         data = game_path / "Data"
         data_names = listed_basenames(data)
-        return any(name_present(data, name, data_names) for name in det["data_mpq"])
+        return any(
+            not is_stock_data_mpq(name) and name_present(data, name, data_names)
+            for name in det["data_mpq"]
+        )
     if det.get("config_contains"):
         cfg = game_path / "WTF" / "Config.wtf"
         if not cfg.is_file():
@@ -951,6 +1014,8 @@ def _detect_mod(
         if not dest:
             return False
         rel = Path(str(dest).replace("\\", "/"))
+        if is_stock_data_mpq(rel.name):
+            return False
         return name_present(game_path / rel.parent, rel.name)
     dlls = (mod.get("dlls_txt") or {}).get("add") or []
     if dlls:
@@ -1134,6 +1199,10 @@ def plan_changes(desired: dict[str, bool] | None = None) -> list[dict[str, str]]
             mod = catalog.get(mid) or {}
             if mod.get("kind") == "manual_link":
                 continue
+            # Official numeric patches are never launcher-owned. Presence of
+            # Data/patch-9.mpq must not schedule a Pretty Night Sky delete.
+            if _mod_remove_targets_only_stock_mpq(mod):
+                continue
             changes.append({"action": "remove", "id": mid, "detail": f"Remove {mod.get('name', mid)}"})
     return changes
 
@@ -1144,23 +1213,41 @@ def _install_addon_folder(src_root: Path, game: Path, preferred_name: str | None
     if addons is None:
         addons = game / "Interface" / "AddOns"
         addons.mkdir(parents=True, exist_ok=True)
-    roots = find_toc_roots(src_root)
+    pairs = resolve_install_addon_roots(src_root)
     if preferred_name:
-        match = next((r for r in roots if r.name == preferred_name or preferred_name in r.name), None)
+        want = preferred_name.lower()
+        match = next(
+            (
+                p
+                for p in pairs
+                if p[1].lower() == want
+                or want in p[1].lower()
+                or want in p[0].name.lower()
+            ),
+            None,
+        )
         if match:
-            roots = [match]
-    if not roots:
-        # whole folder might already be the addon
-        if any(src_root.glob("*.toc")):
-            roots = [src_root]
-    for root in roots:
-        name = preferred_name or root.name
-        # strip -master / -main
-        for suffix in ("-master", "-main"):
-            if name.endswith(suffix):
-                name = name[: -len(suffix)]
-        dest = addons / name
-        copy_tree(root, dest)
+            pairs = [match]
+    if not pairs:
+        try:
+            had_toc = any(src_root.rglob("*.toc"))
+        except OSError:
+            had_toc = False
+        if had_toc:
+            raise FileNotFoundError(TOC_FOLDER_MISMATCH_MSG)
+        return
+    # dest_name is the .toc stem from resolve_install_addon_roots, not catalog/extract.
+    for root, dest_name in pairs:
+        placed, mismatch = place_install_addon_root(root, addons, dest_name)
+        if placed:
+            continue
+        if mismatch is not None:
+            note_pending_toc_mismatch(mismatch)
+            continue
+        log.warning(
+            "Installed addon from %s is missing a matching .toc — it will not load",
+            root.name,
+        )
 
 
 _VERSION_TOKEN_RE = re.compile(r"[-_]?v?\d+(?:\.\d+)+", re.IGNORECASE)
@@ -1368,8 +1455,39 @@ def _remote_release_tag(repo: str) -> str | None:
     return github_latest_version_tag(owner, name)
 
 
-def _remote_identity(source: dict[str, Any]) -> dict[str, Any] | None:
-    """Return comparable remote identity for a mod source, or None if unsupported."""
+def _catalog_release_tag(repo: str) -> str | None:
+    """Latest tag from the shared tip index only (no per-repo probes)."""
+    repo = (repo or "").strip()
+    if "/" not in repo:
+        return None
+    from ichalaunch.addons.tip_index import lookup_latest_tag
+
+    owner, name = repo.split("/", 1)
+    tag = lookup_latest_tag(owner, name)
+    return tag or None
+
+
+def _catalog_commit_tip(owner: str, name: str, branch: str | None) -> dict[str, str] | None:
+    """Commit SHA from the shared tip index only (no per-repo probes)."""
+    from ichalaunch.addons.tip_index import lookup_tip
+
+    hit = lookup_tip(owner, name, branch)
+    if not hit:
+        return None
+    sha, resolved = hit
+    if not sha:
+        return None
+    return {"sha": sha, "branch": resolved or (branch or "")}
+
+
+def _remote_identity(
+    source: dict[str, Any], *, catalog_only: bool = False
+) -> dict[str, Any] | None:
+    """Return comparable remote identity for a mod source, or None if unsupported.
+
+    *catalog_only* uses the shared tip-SHA JSON and never probes GitHub
+    (no git refs, Atom, REST, or HEAD). Bulk update checks must pass True.
+    """
     if not source:
         return None
     stype = source.get("type")
@@ -1377,7 +1495,7 @@ def _remote_identity(source: dict[str, Any]) -> dict[str, Any] | None:
         repo = source.get("repo")
         if not repo:
             return None
-        tag = _remote_release_tag(str(repo))
+        tag = _catalog_release_tag(str(repo)) if catalog_only else _remote_release_tag(str(repo))
         if not tag:
             return None
         return {
@@ -1393,7 +1511,7 @@ def _remote_identity(source: dict[str, Any]) -> dict[str, Any] | None:
         pinned = _tag_from_release_url(url)
         if repo:
             try:
-                tag = _remote_release_tag(repo)
+                tag = _catalog_release_tag(repo) if catalog_only else _remote_release_tag(repo)
                 if tag:
                     return {
                         "kind": "release",
@@ -1404,9 +1522,13 @@ def _remote_identity(source: dict[str, Any]) -> dict[str, Any] | None:
                         "pinned": pinned,
                     }
             except GitHubRateLimitError:
+                if catalog_only:
+                    return None
                 raise
             except Exception:
                 pass
+        if catalog_only:
+            return None
         if url:
             ident = _head_identity(url)
             return {"kind": "http", "url": url, **ident}
@@ -1418,7 +1540,12 @@ def _remote_identity(source: dict[str, Any]) -> dict[str, Any] | None:
         if not repo:
             return None
         owner, name = repo.split("/", 1)
-        remote = github_remote_tip(owner, name, branch)
+        if catalog_only:
+            remote = _catalog_commit_tip(owner, name, branch)
+            if not remote:
+                return None
+        else:
+            remote = github_remote_tip(owner, name, branch)
         sha = remote["sha"]
         return {
             "kind": "commit",
@@ -1443,6 +1570,19 @@ def _remote_identity(source: dict[str, Any]) -> dict[str, Any] | None:
                     branch = parts[4]
                 else:
                     branch = parts[2]
+                if catalog_only:
+                    remote = _catalog_commit_tip(owner, name, branch)
+                    if not remote:
+                        return None
+                    sha = remote["sha"]
+                    return {
+                        "kind": "commit",
+                        "key": sha,
+                        "display": sha[:7],
+                        "repo": f"{owner}/{name}",
+                        "branch": remote["branch"],
+                        "sha": sha,
+                    }
                 try:
                     remote = github_remote_tip(owner, name, branch)
                     sha = remote["sha"]
@@ -1456,9 +1596,13 @@ def _remote_identity(source: dict[str, Any]) -> dict[str, Any] | None:
                     }
                 except Exception:
                     pass
+        if catalog_only:
+            return None
         ident = _head_identity(url)
         return {"kind": "http", "url": url, **ident}
     if stype == "google_drive":
+        if catalog_only:
+            return None
         file_id = source.get("id") or ""
         if not file_id:
             return None
@@ -1583,7 +1727,7 @@ def _record_mod_install(
 
 
 def recently_checked_mod_updates(cooldown_sec: int | None = None) -> bool:
-    """True if an automatic mod scan should skip (uses Settings auto-scan cooldown)."""
+    """True if an automatic mod scan should skip (hardcoded 15-minute refresh)."""
     if cooldown_sec is None:
         cooldown_sec = settings.auto_scan_cooldown_sec()
     raw = settings.get("last_mod_update_check")
@@ -1601,7 +1745,11 @@ def check_mod_updates(
     respect_cooldown: bool = False,
     progress: Any = None,
 ) -> ModUpdateCheckResult:
-    """Compare installed client mods against upstream where sources support it."""
+    """Compare installed client mods to the shared catalog tip-SHA JSON.
+
+    One remote fetch of ``addon_tips.json``, then a local compare. Per-mod
+    git/REST/HEAD probes are not used here.
+    """
     if respect_cooldown and recently_checked_mod_updates():
         return ModUpdateCheckResult(skipped_recent=True)
 
@@ -1613,7 +1761,6 @@ def check_mod_updates(
     updates: list[dict[str, Any]] = []
     checked = 0
     skipped = 0
-    rate_limited = False
 
     to_check: list[dict[str, Any]] = []
     for mod in load_mod_catalog():
@@ -1627,10 +1774,31 @@ def check_mod_updates(
             continue
         to_check.append(mod)
 
-    total = max(1, len(to_check))
     on_count = getattr(progress, "on_count", None) if progress is not None else None
     if callable(on_count):
-        on_count(0, total, "Checking client mod updates…")
+        on_count(0, 1, "Fetching update catalog…")
+
+    from ichalaunch.addons.tip_index import index_repo_count, refresh_tip_index
+
+    try:
+        index = refresh_tip_index()
+    except Exception as exc:  # noqa: BLE001
+        log.debug("Catalog tip index refresh skipped: %s", exc)
+        index = None
+
+    if index_repo_count(index) == 0:
+        settings.set("last_mod_update_check", time.time())
+        if callable(on_count):
+            on_count(1, 1, "Checking client mod updates…")
+        return ModUpdateCheckResult(
+            updates=updates,
+            checked=checked,
+            skipped=skipped + len(to_check),
+            status_message="Update catalog unavailable",
+        )
+
+    if callable(on_count):
+        on_count(0, 1, "Checking client mod updates…")
 
     if not to_check:
         settings.set("last_mod_update_check", time.time())
@@ -1638,37 +1806,18 @@ def check_mod_updates(
             on_count(1, 1, "Checking client mod updates…")
         return ModUpdateCheckResult(updates=updates, checked=checked, skipped=skipped)
 
-    try:
-        from ichalaunch.addons.tip_index import refresh_tip_index
+    log.info(
+        "Client mod update check via catalog index (%d repo(s)); comparing %d installed mod(s)",
+        index_repo_count(index),
+        len(to_check),
+    )
 
-        refresh_tip_index()
-    except Exception as exc:  # noqa: BLE001
-        log.debug("Catalog tip index refresh skipped: %s", exc)
-
-    for i, mod in enumerate(to_check):
+    for mod in to_check:
         mid = mod["id"]
-        kind = mod.get("kind")
         source = mod.get("source")
-        label = str(mod.get("name") or mid)
-
-        if rate_limit_exhausted():
-            rate_limited = True
-            break
-        try:
-            remote = _remote_identity(source)
-        except GitHubRateLimitError:
-            rate_limited = True
-            break
-        except Exception as exc:  # noqa: BLE001
-            log.warning("Mod update check failed for %s: %s", mid, exc)
-            skipped += 1
-            if callable(on_count):
-                on_count(i + 1, total, f"Checking {label}…")
-            continue
+        remote = _remote_identity(source, catalog_only=True)
         if not remote:
             skipped += 1
-            if callable(on_count):
-                on_count(i + 1, total, f"Checking {label}…")
             continue
         checked += 1
         local = settings.installed_mods.get(mid) or {}
@@ -1697,8 +1846,6 @@ def check_mod_updates(
                         "kind": remote.get("kind"),
                     },
                 )
-                if callable(on_count):
-                    on_count(i + 1, total, f"Checking {label}…")
                 continue
             # First check: baseline remote without flagging an update
             meta = _backfill_installed_mod_meta(mid, mod)
@@ -1716,8 +1863,6 @@ def check_mod_updates(
                 }
             )
             settings.set_installed_mod(mid, meta)
-            if callable(on_count):
-                on_count(i + 1, total, f"Checking {label}…")
             continue
         if local_key != remote.get("key"):
             updates.append(
@@ -1729,22 +1874,11 @@ def check_mod_updates(
                     "kind": remote.get("kind"),
                 }
             )
-        if callable(on_count):
-            on_count(i + 1, total, f"Checking {label}…")
-        if rate_limit_exhausted():
-            rate_limited = True
-            break
+
+    if callable(on_count):
+        on_count(1, 1, "Checking client mod updates…")
 
     settings.set("last_mod_update_check", time.time())
-
-    if rate_limited:
-        return ModUpdateCheckResult(
-            updates=updates,
-            rate_limited=True,
-            checked=checked,
-            skipped=skipped,
-            status_message=RATE_LIMIT_STATUS,
-        )
     return ModUpdateCheckResult(updates=updates, checked=checked, skipped=skipped)
 
 
@@ -1931,6 +2065,14 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                     artifact = candidates[0]
                 assert isinstance(artifact, Path)
                 dest_rel = mod.get("destination") or f"Data/{source.get('filename') or artifact.name}"
+                if is_stock_data_mpq(dest_rel):
+                    stock_name = _mpq_dest_basename(dest_rel)
+                    raise RuntimeError(
+                        f"{mod.get('name')}: refusing to overwrite official "
+                        f"{stock_name}. Numeric patch-*.mpq files are part of "
+                        "the stock client."
+                    )
+                artifact = stage_mpq_before_data(artifact, dest_rel, work)
                 dest = game / dest_rel
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 status_only(progress, f"Installing {dest.name} (large file)...")
@@ -2034,7 +2176,7 @@ def _mod_owned_paths(mod: dict[str, Any]) -> set[str]:
 
     def add(rel: Any) -> None:
         text = str(rel or "").strip()
-        if text:
+        if text and not is_stock_data_mpq(text):
             owned.add(_norm_rel_path(text))
 
     src = mod.get("source") or {}
@@ -2059,6 +2201,16 @@ def _mod_owned_paths(mod: dict[str, Any]) -> set[str]:
         add("d3d9.dll")
         add("dxvk.conf")
     return owned
+
+
+def _mod_remove_targets_only_stock_mpq(mod: dict[str, Any]) -> bool:
+    """True when a remove would only touch official numeric Data patches."""
+    if is_stock_data_mpq(mod.get("destination") or ""):
+        return True
+    src = (mod.get("source") or {}).get("filename") or ""
+    dest = mod.get("destination") or ""
+    candidates = [p for p in (dest, f"Data/{src}" if src else "") if p]
+    return bool(candidates) and all(is_stock_data_mpq(p) for p in candidates)
 
 
 _DLL_PE_MIN_BYTES = 1024
@@ -2198,6 +2350,9 @@ def remove_mod(mod_id: str, progress: ProgressCb | None = None) -> None:
 
     def remove_owned(rel: str | Path) -> None:
         """Strict-delete a file this mod owns, unless another enabled mod shares it."""
+        if is_stock_data_mpq(rel):
+            log.warning("Refusing to delete official client MPQ %s", rel)
+            return
         owners = shared.get(_norm_rel_path(rel))
         if owners:
             log.info("Kept %s — shared with enabled mod(s): %s", rel, ", ".join(owners))
@@ -2232,8 +2387,13 @@ def remove_mod(mod_id: str, progress: ProgressCb | None = None) -> None:
         if dest:
             remove_owned(dest)
         src = mod.get("source") or {}
-        if src.get("filename"):
-            remove_owned(Path("Data") / src["filename"])
+        filename = src.get("filename")
+        # Download basename is not ownership. Never delete a stock numeric MPQ
+        # just because the host file happened to share that name.
+        if filename and not is_stock_data_mpq(filename):
+            src_rel = Path("Data") / filename
+            if not dest or _norm_rel_path(src_rel) != _norm_rel_path(dest):
+                remove_owned(src_rel)
         raise_failures()
         return
 

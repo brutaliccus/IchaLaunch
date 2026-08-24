@@ -24,7 +24,7 @@ DEFAULT_TIPS_URL = (
     "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/"
     "ichalaunch/data/addon_tips.json"
 )
-TIPS_TTL_SEC = 60 * 60
+TIPS_TTL_SEC = 15 * 60
 _FETCH_TIMEOUT_SEC = 8
 _UA = {"User-Agent": "IchaLaunch/0.1", "Accept": "application/json"}
 

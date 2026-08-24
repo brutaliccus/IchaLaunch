@@ -10,7 +10,12 @@ from pathlib import Path
 from typing import Any
 
 from ichalaunch.config.settings import settings
-from ichalaunch.core.filesystem import is_access_denied, is_protected_path, robust_move_tree
+from ichalaunch.core.filesystem import (
+    is_access_denied,
+    is_protected_path,
+    matching_toc_path,
+    robust_move_tree,
+)
 from ichalaunch.core.process import wow_exe_running
 from ichalaunch.game.launcher import resolve_addons_dir
 
@@ -44,7 +49,7 @@ def _toc_folder_names(root: Path | None) -> list[str]:
     for p in sorted(root.iterdir()):
         if not p.is_dir():
             continue
-        if not any(p.glob("*.toc")):
+        if matching_toc_path(p) is None:
             continue
         names.append(p.name)
     return names

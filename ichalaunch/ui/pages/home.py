@@ -19,7 +19,6 @@ from ichalaunch.core.paths import theme_file
 from ichalaunch.game.launcher import detect_game, is_installed
 from ichalaunch.mods.installer import detect_actual_state, load_mod_catalog
 from ichalaunch.ui.widgets.common import open_url_in_browser
-from ichalaunch.ui.widgets.countdown import LaunchCountdown
 from ichalaunch.ui.widgets.launch_button import LaunchButton
 from ichalaunch.ui.widgets.mods_forest_bg import HomeModsCard
 from ichalaunch.ui.widgets.talent_bg import TalentFrameBackground
@@ -39,9 +38,9 @@ DRAWER_MAX_W = 320
 _SIDE_PAD_PX = 16
 # Gap between mods Card bottom border and NavBottomBanner diamond strip.
 _MODS_BANNER_GAP_PX = 16
-# Gap above Register Here — clear the Mechagon rail (15px at ContentPanel y=0)
+# Gap above Register Here — clear the metal top rail (20px at ContentPanel y=0)
 # plus a few px so the button sits below the top art, not under it.
-_HOME_TOP_PAD = 23
+_HOME_TOP_PAD = 26
 # Small inset from ContentPanel top / side when filling the brand rect.
 # Must clear the purple shelf stroke (1px) so art never paints into the tab strip.
 _ART_TOP_PAD_PX = 8
@@ -49,11 +48,9 @@ _ART_SIDE_INSET_PX = 2
 _ART_BOTTOM_INSET_PX = 0
 # Hide the hard art / black fringe under the grey banner bar (not into spike valleys).
 _ART_BANNER_TUCK_PX = 8
-# MoA wordmark prefer width along art bottom (right of countdown).
+# MoA wordmark prefer width, centered along the art bottom.
 _MOA_ART_LOGO_W = 190  # ~5% under prior 200px prefer width
-# Gap between countdown right edge and MoA left edge.
-_COUNTDOWN_MOA_GAP_PX = 12
-# Pad from art right / bottom for the countdown + MoA row.
+# Pad from art bottom for the MoA wordmark.
 _BRAND_BOTTOM_PAD_PX = 8
 # Extra MoA sit-down toward art bottom (above diamond strip).
 _MOA_BOTTOM_NUDGE_PX = 4
@@ -131,7 +128,7 @@ class HomePage(QWidget):
         self.summary.body.addWidget(scroll)
         left_l.addWidget(self.summary, 1)
 
-        # --- Right: empty brand spacer (art/logo/countdown live on Root overlay) ---
+        # --- Right: empty brand spacer (art/logo live on Root overlay) ---
         right = QWidget()
         right.setObjectName("HomeBrandPane")
         right.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -153,9 +150,6 @@ class HomePage(QWidget):
         self._logo_src: QPixmap | None = None
         self._load_logo()
 
-        self.countdown = LaunchCountdown(self)
-        self.countdown.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-
         right.installEventFilter(self)
         body.installEventFilter(self)
         left.installEventFilter(self)
@@ -170,7 +164,7 @@ class HomePage(QWidget):
         return max(self.logo.sizeHint().height(), self.logo.height(), 40)
 
     def _fit_logo(self, max_h: int, prefer_w: int = _MOA_ART_LOGO_W) -> tuple[int, int]:
-        """Scale MoA wordmark for the art-bottom row (right of countdown)."""
+        """Scale MoA wordmark for the centered art-bottom row."""
         src = self._logo_src
         if src is None or src.isNull():
             h = self._logo_height()
@@ -187,7 +181,6 @@ class HomePage(QWidget):
         return (
             self.talent_bg,
             self.logo,
-            self.countdown,
         )
 
     def _overlay_host(self) -> QWidget | None:
@@ -213,7 +206,7 @@ class HomePage(QWidget):
         return None
 
     def _ensure_overlays_on_root(self) -> QWidget | None:
-        """Reparent art/logo/countdown onto Root so flush uses banner.y() directly."""
+        """Reparent art/logo onto Root so flush uses banner.y() directly."""
         host = self._overlay_host()
         if host is None:
             return None
@@ -245,18 +238,17 @@ class HomePage(QWidget):
     def _set_chrome_visible(self, visible: bool) -> None:
         self.talent_bg.setVisible(visible)
         self.logo.setVisible(visible)
-        self.countdown.setVisible(visible)
         banner = self._nav_bottom_banner()
         if banner is not None:
             banner.update()
 
     def _sync_brand_layout(self) -> None:
-        """Fill brand rect with official art; MoA + countdown along art bottom.
+        """Fill brand rect with official art; MoA centered along art bottom.
 
         Overlays live on MainWindow Root (not in any VBox). Art fills the brand
         column (small side/top pads), bottom flush to the diamond strip — available
         rect wins over any aspect clamp (paint uses KeepAspectRatioByExpanding).
-        MoA sits bottom-right, immediately right of the launch countdown.
+        MoA sits centered at the art bottom (same slot the countdown used).
         """
         mods = getattr(self, "_mods_drawer", None)
         if mods is None or not hasattr(self, "talent_bg"):
@@ -326,7 +318,7 @@ class HomePage(QWidget):
         layout_h = max(64, interior_bottom - art_y)
         if art_y + layout_h > interior_bottom:
             layout_h = max(64, interior_bottom - art_y)
-        # Countdown/MoA use layout_h (ends at banner top). talent_bg tucks a few
+        # MoA uses layout_h (ends at banner top). talent_bg tucks a few
         # px under the grey bar so the hard/black art edge is hidden.
         paint_h = layout_h
         if banner is not None and banner.isVisible():
@@ -338,75 +330,50 @@ class HomePage(QWidget):
         self.talent_bg.set_frame(art_x, art_y, art_w, paint_h)
         art = QRect(art_x, art_y, art_w, layout_h)
 
-        # --- Countdown + MoA along art BOTTOM (above diamond strip) ---
-        # MoA sits immediately right of countdown; pair right-aligned in the art.
-        cd = self.countdown
-        cd_hint = cd.sizeHint()
-        cd_w = max(cd_hint.width(), 280)
-        cd_h = max(cd_hint.height(), 1)
-
-        max_logo_h = max(40, cd_h)
+        # --- MoA centered along art BOTTOM (above diamond strip) ---
+        max_logo_h = max(40, art.height() // 4)
         prefer_w = min(_MOA_ART_LOGO_W, max(120, art.width() // 4))
         logo_w, logo_h = self._fit_logo(max_h=max_logo_h, prefer_w=prefer_w)
 
-        row_h = max(cd_h, logo_h)
-        row_y = art.y() + art.height() - row_h - bottom_pad
-        if row_y < art.y():
-            row_y = art.y()
-
-        pair_w = cd_w + _COUNTDOWN_MOA_GAP_PX + logo_w
-        # Right-align the pair; shrink countdown if the art is narrow.
-        pair_right = art.x() + art.width() - bottom_pad
-        pair_left = pair_right - pair_w
-        if pair_left < art.x() + bottom_pad:
-            pair_left = art.x() + bottom_pad
-            max_pair = max(64, pair_right - pair_left)
-            if pair_w > max_pair:
-                overflow = pair_w - max_pair
-                cd_w = max(200, cd_w - overflow)
-                pair_w = cd_w + _COUNTDOWN_MOA_GAP_PX + logo_w
-                pair_left = pair_right - pair_w
-                if pair_left < art.x() + bottom_pad:
-                    pair_left = art.x() + bottom_pad
-
-        cd_x = pair_left
-        cd_y = row_y + (row_h - cd_h) // 2
-        cd.setGeometry(cd_x, cd_y, cd_w, cd_h)
-
-        # Bottom-align MoA just above the art edge (not vertically centered with CD).
-        logo_x = cd_x + cd_w + _COUNTDOWN_MOA_GAP_PX
+        logo_x = art.x() + (art.width() - logo_w) // 2
         logo_y = art.y() + art.height() - logo_h - max(2, bottom_pad - _MOA_BOTTOM_NUDGE_PX)
+        if logo_y < art.y():
+            logo_y = art.y()
         self.logo.setGeometry(logo_x, logo_y, logo_w, logo_h)
 
         self._set_chrome_visible(True)
 
         # Z-order (back → front on Root):
-        #   art → MoA → countdown → purple stroke → banner → bottom → −/X → RC crest
-        # Art must stay UNDER FolderFrameStroke so it never paints over/above the
-        # purple shelf into the tab strip (behind RAVENCRAFT).
+        #   art → MoA → bottom mist → metal stroke → portrait frame → banner
+        #   → −/X → RC crest
+        # Art stays under the metal stroke. Banner PNG stays above metal/portrait
+        # so rails tuck under the solid bar. Do not leave bottom_bar last.
         self.talent_bg.raise_()
         self.logo.raise_()
-        self.countdown.raise_()
-        stroke = getattr(win, "_frame_stroke", None)
-        if isinstance(stroke, QWidget):
-            stroke.raise_()
-        if banner is not None:
-            banner.raise_()
-            banner.update()
         if isinstance(bottom_bar, QWidget):
             bottom_bar.raise_()
-        # −/X are Root siblings (see MainWindow) — keep them above the art.
-        pos_chrome = getattr(win, "_position_chrome_buttons", None)
-        if callable(pos_chrome):
-            pos_chrome()
+        if banner is not None:
+            banner.update()
+        pos_frame = getattr(win, "_position_frame_stroke", None)
+        if callable(pos_frame):
+            pos_frame()
         else:
-            for name in ("_btn_minimize", "_btn_close"):
-                btn = getattr(win, name, None)
-                if isinstance(btn, QWidget):
-                    btn.raise_()
-        corners = getattr(win, "_side_corners", None)
-        if isinstance(corners, QWidget):
-            corners.raise_()
+            stroke = getattr(win, "_frame_stroke", None)
+            if isinstance(stroke, QWidget):
+                stroke.raise_()
+            portrait = getattr(win, "_portrait_frame", None)
+            if isinstance(portrait, QWidget):
+                portrait.raise_()
+            if banner is not None:
+                banner.raise_()
+            pos_chrome = getattr(win, "_position_chrome_buttons", None)
+            if callable(pos_chrome):
+                pos_chrome()
+            else:
+                for name in ("_btn_minimize", "_btn_close"):
+                    btn = getattr(win, name, None)
+                    if isinstance(btn, QWidget):
+                        btn.raise_()
         if isinstance(rc, QWidget):
             rc.raise_()
 

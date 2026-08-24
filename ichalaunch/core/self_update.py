@@ -30,8 +30,8 @@ ProgressCb = Callable[[str], None]
 
 LAUNCHER_REPO = "brutaliccus/IchaLaunch"
 PREFERRED_ASSET = "IchaLaunch.exe"
-# Reuse silent startup/periodic check results — avoids GitHub spam on every relaunch.
-LAUNCHER_RELEASE_CACHE_SEC = 3600
+# Reuse silent startup/periodic check results for the 15-minute refresh window.
+LAUNCHER_RELEASE_CACHE_SEC = 15 * 60
 
 
 @dataclass

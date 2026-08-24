@@ -11,11 +11,13 @@ from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, QRectF, Qt, QThread, 
 from PySide6.QtGui import (
     QColor,
     QCursor,
+    QFont,
+    QFontDatabase,
+    QFontMetrics,
     QGuiApplication,
     QIcon,
     QPainter,
     QPainterPath,
-    QPen,
     QPixmap,
     QRegion,
     QTransform,
@@ -54,34 +56,90 @@ _LAUNCH_POLL_MS = 250
 _RESIZE_MARGIN = 6
 _CORNER_RADIUS = 14
 _TAB_STRIP_HEIGHT = 44
-# ContentPanel top inset so page scroll clips below minimize/close (not under −/X).
-# Matches chrome: inset_y(10) + glyph(28) + small gap below.
-_CONTENT_TOP_CHROME = 44
+# Hide the glue-plate bottom stroke / L-corners under the content seam.
+# Dest is widget height + this many px, top-aligned, so the extra bottom clips.
+_TAB_ART_SHIFT_Y = 7
+# ContentPanel top inset so page scroll clips below −/X and the LifeCraft caption.
+# Extra px below the chrome glyphs clear the IchaLaunch word.
+_CONTENT_TOP_CHROME = 66
 # RavenCraft crest at ContentPanel top (was MoA). Larger than MoA wordmark was.
 _RC_LOGO_WIDTH = 210
 # Optional outer pad around the crest (kept for layout math; no glow drawn).
 _RC_GLOW_PAD_X = 0
 _RC_GLOW_PAD_Y = 0
-# Quiet launcher self-update re-check while the app stays open (addons/client: launch only).
-_PERIODIC_UPDATE_MS = 5 * 60 * 1000
+# Secondary LifeCraft word under the crest — small vs the 210px art.
+_RC_CAPTION_TEXT = "IchaLaunch"
+_RC_CAPTION_PX = 15
+_RC_CAPTION_GAP = 3
+_RC_CAPTION_COLOR = QColor("#F1C22D")
+# One 15-minute tick refreshes launcher + addon + client catalog compares.
+_PERIODIC_UPDATE_MS = 15 * 60 * 1000
+# Automatic scans (startup + periodic tick) always run in this order.
+# Each step waits for the previous worker (or a sync skip) before the next starts.
+_AUTO_UPDATE_STEPS = ("launcher", "addons", "client")
 # Let the window finish laying out / detecting game path before the first network scan.
 _STARTUP_UPDATE_DELAY_MS = 1500
 _NAV_BOTTOM_BANNER_H = 30
-# Vertical center of the banner PNG — HOME art and mist fill meet here.
+# Vertical center of the banner PNG — solid bar vs hanging spike valleys.
 _NAV_BOTTOM_BANNER_MID_Y = _NAV_BOTTOM_BANNER_H // 2
+# Spike-valley height (PNG alpha below the bar). Filled behind the PNG with
+# play black (#100d0c); the unkeyed pixmap paints on top.
+_NAV_BOTTOM_BANNER_SPIKE_H = _NAV_BOTTOM_BANNER_H - _NAV_BOTTOM_BANNER_MID_Y
 # Draw strip this many px past each side so end spikes clip off (~20px wider total).
 _NAV_BOTTOM_BANNER_OVERDRAW_X = 12
+# Source PNG is 1920×38; transparent top pad is y=0–6. Scaled to 30px that
+# is ~6px. Hang the ContentPanel floor onto the solid bar so the pad is not
+# a desktop seam. Do not grow BottomBar to cover this — that shrinks PLAY.
+_NAV_BOTTOM_BANNER_PANEL_OVERLAP = 6
+# Play/status strip — PLAY 56 + 80px UPDATE glow. Height only; do not inset
+# L/R to "fix" height. Under-banner play fill is a dedicated layer, not 88px.
+_BOTTOM_BAR_H = 88
 _CORNER_RADIUS_F = float(_CORNER_RADIUS)
-# Main purple frame stroke — same as former QSS rgba(124, 92, 196, 0.45).
-_FRAME_STROKE = QColor(124, 92, 196, 115)
-# Mechagon top rail — horizontal strip, sits just below the purple shelf stroke.
-# Drawn at 15px; tiled end-to-end; body fill starts below the rail.
-_TOP_RAIL_NAME = "UIFrameMechagonVertical.PNG"
-_TOP_RAIL_EXTERNAL = Path(r"C:\Users\jeb32\Downloads\UIFrameMechagonVertical.PNG")
-_TOP_RAIL_DRAW_H = 15
-
 # Main ContentPanel floor — opaque RavenCraft base, then tiles + wash on top.
 _FLOOR_BASE = QColor("#181315")
+# Generic-metal chrome — individual crops from UIFrameGenericMetal.PNG (256×256).
+# Atlas: y=0–31 top edge tile; y=64+ diamond-rivet TL + left stem (see theme crops).
+_METAL_EDGE_TOP_NAME = "metal_edge_top.png"
+_METAL_EDGE_LEFT_NAME = "metal_edge_left.png"
+_METAL_EDGE_RIGHT_NAME = "metal_edge_right.png"
+_METAL_CORNER_TL_NAME = "metal_corner_tl.png"
+_METAL_CORNER_TR_NAME = "metal_corner_tr.png"
+# Edge thickness on the window edge (not inset into the page).
+_METAL_EDGE_DRAW = 20
+# Corners scale uniformly (48px cell → this); arms meet the 20px rails.
+_METAL_CORNER_DRAW = 40
+# 1px past the folder box — matches rail dest (box.x()-1). Fringe is trimmed
+# off the crops so this is the metal lip, not a black halo.
+_METAL_CORNER_HANG = 1
+# Floor past each metal dest (AA / hang) so desktop cannot peek.
+# Keep this small — a wide band reads as a #181315 outline.
+_METAL_FLOOR_OUTSET = 2
+# Side rails run down to the solid banner bar (not the crystal tip, not the
+# spike valleys). +2 tucks under the opaque bar so the join has no hairline.
+_METAL_RAIL_BANNER_TUCK = _NAV_BOTTOM_BANNER_MID_Y + 2
+# Portrait chrome — individual crops from UIFramePortrait.PNG (256×1024).
+# Atlas: bottom (0,123,256,11); left (8,268,13,120); right (121,405,13,119);
+# BL L (8,370,32,32); BR L (102,504,32,32). Paint 1:1 — no scale smear.
+_PORTRAIT_EDGE_BOTTOM_NAME = "portrait_edge_bottom.png"
+_PORTRAIT_EDGE_LEFT_NAME = "portrait_edge_left.png"
+_PORTRAIT_EDGE_RIGHT_NAME = "portrait_edge_right.png"
+_PORTRAIT_CORNER_BL_NAME = "portrait_corner_bl.png"
+_PORTRAIT_CORNER_BR_NAME = "portrait_corner_br.png"
+# Outer-lip pixels (alpha>16) registered onto the shared play-frame box.
+_PORTRAIT_BL_OX = 2
+_PORTRAIT_BL_OY = 29
+_PORTRAIT_BR_OX = 29
+_PORTRAIT_BR_OY = 29
+_PORTRAIT_LEFT_OX = 2
+_PORTRAIT_RIGHT_OX = 10
+_PORTRAIT_BOT_OY = 8
+# Row in the 32px corners where the L bend starts (stem above, arm below).
+_PORTRAIT_ARM_JOIN = 21
+# Shared join: tiles overlap this many px into the corner arms.
+_PORTRAIT_JOIN = 8
+# Slight outward x so L/R rails + BL/BR sit on the metal rail (box.x()-1)
+# without hanging past the window lip. Keep corners locked to their bars.
+_PORTRAIT_OUTER_NUDGE = 1
 _FLOOR_NAME = "UIFrameNecrolordBackground.PNG"
 _FLOOR_EXTERNAL = Path(r"F:\wow-ui-textures\FrameGeneral\UIFrameNecrolordBackground.PNG")
 # Soft floor: subtle darken vs first Necrolord preview (0.22/90 → slight nudge).
@@ -99,34 +157,70 @@ _CURSOR_POINT_NAME = "cursor_point.png"
 _CURSOR_POINT_EXTERNAL = Path(r"F:\wow-ui-textures\CURSOR\Point.PNG")
 _CURSOR_POINT_HOTSPOT = (0, 0)
 
-# Bottom main-frame corner ornaments (bundled left_corners.png bottom crop + H-flip).
-_SIDE_CORNERS_NAME = "left_corners.png"
-_SIDE_CORNERS_SRC_H = 920
-# Bottom-left L in the tall strip (top ornament unused — no top corners).
-_BOTTOM_CORNER_SRC_Y = 765
-_BOTTOM_CORNER_SRC_H = _SIDE_CORNERS_SRC_H - _BOTTOM_CORNER_SRC_Y  # 155
-# Inner edge of the L-stem in source px — aligned to the purple stroke.
-_SIDE_CORNERS_INNER_X = 20
-_SIDE_CORNERS_INNER_Y = 20
-# Vertical: lower inward → hang_y grows → corners sit lower (was 6; −5 → 1; −2 → −1; +4 → 3).
-_BOTTOM_CORNERS_INWARD_Y = 3
-# Horizontal: scoot L/R outward from that prior pose by this many px (not 6).
-_BOTTOM_CORNERS_OUTWARD_X = 6
-# Extra draw height on BL/BR (width stays aspect-scaled; height ignores AR).
-_BOTTOM_CORNERS_STRETCH_Y = 20
-# Paint inset X kept at the prior shared inward (6) so only hang_x moves art ~OUTWARD_X.
-_BOTTOM_CORNERS_PAINT_INSET_X = 6
-# Root gutter so out-set corners are not clipped at the window edge.
-_FRAME_OUTSET_MARGIN = 24
-# Chrome pad for −/X (bottom corners no longer crowd the top-right).
-_CHROME_FRAME_PAD = 14
-# Minimize / close sit closer to the framed panel's right edge than the logo pad.
-_CHROME_BTN_INSET_X = 6
-_CHROME_BTN_INSET_Y = 10
+# L/R gutter so metal hang (1) + floor outset (2) are not clipped.
+# Was 24 for BL/BR left_corners ornaments — those are gone; 24 pinched the
+# play cluster ~48px. 4 is enough for the remaining TL/TR lip.
+_FRAME_OUTSET_MARGIN = 4
+# Bottom gutter stays 24 so the 88px play strip keeps its sit-height
+# (PLAY ~40px from the window bottom). Do not steal width to fix height.
+_FRAME_OUTSET_BOTTOM = 24
+# −/X sit inside the framed panel, clear of metal_corner_tr (~40) and the right rail (~20).
+_CHROME_BTN_INSET_X = 44
+# Below the 20px top rail (was 10 — sat on the rail after shifting left of TR).
+_CHROME_BTN_INSET_Y = 24
 
 from ichalaunch import __version__
 from ichalaunch.core.paths import theme_file
 from ichalaunch.ui.widgets.update_alert_badge import paint_update_alert_badge
+
+# LifeCraft_Font.ttf — Eliot Truelove / dafont donationware (personal use); zip has no readme.
+_RC_CAPTION_FONT_PATH = theme_file("fonts", "LifeCraft_Font.ttf")
+_LIFECRAFT_FAMILY: str | None = None
+_LIFECRAFT_LOAD_ATTEMPTED = False
+
+
+def _lifecraft_family() -> str | None:
+    """Register the bundled LifeCraft face once; None if the file is missing."""
+    global _LIFECRAFT_FAMILY, _LIFECRAFT_LOAD_ATTEMPTED
+    if _LIFECRAFT_LOAD_ATTEMPTED:
+        return _LIFECRAFT_FAMILY
+    _LIFECRAFT_LOAD_ATTEMPTED = True
+    path = _RC_CAPTION_FONT_PATH
+    if not path.is_file() or path.stat().st_size <= 0:
+        return None
+    font_id = QFontDatabase.addApplicationFont(str(path))
+    if font_id == -1:
+        return None
+    families = QFontDatabase.applicationFontFamilies(font_id)
+    if not families:
+        return None
+    _LIFECRAFT_FAMILY = families[0]
+    return _LIFECRAFT_FAMILY
+
+
+def _lifecraft_caption_font() -> QFont | None:
+    family = _lifecraft_family()
+    if not family:
+        return None
+    font = QFont(family)
+    font.setPixelSize(_RC_CAPTION_PX)
+    font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
+    return font
+
+
+def _pixmap_opaque_bottom(pix: QPixmap) -> int:
+    """First row below the last non-transparent pixel (pixmap height if empty)."""
+    if pix.isNull():
+        return 0
+    img = pix.toImage()
+    h = img.height()
+    w = img.width()
+    step = 2 if w > 2 else 1
+    for y in range(h - 1, -1, -1):
+        for x in range(0, w, step):
+            if img.pixelColor(x, y).alpha() > 16:
+                return y + 1
+    return h
 
 
 def _resolve_theme_texture(bundled_name: str, external: Path) -> Path | None:
@@ -156,15 +250,15 @@ def _load_point_cursor() -> QCursor | None:
 
 
 from ichalaunch.addons.github import (
+    AddonInstallResult,
     AddonUpdateCheckResult,
     GIT_REPAIR_STATUS,
     GITHUB_TOKEN_REJECTED_MSG,
     RATE_LIMIT_STATUS,
-    WAITING_RATE_LIMIT_STATUS,
     check_addon_updates,
+    finalize_install_after_toc_renames,
     format_github_error_message,
     has_github_token,
-    has_pending_addon_scan_queue,
     install_from_github,
     rate_limit_exhausted,
     recently_checked_addon_updates,
@@ -173,13 +267,16 @@ from ichalaunch.addons.github import (
     update_addon,
 )
 from ichalaunch.config.settings import settings
-from ichalaunch.core.detect import full_resync
+from ichalaunch.core.detect import full_resync, scan_mismatched_toc_addon_folders
 from ichalaunch.core.filesystem import (
+    AddonTocMismatch,
     PermissionScanResult,
     fix_game_permissions,
     is_protected_path,
     protected_location_guidance,
+    rename_addon_folder_to_toc,
     scan_game_permissions,
+    take_pending_toc_mismatches,
 )
 from ichalaunch.core.logging_setup import log
 from ichalaunch.core.process import StatusProgress, status_only
@@ -228,6 +325,7 @@ from ichalaunch.ui.pages.settings import SettingsPage
 from ichalaunch.ui.widgets.loading_bar import ThemeLoadingBar
 from ichalaunch.ui.widgets.chrome_buttons import ChromeGlyphButton
 from ichalaunch.ui.widgets.cursors import apply_open_hand
+from ichalaunch.ui.widgets.glue_panel_button import glue_floor_chrome_pixmap
 from ichalaunch.ui.widgets.launch_button import LaunchButton, UpdateLaunchButton
 
 
@@ -241,17 +339,49 @@ def _format_minutes_since(settings_key: str) -> str:
 
 
 class NavTabButton(QPushButton):
-    """Folder tab — Necrolord floor + optional pending-update alert badge."""
+    """Folder tab — floor-tinted Glue-Panel plate + optional update alert badge."""
 
     def __init__(self, text: str, parent: QWidget | None = None):
         super().__init__(text, parent)
-        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setObjectName("TopNavButton")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+        self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
         self.setAutoFillBackground(False)
+        self.setFlat(True)
+        # Widget-scoped: kill the app-wide QPushButton 1px #7a6e88 frame.
+        # Repeat size rules so this sheet cannot drop the file-QSS box model.
+        self.setStyleSheet(
+            "QPushButton {"
+            "  background: transparent;"
+            "  border: none;"
+            "  outline: none;"
+            "  padding: 10px 18px 4px 18px;"
+            "  margin: 2px 0 0 0;"
+            "}"
+            "QPushButton:hover, QPushButton:pressed, QPushButton:focus {"
+            "  background: transparent;"
+            "  border: none;"
+            "  outline: none;"
+            "}"
+            "QPushButton:checked {"
+            "  background: transparent;"
+            "  border: none;"
+            "  outline: none;"
+            "  margin-top: 0;"
+            "  padding-top: 12px;"
+            "  padding-bottom: 6px;"
+            "  min-height: 32px;"
+            "}"
+        )
         self._badge = False
-        self._floor = _load_theme_texture(_FLOOR_NAME, _FLOOR_EXTERNAL)
         self._tile_anchor: QWidget | None = None
+        # Warm floor-tint caches so the first tab paint is snappy.
+        for pressed in (False, True):
+            for shade in ("idle", "hover", "selected"):
+                glue_floor_chrome_pixmap(pressed=pressed, shade=shade)
 
     def set_tile_anchor(self, anchor: QWidget | None) -> None:
+        # Kept for TopNavStrip; tabs no longer tile the Necrolord floor.
         self._tile_anchor = anchor
 
     def set_badge_visible(self, visible: bool) -> None:
@@ -261,39 +391,57 @@ class NavTabButton(QPushButton):
         self._badge = visible
         self.update()
 
+    def enterEvent(self, event) -> None:  # noqa: N802
+        super().enterEvent(event)
+        self.update()
+
+    def leaveEvent(self, event) -> None:  # noqa: N802
+        super().leaveEvent(event)
+        self.update()
+
+    def _plate_shade(self) -> str:
+        if self.isChecked():
+            return "selected"
+        if self.underMouse():
+            return "hover"
+        return "idle"
+
+    def _label_color(self) -> QColor:
+        if self.isChecked():
+            return QColor("#F1C22D")
+        if self.underMouse():
+            return QColor("#e6e0ee")
+        return QColor("#9990ab")
+
     def paintEvent(self, event) -> None:  # noqa: N802
+        del event
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        # Match QSS tab radii — rounded top, flush bottom onto the purple shelf.
-        # Extend 1px past the widget so antialiasing does not fringe the last
-        # row (a hairline leak on the translucent frameless window).
-        tab = QPainterPath()
-        tab.setFillRule(Qt.FillRule.WindingFill)
-        rect = QRectF(self.rect())
-        rect.setBottom(rect.bottom() + 1.0)
-        r = 9.0
-        tab.moveTo(rect.left(), rect.bottom())
-        tab.lineTo(rect.left(), rect.top() + r)
-        tab.quadTo(rect.left(), rect.top(), rect.left() + r, rect.top())
-        tab.lineTo(rect.right() - r, rect.top())
-        tab.quadTo(rect.right(), rect.top(), rect.right(), rect.top() + r)
-        tab.lineTo(rect.right(), rect.bottom())
-        tab.closeSubpath()
-        painter.setClipPath(tab)
-        origin = QPoint(0, 0)
-        anchor = self._tile_anchor
-        if anchor is not None:
-            mapped = _map_via_global(anchor, self, QPoint(1, 0))
-            if mapped is not None:
-                origin = mapped
-        _paint_floor_fill(painter, self.rect(), self._floor, tile_origin=origin)
-        painter.end()
-        super().paintEvent(event)
-        if not self._badge:
-            return
-        painter = QPainter(self)
-        paint_update_alert_badge(painter, self.rect())
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+        rect = self.rect()
+        painter.setPen(Qt.PenStyle.NoPen)
+        pm = glue_floor_chrome_pixmap(pressed=self.isDown(), shade=self._plate_shade())
+        if pm.isNull():
+            painter.setBrush(_FLOOR_BASE)
+            painter.drawRoundedRect(rect.adjusted(0, 0, 0, 1), 6, 6)
+        else:
+            # Shift art down by extending dest past the widget; bottom clips
+            # at the tab / ContentPanel seam so L-corners + bottom stroke hide.
+            dest = QRect(rect.x(), rect.y(), rect.width(), rect.height() + _TAB_ART_SHIFT_Y)
+            painter.drawPixmap(dest, pm)
+
+        text = self.text() or ""
+        font = QFont(self.font())
+        font.setBold(True)
+        painter.setFont(font)
+        text_rect = rect.adjusted(0, 1 if self.isDown() else 0, 0, 0)
+        painter.setPen(QColor(0, 0, 0, 140))
+        painter.drawText(text_rect.adjusted(1, 1, 1, 1), Qt.AlignmentFlag.AlignCenter, text)
+        painter.setPen(self._label_color())
+        painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, text)
+
+        if self._badge:
+            paint_update_alert_badge(painter, rect)
         painter.end()
 
 
@@ -307,6 +455,8 @@ class RavenCraftFloatingLogo(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self._pix = QPixmap()
         self._logo_h = 0
+        self._caption_font: QFont | None = None
+        self._caption_top = 0
         self._load()
 
     def _load(self) -> None:
@@ -320,9 +470,19 @@ class RavenCraftFloatingLogo(QWidget):
             return
         self._pix = src.scaledToWidth(_RC_LOGO_WIDTH, Qt.TransformationMode.SmoothTransformation)
         self._logo_h = self._pix.height()
+        self._caption_font = _lifecraft_caption_font()
+        art_bottom = _RC_GLOW_PAD_Y + _pixmap_opaque_bottom(self._pix)
+        self._caption_top = art_bottom + _RC_CAPTION_GAP
+        caption_h = 0
+        if self._caption_font is not None:
+            fm = QFontMetrics(self._caption_font)
+            # +4: paint band is +2 and the 1px floor shadow sits below it.
+            caption_h = max(fm.height(), fm.tightBoundingRect(_RC_CAPTION_TEXT).height()) + 4
+        # Grow downward only so the crest stay-centered math (logo_height) is unchanged.
+        need_h = max(self._logo_h, self._caption_top + caption_h) + _RC_GLOW_PAD_Y * 2
         self.setFixedSize(
             self._pix.width() + _RC_GLOW_PAD_X * 2,
-            self._logo_h + _RC_GLOW_PAD_Y * 2,
+            need_h,
         )
         self.show()
 
@@ -341,7 +501,28 @@ class RavenCraftFloatingLogo(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
         painter.drawPixmap(_RC_GLOW_PAD_X, _RC_GLOW_PAD_Y, self._pix)
+        font = self._caption_font
+        if font is None:
+            return
+        painter.setFont(font)
+        fm = painter.fontMetrics()
+        band_h = max(fm.height(), fm.tightBoundingRect(_RC_CAPTION_TEXT).height()) + 2
+        band = QRect(0, self._caption_top, self.width(), band_h)
+        # Soft floor shadow so gold stays readable on the Necrolord wash.
+        painter.setPen(QColor(16, 13, 12, 200))
+        painter.drawText(
+            band.translated(1, 1),
+            int(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop),
+            _RC_CAPTION_TEXT,
+        )
+        painter.setPen(_RC_CAPTION_COLOR)
+        painter.drawText(
+            band,
+            int(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop),
+            _RC_CAPTION_TEXT,
+        )
 
 
 def _paint_floor_fill(
@@ -378,17 +559,19 @@ def _paint_floor_fill(
     painter.restore()
 
 
-def _paint_top_rail(
-    painter: QPainter,
-    rect: QRect,
-    rail: QPixmap,
-    *,
-    draw_h: int = _TOP_RAIL_DRAW_H,
-) -> None:
-    """Tile the Mechagon rail along the content shelf, just below the purple stroke.
+def _scale_theme_pixmap(pm: QPixmap, w: int, h: int) -> QPixmap:
+    if pm.isNull() or w <= 0 or h <= 0:
+        return QPixmap()
+    return pm.scaled(
+        w,
+        h,
+        Qt.AspectRatioMode.IgnoreAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
 
-    Filename says Vertical; the PNG is already a wide horizontal strip. No rotate.
-    """
+
+def _paint_tiled_h(painter: QPainter, rect: QRect, rail: QPixmap, draw_h: int) -> None:
+    """Tile a horizontal metal edge. Scales the tile's height only; repeats in X."""
     if rail.isNull() or rect.width() <= 0 or rect.height() <= 0:
         return
     src_w = rail.width()
@@ -399,12 +582,7 @@ def _paint_top_rail(
     if h <= 0:
         return
     tw = max(1, int(round(src_w * (h / float(src_h)))))
-    tile = rail.scaled(
-        tw,
-        h,
-        Qt.AspectRatioMode.IgnoreAspectRatio,
-        Qt.TransformationMode.SmoothTransformation,
-    )
+    tile = _scale_theme_pixmap(rail, tw, h)
     painter.save()
     painter.setClipRect(rect, Qt.ClipOperation.IntersectClip)
     x = rect.left()
@@ -412,6 +590,29 @@ def _paint_top_rail(
     while x < rect.right():
         painter.drawPixmap(x, y, tile)
         x += tw
+    painter.restore()
+
+
+def _paint_tiled_v(painter: QPainter, rect: QRect, rail: QPixmap, draw_w: int) -> None:
+    """Tile a vertical metal edge. Scales the tile's width only; repeats in Y."""
+    if rail.isNull() or rect.width() <= 0 or rect.height() <= 0:
+        return
+    src_w = rail.width()
+    src_h = rail.height()
+    if src_w <= 0 or src_h <= 0:
+        return
+    w = min(int(draw_w), rect.width())
+    if w <= 0:
+        return
+    th = max(1, int(round(src_h * (w / float(src_w)))))
+    tile = _scale_theme_pixmap(rail, w, th)
+    painter.save()
+    painter.setClipRect(rect, Qt.ClipOperation.IntersectClip)
+    x = rect.left()
+    y = rect.top()
+    while y < rect.bottom():
+        painter.drawPixmap(x, y, tile)
+        y += th
     painter.restore()
 
 
@@ -423,7 +624,7 @@ def _paint_mist_fill(
     tile_h: int | None = None,
     tile_origin: QPoint | None = None,
 ) -> None:
-    """Opaque mist base + one horizontal mist row + wash (BottomBar / banner spikes)."""
+    """Opaque mist base + one horizontal mist row + wash (BottomBar only)."""
     if rect.width() <= 0 or rect.height() <= 0:
         return
     painter.fillRect(rect, _MIST_BASE)
@@ -459,7 +660,7 @@ def _folder_frame_path(
     *,
     body_r: float = _CORNER_RADIUS_F,
 ) -> QPainterPath:
-    """Closed purple body: sharp TL/TR, rounded BL/BR, continuous top shelf.
+    """Closed folder body: sharp TL/TR, rounded BL/BR, continuous top shelf.
 
     *tab* is ignored — tabs sit on TopNav above this frame and do not open into
     the body. Fill rule is WindingFill so clip/fill use the enclosed interior.
@@ -567,7 +768,7 @@ def _interior_fill_clip(
     QSS chrome is transparent, so a bad/empty clip would leave a see-through hole.
     Always fall back to the inset rect (optionally BL/BR rounded) when mapping or
     intersection fails — unless *empty_if_unmapped*. Intersecting with the widget
-    inset prevents painting the exterior ring outside the purple stroke.
+    rect keeps fill inside the folder (no exterior corner pockets).
     *pad_top* / *pad_bottom* of 0 when the caller already inset that edge, or at
     sibling joins (banner) where a 0.5px shrink would punch a translucent hole.
     """
@@ -593,14 +794,13 @@ def _interior_fill_clip(
     mapped = _map_folder_path_to_widget(folder, root, widget)
     if mapped.isEmpty():
         return empty if empty_if_unmapped else fallback
-    # Interior only — never use the stroke outline / exterior complement.
+    # Interior only — never the exterior complement.
     clipped = mapped.intersected(fallback)
     if clipped.isEmpty():
         return empty if empty_if_unmapped else fallback
-    # Pull fill inside the purple L/R (and optional T/B) stroke. Zero T/B pad at
-    # the banner joins so abutting widgets do not leave a 1px translucent seam.
+    # Optional T/B pad at sibling joins so abutting widgets stay opaque.
     inset_path = QPainterPath()
-    inset_path.addRect(rect.adjusted(0.5, pad_top, -0.5, -pad_bottom))
+    inset_path.addRect(rect.adjusted(0.0, pad_top, 0.0, -pad_bottom))
     inset_path.setFillRule(Qt.FillRule.WindingFill)
     tighter = clipped.intersected(inset_path)
     if tighter.isEmpty():
@@ -611,7 +811,7 @@ def _interior_fill_clip(
 
 
 class TopNavStrip(QWidget):
-    """Tab host — gutters are transparent holes; only NavTabButtons paint fill."""
+    """Tab host — gutters are transparent holes; NavTabButtons paint glue plates."""
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
@@ -650,12 +850,113 @@ class TopNavStrip(QWidget):
         return ok
 
     def paintEvent(self, event) -> None:  # noqa: N802
-        # Gutters stay unpainted (true holes). Floor lives on each NavTabButton.
+        # Gutters stay unpainted (true holes). Glue plates live on each NavTabButton.
         return
 
 
+def _load_bundled_pixmap(name: str) -> QPixmap:
+    path = theme_file(name)
+    if not path.is_file():
+        return QPixmap()
+    pm = QPixmap(str(path))
+    return pm if not pm.isNull() else QPixmap()
+
+
+def _metal_line_is_fringe(img, *, x: int | None = None, y: int | None = None) -> bool:
+    """True if this row/col is empty or flat black (atlas halo, not the lip)."""
+    w, h = img.width(), img.height()
+    if x is not None:
+        n = h
+        samples = (img.pixelColor(x, yy) for yy in range(h))
+    else:
+        n = w
+        samples = (img.pixelColor(xx, y) for xx in range(w))
+    fringe = 0
+    for c in samples:
+        if c.alpha() < 32 or (c.red() + c.green() + c.blue()) < 12:
+            fringe += 1
+    return fringe >= max(1, int(n * 0.85))
+
+
+def _trim_metal_outer_fringe(
+    pm: QPixmap,
+    *,
+    left: bool = False,
+    right: bool = False,
+    top: bool = False,
+    bottom: bool = False,
+) -> QPixmap:
+    """Drop the crop's near-black outer halo so the metal lip is the dest edge."""
+    if pm.isNull():
+        return pm
+    img = pm.toImage()
+    w, h = img.width(), img.height()
+    x0, y0, x1, y1 = 0, 0, w, h
+    if left:
+        while x0 < x1 - 1 and _metal_line_is_fringe(img, x=x0):
+            x0 += 1
+    if right:
+        while x1 - 1 > x0 and _metal_line_is_fringe(img, x=x1 - 1):
+            x1 -= 1
+    if top:
+        while y0 < y1 - 1 and _metal_line_is_fringe(img, y=y0):
+            y0 += 1
+    if bottom:
+        while y1 - 1 > y0 and _metal_line_is_fringe(img, y=y1 - 1):
+            y1 -= 1
+    if x0 == 0 and y0 == 0 and x1 == w and y1 == h:
+        return pm
+    cropped = img.copy(x0, y0, max(1, x1 - x0), max(1, y1 - y0))
+    return QPixmap.fromImage(cropped)
+
+
+def _metal_underfill_path(
+    box: QRect,
+    *,
+    hang: int,
+    ew: int,
+    eh: int,
+    side_stop: int,
+) -> QPainterPath:
+    """U-band under top / L / R metal. Stops at the banner tuck (no spike valleys)."""
+    outset = _METAL_FLOOR_OUTSET
+    outer = hang + outset
+    path = QPainterPath()
+    path.setFillRule(Qt.FillRule.WindingFill)
+    path.addRect(
+        QRectF(
+            box.x() - outer,
+            box.y() - hang - outset,
+            box.width() + 2 * outer,
+            hang + eh + outset,
+        )
+    )
+    y0 = float(box.y() - hang)
+    side_h = float(max(1, side_stop - int(y0)))
+    path.addRect(QRectF(box.x() - outer, y0, outer + ew, side_h))
+    path.addRect(QRectF(box.x() + box.width() - ew, y0, ew + outer, side_h))
+    return path
+
+
+def _scaled_corner(pm: QPixmap, size: int) -> QPixmap:
+    if pm.isNull() or size <= 0:
+        return QPixmap()
+    return pm.scaled(
+        size,
+        size,
+        Qt.AspectRatioMode.KeepAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
+
+
 class FolderFrameStroke(QWidget):
-    """Click-through purple body outline (closed shelf, sharp TL/TR, rounded BL/BR)."""
+    """Click-through generic-metal top/side rails and TL/TR corners.
+
+    No outer window stroke — metal chrome is the frame. Floor fills first
+    under (and slightly past) the metal so the atlas pad is not a black halo.
+    Side rails stop at the nav banner (tuck under the strip). No BL/BR
+    generic-metal ornaments.
+    """
 
     def __init__(self, host: "MainWindow", parent: QWidget | None = None):
         super().__init__(parent)
@@ -663,158 +964,182 @@ class FolderFrameStroke(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self._host = host
-        self._rail = _load_theme_texture(_TOP_RAIL_NAME, _TOP_RAIL_EXTERNAL)
+        self._floor = _load_theme_texture(_FLOOR_NAME, _FLOOR_EXTERNAL)
+        self._edge_top = _trim_metal_outer_fringe(
+            _load_bundled_pixmap(_METAL_EDGE_TOP_NAME), top=True
+        )
+        self._edge_left = _trim_metal_outer_fringe(
+            _load_bundled_pixmap(_METAL_EDGE_LEFT_NAME), left=True
+        )
+        self._edge_right = _trim_metal_outer_fringe(
+            _load_bundled_pixmap(_METAL_EDGE_RIGHT_NAME), right=True
+        )
+        self._tl = _scaled_corner(
+            _trim_metal_outer_fringe(
+                _load_bundled_pixmap(_METAL_CORNER_TL_NAME), left=True, top=True
+            ),
+            _METAL_CORNER_DRAW,
+        )
+        self._tr = _scaled_corner(
+            _trim_metal_outer_fringe(
+                _load_bundled_pixmap(_METAL_CORNER_TR_NAME), right=True, top=True
+            ),
+            _METAL_CORNER_DRAW,
+        )
 
     def paintEvent(self, event) -> None:  # noqa: N802
-        path = self._host.build_folder_stroke_path()
-        if path.isEmpty():
+        box = self._host.folder_stroke_box()
+        if box is None or box.width() <= 0 or box.height() <= 0:
             return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        pen = QPen(_FRAME_STROKE)
-        pen.setWidthF(1.0)
-        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        painter.setPen(pen)
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawPath(path)
-        # Rail just below the purple shelf (ContentPanel y=1). L/R inset.
-        content = getattr(self._host, "_content_panel", None)
-        if content is None or content.width() <= 0 or self._rail.isNull():
-            return
-        origin = _map_via_global(content, self, QPoint(0, 0))
-        if origin is None:
-            return
-        rail_h = min(_TOP_RAIL_DRAW_H, max(1, content.height()))
-        rail_rect = QRect(
-            origin.x() + 1,
-            origin.y() + 1,
-            max(1, content.width() - 2),
-            rail_h,
+        hang = _METAL_CORNER_HANG
+        cw = max(self._tl.width(), self._tr.width(), 1)
+        ch = max(self._tl.height(), self._tr.height(), 1)
+        ew = _METAL_EDGE_DRAW
+        eh = _METAL_EDGE_DRAW
+        # Rails tuck under the corner arms so the join is the rivet, not a seam.
+        overlap = min(8, cw // 3, ch // 3)
+
+        top = QRect(
+            box.x() + cw - overlap,
+            box.y() - 1,
+            max(1, box.width() - 2 * (cw - overlap)),
+            eh,
         )
-        painter.setClipRect(rail_rect, Qt.ClipOperation.IntersectClip)
-        _paint_top_rail(painter, rail_rect, self._rail)
+
+        # Rails run from the TL/TR arms down to the solid banner bar, then tuck
+        # under the opaque strip. Banner PNG is raised above this overlay.
+        side_top = box.y() + ch - overlap
+        side_stop = box.y() + box.height()
+        banner = getattr(self._host, "_nav_bottom_banner", None)
+        if banner is not None and banner.height() > 0:
+            banner_tl = _map_via_global(banner, self, QPoint(0, 0))
+            if banner_tl is not None:
+                side_stop = banner_tl.y() + _METAL_RAIL_BANNER_TUCK
+        side_h = max(1, side_stop - side_top)
+        left = QRect(box.x() - 1, side_top, ew, side_h)
+        right = QRect(box.x() + box.width() - ew + 1, side_top, ew, side_h)
+        tl_pos = QPoint(box.x() - hang, box.y() - hang)
+        tr_pos = QPoint(
+            box.x() + box.width() - self._tr.width() + hang,
+            box.y() - hang,
+        )
+
+        # Floor first — U-band under and slightly outside the metal. No pen.
+        # Side bands stop at side_stop; spike valleys use the under-banner fill.
+        tile_origin = box.topLeft()
+        panel = getattr(self._host, "_content_panel", None)
+        if panel is not None:
+            mapped = _map_via_global(panel, self, QPoint(0, 0))
+            if mapped is not None:
+                tile_origin = mapped
+        under = _metal_underfill_path(
+            box, hang=hang, ew=ew, eh=eh, side_stop=side_stop
+        )
+        painter.save()
+        painter.setClipPath(under)
+        _paint_floor_fill(
+            painter,
+            under.boundingRect().toAlignedRect().adjusted(-1, -1, 1, 1),
+            self._floor,
+            tile_origin=tile_origin,
+        )
+        painter.restore()
+
+        _paint_tiled_h(painter, top, self._edge_top, eh)
+        _paint_tiled_v(painter, left, self._edge_left, ew)
+        _paint_tiled_v(painter, right, self._edge_right, ew)
+
+        if not self._tl.isNull():
+            painter.drawPixmap(tl_pos, self._tl)
+        if not self._tr.isNull():
+            painter.drawPixmap(tr_pos, self._tr)
 
 
-class SideCornersOverlay(QWidget):
-    """Main-app bottom corners from left_corners.png (no top ornaments).
+class PortraitPlayFrame(QWidget):
+    """Click-through UIFramePortrait U-frame over the play bar.
 
-    Uses the source bottom-left L as-is; bottom-right is a horizontal mirror so it
-    stays a BR corner (not a rotated top piece). Drawn along the bottom of the
-    folder body (ContentPanel→BottomBar). Vertical hang uses INWARD_Y (lower =
-    sits further down); horizontal hang uses paint-inset baseline + OUTWARD_X.
-    Click-through for resize/drag/page input. Must stack above the purple frame
-    stroke.
+    Stacked above the under-banner fills and below the nav-banner PNG so
+    side rails tuck under the solid bar. Valley alpha shows play black,
+    then these rails, then the unkeyed PNG.
+    Ignores mouse events so PLAY, the update button, and the loading bar
+    stay clickable.
     """
 
-    def __init__(self, parent: QWidget | None = None):
+    def __init__(self, host: "MainWindow", parent: QWidget | None = None):
         super().__init__(parent)
-        self.setObjectName("SideCornersOverlay")
+        self.setObjectName("PortraitPlayFrame")
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self._left = QPixmap()
-        self._right = QPixmap()
-        self._frame_h = 0
-        self._scaled_left = QPixmap()
-        self._scaled_right = QPixmap()
-        self._hang_x = 0
-        self._hang_y = 0
-        self._piece_h = 0
-        path = theme_file(_SIDE_CORNERS_NAME)
-        if path.is_file():
-            src = QPixmap(str(path))
-            if not src.isNull():
-                # Tall strip is left-side TL+BL; keep only the bottom L (no top corners).
-                # Equivalent bottom-edge layout to rotate(-90°)+flipV of the full strip.
-                y0 = min(_BOTTOM_CORNER_SRC_Y, max(0, src.height() - 1))
-                h = min(_BOTTOM_CORNER_SRC_H, max(1, src.height() - y0))
-                bl = src.copy(0, y0, src.width(), h)
-                self._left = bl
-                # H-flip → true bottom-right (not a misplaced top ornament).
-                self._right = bl.transformed(
-                    QTransform().scale(-1, 1),
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-
-    @staticmethod
-    def _scale_for_frame_height(frame_h: int) -> float:
-        """Match prior side-strip thickness (full 920px strip vs frame height)."""
-        h = max(int(frame_h), 1)
-        denom = float(_SIDE_CORNERS_SRC_H - 2 * _SIDE_CORNERS_INNER_Y)
-        hang_y_full = int(round(_SIDE_CORNERS_INNER_Y * h / denom)) if denom > 1 else 0
-        return (h + 2 * hang_y_full) / float(_SIDE_CORNERS_SRC_H)
-
-    @classmethod
-    def hang_for_frame_height(cls, frame_h: int) -> tuple[int, int]:
-        """Out-set (x, y): Y uses INWARD_Y; X uses prior paint-inset baseline + OUTWARD_X."""
-        scale = cls._scale_for_frame_height(frame_h)
-        hang_x = max(
-            0,
-            int(round(_SIDE_CORNERS_INNER_X * scale))
-            - _BOTTOM_CORNERS_PAINT_INSET_X
-            + _BOTTOM_CORNERS_OUTWARD_X,
-        )
-        hang_y = max(0, int(round(_SIDE_CORNERS_INNER_Y * scale)) - _BOTTOM_CORNERS_INWARD_Y)
-        return hang_x, hang_y
-
-    def prepare_for_frame(self, frame_h: int) -> tuple[int, int]:
-        """Cache scaled BL/BR pixmaps for this frame height; return (hang_x, hang_y)."""
-        h = max(int(frame_h), 1)
-        hang_x, hang_y = self.hang_for_frame_height(h)
-        scale = self._scale_for_frame_height(h)
-        if (
-            self._scaled_left.isNull()
-            or self._frame_h != h
-            or self._hang_x != hang_x
-            or self._hang_y != hang_y
-        ):
-            if not self._left.isNull():
-                # Width: normal scale. Height: same scale then +STRETCH_Y (IgnoreAspectRatio).
-                draw_w = max(1, int(round(self._left.width() * scale)))
-                draw_h = max(
-                    1,
-                    int(round(self._left.height() * scale)) + _BOTTOM_CORNERS_STRETCH_Y,
-                )
-                self._scaled_left = self._left.scaled(
-                    draw_w,
-                    draw_h,
-                    Qt.AspectRatioMode.IgnoreAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-                self._scaled_right = self._right.scaled(
-                    draw_w,
-                    draw_h,
-                    Qt.AspectRatioMode.IgnoreAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-                self._piece_h = self._scaled_left.height()
-            self._frame_h = h
-            self._hang_x = hang_x
-            self._hang_y = hang_y
-        return hang_x, hang_y
-
-    def opaque_inset_x(self) -> int:
-        """Chrome clearance — bottom corners do not crowd −/X; keep a modest pad."""
-        return _CHROME_FRAME_PAD
+        self._host = host
+        self._edge_bottom = _load_bundled_pixmap(_PORTRAIT_EDGE_BOTTOM_NAME)
+        self._edge_left = _load_bundled_pixmap(_PORTRAIT_EDGE_LEFT_NAME)
+        self._edge_right = _load_bundled_pixmap(_PORTRAIT_EDGE_RIGHT_NAME)
+        self._bl = _load_bundled_pixmap(_PORTRAIT_CORNER_BL_NAME)
+        self._br = _load_bundled_pixmap(_PORTRAIT_CORNER_BR_NAME)
 
     def paintEvent(self, event) -> None:  # noqa: N802
-        if self._left.isNull() or self.width() <= 0 or self.height() <= 0:
-            return
-        left = self._scaled_left
-        right = self._scaled_right
-        if left.isNull() or right.isNull():
+        frame = self._host.portrait_play_box()
+        if frame is None or frame.width() <= 0 or frame.height() <= 0:
             return
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        # Prior paint inset (inward=6 era); horizontal scoot comes from hang_x only.
-        inset = _BOTTOM_CORNERS_PAINT_INSET_X
-        painter.drawPixmap(inset, 0, left)
-        painter.drawPixmap(self.width() - right.width() - inset, 0, right)
+        # Native 1:1 tiles — SmoothPixmapTransform smears the 8–9px lips.
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+
+        bl = self._bl
+        br = self._br
+        el = self._edge_left
+        er = self._edge_right
+        eb = self._edge_bottom
+        if bl.isNull() or br.isNull():
+            return
+
+        nudge = _PORTRAIT_OUTER_NUDGE
+        bl_pos = QPoint(
+            frame.x() - _PORTRAIT_BL_OX - nudge, frame.bottom() - _PORTRAIT_BL_OY
+        )
+        br_pos = QPoint(
+            frame.right() - _PORTRAIT_BR_OX + nudge, frame.bottom() - _PORTRAIT_BR_OY
+        )
+        join = _PORTRAIT_JOIN
+
+        if not eb.isNull():
+            by = frame.bottom() - _PORTRAIT_BOT_OY
+            x0 = bl_pos.x() + bl.width() - join
+            x1 = br_pos.x() + join
+            bot = QRect(x0, by, max(1, x1 - x0), eb.height())
+            _paint_tiled_h(painter, bot, eb, eb.height())
+
+        # Start at the solid banner bar, not the crystal / spike-valley region.
+        # Rails sit under the PNG and are only seen as they meet the bar.
+        side_top = frame.y() + _NAV_BOTTOM_BANNER_MID_Y
+        # Stop at the L inner join (top of the corner's horizontal arm). Adding
+        # JOIN here used to equal corner height and poke past the rounded lip.
+        side_stop = min(
+            bl_pos.y() + _PORTRAIT_ARM_JOIN,
+            br_pos.y() + _PORTRAIT_ARM_JOIN,
+        )
+        side_h = max(1, side_stop - side_top)
+        if not el.isNull():
+            lx = frame.x() - _PORTRAIT_LEFT_OX - nudge
+            _paint_tiled_v(
+                painter, QRect(lx, side_top, el.width(), side_h), el, el.width()
+            )
+        if not er.isNull():
+            rx = frame.right() - _PORTRAIT_RIGHT_OX + nudge
+            _paint_tiled_v(
+                painter, QRect(rx, side_top, er.width(), side_h), er, er.width()
+            )
+
+        painter.drawPixmap(bl_pos, bl)
+        painter.drawPixmap(br_pos, br)
 
 
 class ContentPanel(QWidget):
-    """Folder body — Necrolord floor + Mechagon top rail, inside the closed purple frame."""
+    """Folder body — Necrolord floor inside the closed metal frame."""
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
@@ -827,30 +1152,18 @@ class ContentPanel(QWidget):
         self._frame_host = host
 
     def paintEvent(self, event) -> None:  # noqa: N802
-        # Opaque card including the purple shelf pixel (y=0). Fill sits *behind*
-        # the stroke overlay — clipping it to y=1 left a translucent hairline
-        # between the tabs and the body. Rail still paints at y=1 on top.
+        # Opaque card including the top shelf pixel (y=0). Full-bleed floor —
+        # metal rails overlay the edges; no 1px window-stroke gutter.
         if self.width() <= 0 or self.height() <= 0:
             return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        inset = 1
-        inner = self.rect().adjusted(inset, 0, -inset, 0)
-        clip = _interior_fill_clip(
-            self, inner, self._frame_host, pad_top=0.0, pad_bottom=0.0
+        inner = self.rect()
+        painter.setClipPath(
+            _interior_fill_clip(
+                self, inner, self._frame_host, pad_top=0.0, pad_bottom=0.0
+            )
         )
-        # Folder path top is the 0.5px stroke center, so intersection drops
-        # pixel 0. Unite that row (L/R still inset) to keep the shelf opaque.
-        shelf = QPainterPath()
-        shelf_rect = QRectF(inner)
-        shelf_rect.setHeight(1.0)
-        shelf_rect.adjust(0.5, 0.0, -0.5, 0.0)
-        if shelf_rect.width() > 0.0:
-            shelf.addRect(shelf_rect)
-            shelf.setFillRule(Qt.FillRule.WindingFill)
-            clip = clip.united(shelf)
-            clip.setFillRule(Qt.FillRule.WindingFill)
-        painter.setClipPath(clip)
         _paint_floor_fill(painter, inner, self._floor, tile_origin=inner.topLeft())
 
 
@@ -870,12 +1183,11 @@ class BottomBar(QWidget):
         self._frame_host = host
 
     def paintEvent(self, event) -> None:  # noqa: N802
-        # Mist fill; purple L/R/B stroke is painted by FolderFrameStroke.
+        # Mist fill to the widget edges (no window-stroke gutter).
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        inset = 1
-        inner = self.rect().adjusted(inset, 0, -inset, -inset)
-        # Folder interior ∩ inset (BL/BR fallback) — never the exterior corner pockets.
+        inner = self.rect()
+        # Folder interior ∩ widget (BL/BR fallback) — never the exterior corner pockets.
         # pad_top=0 so the banner join is opaque (no 0.5px hole under the strip).
         painter.setClipPath(
             _interior_fill_clip(
@@ -893,6 +1205,44 @@ class BottomBar(QWidget):
         _paint_mist_fill(painter, inner, self._mist, tile_h=tile_h, tile_origin=origin)
 
 
+class NavBannerUnderFill(QWidget):
+    """Body + play fills behind nav_bottom.png (same rect as the banner).
+
+    Play black (#100d0c / _MIST_BASE) first, then body (#181315 / _FLOOR_BASE)
+    on the solid-bar half so they meet on the opaque bar. Spike-valley and
+    PNG-pad alpha are not see-through. Stacked under metal / portrait / PNG
+    so the fill never sits on top of the banner art. Click-through.
+    """
+
+    def __init__(self, host: "MainWindow", parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setObjectName("NavBannerUnderFill")
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self._host = host
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        if self.width() <= 0 or self.height() <= 0:
+            return
+        painter = QPainter(self)
+        inner = self.rect()
+        painter.setClipPath(
+            _interior_fill_clip(
+                self, inner, self._host, pad_top=0.0, pad_bottom=0.0
+            )
+        )
+        meet = min(_NAV_BOTTOM_BANNER_MID_Y, inner.height())
+        # Play fill (full), then body on the upper/bar half. Seam is hidden
+        # in the opaque solid bar. Do not paint mist texture here — that
+        # read as a muddy slab; this is the play-strip black only.
+        painter.fillRect(inner, _MIST_BASE)
+        if meet > 0:
+            painter.fillRect(
+                QRect(inner.left(), inner.top(), inner.width(), meet),
+                _FLOOR_BASE,
+            )
+
+
 class NavBottomBanner(QWidget):
     """Cached ravencraft.io nav strip between page content and the play bar."""
 
@@ -905,94 +1255,28 @@ class NavBottomBanner(QWidget):
         self.setAutoFillBackground(False)
         self.setFixedHeight(_NAV_BOTTOM_BANNER_H)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self._pix = QPixmap()
-        self._floor = _load_theme_texture(_FLOOR_NAME, _FLOOR_EXTERNAL)
-        self._mist = _load_theme_texture(_MIST_NAME, _MIST_EXTERNAL)
+        self._pix = _load_bundled_pixmap("nav_bottom.png")
         self._frame_host: MainWindow | None = None
-        path = theme_file("nav_bottom.png")
-        if path.exists():
-            src = QPixmap(str(path))
-            if not src.isNull():
-                self._pix = src
+        # Official ravencraft.io PNG as stored — no keying. Fills live on
+        # NavBannerUnderFill underneath this widget.
 
     def set_frame_host(self, host: MainWindow | None) -> None:
         self._frame_host = host
 
-    def _home_art_behind(self) -> bool:
-        """True when HOME artwork tucks under the grey bar (upper half only)."""
-        host = self._frame_host
-        if host is None:
-            return False
-        home = getattr(host, "home", None)
-        bg = getattr(home, "talent_bg", None)
-        return bool(bg is not None and bg.isVisible())
-
     def paintEvent(self, event) -> None:  # noqa: N802
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        inset = 1
-        # Full widget height — no T/B inset. A 0.5–1px shrink here is a hole
-        # through the frameless translucent window at the ContentPanel / BottomBar joins.
-        inner = self.rect().adjusted(inset, 0, -inset, 0)
+        inner = self.rect()
         clip = _interior_fill_clip(
             self, inner, self._frame_host, pad_top=0.0, pad_bottom=0.0
         )
         painter.setClipPath(clip)
-        mid = inner.top() + _NAV_BOTTOM_BANNER_MID_Y
-        upper = QRect(inner.left(), inner.top(), inner.width(), max(0, mid - inner.top()))
-        lower = QRect(inner.left(), mid, inner.width(), max(0, inner.bottom() - mid + 1))
-
-        # Upper half: folder floor, minus the HOME-art tuck so the join is tight.
-        origin = QPoint(inner.left(), inner.top())
-        content = getattr(self._frame_host, "_content_panel", None)
-        if content is not None:
-            mapped = _map_via_global(content, self, QPoint(inset, 0))
-            if mapped is not None:
-                origin = mapped
-        floor_clip = QPainterPath()
-        floor_clip.addRect(QRectF(upper))
-        floor_clip.setFillRule(Qt.FillRule.WindingFill)
-        floor_clip = clip.intersected(floor_clip)
-        if self._home_art_behind():
-            art = getattr(getattr(self._frame_host, "home", None), "talent_bg", None)
-            if art is not None:
-                top_left = _map_via_global(art, self, QPoint(0, 0))
-                if top_left is not None:
-                    hole = QPainterPath()
-                    hole.addRect(QRectF(QRect(top_left, art.size())))
-                    hole.setFillRule(Qt.FillRule.WindingFill)
-                    # Keep 1px opaque bands at the banner joins even when art tucks.
-                    safe = QPainterPath()
-                    safe.addRect(QRectF(upper).adjusted(0.0, 1.0, 0.0, 0.0))
-                    safe.setFillRule(Qt.FillRule.WindingFill)
-                    hole = hole.intersected(safe)
-                    floor_clip = floor_clip.subtracted(hole)
-        if not floor_clip.isEmpty():
-            painter.setClipPath(floor_clip)
-            _paint_floor_fill(painter, upper, self._floor, tile_origin=origin)
-
-        # Lower half (spike valleys): same dark mist fill as the play bar.
-        painter.setClipPath(clip)
-        if not lower.isEmpty():
-            bottom = getattr(self._frame_host, "_bottom_bar", None)
-            tile_h = bottom.height() if bottom is not None and bottom.height() > 0 else lower.height()
-            mist_origin = QPoint(lower.left(), lower.bottom() - tile_h + 1)
-            if bottom is not None:
-                mapped_mist = _map_via_global(bottom, self, QPoint(1, 0))
-                if mapped_mist is not None:
-                    mist_origin = QPoint(mapped_mist.x(), lower.bottom() - tile_h + 1)
-            painter.setClipRect(lower, Qt.ClipOperation.IntersectClip)
-            _paint_mist_fill(
-                painter, lower, self._mist, tile_h=tile_h, tile_origin=mist_origin
-            )
-            painter.setClipPath(clip)
-
-        if self._pix.isNull():
+        pix = self._pix
+        if pix.isNull():
             return
         overdraw = _NAV_BOTTOM_BANNER_OVERDRAW_X
         draw = inner.adjusted(-overdraw, 0, overdraw, 0)
-        painter.setClipRect(inner, Qt.ClipOperation.IntersectClip)
-        painter.drawPixmap(draw, self._pix)
+        painter.drawPixmap(draw, pix)
 
 
 try:
@@ -1012,6 +1296,24 @@ def _safe_worker_running(worker: Worker | None) -> bool:
         return worker.isRunning()
     except RuntimeError:
         return False
+
+
+def _call_when_worker_idle(worker: Worker | None, callback) -> None:
+    """Run *callback* now if *worker* is idle, else after finished_ok or failed."""
+    if not _safe_worker_running(worker):
+        callback()
+        return
+    fired = False
+
+    def _once(*_args):
+        nonlocal fired
+        if fired:
+            return
+        fired = True
+        callback()
+
+    worker.finished_ok.connect(_once)
+    worker.failed.connect(_once)
 
 
 class Worker(QThread):
@@ -1087,14 +1389,14 @@ class MainWindow(QMainWindow):
         self._current_nav = -1
         self._fitted = False
         self._startup_checks_scheduled = False
+        self._auto_update_seq_active = False
+        self._auto_update_seq_catalogs = False
+        self._auto_update_seq_periodic = False
         self._permissions_skipped_path: str | None = None
         self._play_launch_lock_until = 0.0
         self._play_launch_timer = QTimer(self)
         self._play_launch_timer.setSingleShot(True)
         self._play_launch_timer.timeout.connect(self._release_play_launch_lock)
-        self._addon_scan_resume_timer = QTimer(self)
-        self._addon_scan_resume_timer.setSingleShot(True)
-        self._addon_scan_resume_timer.timeout.connect(self._resume_queued_addon_scan)
 
         self.setMouseTracking(True)
         self._fit_to_screen(initial=True)
@@ -1114,13 +1416,13 @@ class MainWindow(QMainWindow):
         if app is not None:
             app.installEventFilter(self)
         outer = QVBoxLayout(root)
-        # Gutter so out-set corner ornaments are not clipped at the window edge.
+        # L/R: metal hang only. Bottom: keep the 88px play strip's sit-height.
         outer.setContentsMargins(
-            _FRAME_OUTSET_MARGIN, 0, _FRAME_OUTSET_MARGIN, _FRAME_OUTSET_MARGIN
+            _FRAME_OUTSET_MARGIN, 0, _FRAME_OUTSET_MARGIN, _FRAME_OUTSET_BOTTOM
         )
         outer.setSpacing(0)
 
-        # ---- Folder tabs (top chrome) — floor fill matches ContentPanel ----
+        # ---- Folder tabs (top chrome) — floor-tinted glue plates ----
         nav = TopNavStrip()
         self._top_nav = nav
         nav.set_frame_host(self)
@@ -1184,7 +1486,7 @@ class MainWindow(QMainWindow):
         self._bottom_bar = bottom
         bottom.set_frame_host(self)
         # 80px UPDATE glow (hole-matched to the 56 plate) needs this height.
-        bottom.setFixedHeight(88)
+        bottom.setFixedHeight(_BOTTOM_BAR_H)
         bot_l = QHBoxLayout(bottom)
         bot_l.setContentsMargins(16, 4, 4, 4)
         bot_l.setSpacing(14)
@@ -1245,20 +1547,24 @@ class MainWindow(QMainWindow):
 
         outer.addWidget(nav)
         outer.addWidget(content, 1)
-        # 1px overlap so ContentPanel / banner / BottomBar joins stay opaque.
-        outer.addSpacing(-1)
+        # Panel floor hangs onto the banner's solid bar (covers the ~6px PNG
+        # top pad). Play black behind valleys is NavBannerUnderFill — do not
+        # grow BottomBar (that shrinks PLAY).
+        outer.addSpacing(-_NAV_BOTTOM_BANNER_PANEL_OVERLAP)
         outer.addWidget(self._nav_bottom_banner)
+        # 1px overlap so the banner / play-strip join stays opaque.
         outer.addSpacing(-1)
         outer.addWidget(bottom)
 
-        # Purple closed body outline (full shelf). Above fills, below corners.
+        # Under-banner fills (play black + body) sit on Root, same rect as
+        # the banner, below metal / portrait / PNG.
+        self._banner_underfill = NavBannerUnderFill(self, root)
+
+        # Metal top/sides/TL/TR. Portrait U-frame sits
+        # under the banner PNG so rails tuck behind the solid bar.
         self._frame_stroke = FolderFrameStroke(self, root)
         self._frame_stroke.raise_()
-
-        # Bottom-left + mirrored bottom-right corner ornaments (content→play bar).
-        # Stack above ContentPanel / BottomBar purple stroke (raised again after layout).
-        self._side_corners = SideCornersOverlay(root)
-        self._side_corners.raise_()
+        self._portrait_frame = PortraitPlayFrame(self, root)
 
         # RavenCraft crest — straddles ContentPanel top border (click-through).
         self._rc_logo = RavenCraftFloatingLogo(root)
@@ -1266,10 +1572,8 @@ class MainWindow(QMainWindow):
 
         self._update_window_mask()
         self._position_frame_stroke()
-        self._position_side_corners()
         self._position_rc_logo()
         self._position_chrome_buttons()
-        self._raise_side_corners()
 
         # Wire
         self.home.play_clicked.connect(self._on_play_or_install)
@@ -1320,8 +1624,46 @@ class MainWindow(QMainWindow):
         self._update_timer.start()
 
     # --- window chrome ---
+    def folder_stroke_box(self) -> QRect | None:
+        """Integer folder box in Root coords (content top-left → bottom-bar bottom)."""
+        root = self.centralWidget()
+        content = getattr(self, "_content_panel", None)
+        bottom = getattr(self, "_bottom_bar", None)
+        if root is None or content is None or bottom is None:
+            return None
+        if content.width() <= 0 or bottom.height() <= 0:
+            return None
+        if not root.isAncestorOf(content) or not root.isAncestorOf(bottom):
+            return None
+        origin = _safe_map_to(content, root, QPoint(0, 0))
+        bot_pt = _safe_map_to(bottom, root, QPoint(0, bottom.height()))
+        if origin is None or bot_pt is None:
+            return None
+        return QRect(origin.x(), origin.y(), content.width(), bot_pt.y() - origin.y())
+
+    def portrait_play_box(self) -> QRect | None:
+        """Folder-width rect from nav-banner top through BottomBar bottom."""
+        root = self.centralWidget()
+        box = self.folder_stroke_box()
+        bottom = getattr(self, "_bottom_bar", None)
+        if root is None or box is None or bottom is None:
+            return None
+        top = box.y() + box.height() - bottom.height()
+        banner = getattr(self, "_nav_bottom_banner", None)
+        if banner is not None and banner.height() > 0:
+            btl = _map_via_global(banner, root, QPoint(0, 0))
+            if btl is not None:
+                top = btl.y()
+        bot_pt = _map_via_global(bottom, root, QPoint(0, bottom.height()))
+        if bot_pt is None:
+            return None
+        height = bot_pt.y() - top
+        if height <= 0:
+            return None
+        return QRect(box.x(), top, box.width(), height)
+
     def build_folder_stroke_path(self) -> QPainterPath:
-        """Purple outline in Root coords: closed body, full shelf, rounded BL/BR."""
+        """Folder outline in Root coords: closed body, full shelf, rounded BL/BR."""
         root = self.centralWidget()
         nav = getattr(self, "_top_nav", None)
         content = getattr(self, "_content_panel", None)
@@ -1337,11 +1679,11 @@ class MainWindow(QMainWindow):
         bot_pt = _safe_map_to(bottom, root, QPoint(0, bottom.height()))
         if origin is None or bot_pt is None:
             return QPainterPath()
-        # Stroke on pixel centers so 1px lines stay crisp.
-        left = float(origin.x()) + 0.5
-        right = float(origin.x() + content.width()) - 0.5
-        shelf_y = float(origin.y()) + 0.5
-        bot = float(bot_pt.y()) - 0.5
+        # Integer edges so floor fill reaches the window (no 1px stroke inset).
+        left = float(origin.x())
+        right = float(origin.x() + content.width())
+        shelf_y = float(origin.y())
+        bot = float(bot_pt.y())
         return _folder_frame_path(left, right, shelf_y, bot)
 
     def _position_frame_stroke(self) -> None:
@@ -1352,11 +1694,25 @@ class MainWindow(QMainWindow):
         stroke.setGeometry(0, 0, root.width(), root.height())
         stroke.show()
         stroke.update()
-        # Above fills / tabs (mouse-transparent); under corner art and −/X.
+        # Back → front: BottomBar mist → under-banner fills (play + body) →
+        # metal rails → portrait U-frame → nav banner PNG → −/X / RC crest.
+        # PLAY stays in BottomBar (below the 30px strip, not covered).
+        under = getattr(self, "_banner_underfill", None)
+        banner = getattr(self, "_nav_bottom_banner", None)
+        if under is not None and banner is not None:
+            under.setGeometry(banner.geometry())
+            under.show()
+            under.update()
+            under.raise_()
         stroke.raise_()
-        corners = getattr(self, "_side_corners", None)
-        if corners is not None:
-            corners.raise_()
+        portrait = getattr(self, "_portrait_frame", None)
+        if portrait is not None:
+            portrait.setGeometry(0, 0, root.width(), root.height())
+            portrait.show()
+            portrait.update()
+            portrait.raise_()
+        if banner is not None:
+            banner.raise_()
         logo = getattr(self, "_rc_logo", None)
         if logo is not None:
             logo.raise_()
@@ -1448,42 +1804,8 @@ class MainWindow(QMainWindow):
         for w in self.findChildren(QPlainTextEdit):
             w.setCursor(Qt.CursorShape.IBeamCursor)
 
-    def _raise_side_corners(self) -> None:
-        """Keep BL/BR ornaments above ContentPanel / BottomBar purple stroke and chrome."""
-        overlay = getattr(self, "_side_corners", None)
-        if overlay is None:
-            return
-        overlay.raise_()
-        overlay.update()
-
-    def _position_side_corners(self) -> None:
-        """Pin bottom BL/BR corner art out-set from the folder body (overlap purple stroke)."""
-        overlay = getattr(self, "_side_corners", None)
-        content = getattr(self, "_content_panel", None)
-        bottom = getattr(self, "_bottom_bar", None)
-        root = self.centralWidget()
-        if overlay is None or content is None or bottom is None or root is None:
-            return
-        origin = _safe_map_to(content, root, QPoint(0, 0))
-        bottom_br = _safe_map_to(bottom, root, QPoint(0, bottom.height()))
-        if origin is None or bottom_br is None:
-            return
-        frame_w = max(content.width(), 1)
-        frame_h = max(bottom_br.y() - origin.y(), 1)
-        hang_x, hang_y = overlay.prepare_for_frame(frame_h)
-        piece_h = max(overlay._piece_h, 1)
-        # Bottom strip only: hang below / beside the purple frame; no top corners.
-        overlay.setGeometry(
-            origin.x() - hang_x,
-            bottom_br.y() - piece_h + hang_y,
-            frame_w + 2 * hang_x,
-            piece_h,
-        )
-        overlay.show()
-        self._raise_side_corners()
-
     def _position_chrome_buttons(self) -> None:
-        """Pin minimize/close to ContentPanel top-right (bottom corners stay clear)."""
+        """Pin minimize/close inside ContentPanel top-right, clear of metal TR/rail."""
         content = getattr(self, "_content_panel", None)
         btn_min = getattr(self, "_btn_minimize", None)
         btn_close = getattr(self, "_btn_close", None)
@@ -1506,8 +1828,6 @@ class MainWindow(QMainWindow):
         btn_close.raise_()
         btn_min.show()
         btn_close.show()
-        # Corners must stay above the purple frame even after chrome raise.
-        self._raise_side_corners()
 
     def _position_rc_logo(self) -> None:
         """Center RavenCraft crest on ContentPanel top border, between SETTINGS and panel right."""
@@ -1530,7 +1850,7 @@ class MainWindow(QMainWindow):
         for btn in (getattr(self, "_btn_minimize", None), getattr(self, "_btn_close", None)):
             if btn is not None:
                 chrome_w += btn.width() + 6
-        frame_inset = _CHROME_FRAME_PAD + 16
+        frame_inset = _CHROME_BTN_INSET_X + 8
         if chrome_w:
             right = min(right, content_origin.x() + content.width() - chrome_w - frame_inset)
         cx = (left + right) / 2.0
@@ -1561,7 +1881,13 @@ class MainWindow(QMainWindow):
 
     def _refresh_chrome_fills(self) -> None:
         """Repaint folder fills after the stroke path may have changed."""
-        for name in ("_top_nav", "_content_panel", "_nav_bottom_banner", "_bottom_bar"):
+        for name in (
+            "_top_nav",
+            "_content_panel",
+            "_banner_underfill",
+            "_nav_bottom_banner",
+            "_bottom_bar",
+        ):
             w = getattr(self, name, None)
             if w is not None:
                 w.update()
@@ -1571,10 +1897,8 @@ class MainWindow(QMainWindow):
         self._fit_to_screen()
         self._update_window_mask()
         self._position_frame_stroke()
-        self._position_side_corners()
         self._position_rc_logo()
         self._position_chrome_buttons()
-        self._raise_side_corners()
         self._refresh_chrome_fills()
         # Reliable initial scan shortly after the UI is visible (not only on the 5‑min timer).
         if not self._startup_checks_scheduled:
@@ -1593,10 +1917,8 @@ class MainWindow(QMainWindow):
         super().resizeEvent(event)
         self._update_window_mask()
         self._position_frame_stroke()
-        self._position_side_corners()
         self._position_rc_logo()
         self._position_chrome_buttons()
-        self._raise_side_corners()
         self._refresh_chrome_fills()
         self._fit_bottom_progress()
 
@@ -1668,10 +1990,8 @@ class MainWindow(QMainWindow):
         """Edge-resize on border; drag window from non-interactive chrome."""
         if obj is getattr(self, "_content_panel", None) and event.type() == QEvent.Type.Resize:
             self._position_frame_stroke()
-            self._position_side_corners()
             self._position_chrome_buttons()
             self._position_rc_logo()
-            self._raise_side_corners()
             self._refresh_chrome_fills()
         if isinstance(obj, QWidget) and obj.window() is self:
             et = event.type()
@@ -1806,7 +2126,7 @@ class MainWindow(QMainWindow):
             return
         self._current_nav = idx
         self.stack.setCurrentIndex(idx)
-        # HOME art/logo/countdown live on Root (not HomePage). Hide them whenever
+        # HOME art/logo live on Root (not HomePage). Hide them whenever
         # we leave HOME so they cannot cover CLIENT / ADDONS / SETTINGS.
         if idx != 0:
             home = getattr(self, "home", None)
@@ -1869,28 +2189,75 @@ class MainWindow(QMainWindow):
             self._refresh_play_button()
 
         log.info("Startup update checks beginning")
-        self._check_launcher_update(silent=True)
-
+        include_catalogs = bool(settings.check_updates_on_startup() and is_installed())
         if not settings.check_updates_on_startup():
             self._refresh_nav_badges()
-            return
-        if not is_installed():
+        elif not is_installed():
             log.info("Startup addon/mod checks skipped — no game path yet")
             self._refresh_nav_badges()
-            return
-        if rate_limit_exhausted():
+        elif rate_limit_exhausted():
             # Still attempt — check_* handlers stop early and surface RATE_LIMIT_STATUS.
             log.info("GitHub rate limit low at startup; attempting checks anyway")
-        self._check_mod_updates(silent=True)
-        if settings.should_startup_check_addons(has_token=has_github_token()):
-            self._check_updates(silent=True)
+        self._start_auto_update_sequence(include_catalogs=include_catalogs, periodic=False)
 
     def _periodic_update_check(self) -> None:
-        """Recurring silent launcher self-update only (addons/client: launch scan)."""
+        """One 15-minute silent refresh: launcher, then addons, then client mods."""
         if _safe_worker_running(self._worker):
             return
-        # Do not re-scan addons/client here — that runs once at startup (force).
-        self._check_launcher_update(silent=True)
+        include_catalogs = bool(settings.check_updates_on_startup() and is_installed())
+        self._start_auto_update_sequence(include_catalogs=include_catalogs, periodic=True)
+
+    def _start_auto_update_sequence(self, *, include_catalogs: bool, periodic: bool) -> None:
+        """Launcher first, then addons, then client. Sequential — never parallel.
+
+        Manual Check for updates on the addons/client tabs is unchanged.
+        """
+        if getattr(self, "_auto_update_seq_active", False):
+            return
+        self._auto_update_seq_active = True
+        self._auto_update_seq_catalogs = include_catalogs
+        self._auto_update_seq_periodic = periodic
+        self._advance_auto_update_sequence(0)
+
+    def _finish_auto_update_sequence(self) -> None:
+        self._auto_update_seq_active = False
+
+    def _advance_auto_update_sequence(self, index: int) -> None:
+        """Start ``_AUTO_UPDATE_STEPS[index]``, then advance when that worker is idle."""
+        if index >= len(_AUTO_UPDATE_STEPS):
+            self._finish_auto_update_sequence()
+            return
+        step = _AUTO_UPDATE_STEPS[index]
+        periodic = bool(getattr(self, "_auto_update_seq_periodic", False))
+        catalogs = bool(getattr(self, "_auto_update_seq_catalogs", False))
+        worker = None
+        try:
+            if step == "launcher":
+                self._check_launcher_update(silent=True)
+                worker = self._launcher_update_worker
+            elif step == "addons":
+                if not catalogs:
+                    self._finish_auto_update_sequence()
+                    return
+                if settings.should_startup_check_addons(has_token=has_github_token()):
+                    self._check_updates(silent=True, periodic=periodic)
+                worker = self._update_worker
+            elif step == "client":
+                if not catalogs:
+                    self._finish_auto_update_sequence()
+                    return
+                self._check_mod_updates(silent=True, periodic=periodic)
+                worker = self._mod_update_worker
+            else:
+                self._finish_auto_update_sequence()
+                return
+        except Exception:
+            log.exception("Auto update sequence failed at %s", step)
+            self._finish_auto_update_sequence()
+            return
+        _call_when_worker_idle(
+            worker, lambda i=index + 1: self._advance_auto_update_sequence(i)
+        )
 
     def _refresh_play_button(self) -> None:
         if is_installed():
@@ -2133,11 +2500,70 @@ class MainWindow(QMainWindow):
         self.progress.setValue(self._combined_check_pct())
         self.progress.setFormat("%p%")
 
+    def _prompt_addon_toc_renames(
+        self, mismatches: list[AddonTocMismatch]
+    ) -> list[str]:
+        """Prompt for each renameable mismatch. Returns new folder names that were renamed."""
+        renamed: list[str] = []
+        for item in mismatches:
+            if not item.can_rename:
+                continue
+            if not themed.confirm_addon_toc_rename(
+                self, item.current_name, item.toc_name
+            ):
+                continue
+            outcome = rename_addon_folder_to_toc(item.folder, item.toc_stem)
+            if outcome.renamed and outcome.new_name:
+                renamed.append(outcome.new_name)
+                continue
+            if outcome.status == "collision":
+                themed.warning(
+                    self,
+                    "Could not rename addon",
+                    outcome.detail
+                    or (
+                        f'Cannot rename "{outcome.old_name}" to "{outcome.new_name}" — '
+                        f'a folder named "{outcome.new_name}" already exists.'
+                    ),
+                )
+                continue
+            if outcome.status in ("error", "missing"):
+                themed.warning(
+                    self,
+                    "Could not rename addon",
+                    outcome.detail or f'Could not rename "{outcome.old_name}".',
+                )
+        return renamed
+
+    def _apply_toc_mismatch_prompts(self, result: object) -> object:
+        """UI-thread prompts for install mismatches collected on a worker."""
+        if isinstance(result, AddonInstallResult):
+            pending = list(result.mismatches)
+            take_pending_toc_mismatches()
+        elif isinstance(result, dict) and result.get("toc_mismatches"):
+            pending = list(result.get("toc_mismatches") or [])
+            take_pending_toc_mismatches()
+        else:
+            pending = take_pending_toc_mismatches()
+        if not pending:
+            return result
+        renamed = self._prompt_addon_toc_renames(pending)
+        if isinstance(result, AddonInstallResult):
+            return finalize_install_after_toc_renames(result, renamed)
+        if renamed:
+            from ichalaunch.core.detect import sync_installed_addons_from_disk
+
+            sync_installed_addons_from_disk()
+        return result
+
     def _resync(self, silent: bool = False) -> None:
         if not is_installed():
             if not silent:
                 themed.warning(self, "No game", "Set a valid game path first.")
             return
+        renamed: list[str] = []
+        if not silent:
+            renamed = self._prompt_addon_toc_renames(scan_mismatched_toc_addon_folders())
         result = full_resync()
         # Disk rescan is not an update-check — keep / reset scan-done so we don't
         # claim "Up to date" without a successful Check Updates pass.
@@ -2154,11 +2580,26 @@ class MainWindow(QMainWindow):
         self.home.refresh()
         self._refresh_play_button()
         if not silent:
-            themed.info(
-                self,
-                "Rescan complete",
-                f"Detected {len(result['addons'])} addon folder(s) and synced client mod checkboxes.",
+            msg = (
+                f"Detected {len(result['addons'])} addon folder(s) "
+                "and synced client mod checkboxes."
             )
+            if renamed:
+                msg += (
+                    f"\n\nRenamed {len(renamed)} folder(s) to match the .toc: "
+                    + ", ".join(renamed[:8])
+                )
+                if len(renamed) > 8:
+                    msg += f" (+{len(renamed) - 8} more)"
+            skipped = result.get("skipped_addons") or []
+            if skipped:
+                names = ", ".join(skipped[:8])
+                more = f" (+{len(skipped) - 8} more)" if len(skipped) > 8 else ""
+                msg += (
+                    f"\n\nSkipped {len(skipped)} folder(s) whose folder name "
+                    f"does not match the .toc: {names}{more}"
+                )
+            themed.info(self, "Rescan complete", msg)
 
     def _busy(
         self,
@@ -2219,6 +2660,7 @@ class MainWindow(QMainWindow):
             themed.warning(self, "GitHub token", msg)
 
     def _on_worker_ok(self, result) -> None:
+        result = self._apply_toc_mismatch_prompts(result)
         handler = self._pending_ok_handler
         self._pending_ok_handler = None
         restarting = False
@@ -2260,6 +2702,7 @@ class MainWindow(QMainWindow):
         self._maybe_warn_github_token()
 
     def _on_worker_fail(self, msg: str) -> None:
+        take_pending_toc_mismatches()
         themed.error(self, "Error", msg)
         if self._pump_addon_queue():
             return
@@ -3074,23 +3517,18 @@ class MainWindow(QMainWindow):
             return
 
         # Cooldown gate for automatic (silent/periodic) checks: skip if a scan ran
-        # within the Settings auto-scan cooldown. Manual checks arrive with
-        # silent=False and always run; force=True explicitly bypasses the cooldown.
-        # A persisted within-scan queue may resume even inside the cooldown window.
+        # within the hardcoded 15-minute refresh. Manual checks arrive with
+        # silent=False and always run; force=True explicitly bypasses the gate.
         if (silent or periodic) and not force and recently_checked_addon_updates():
-            if not has_pending_addon_scan_queue():
-                log.info(
-                    "Addon scan skipped — last scan %s ago (cooldown %d min)",
-                    _format_minutes_since("last_addon_update_check"),
-                    settings.auto_scan_cooldown_minutes(),
-                )
-                return
+            log.info(
+                "Addon scan skipped — last scan %s ago (refresh %d min)",
+                _format_minutes_since("last_addon_update_check"),
+                settings.auto_scan_cooldown_minutes(),
+            )
+            return
 
-        if self._addon_scan_resume_timer.isActive():
-            self._addon_scan_resume_timer.stop()
-
-        self._addon_check_status = "Scanning addons…"
-        self.status_lbl.setText("Scanning addons…")
+        self._addon_check_status = "Checking addon updates…"
+        self.status_lbl.setText("Checking addon updates…")
         self._checking_addons = True
         self._check_addon_pct = 0
         self.addons.set_scanning(True)
@@ -3104,13 +3542,9 @@ class MainWindow(QMainWindow):
             if isinstance(result, AddonUpdateCheckResult):
                 updates = result.updates
                 status = result.status_message
-                queued = bool(result.queued)
-                resume_after = result.resume_after_sec
             else:
                 updates = result or []
                 status = None
-                queued = False
-                resume_after = None
             self.addons.set_updates(updates)
             if not self._checking_mods:
                 if status:
@@ -3119,13 +3553,6 @@ class MainWindow(QMainWindow):
                     self.status_lbl.setText(f"{len(updates)} addon update(s) available")
                 else:
                     self.status_lbl.setText("Addons up to date")
-            if queued:
-                wait_ms = max(5_000, int(resume_after or 0) * 1000)
-                if resume_after is not None and int(resume_after) <= 0:
-                    wait_ms = 5_000
-                self._addon_scan_resume_timer.start(wait_ms)
-                if not status and not self._checking_mods:
-                    self.status_lbl.setText(WAITING_RATE_LIMIT_STATUS)
             self._refresh_check_loading()
             self._update_worker = None
             self._refresh_nav_badges()
@@ -3147,17 +3574,6 @@ class MainWindow(QMainWindow):
         self._track_worker(worker)
         worker.start()
 
-    def _resume_queued_addon_scan(self) -> None:
-        """Continue a paced unauthenticated addon scan when the hour budget refreshes."""
-        if not has_pending_addon_scan_queue():
-            return
-        if _safe_worker_running(self._update_worker):
-            self._addon_scan_resume_timer.start(30_000)
-            return
-        if not self._checking_mods:
-            self.status_lbl.setText(WAITING_RATE_LIMIT_STATUS)
-        self._check_updates(silent=True, force=True)
-
     def _check_mod_updates(self, silent: bool = False, periodic: bool = False, force: bool = False) -> None:
         if not is_installed():
             if not silent:
@@ -3169,7 +3585,7 @@ class MainWindow(QMainWindow):
             return
         if (silent or periodic) and not force and recently_checked_mod_updates():
             log.info(
-                "Client mod scan skipped — last scan %s ago (cooldown %d min)",
+                "Client mod scan skipped — last scan %s ago (refresh %d min)",
                 _format_minutes_since("last_mod_update_check"),
                 settings.auto_scan_cooldown_minutes(),
             )

@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
 from typing import Any
 
 _DLL_INJECTION_KINDS = frozenset({"dll_file", "dll_bundle", "dxvk_cursor"})
+_MPQ_PATCH_KINDS = frozenset({"mpq_file", "hd_patch"})
+_PATCH_MPQ_NAME_RE = re.compile(r"^patch-.+\.mpq$", re.IGNORECASE)
 
 
 def is_dll_injection_mod(mod: dict[str, Any] | None) -> bool:
@@ -36,3 +40,43 @@ def dll_security_exclusion_message(game_folder: str) -> str:
         "You can still enable the mod now; use Apply on the Client tab (or Play) "
         "after adding the exclusion so files are not blocked mid-install."
     )
+
+
+def _looks_like_patch_mpq(name: str) -> bool:
+    base = Path(str(name or "").replace("\\", "/")).name.strip()
+    return bool(base) and _PATCH_MPQ_NAME_RE.match(base) is not None
+
+
+def is_mpq_patch_mod(mod: dict[str, Any] | None) -> bool:
+    """True for HD graphics / ``patch-*.mpq`` client mods (including Patch-O)."""
+    if not mod:
+        return False
+    if mod.get("kind") in _MPQ_PATCH_KINDS:
+        return True
+    if str(mod.get("category") or "") == "HD Graphics":
+        return True
+    if str(mod.get("id") or "").lower().startswith("hd_patch"):
+        return True
+    names = [
+        str(mod.get("destination") or ""),
+        str((mod.get("source") or {}).get("filename") or ""),
+        str((mod.get("source") or {}).get("asset_contains") or ""),
+    ]
+    detect = mod.get("detect") or {}
+    mpqs = detect.get("data_mpq") if isinstance(detect, dict) else None
+    if isinstance(mpqs, list):
+        names.extend(str(x) for x in mpqs if x)
+    return any(_looks_like_patch_mpq(n) for n in names)
+
+
+MPQ_PATCH_WARNING_TEXT = "Warning: MPQ patches are known to be potentially unstable."
+
+
+def should_show_mpq_patch_warning(
+    mod: dict[str, Any] | None,
+    *,
+    enabled: bool,
+    dismissed: bool,
+) -> bool:
+    """True when enabling an HD / patch-*.mpq mod and the user has not opted out."""
+    return bool(enabled) and not dismissed and is_mpq_patch_mod(mod)

@@ -16,7 +16,15 @@ from urllib.parse import urlparse
 import requests
 
 from ichalaunch.config.settings import settings
-from ichalaunch.core.filesystem import copy_tree, extract_zip, find_toc_roots, safe_remove
+from ichalaunch.core.filesystem import (
+    TOC_FOLDER_MISMATCH_MSG,
+    AddonTocMismatch,
+    extract_zip,
+    note_pending_toc_mismatch,
+    place_install_addon_root,
+    resolve_install_addon_roots,
+    safe_remove,
+)
 from ichalaunch.core.logging_setup import log
 from ichalaunch.core.process import download_bytes, download_bytes_cb, status_only
 from ichalaunch.game.launcher import detect_game, ensure_addons_dir, resolve_addons_dir
@@ -28,8 +36,8 @@ RATE_LIMIT_STATUS = "GitHub rate limit hit — add a token in Settings or try la
 WAITING_RATE_LIMIT_STATUS = "Waiting for GitHub rate limit…"
 GITHUB_TOKEN_REJECTED_MSG = "GitHub token rejected — clear or update it in Settings"
 # Automatic (startup/silent) rescans are skipped if the last scan was within this window.
-# Default only — live value comes from settings.auto_scan_cooldown_sec().
-STARTUP_CHECK_COOLDOWN_SEC = 60 * 60
+# Default only — live value comes from settings.auto_scan_cooldown_sec() (15 min).
+STARTUP_CHECK_COOLDOWN_SEC = 15 * 60
 # Unauthenticated GitHub REST allows ~60 requests/hour; we pace scans to match.
 UNAUTH_API_BUDGET_PER_HOUR = 60
 UNAUTH_BUDGET_WINDOW_SEC = 60 * 60
@@ -79,6 +87,28 @@ class AddonUpdateCheckResult:
     checked_count: int = 0
     total_count: int = 0
     resume_after_sec: int | None = None
+
+
+@dataclass
+class AddonInstallResult:
+    """GitHub/catalog install outcome. Mismatches are prompted on the UI thread."""
+
+    display: str
+    installed: list[str] = field(default_factory=list)
+    mismatches: list[AddonTocMismatch] = field(default_factory=list)
+    owner: str = ""
+    repo: str = ""
+    branch: str = ""
+    sha: str = ""
+    url: str = ""
+    commit_date: str = ""
+    preferred_primary: str | None = None
+    tag: str | None = None
+    origin_url: str = ""
+    recorded: bool = True
+
+    def __str__(self) -> str:
+        return self.display
 
 
 def has_github_token() -> bool:
@@ -1584,7 +1614,56 @@ def _record_pack_install(
     return primary if len(installed) == 1 else f"{primary} ({len(installed)} modules)"
 
 
-def install_from_github(url: str, folder_name: str | None = None, progress: ProgressCb | None = None) -> str:
+def finalize_install_after_toc_renames(
+    result: AddonInstallResult,
+    renamed: list[str],
+) -> AddonInstallResult:
+    """Record GitHub metadata after the UI renamed mismatch folders to their .toc stems."""
+    names = list(result.installed)
+    seen = {n.lower() for n in names}
+    for name in renamed:
+        key = (name or "").strip()
+        if key and key.lower() not in seen:
+            names.append(key)
+            seen.add(key.lower())
+    if result.recorded and not renamed:
+        return result
+    if not names:
+        return result
+    if result.origin_url:
+        addons_dir = resolve_addons_dir(create=False)
+        if addons_dir is not None:
+            from ichalaunch.core.detect import write_git_origin
+
+            for name in renamed:
+                dest = addons_dir / name
+                if not dest.is_dir():
+                    continue
+                try:
+                    write_git_origin(dest, result.origin_url)
+                except (OSError, ValueError) as exc:
+                    log.warning("Could not write .git origin for %s: %s", name, exc)
+    display = _record_pack_install(
+        installed=names,
+        owner=result.owner,
+        repo=result.repo,
+        branch=result.branch,
+        sha=result.sha,
+        url=result.url,
+        commit_date=result.commit_date,
+        preferred_primary=result.preferred_primary,
+        tag=result.tag,
+    )
+    result.installed = names
+    result.display = display
+    result.recorded = True
+    result.mismatches = []
+    return result
+
+
+def install_from_github(
+    url: str, folder_name: str | None = None, progress: ProgressCb | None = None
+) -> AddonInstallResult:
     parsed = parse_github_url(url)
     if not parsed:
         raise ValueError("Not a valid GitHub repository URL")
@@ -1620,49 +1699,35 @@ def install_from_github(url: str, folder_name: str | None = None, progress: Prog
         status_only(progress, f"Downloading {label}...")
         data = download_bytes(zip_url, progress=download_bytes_cb(progress))
         extracted = extract_zip(data, work / "extract", progress=progress)
-        roots = find_toc_roots(extracted)
-        if not roots and any(extracted.glob("*.toc")):
-            roots = [extracted]
-        if not roots:
-            # Fall back: any .toc parent (deeper nesting)
-            candidates = [p for p in extracted.rglob("*.toc")]
-            parents = {c.parent for c in candidates}
-            roots = sorted(parents, key=lambda p: (len(p.parts), p.name.lower()))
-        if not roots:
+        pairs = resolve_install_addon_roots(extracted)
+        if not pairs:
+            if any(extracted.rglob("*.toc")):
+                raise FileNotFoundError(TOC_FOLDER_MISMATCH_MSG)
             raise FileNotFoundError("No .toc files found in repository")
 
         addons_dir = ensure_addons_dir()
 
-        # Always keep each TOC root's real folder name — never rename children to catalog folder.
+        # Dest folder is always the .toc stem, never the catalog/extract name.
         installed: list[str] = []
-        for root in roots:
-            name = normalize_addon_name(root.name, tag=tag)
-            if name.lower() in ("master", "main"):
-                name = repo
-            dest = addons_dir / name
-            if dest.exists():
-                safe_remove(dest)
-            copy_tree(root, dest)
-            installed.append(name)
+        pending: list[AddonTocMismatch] = []
+        for root, dest_name in pairs:
+            placed, mismatch = place_install_addon_root(root, addons_dir, dest_name)
+            if placed:
+                installed.append(placed)
+            elif mismatch is not None:
+                pending.append(mismatch)
+                note_pending_toc_mismatch(mismatch)
 
-        # Single-root installs may use catalog folder_name as the destination name
-        if len(installed) == 1 and folder_name:
-            only = installed[0]
-            wanted = normalize_addon_name(folder_name, tag=tag)
-            if wanted and wanted.lower() != only.lower():
-                src = addons_dir / only
-                dest = addons_dir / wanted
-                if dest.exists():
-                    safe_remove(dest)
-                src.rename(dest)
-                installed = [wanted]
+        if not installed and not pending:
+            raise FileNotFoundError(TOC_FOLDER_MISMATCH_MSG)
 
         preferred = None
+        named = [*installed, *(m.toc_stem for m in pending if m.toc_stem)]
         if folder_name:
             preferred = normalize_addon_name(folder_name, tag=tag)
-        elif any(normalize_addon_name(n, tag=tag).lower() == repo.lower() for n in installed):
+        elif any(normalize_addon_name(n, tag=tag).lower() == repo.lower() for n in named):
             preferred = next(
-                n for n in installed if normalize_addon_name(n, tag=tag).lower() == repo.lower()
+                n for n in named if normalize_addon_name(n, tag=tag).lower() == repo.lower()
             )
 
         # Zip/release extract has no .git — record origin so Check Updates / Update
@@ -1670,7 +1735,9 @@ def install_from_github(url: str, folder_name: str | None = None, progress: Prog
         from ichalaunch.core.detect import write_git_origin
 
         origin_url = github_browse_url(owner, repo)
-        for name in installed:
+        origin_targets = list(installed)
+        origin_targets.extend(m.current_name for m in pending)
+        for name in origin_targets:
             dest = addons_dir / name
             if not dest.is_dir():
                 continue
@@ -1679,7 +1746,40 @@ def install_from_github(url: str, folder_name: str | None = None, progress: Prog
             except (OSError, ValueError) as exc:
                 log.warning("Could not write .git origin for %s: %s", name, exc)
 
-        return _record_pack_install(
+        result = AddonInstallResult(
+            display="",
+            installed=installed,
+            mismatches=pending,
+            owner=owner,
+            repo=repo,
+            branch=branch,
+            sha=meta["sha"],
+            url=store_url,
+            commit_date=commit_date,
+            preferred_primary=preferred,
+            tag=tag,
+            origin_url=origin_url,
+            recorded=False,
+        )
+        if pending:
+            if installed:
+                result.display = _record_pack_install(
+                    installed=installed,
+                    owner=owner,
+                    repo=repo,
+                    branch=branch,
+                    sha=meta["sha"],
+                    url=store_url,
+                    commit_date=commit_date,
+                    preferred_primary=preferred,
+                    tag=tag,
+                )
+                result.recorded = True
+            else:
+                result.display = pending[0].current_name
+            return result
+
+        result.display = _record_pack_install(
             installed=installed,
             owner=owner,
             repo=repo,
@@ -1690,6 +1790,8 @@ def install_from_github(url: str, folder_name: str | None = None, progress: Prog
             preferred_primary=preferred,
             tag=tag,
         )
+        result.recorded = True
+        return result
 
 GIT_REPAIR_STATUS = "Adding missing git folder structure..."
 
@@ -1827,8 +1929,8 @@ def repair_missing_addon_git_origins(
 def recently_checked_addon_updates(cooldown_sec: int | None = None) -> bool:
     """True if an automatic scan should skip because the cooldown window is still open.
 
-    *cooldown_sec* defaults to the Settings ``auto_scan_cooldown_minutes`` value
-    (``STARTUP_CHECK_COOLDOWN_SEC`` when unset). Manual Check Updates ignores this.
+    *cooldown_sec* defaults to the hardcoded 15-minute refresh interval.
+    Manual Check Updates ignores this.
     """
     if cooldown_sec is None:
         cooldown_sec = settings.auto_scan_cooldown_sec()
@@ -1865,29 +1967,45 @@ def _persist_scan_queue_progress(
     )
 
 
+def _catalog_remote_for_addon(
+    owner: str,
+    name: str,
+    *,
+    branch: str | None,
+    local_sha: str,
+) -> tuple[str, str, str] | None:
+    """Return ``(remote_sha, remote_version, branch)`` from the tip index only."""
+    from ichalaunch.addons.tip_index import lookup_latest_tag, lookup_tip
+
+    wanted = str(branch or "").strip() or None
+    if local_sha:
+        hit = lookup_tip(owner, name, wanted)
+        if not hit:
+            return None
+        sha, resolved = hit
+        return str(sha or ""), "", str(resolved or wanted or "")
+    tag = lookup_latest_tag(owner, name)
+    if not tag:
+        return None
+    return "", tag, str(wanted or "")
+
+
 def check_addon_updates(
     *,
     respect_cooldown: bool = False,
     progress: Any = None,
 ) -> AddonUpdateCheckResult:
-    """Check installed GitHub addons for newer commits.
+    """Compare installed GitHub addons to the shared catalog tip-SHA JSON.
 
-    Tip SHAs come from the catalog index, git ref discovery, or Atom feeds —
-    not the REST API — so a personal token is not required for a timely scan.
-    REST is a last resort; if that path hits the unauthenticated 60/hour
-    budget, remaining folders are queued and resumed later.
-
-    Child modules of a multi-folder pack (managed_by) are skipped — only the
-    primary entry is checked / listed for Update.
+    One remote fetch of ``addon_tips.json``, then a local compare. Per-addon
+    git/REST probes are not used here (those remain for install/update of a
+    single addon). Child modules of a multi-folder pack are skipped.
     """
-    if (
-        respect_cooldown
-        and recently_checked_addon_updates()
-        and not has_pending_addon_scan_queue()
-    ):
+    if respect_cooldown and recently_checked_addon_updates():
         return AddonUpdateCheckResult(skipped_recent=True)
 
     from ichalaunch.addons.loadstate import addon_disk_path
+    from ichalaunch.addons.tip_index import index_repo_count, refresh_tip_index
     from ichalaunch.core.detect import (
         catalog_index,
         overlay_git_origin,
@@ -1925,37 +2043,48 @@ def check_addon_updates(
 
     on_count = getattr(progress, "on_count", None) if progress is not None else None
 
-    # Git/index/atom can finish a full pass; drop leftover REST-hour queues.
+    # Leftover REST-hour queues from older builds are unused now.
     clear_addon_scan_queue()
+    status_only(progress, "Fetching update catalog…")
+    if callable(on_count):
+        on_count(0, 1, "Fetching update catalog…")
     try:
-        from ichalaunch.addons.tip_index import refresh_tip_index
-
-        refresh_tip_index()
+        index = refresh_tip_index()
     except Exception as exc:  # noqa: BLE001
         log.debug("Addon tip index refresh skipped: %s", exc)
+        index = None
 
-    work = list(to_check)
-    updates: list[dict[str, Any]] = []
-    done_count = 0
-    total = len(work)
-
-    display_total = max(1, total if total else 1)
-    if callable(on_count):
-        on_count(done_count, display_total, "Scanning addons…")
-
-    if not to_check and not work:
+    if index_repo_count(index) == 0:
         clear_addon_scan_queue()
         _mark_addon_update_check_time()
         if callable(on_count):
-            on_count(1, 1, "Scanning addons…")
+            on_count(1, 1, "Checking addon updates…")
+        return AddonUpdateCheckResult(
+            updates=[],
+            checked_count=0,
+            total_count=len(to_check),
+            status_message="Update catalog unavailable",
+        )
+
+    total = len(to_check)
+    if callable(on_count):
+        on_count(0, 1, "Checking addon updates…")
+
+    if not to_check:
+        _mark_addon_update_check_time()
+        if callable(on_count):
+            on_count(1, 1, "Checking addon updates…")
         return AddonUpdateCheckResult(updates=[], checked_count=0, total_count=0)
 
-    checked = 0
-    rate_limited = False
-    budget_exhausted = False
-    remaining_work: list[tuple[str, dict[str, Any], str, str, str]] = []
+    log.info(
+        "Addon update check via catalog index (%d repo(s)); comparing %d installed addon(s)",
+        index_repo_count(index),
+        total,
+    )
 
-    for i, (folder, meta, owner, name, repo) in enumerate(work):
+    updates: list[dict[str, Any]] = []
+    checked = 0
+    for folder, meta, owner, name, repo in to_check:
         disk = addon_disk_path(folder)
         local_sha = str(meta.get("installed_commit") or "").strip()
         if not local_sha and disk is not None:
@@ -1966,35 +2095,14 @@ def check_addon_updates(
         if not local_ver:
             local_ver = str(meta.get("version") or "").strip()
 
-        try:
-            if local_sha:
-                remote = github_remote_tip(owner, name, meta.get("branch"))
-                checked += 1
-                remote_sha = str(remote.get("sha") or "")
-                remote_ver = ""
-                branch = str(remote.get("branch") or meta.get("branch") or "")
-            else:
-                # Copied / no install SHA: TOC vs GitHub tag. Never treat missing
-                # commit as older than remote (that marked every copied addon outdated).
-                remote_ver = github_latest_version_tag(owner, name) or ""
-                checked += 1
-                remote_sha = ""
-                remote = {"sha": "", "branch": str(meta.get("branch") or "")}
-                branch = str(remote.get("branch") or "")
-        except GitHubBudgetExhaustedError:
-            budget_exhausted = True
-            remaining_work = list(work[i:])
-            break
-        except GitHubRateLimitError:
-            rate_limited = True
-            remaining_work = list(work[i:])
-            break
-        except Exception as exc:  # noqa: BLE001
-            log.warning("Update check failed for %s: %s", folder, exc)
-            done_count += 1
-            if callable(on_count):
-                on_count(done_count, display_total, f"Scanning addons… {done_count}/{total}")
+        remote = _catalog_remote_for_addon(
+            owner, name, branch=meta.get("branch"), local_sha=local_sha
+        )
+        if remote is None:
+            log.debug("Catalog index has no tip for %s (%s/%s)", folder, owner, name)
             continue
+        remote_sha, remote_ver, branch = remote
+        checked += 1
 
         if should_report_addon_update(
             local_commit=local_sha,
@@ -2004,8 +2112,6 @@ def check_addon_updates(
         ):
             local_label = (local_sha[:7] if local_sha else local_ver) or "?"
             remote_label = (remote_sha[:7] if remote_sha else remote_ver) or "?"
-            # Replace any prior entry for this folder from an earlier batch.
-            updates = [u for u in updates if str(u.get("folder") or "") != folder]
             updates.append(
                 {
                     "folder": folder,
@@ -2017,76 +2123,13 @@ def check_addon_updates(
                 }
             )
 
-        done_count += 1
-        if callable(on_count):
-            on_count(
-                done_count,
-                display_total,
-                f"Scanning addons… {done_count}/{total}",
-            )
+    if callable(on_count):
+        on_count(1, 1, "Checking addon updates…")
 
-        if rate_limit_exhausted():
-            # REST fallback already spent the anonymous budget; finish via queue.
-            rate_limited = True
-            remaining_work = list(work[i + 1 :])
-            break
-
-    if remaining_work:
-        _, reset_in = unauth_budget_remaining()
-        if rate_limited:
-            header_reset = _resume_after_sec_from_headers()
-            if header_reset is not None:
-                reset_in = max(reset_in, header_reset)
-            elif reset_in <= 0:
-                reset_in = UNAUTH_BUDGET_WINDOW_SEC
-        _persist_scan_queue_progress(
-            pending_folders=[t[0] for t in remaining_work],
-            total=total,
-            done_count=done_count,
-            updates=updates,
-        )
-        status = format_queued_scan_status(done_count, total, reset_in)
-        log.info(
-            "Addon update scan queued (%d/%d done, %d update(s)); resumes in ~%ds%s",
-            done_count,
-            total,
-            len(updates),
-            reset_in,
-            " (GitHub rate limit)" if rate_limited else "",
-        )
-        return AddonUpdateCheckResult(
-            updates=list(updates),
-            rate_limited=rate_limited,
-            queued=True,
-            checked_count=done_count,
-            total_count=total,
-            resume_after_sec=reset_in,
-            status_message=status,
-        )
-
-    # Full pass complete (or authenticated one-shot).
-    clear_addon_scan_queue()
     _mark_addon_update_check_time()
-
-    if rate_limited:
-        log.warning(
-            "GitHub rate limit hit during addon update check "
-            "(%d addon(s) checked, %d update(s) found). %s",
-            checked,
-            len(updates),
-            RATE_LIMIT_STATUS,
-        )
-        return AddonUpdateCheckResult(
-            updates=list(updates),
-            rate_limited=True,
-            checked_count=done_count,
-            total_count=total,
-            status_message=RATE_LIMIT_STATUS,
-        )
-
     return AddonUpdateCheckResult(
         updates=list(updates),
-        checked_count=done_count,
+        checked_count=checked,
         total_count=total,
     )
 
@@ -2150,7 +2193,7 @@ def update_addon(folder: str, progress: ProgressCb | None = None) -> None:
         if parsed and parsed.tag:
             url = github_tag_page_url(parsed.owner, parsed.repo, parsed.tag)
     # Pass primary folder name only as preferred primary — install keeps all module names
-    install_from_github(url, folder_name=folder, progress=progress)
+    return install_from_github(url, folder_name=folder, progress=progress)
 
 
 def uninstall_addon(folder: str) -> None:

@@ -11,7 +11,14 @@ from typing import Any
 
 from ichalaunch.addons.github import addon_ignores_updates, catalog_locks_updates, load_catalog, parse_github_url
 from ichalaunch.config.settings import settings
-from ichalaunch.core.filesystem import listed_basenames, robust_rmtree
+from ichalaunch.core.filesystem import (
+    AddonTocMismatch,
+    describe_toc_mismatch,
+    folder_toc_files,
+    listed_basenames,
+    matching_toc_path,
+    robust_rmtree,
+)
 from ichalaunch.core.logging_setup import log
 from ichalaunch.game.launcher import detect_game, resolve_addons_dir
 from ichalaunch.mods.installer import (
@@ -26,19 +33,61 @@ from ichalaunch.mods.installer import (
 BLIZZARD_PREFIXES = ("Blizzard_", "Turtle_")
 
 
-def _scan_toc_dir(addons_dir: Path | None, *, skip_blizzard: bool) -> list[str]:
+def _classify_toc_dir(
+    addons_dir: Path | None, *, skip_blizzard: bool
+) -> tuple[list[str], list[AddonTocMismatch]]:
+    """Return ``(valid_folders, mismatches)``.
+
+    Valid folders have ``{folder}/{folder}.toc``. The ``.toc`` filename is
+    the source of truth — mismatched folders are skipped and the UI can
+    offer to rename the folder to that stem.
+    """
     if not addons_dir or not addons_dir.is_dir():
-        return []
-    folders = []
-    for p in sorted(addons_dir.iterdir()):
+        return [], []
+    valid: list[str] = []
+    mismatched: list[AddonTocMismatch] = []
+    try:
+        children = sorted(addons_dir.iterdir())
+    except OSError:
+        return [], []
+    for p in children:
         if not p.is_dir():
             continue
         if skip_blizzard and p.name.startswith(BLIZZARD_PREFIXES):
             continue
-        if not any(p.glob("*.toc")):
+        if matching_toc_path(p) is not None:
+            valid.append(p.name)
             continue
-        folders.append(p.name)
-    return folders
+        info = describe_toc_mismatch(p)
+        if info is None:
+            tocs = folder_toc_files(p)
+            if not tocs:
+                continue
+            info = AddonTocMismatch(
+                folder=p,
+                current_name=p.name,
+                toc_stem="",
+                toc_name=tocs[0].name,
+            )
+        mismatched.append(info)
+        expected = (info.toc_stem or Path(info.toc_name).stem or "").strip()
+        if expected:
+            log.warning(
+                "Skipping addon folder %s — folder name must match the .toc "
+                "(rename folder to %s)",
+                p.name,
+                expected,
+            )
+        else:
+            log.warning(
+                "Skipping addon folder %s — folder name must match the .toc",
+                p.name,
+            )
+    return valid, mismatched
+
+
+def _scan_toc_dir(addons_dir: Path | None, *, skip_blizzard: bool) -> list[str]:
+    return _classify_toc_dir(addons_dir, skip_blizzard=skip_blizzard)[0]
 
 
 _TOC_VERSION_RE = re.compile(r"^##\s*Version\s*:\s*(.+?)\s*$", re.I | re.M)
@@ -133,6 +182,17 @@ def read_local_git_head_sha(addon_folder: str | Path) -> str | None:
     return None
 
 
+def _addon_scan_dirs(
+    game_path: Path | None = None,
+) -> tuple[Path | None, Path | None]:
+    if game_path is not None and not settings.addons_path.strip():
+        addons_dir = Path(game_path) / "Interface" / "AddOns"
+        return addons_dir, addons_dir.parent / "AddOnsUnloaded"
+    from ichalaunch.addons.loadstate import resolve_unloaded_addons_dir
+
+    return resolve_addons_dir(create=False), resolve_unloaded_addons_dir(create=False)
+
+
 def scan_installed_addon_folders(game_path: Path | None = None) -> list[str]:
     """List TOC addon folders under AddOns **and** AddOnsUnloaded.
 
@@ -140,15 +200,10 @@ def scan_installed_addon_folders(game_path: Path | None = None) -> list[str]:
     When ``game_path`` is passed and settings have no ``addons_path`` override,
     scan ``{game_path}/Interface/AddOns`` (tests / one-offs). Otherwise use
     ``resolve_addons_dir()``.
-    """
-    if game_path is not None and not settings.addons_path.strip():
-        addons_dir = Path(game_path) / "Interface" / "AddOns"
-        unloaded_dir = addons_dir.parent / "AddOnsUnloaded"
-    else:
-        from ichalaunch.addons.loadstate import resolve_unloaded_addons_dir
 
-        addons_dir = resolve_addons_dir(create=False)
-        unloaded_dir = resolve_unloaded_addons_dir(create=False)
+    Only folders whose ``.toc`` filename matches the folder name are returned.
+    """
+    addons_dir, unloaded_dir = _addon_scan_dirs(game_path)
     loaded = _scan_toc_dir(addons_dir, skip_blizzard=True)
     seen = {n.lower() for n in loaded}
     for name in _scan_toc_dir(unloaded_dir, skip_blizzard=False):
@@ -156,6 +211,25 @@ def scan_installed_addon_folders(game_path: Path | None = None) -> list[str]:
             loaded.append(name)
             seen.add(name.lower())
     return loaded
+
+
+def scan_mismatched_toc_addon_folders(
+    game_path: Path | None = None,
+) -> list[AddonTocMismatch]:
+    """Folders that have a ``.toc`` whose name does not match the folder."""
+    addons_dir, unloaded_dir = _addon_scan_dirs(game_path)
+    out: list[AddonTocMismatch] = []
+    seen: set[str] = set()
+    for item in (
+        _classify_toc_dir(addons_dir, skip_blizzard=True)[1]
+        + _classify_toc_dir(unloaded_dir, skip_blizzard=False)[1]
+    ):
+        key = item.current_name.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+    return out
 
 
 def normalize_addon_key(value: str) -> str:
@@ -968,4 +1042,10 @@ def sync_desired_mods_from_disk() -> dict[str, bool]:
 def full_resync() -> dict[str, Any]:
     addons = sync_installed_addons_from_disk()
     mods = sync_desired_mods_from_disk()
-    return {"addons": addons, "mods": mods}
+    mismatches = scan_mismatched_toc_addon_folders()
+    return {
+        "addons": addons,
+        "mods": mods,
+        "skipped_addons": [m.current_name for m in mismatches],
+        "mismatches": mismatches,
+    }

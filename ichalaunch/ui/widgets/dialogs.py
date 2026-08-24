@@ -270,6 +270,78 @@ class DllSecurityExclusionDialog(QDialog):
         return self._dont_show.isChecked()
 
 
+class MpqPatchWarningDialog(QDialog):
+    """Warning when enabling HD / patch-*.mpq client mods."""
+
+    def __init__(self, parent: QWidget | None, title: str, text: str) -> None:
+        super().__init__(parent)
+        self.setObjectName("ThemedDialog")
+        self.setWindowFlags(_themed_dialog_flags())
+        self.setModal(True)
+        self.setMinimumSize(420, 220)
+        self.resize(480, 240)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+
+        card = QWidget()
+        card.setObjectName("ThemedDialogCard")
+        body = QVBoxLayout(card)
+        body.setContentsMargins(22, 18, 22, 18)
+        body.setSpacing(12)
+
+        title_lbl = QLabel(title)
+        title_lbl.setObjectName("ThemedDialogTitle")
+        title_lbl.setWordWrap(True)
+        body.addWidget(title_lbl)
+
+        msg = QLabel(text)
+        msg.setObjectName("ThemedDialogBody")
+        msg.setWordWrap(True)
+        msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        body.addWidget(msg, 1)
+
+        self._dont_show = ThemeCheckBox("Don't show again", card)
+        self._dont_show.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._dont_show.setMinimumHeight(28)
+        self._dont_show.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+        body.addWidget(self._dont_show)
+
+        row = QHBoxLayout()
+        row.setSpacing(10)
+        row.addStretch(1)
+        close_btn = _dialog_glue_button("Close", card, primary=True)
+        close_btn.clicked.connect(self.accept)
+        row.addWidget(close_btn)
+        body.addLayout(row)
+
+        root.addWidget(card)
+        self.setStyleSheet(
+            "QDialog#ThemedDialog { background: transparent; }"
+            "QWidget#ThemedDialogCard {"
+            "  background-color: #100d0c;"
+            "  border: 1px solid rgba(150, 131, 158, 0.22);"
+            "  border-top: 3px solid #F1C22D;"
+            "  border-radius: 10px;"
+            "}"
+        )
+
+    def dismissed_permanently(self) -> bool:
+        return self._dont_show.isChecked()
+
+
+def mpq_patch_warning_dialog(parent: QWidget | None) -> bool:
+    """Blocking HD/MPQ patch warning. Returns True if user checked Don't show again."""
+    from ichalaunch.mods.client_mod_hints import MPQ_PATCH_WARNING_TEXT
+
+    dlg = MpqPatchWarningDialog(parent, "MPQ patch warning", MPQ_PATCH_WARNING_TEXT)
+    if dlg.exec() != QDialog.DialogCode.Accepted:
+        return False
+    return dlg.dismissed_permanently()
+
+
 def dll_security_exclusion_dialog(
     parent: QWidget | None,
     game_folder: str,
@@ -1996,6 +2068,26 @@ def question(parent: QWidget | None, title: str, text: str) -> bool:
         buttons=[("No", DialogResult.No), ("Yes", DialogResult.Yes)],
     )
     return result == DialogResult.Yes
+
+
+def confirm(parent: QWidget | None, title: str, text: str) -> bool:
+    """Blocking Yes/No confirm. Returns True for Yes."""
+    return question(parent, title, text)
+
+
+def confirm_addon_toc_rename(
+    parent: QWidget | None,
+    current_name: str,
+    toc_name: str,
+) -> bool:
+    """Ask whether to rename the addon folder to the ``.toc`` stem."""
+    from ichalaunch.core.filesystem import toc_mismatch_prompt_text
+
+    return question(
+        parent,
+        "Addon folder name mismatch",
+        toc_mismatch_prompt_text(current_name, toc_name),
+    )
 
 
 def choice(

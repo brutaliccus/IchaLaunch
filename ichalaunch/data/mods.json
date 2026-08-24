@@ -795,23 +795,25 @@
     "id": "pretty_night_sky",
     "name": "Pretty Night Sky",
     "category": "Visual / QoL",
-    "description": "Enhanced night sky. Installs as Data/patch-9.mpq (also bundled in Reforged Patch-E).",
+    "description": "Enhanced night sky as Data/patch-Y.mpq (also bundled in Reforged Patch-E). Downloaded as patch-Y.mpq — never written as official patch-9.mpq.",
     "detect": {
       "data_mpq": [
-        "patch-9.mpq",
-        "Patch-9.mpq"
+        "patch-Y.mpq",
+        "Patch-Y.mpq"
       ]
     },
     "source": {
       "type": "google_drive",
       "id": "1qu99ZS-SQFfTtYodBmZWYiHmxL8QtUY4",
-      "filename": "patch-9.mpq",
+      "filename": "patch-Y.mpq",
       "timeout": 300
     },
     "kind": "mpq_file",
-    "destination": "Data/patch-9.mpq",
+    "destination": "Data/patch-Y.mpq",
     "dependencies": [],
-    "conflicts": []
+    "conflicts": [
+      "fog_pushback"
+    ]
   },
   {
     "id": "epoch_water",
@@ -857,7 +859,9 @@
     "dependencies": [
       "vanilla_tweaks"
     ],
-    "conflicts": []
+    "conflicts": [
+      "pretty_night_sky"
+    ]
   },
   {
     "id": "pink_herbs",

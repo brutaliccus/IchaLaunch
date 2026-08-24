@@ -382,6 +382,144 @@ def test_mod_remove_desired_state():
     print("OK mod removal desired-state loop")
 
 
+def test_stock_patch9_not_owned_by_pretty_night_sky():
+    """Official Data/patch-9.mpq must never be detected, planned, or deleted."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.detect import sync_desired_mods_from_disk
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import (
+        _mod_owned_paths,
+        apply_desired_state,
+        apply_mod_toggle,
+        detect_actual_state,
+        get_mod,
+        is_stock_data_mpq,
+        plan_changes,
+        remove_mod,
+        stage_mpq_before_data,
+    )
+
+    assert is_stock_data_mpq("Data/patch-9.mpq")
+    assert is_stock_data_mpq("patch.mpq")
+    assert is_stock_data_mpq("PATCH-2.MPQ")
+    assert not is_stock_data_mpq("Data/patch-Y.mpq")
+    assert not is_stock_data_mpq("Data/patch-A.mpq")
+
+    sky = get_mod("pretty_night_sky")
+    assert sky is not None
+    assert (sky.get("destination") or "").replace("\\", "/").lower() == "data/patch-y.mpq"
+    assert (sky.get("source") or {}).get("filename", "").lower() == "patch-y.mpq"
+    assert "fog_pushback" in (sky.get("conflicts") or [])
+    assert not is_stock_data_mpq(sky.get("destination") or "")
+    owned = _mod_owned_paths(sky)
+    assert not any("patch-9.mpq" in p for p in owned), owned
+    assert any(p.endswith("patch-y.mpq") for p in owned), owned
+
+    keys = (
+        "desired_mods",
+        "user_set_mods",
+        "installed_mods",
+        "user_mods",
+        "game_path",
+        "addons_path",
+    )
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            data = game / "Data"
+            data.mkdir()
+            stock = data / "patch-9.mpq"
+            stock.write_bytes(b"OFFICIAL-PATCH-9")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("desired_mods", {})
+            s.set("user_set_mods", [])
+            s.set("installed_mods", {})
+            s.set("user_mods", [])
+            clear_fs_caches()
+
+            actual = detect_actual_state(game)
+            assert actual.get("pretty_night_sky") is False
+
+            desired = sync_desired_mods_from_disk()
+            assert desired.get("pretty_night_sky") is not True
+
+            apply_mod_toggle("pretty_night_sky", True)
+            apply_mod_toggle("fog_pushback", True)
+            assert s.desired_mods.get("fog_pushback") is True
+            assert s.desired_mods.get("pretty_night_sky") is not True
+
+            s.set("desired_mods", {})
+            s.set("user_set_mods", [])
+            s.set_desired_mod("pretty_night_sky", False)
+            plan = plan_changes()
+            assert not any(
+                c.get("id") == "pretty_night_sky" and c.get("action") == "remove"
+                for c in plan
+            ), plan
+
+            out = apply_desired_state()
+            assert stock.is_file()
+            assert stock.read_bytes() == b"OFFICIAL-PATCH-9"
+            assert not any(
+                isinstance(ln, str) and "pretty_night_sky" in ln and ln.startswith("- ")
+                for ln in out
+            ), out
+
+            remove_mod("pretty_night_sky")
+            assert stock.is_file(), "remove_mod must not delete official patch-9.mpq"
+            assert stock.read_bytes() == b"OFFICIAL-PATCH-9"
+
+            work = game / "_stage"
+            work.mkdir()
+            downloaded = work / "patch-9.mpq"
+            downloaded.write_bytes(b"NIGHT-SKY")
+            staged = stage_mpq_before_data(downloaded, "Data/patch-Y.mpq", work)
+            assert staged.name.lower() == "patch-y.mpq"
+            assert staged.read_bytes() == b"NIGHT-SKY"
+            assert not downloaded.exists()
+            assert not (data / "patch-Y.mpq").exists()
+            try:
+                stage_mpq_before_data(work / "x.mpq", "Data/patch-9.mpq", work)
+                raise AssertionError("stock dest must be rejected")
+            except RuntimeError:
+                pass
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK stock patch-9.mpq not owned by pretty night sky")
+
+
+def test_stock_patch9_collision_migration():
+    """Auto-seeded Pretty Night Sky desired/install records are dropped once."""
+    from ichalaunch.config.settings import migrate_stock_patch9_collision
+
+    seeded = {
+        "desired_mods": {"pretty_night_sky": True, "vanillafixes": True},
+        "user_set_mods": [],
+        "installed_mods": {"pretty_night_sky": {"backfilled": True}},
+    }
+    assert migrate_stock_patch9_collision(seeded) is True
+    assert "pretty_night_sky" not in seeded["desired_mods"]
+    assert "pretty_night_sky" not in seeded["installed_mods"]
+    assert seeded["desired_mods"]["vanillafixes"] is True
+    assert seeded["stock_patch9_collision_migrated_v1"] is True
+    assert migrate_stock_patch9_collision(seeded) is False
+
+    explicit = {
+        "desired_mods": {"pretty_night_sky": True},
+        "user_set_mods": ["pretty_night_sky"],
+        "installed_mods": {"pretty_night_sky": {"installed_at": "2024-01-01"}},
+    }
+    assert migrate_stock_patch9_collision(explicit) is True
+    assert explicit["desired_mods"]["pretty_night_sky"] is True
+    assert "pretty_night_sky" not in explicit["installed_mods"]
+    print("OK stock patch-9 collision migration")
+
+
 def test_darker_nights_migration():
     """Legacy darker_nights settings migrate to hd_patch_n on load."""
     from ichalaunch.config.settings import migrate_legacy_mod_ids
@@ -1962,11 +2100,246 @@ def test_mod_remote_identity_uses_tip_index():
         assert ident is not None
         assert ident["key"] == "v9.9.9"
         assert ident["tag"] == "v9.9.9"
+        catalog = _remote_identity(
+            {"type": "github_release_latest", "repo": "hannesmann/vanillafixes"},
+            catalog_only=True,
+        )
+        assert catalog is not None and catalog["key"] == "v9.9.9"
+        missing = _remote_identity(
+            {"type": "github_release_latest", "repo": "nope/missing"},
+            catalog_only=True,
+        )
+        assert missing is None
     finally:
         tips._loaded = prev
         if prev is None:
             clear_tip_index_cache()
     print("OK mod remote identity uses tip index")
+
+
+def test_addon_toc_folder_name_required():
+    """Disk scan and install roots require folder name == .toc name."""
+    import tempfile
+    from pathlib import Path
+
+    from ichalaunch.core.detect import _classify_toc_dir
+    from ichalaunch.core.filesystem import (
+        canonical_addon_folder_name,
+        matching_toc_path,
+        resolve_install_addon_roots,
+    )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        addons = Path(tmp) / "AddOns"
+        good = addons / "Atlas-CFM"
+        good.mkdir(parents=True)
+        (good / "Atlas-CFM.toc").write_text("## Title: Atlas-CFM\n", encoding="utf-8")
+        bad = addons / "BrokenAddon"
+        bad.mkdir()
+        (bad / "WrongName.toc").write_text("## Title: Wrong\n", encoding="utf-8")
+        extract = Path(tmp) / "Atlas-TW"
+        extract.mkdir()
+        (extract / "Atlas-CFM.toc").write_text("## Title: Atlas-CFM\n", encoding="utf-8")
+        tw = addons / "Atlas-TW"
+        tw.mkdir()
+        (tw / "Atlas-CFM.toc").write_text("## Title: Atlas-CFM\n", encoding="utf-8")
+
+        assert matching_toc_path(good) is not None
+        assert matching_toc_path(bad) is None
+        assert matching_toc_path(extract) is None
+        assert canonical_addon_folder_name(extract) == "Atlas-CFM"
+        valid, mismatched = _classify_toc_dir(addons, skip_blizzard=True)
+        assert "Atlas-CFM" in valid
+        assert "Atlas-TW" not in valid
+        tw_mis = next(m for m in mismatched if m.current_name == "Atlas-TW")
+        assert tw_mis.toc_stem == "Atlas-CFM"
+        assert tw_mis.toc_name == "Atlas-CFM.toc"
+        assert any(m.current_name == "BrokenAddon" for m in mismatched)
+        pairs = resolve_install_addon_roots(extract)
+        assert pairs == [(extract, "Atlas-CFM")]
+    print("OK addon toc folder name required")
+
+
+def test_addon_toc_folder_rename():
+    """Rename helper, decline-as-skip, and dest-exists collision (no Qt)."""
+    import tempfile
+    from pathlib import Path
+
+    from ichalaunch.config.settings import settings
+    from ichalaunch.core.detect import _classify_toc_dir
+    from ichalaunch.core.filesystem import (
+        clear_pending_toc_mismatches,
+        describe_toc_mismatch,
+        matching_toc_path,
+        place_install_addon_root,
+        rename_addon_folder_to_toc,
+        toc_mismatch_prompt_text,
+    )
+
+    clear_pending_toc_mismatches()
+    prev_addons = settings.installed_addons
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            addons = Path(tmp) / "AddOns"
+            addons.mkdir()
+
+            # Prompt: folder is wrong; .toc stem is the required folder name.
+            copy = toc_mismatch_prompt_text("Atlas-TW", "Atlas-CFM.toc")
+            assert "Folder is Atlas-TW" in copy
+            assert "Atlas-CFM.toc" in copy
+            assert "Rename folder to Atlas-CFM" in copy
+            assert "folder name to match the .toc" in copy
+
+            # Case-only difference is already a match — no prompt/rename.
+            cased = addons / "CaseAddon"
+            cased.mkdir()
+            (cased / "caseaddon.toc").write_text("## Title: Case\n", encoding="utf-8")
+            assert matching_toc_path(cased) is not None
+            assert describe_toc_mismatch(cased) is None
+            assert rename_addon_folder_to_toc(cased).status == "already_match"
+
+            # Rename folder Atlas-TW → Atlas-CFM; the .toc file keeps its name.
+            atlas = addons / "Atlas-TW"
+            atlas.mkdir()
+            (atlas / "Atlas-CFM.toc").write_text("## Title: Atlas-CFM\n", encoding="utf-8")
+            settings.set("installed_addons", {"Atlas-TW": {"name": "Atlas-TW", "source": "github"}})
+            mismatch = describe_toc_mismatch(atlas)
+            assert mismatch is not None
+            assert mismatch.current_name == "Atlas-TW"
+            assert mismatch.toc_stem == "Atlas-CFM"
+            assert mismatch.toc_name == "Atlas-CFM.toc"
+            assert mismatch.can_rename
+            outcome = rename_addon_folder_to_toc(atlas, mismatch.toc_stem)
+            assert outcome.status == "renamed"
+            assert outcome.new_name == "Atlas-CFM"
+            dest = addons / "Atlas-CFM"
+            assert dest.is_dir()
+            assert not (addons / "Atlas-TW").exists()
+            assert (dest / "Atlas-CFM.toc").is_file()
+            assert not (dest / "Atlas-TW.toc").exists()
+            assert matching_toc_path(dest) is not None
+            assert "Atlas-CFM" in settings.installed_addons
+            assert "Atlas-TW" not in settings.installed_addons
+            assert settings.installed_addons["Atlas-CFM"]["source"] == "github"
+
+            # A swapped caller stem (folder name) still destines to the .toc stem.
+            swapped = addons / "WrongFolder"
+            swapped.mkdir()
+            (swapped / "RightName.toc").write_text("## Title: Right\n", encoding="utf-8")
+            swapped_out = rename_addon_folder_to_toc(swapped, "WrongFolder")
+            assert swapped_out.status == "renamed"
+            assert swapped_out.new_name == "RightName"
+            assert (addons / "RightName" / "RightName.toc").is_file()
+            assert not (addons / "WrongFolder").exists()
+            assert not (addons / "RightName" / "WrongFolder.toc").exists()
+
+            # Declining (leaving the folder) keeps it unmatched — not a valid addon.
+            leftover = addons / "BrokenAddon"
+            leftover.mkdir()
+            (leftover / "WrongName.toc").write_text("## Title: Wrong\n", encoding="utf-8")
+            valid, mismatched = _classify_toc_dir(addons, skip_blizzard=True)
+            assert "Atlas-CFM" in valid
+            assert "BrokenAddon" not in valid
+            assert any(m.current_name == "BrokenAddon" and m.can_rename for m in mismatched)
+            assert leftover.is_dir()
+            assert (leftover / "WrongName.toc").is_file()
+
+            # Collision: do not overwrite an existing dest folder.
+            collide_src = addons / "OldName"
+            collide_src.mkdir()
+            (collide_src / "Taken.toc").write_text("## Title: Taken\n", encoding="utf-8")
+            taken = addons / "Taken"
+            taken.mkdir()
+            (taken / "Taken.toc").write_text("## Title: Taken\n", encoding="utf-8")
+            (taken / "keep-me.txt").write_text("safe", encoding="utf-8")
+            collision = rename_addon_folder_to_toc(collide_src, "Taken")
+            assert collision.status == "collision"
+            assert collide_src.is_dir()
+            assert (collide_src / "Taken.toc").is_file()
+            assert (taken / "keep-me.txt").read_text(encoding="utf-8") == "safe"
+
+            # Install dest is the .toc stem even when the extract/catalog name differs.
+            extract = Path(tmp) / "extract" / "Atlas-TW"
+            extract.mkdir(parents=True)
+            (extract / "Atlas-CFM.toc").write_text("## Title: Atlas-CFM\n", encoding="utf-8")
+            install_into = Path(tmp) / "InstallAddOns"
+            placed, pending = place_install_addon_root(extract, install_into, "Atlas-TW")
+            assert placed == "Atlas-CFM"
+            assert pending is None
+            dest_install = install_into / "Atlas-CFM"
+            assert dest_install.is_dir()
+            assert not (install_into / "Atlas-TW").exists()
+            assert (dest_install / "Atlas-CFM.toc").is_file()
+            assert not (dest_install / "Atlas-TW.toc").exists()
+            assert matching_toc_path(dest_install) is not None
+    finally:
+        settings.set("installed_addons", prev_addons)
+        clear_pending_toc_mismatches()
+    print("OK addon toc folder rename")
+
+
+def test_addon_update_check_uses_catalog_index_only():
+    """Bulk addon checks compare the tip index and never probe GitHub per addon."""
+    from ichalaunch.addons import github as gh
+    from ichalaunch.addons import tip_index as tips
+    from ichalaunch.addons.tip_index import clear_tip_index_cache, normalize_index
+    from ichalaunch.config.settings import settings
+
+    index = normalize_index(
+        {
+            "generated_at": "2026-08-23T00:00:00Z",
+            "repos": {
+                "shagu/pfui": {
+                    "default_branch": "master",
+                    "sha": "b" * 40,
+                    "branches": {"master": "b" * 40},
+                    "latest_tag": "v2.0.0",
+                }
+            },
+        }
+    )
+    prev_loaded = tips._loaded
+    prev_addons = settings.installed_addons
+    orig_tip = gh.github_remote_tip
+    orig_tag = gh.github_latest_version_tag
+    orig_refresh = tips.refresh_tip_index
+
+    def boom(*_a, **_k):
+        raise AssertionError("per-addon GitHub probe should not run")
+
+    def fake_refresh(*, force: bool = False):
+        return index
+
+    try:
+        tips._loaded = (0.0, index)
+        tips.refresh_tip_index = fake_refresh
+        gh.github_remote_tip = boom
+        gh.github_latest_version_tag = boom
+        settings.set(
+            "installed_addons",
+            {
+                "pfUI": {
+                    "repository": "shagu/pfUI",
+                    "url": "https://github.com/shagu/pfUI",
+                    "installed_commit": "a" * 40,
+                    "branch": "master",
+                }
+            },
+        )
+        result = gh.check_addon_updates()
+        assert result.queued is False
+        assert result.checked_count == 1
+        assert len(result.updates) == 1
+        assert result.updates[0]["folder"] == "pfUI"
+    finally:
+        gh.github_remote_tip = orig_tip
+        gh.github_latest_version_tag = orig_tag
+        tips.refresh_tip_index = orig_refresh
+        settings.set("installed_addons", prev_addons)
+        tips._loaded = prev_loaded
+        if prev_loaded is None:
+            clear_tip_index_cache()
+    print("OK addon update check uses catalog index only")
 
 
 def test_git_refs_live_optional():
@@ -2111,85 +2484,33 @@ def test_github_bad_token_retries_without_auth():
 
 
 def test_auto_scan_cooldown_setting():
-    from ichalaunch.config.settings import (
-        AUTO_SCAN_COOLDOWN_MINUTES_DEFAULT,
-        clamp_auto_scan_cooldown_minutes,
-        format_auto_scan_cooldown_label,
-        settings,
-    )
+    from ichalaunch.config.settings import AUTO_SCAN_COOLDOWN_MINUTES, AUTO_SCAN_COOLDOWN_SEC, settings
+    from ichalaunch.core.self_update import LAUNCHER_RELEASE_CACHE_SEC
+    from ichalaunch.ui import main_window as mw
 
-    assert clamp_auto_scan_cooldown_minutes(60) == 60
-    assert clamp_auto_scan_cooldown_minutes(1) == 15
-    assert clamp_auto_scan_cooldown_minutes(10_000) == 24 * 60
-    assert clamp_auto_scan_cooldown_minutes(22) == 15 or clamp_auto_scan_cooldown_minutes(22) == 30
-    assert format_auto_scan_cooldown_label(60) == "1 hour"
-    assert format_auto_scan_cooldown_label(120) == "2 hours"
-    assert format_auto_scan_cooldown_label(15) == "15 min"
-    assert format_auto_scan_cooldown_label(90) == "1.5 hours"
-
-    prev = settings.get("auto_scan_cooldown_minutes")
-    try:
-        settings.set_auto_scan_cooldown_minutes(180)
-        assert settings.auto_scan_cooldown_minutes() == 180
-        assert settings.auto_scan_cooldown_sec() == 180 * 60
-        settings.set_auto_scan_cooldown_minutes(AUTO_SCAN_COOLDOWN_MINUTES_DEFAULT)
-        assert settings.auto_scan_cooldown_minutes() == 60
-    finally:
-        if prev is None:
-            settings.set("auto_scan_cooldown_minutes", AUTO_SCAN_COOLDOWN_MINUTES_DEFAULT)
-        else:
-            settings.set("auto_scan_cooldown_minutes", prev)
-
-    print("OK auto scan cooldown setting")
+    assert AUTO_SCAN_COOLDOWN_MINUTES == 15
+    assert AUTO_SCAN_COOLDOWN_SEC == 15 * 60
+    assert settings.auto_scan_cooldown_minutes() == 15
+    assert settings.auto_scan_cooldown_sec() == 15 * 60
+    assert mw._PERIODIC_UPDATE_MS == 15 * 60 * 1000
+    assert LAUNCHER_RELEASE_CACHE_SEC == 15 * 60
+    print("OK auto scan cooldown is hardcoded 15 min")
 
 
 def test_auto_scan_cooldown_persists_to_disk():
-    """Slider changes must survive settings.json save/load and Settings page refresh."""
-    import json
+    """Settings page no longer exposes a cooldown slider; interval stays 15 min."""
     import sys
-    import tempfile
-    from pathlib import Path
 
     from PySide6.QtWidgets import QApplication
 
-    import ichalaunch.config.settings as settings_mod
-    from ichalaunch.config.settings import Settings
+    import ichalaunch.ui.pages.settings as settings_page_mod
+    from ichalaunch.config.settings import settings
 
     app = QApplication.instance() or QApplication(sys.argv)
-
-    with tempfile.TemporaryDirectory() as td:
-        fake = Path(td) / "settings.json"
-        orig_path = settings_mod.settings_path
-        orig_singleton = settings_mod.settings
-        settings_mod.settings_path = lambda: fake
-        try:
-            settings_mod.settings = Settings()
-            settings_mod.settings.set_auto_scan_cooldown_minutes(90)
-            assert fake.is_file()
-            assert json.loads(fake.read_text(encoding="utf-8"))["auto_scan_cooldown_minutes"] == 90
-
-            settings_mod.settings = Settings()
-            assert settings_mod.settings.auto_scan_cooldown_minutes() == 90
-
-            import ichalaunch.ui.pages.settings as settings_page_mod
-
-            settings_page_mod.settings = settings_mod.settings
-            page = settings_page_mod.SettingsPage()
-            assert page.cooldown_slider.value() == 90
-            page.cooldown_slider.setValue(135)
-            assert settings_mod.settings.auto_scan_cooldown_minutes() == 135
-            assert json.loads(fake.read_text(encoding="utf-8"))["auto_scan_cooldown_minutes"] == 135
-
-            page.refresh()
-            assert page.cooldown_slider.value() == 135
-
-            settings_mod.settings = Settings()
-            assert settings_mod.settings.auto_scan_cooldown_minutes() == 135
-        finally:
-            settings_mod.settings_path = orig_path
-            settings_mod.settings = orig_singleton
-
-    print("OK auto scan cooldown persists to disk")
+    page = settings_page_mod.SettingsPage()
+    assert not hasattr(page, "cooldown_slider")
+    assert settings.auto_scan_cooldown_minutes() == 15
+    print("OK auto scan cooldown has no settings slider")
 
 
 def test_addon_startup_token_gating():
@@ -3433,6 +3754,68 @@ def test_dll_security_dialog_dont_show_again_is_themed_checkbox():
     print("OK dll security dialog don't-show-again is themed checkbox")
 
 
+def test_mpq_patch_warning_dialog_and_persist():
+    """HD / patch-*.mpq enable warning is themed; Don't show again persists."""
+    import json
+    import tempfile
+    from pathlib import Path
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication, QWidget
+
+    from ichalaunch.mods.client_mod_hints import (
+        MPQ_PATCH_WARNING_TEXT,
+        is_mpq_patch_mod,
+        should_show_mpq_patch_warning,
+    )
+    from ichalaunch.mods.installer import get_mod
+    from ichalaunch.ui.widgets.dialogs import MpqPatchWarningDialog
+    from ichalaunch.ui.widgets.theme_checkbox import ThemeCheckBox
+
+    app = QApplication.instance() or QApplication([])
+    assert is_mpq_patch_mod(get_mod("hd_patch_l"))
+    assert is_mpq_patch_mod(get_mod("hd_patch_t"))
+    assert is_mpq_patch_mod(get_mod("raid_visuals"))
+    assert is_mpq_patch_mod(get_mod("pretty_night_sky"))
+    assert not is_mpq_patch_mod(get_mod("vanillafixes"))
+    assert should_show_mpq_patch_warning(get_mod("hd_patch_n"), enabled=True, dismissed=False)
+    assert not should_show_mpq_patch_warning(get_mod("hd_patch_n"), enabled=False, dismissed=False)
+    assert not should_show_mpq_patch_warning(get_mod("hd_patch_n"), enabled=True, dismissed=True)
+
+    root = QWidget()
+    dlg = MpqPatchWarningDialog(root, "MPQ patch warning", MPQ_PATCH_WARNING_TEXT)
+    assert isinstance(dlg._dont_show, ThemeCheckBox)
+    assert "Don't show again" in dlg._dont_show.text()
+    assert dlg._dont_show.cursor().shape() == Qt.CursorShape.PointingHandCursor
+    assert not dlg.dismissed_permanently()
+    dlg._dont_show.click()
+    assert dlg.dismissed_permanently()
+
+    import ichalaunch.config.settings as settings_mod
+    from ichalaunch.config.settings import Settings
+
+    with tempfile.TemporaryDirectory() as td:
+        fake = Path(td) / "settings.json"
+        orig_path = settings_mod.settings_path
+        orig_singleton = settings_mod.settings
+        settings_mod.settings_path = lambda: fake
+        try:
+            settings_mod.settings = Settings()
+            settings_mod.settings.set("dismissed_mpq_patch_warning", True)
+            assert json.loads(fake.read_text(encoding="utf-8"))["dismissed_mpq_patch_warning"] is True
+            settings_mod.settings = Settings()
+            assert settings_mod.settings.get("dismissed_mpq_patch_warning") is True
+            assert not should_show_mpq_patch_warning(
+                get_mod("raid_visuals"),
+                enabled=True,
+                dismissed=bool(settings_mod.settings.get("dismissed_mpq_patch_warning")),
+            )
+        finally:
+            settings_mod.settings_path = orig_path
+            settings_mod.settings = orig_singleton
+    print("OK mpq patch warning dialog and persist")
+
+
 def test_update_launch_button_is_square_and_pulses():
     from PySide6.QtWidgets import QApplication, QWidget
 
@@ -3594,6 +3977,120 @@ def test_main_worker_ref_cleared_after_release():
     print("OK main worker ref cleared after release")
 
 
+def test_auto_update_sequence_is_launcher_addons_client():
+    """Startup/periodic auto scans run launcher → addons → client, one at a time."""
+    import time
+
+    from PySide6.QtCore import QDeadlineTimer
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.config.settings import settings
+    from ichalaunch.ui.main_window import (
+        MainWindow,
+        Worker,
+        _AUTO_UPDATE_STEPS,
+        _call_when_worker_idle,
+    )
+
+    assert _AUTO_UPDATE_STEPS == ("launcher", "addons", "client")
+
+    app = QApplication.instance() or QApplication([])
+
+    immediate = []
+    _call_when_worker_idle(None, lambda: immediate.append("now"))
+    assert immediate == ["now"]
+
+    later = []
+
+    def _slow(progress=None):
+        time.sleep(0.04)
+        return "ok"
+
+    worker = Worker(_slow)
+    worker.start()
+    _call_when_worker_idle(worker, lambda: later.append("after"))
+    assert later == [], "callback must wait for a running worker"
+    deadline = QDeadlineTimer(5000)
+    while not later and not deadline.hasExpired():
+        app.processEvents()
+    assert later == ["after"]
+
+    order: list[str] = []
+    running: list[str] = []
+
+    class Harness:
+        def __init__(self):
+            self._auto_update_seq_active = False
+            self._auto_update_seq_catalogs = False
+            self._auto_update_seq_periodic = False
+            self._launcher_update_worker = None
+            self._update_worker = None
+            self._mod_update_worker = None
+
+        _start_auto_update_sequence = MainWindow._start_auto_update_sequence
+        _advance_auto_update_sequence = MainWindow._advance_auto_update_sequence
+        _finish_auto_update_sequence = MainWindow._finish_auto_update_sequence
+
+        def _spawn(self, name: str, attr: str) -> None:
+            assert name not in running
+            assert not running, f"{name} started while {running} still running"
+            order.append(name)
+            running.append(name)
+
+            def _work(progress=None):
+                time.sleep(0.03)
+                return name
+
+            w = Worker(_work)
+
+            def _clear(_arg=None):
+                if name in running:
+                    running.remove(name)
+
+            w.finished_ok.connect(_clear)
+            w.failed.connect(_clear)
+            setattr(self, attr, w)
+            w.start()
+
+        def _check_launcher_update(self, silent: bool = False) -> None:
+            self._spawn("launcher", "_launcher_update_worker")
+
+        def _check_updates(
+            self, silent: bool = False, periodic: bool = False, force: bool = False
+        ) -> None:
+            self._spawn("addons", "_update_worker")
+
+        def _check_mod_updates(
+            self, silent: bool = False, periodic: bool = False, force: bool = False
+        ) -> None:
+            self._spawn("client", "_mod_update_worker")
+
+    prev = settings.check_updates_on_startup()
+    try:
+        settings._data["check_updates_on_startup"] = True
+        harness = Harness()
+        harness._start_auto_update_sequence(include_catalogs=True, periodic=True)
+        wait = QDeadlineTimer(5000)
+        while harness._auto_update_seq_active and not wait.hasExpired():
+            app.processEvents()
+        assert order == ["launcher", "addons", "client"]
+        assert not harness._auto_update_seq_active
+        assert not running
+
+        order.clear()
+        skipped = Harness()
+        skipped._start_auto_update_sequence(include_catalogs=False, periodic=False)
+        wait = QDeadlineTimer(5000)
+        while skipped._auto_update_seq_active and not wait.hasExpired():
+            app.processEvents()
+        assert order == ["launcher"]
+        assert not skipped._auto_update_seq_active
+    finally:
+        settings._data["check_updates_on_startup"] = prev
+
+    print("OK auto update sequence is launcher -> addons -> client")
+
+
 def test_loading_bar_reserves_update_button_slot():
     from PySide6.QtWidgets import QApplication
 
@@ -3747,6 +4244,36 @@ def test_nav_tab_update_alert_badge():
     print("OK nav tab update alert badge")
 
 
+def test_nav_tab_glue_floor_chrome():
+    """Top nav tabs use floor-tinted Glue-Panel art, not purple action plates."""
+    from PySide6.QtGui import QColor
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.main_window import _FLOOR_BASE, _TAB_ART_SHIFT_Y, NavTabButton
+    from ichalaunch.ui.widgets.glue_panel_button import GLUE_FLOOR_TINT, glue_floor_chrome_pixmap
+
+    app = QApplication.instance() or QApplication([])
+    del app
+    assert GLUE_FLOOR_TINT.name() == "#181315"
+    assert _FLOOR_BASE.name() == "#181315"
+    assert _TAB_ART_SHIFT_Y == 7
+    pm = glue_floor_chrome_pixmap(pressed=False, shade="idle")
+    assert not pm.isNull()
+    img = pm.toImage()
+    c = QColor.fromRgba(img.pixel(img.width() // 2, img.height() // 2))
+    # Idle fill maps onto the ContentPanel floor; must not be PLAY purple.
+    assert abs(c.red() - 24) <= 10
+    assert abs(c.green() - 19) <= 10
+    assert abs(c.blue() - 21) <= 10
+    hue = c.hue()
+    assert hue < 0 or hue <= 20 or hue >= 320
+    btn = NavTabButton("HOME")
+    btn.resize(120, 42)
+    btn.set_badge_visible(True)
+    btn.grab()
+    print("OK nav tab glue floor chrome")
+
+
 def test_client_cat_nav_update_alert_badge():
     """Client category sub-tabs show per-category pending update/apply badges."""
     from PySide6.QtWidgets import QApplication
@@ -3781,14 +4308,32 @@ def test_client_cat_nav_update_alert_badge():
     print("OK client category nav update alert badge")
 
 
-def test_chrome_buttons_hug_right_edge():
+def test_chrome_buttons_clear_metal_tr():
+    from ichalaunch.core.paths import theme_file
     from ichalaunch.ui import main_window as mw
 
-    assert mw._CHROME_BTN_INSET_X <= 6
-    assert mw._CHROME_BTN_INSET_X < mw._CHROME_FRAME_PAD
+    assert mw._CHROME_BTN_INSET_X >= mw._METAL_CORNER_DRAW
+    assert mw._CHROME_BTN_INSET_Y >= mw._METAL_EDGE_DRAW
+    assert mw._METAL_FLOOR_OUTSET >= 1
     src = Path(mw.__file__).read_text(encoding="utf-8")
+    assert "_metal_underfill_path" in src
+    assert "_FRAME_STROKE" not in src
+    assert "painter.drawPath(path)" not in src
     assert "_progress_slot" in src
-    print("OK minimize/close hug the right edge")
+    assert "SideCornersOverlay" not in src
+    assert "left_corners.png" not in src
+    assert "class PortraitPlayFrame" in src
+    assert "WA_TransparentForMouseEvents" in src
+    for name in (
+        mw._PORTRAIT_EDGE_BOTTOM_NAME,
+        mw._PORTRAIT_EDGE_LEFT_NAME,
+        mw._PORTRAIT_EDGE_RIGHT_NAME,
+        mw._PORTRAIT_CORNER_BL_NAME,
+        mw._PORTRAIT_CORNER_BR_NAME,
+    ):
+        assert name in src
+        assert theme_file(name).is_file(), name
+    print("OK minimize/close clear metal TR/rail; portrait overlay crops present")
 
 
 def test_play_stays_right_when_progress_hidden():
@@ -3965,6 +4510,8 @@ def _run_smoke_tests():
     test_vanilla_tweaks_disable_clears_pending()
     test_apply_desired_state_guard()
     test_mod_remove_desired_state()
+    test_stock_patch9_not_owned_by_pretty_night_sky()
+    test_stock_patch9_collision_migration()
     test_darker_nights_migration()
     test_mod_toggle_resolution()
     test_mod_author_labels()
@@ -3999,6 +4546,9 @@ def _run_smoke_tests():
     test_git_refs_and_tip_index()
     test_mod_catalog_repos_in_tip_index_builder()
     test_mod_remote_identity_uses_tip_index()
+    test_addon_toc_folder_name_required()
+    test_addon_toc_folder_rename()
+    test_addon_update_check_uses_catalog_index_only()
     test_git_refs_live_optional()
     test_github_token_not_sent_to_third_party_readme_hosts()
     test_github_bad_token_retries_without_auth()
@@ -4034,17 +4584,20 @@ def _run_smoke_tests():
     test_superwow_issue_detection()
     test_themed_dialog_flags_and_close()
     test_dll_security_dialog_dont_show_again_is_themed_checkbox()
+    test_mpq_patch_warning_dialog_and_persist()
     test_update_launch_button_is_square_and_pulses()
     test_launch_button_down_plate_is_click_only()
     test_worker_survives_ref_drop_in_result_slot()
     test_main_worker_ref_cleared_after_release()
+    test_auto_update_sequence_is_launcher_addons_client()
     test_loading_bar_reserves_update_button_slot()
     test_launch_buttons_use_glue_panel_chrome()
     test_options_cog_uses_wow_art()
     test_pass_remove_uses_wow_art()
     test_nav_tab_update_alert_badge()
+    test_nav_tab_glue_floor_chrome()
     test_client_cat_nav_update_alert_badge()
-    test_chrome_buttons_hug_right_edge()
+    test_chrome_buttons_clear_metal_tr()
     test_play_stays_right_when_progress_hidden()
     print("\nAll smoke tests passed.")
 

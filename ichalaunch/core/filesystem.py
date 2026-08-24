@@ -655,16 +655,324 @@ def remove_path_strict(path: Path) -> None:
     invalidate_dir_listing(path.parent)
 
 
+TOC_FOLDER_MISMATCH_MSG = (
+    "Addon folder name must match the .toc file name "
+    r"(example: Atlas-CFM\Atlas-CFM.toc)."
+)
+
+
+@dataclass(frozen=True)
+class AddonTocMismatch:
+    """A folder whose ``.toc`` stem does not match the folder name."""
+
+    folder: Path
+    current_name: str
+    toc_stem: str
+    toc_name: str
+
+    @property
+    def can_rename(self) -> bool:
+        """True when there is a unique ``.toc`` stem to rename the folder to."""
+        stem = (self.toc_stem or "").strip()
+        current = (self.current_name or "").strip()
+        return bool(stem) and stem.lower() != current.lower()
+
+
+@dataclass
+class RenameAddonFolderResult:
+    """Outcome of :func:`rename_addon_folder_to_toc`."""
+
+    status: str
+    old_name: str
+    new_name: str
+    dest: Path | None = None
+    detail: str = ""
+
+    @property
+    def renamed(self) -> bool:
+        return self.status == "renamed"
+
+
+_pending_toc_mismatches: list[AddonTocMismatch] = []
+
+
+def note_pending_toc_mismatch(item: AddonTocMismatch) -> None:
+    """Record a mismatch found on a worker thread for a later UI prompt."""
+    _pending_toc_mismatches.append(item)
+
+
+def take_pending_toc_mismatches() -> list[AddonTocMismatch]:
+    """Drain mismatches collected during the last install worker."""
+    items = list(_pending_toc_mismatches)
+    _pending_toc_mismatches.clear()
+    return items
+
+
+def clear_pending_toc_mismatches() -> None:
+    """Drop any leftover worker-collected mismatches (tests / failed jobs)."""
+    _pending_toc_mismatches.clear()
+
+
+def toc_mismatch_prompt_text(current_name: str, toc_name: str) -> str:
+    """Yes/No dialog body: the .toc is the source of truth; rename the folder."""
+    folder = (current_name or "").strip() or "(unknown folder)"
+    toc = (toc_name or "").strip() or "(missing .toc)"
+    dest = Path(toc).stem if toc.endswith(".toc") or toc.endswith(".TOC") else toc
+    if not dest:
+        dest = toc
+    return (
+        f"Folder is {folder} but the .toc is {toc}. "
+        f"WoW requires the folder name to match the .toc. "
+        f"Rename folder to {dest}?"
+    )
+
+
+def describe_toc_mismatch(folder: Path) -> AddonTocMismatch | None:
+    """Return mismatch info when *folder* has exactly one non-matching ``.toc``.
+
+    Case-only differences are not mismatches — :func:`matching_toc_path`
+    already accepts those on Windows/Wine.
+    """
+    folder = Path(folder)
+    if matching_toc_path(folder) is not None:
+        return None
+    tocs = folder_toc_files(folder)
+    if len(tocs) != 1:
+        return None
+    toc = tocs[0]
+    if toc.stem.lower() == folder.name.lower():
+        return None
+    return AddonTocMismatch(
+        folder=folder,
+        current_name=folder.name,
+        toc_stem=toc.stem,
+        toc_name=toc.name,
+    )
+
+
+def rename_addon_folder_to_toc(
+    folder: Path,
+    toc_stem: str | None = None,
+    *,
+    update_settings: bool = True,
+) -> RenameAddonFolderResult:
+    """Rename *folder* to the ``.toc`` stem. Never clobbers an existing dest.
+
+    Destination name is the ``.toc`` stem (the file is already named correctly).
+    Case-only differences are treated as already matching.
+    """
+    folder = Path(folder)
+    old_name = folder.name
+    if not folder.is_dir():
+        return RenameAddonFolderResult(
+            status="missing",
+            old_name=old_name,
+            new_name=(toc_stem or "").strip(),
+            detail=f"Addon folder not found: {folder}",
+        )
+    if matching_toc_path(folder) is not None:
+        return RenameAddonFolderResult(
+            status="already_match",
+            old_name=old_name,
+            new_name=old_name,
+            dest=folder,
+        )
+
+    tocs = folder_toc_files(folder)
+    wanted = (toc_stem or "").strip()
+    toc_stems = [t.stem for t in tocs]
+    if wanted and any(s.lower() == wanted.lower() for s in toc_stems):
+        stem = next(s for s in toc_stems if s.lower() == wanted.lower())
+    elif len(tocs) == 1:
+        stem = tocs[0].stem
+    else:
+        return RenameAddonFolderResult(
+            status="error",
+            old_name=old_name,
+            new_name="",
+            detail="No unique .toc file to rename this folder to.",
+        )
+
+    dest = folder.with_name(stem)
+    try:
+        if dest.resolve() == folder.resolve():
+            return RenameAddonFolderResult(
+                status="already_match",
+                old_name=old_name,
+                new_name=stem,
+                dest=folder,
+            )
+    except OSError:
+        pass
+
+    if dest.exists():
+        return RenameAddonFolderResult(
+            status="collision",
+            old_name=old_name,
+            new_name=stem,
+            dest=dest,
+            detail=(
+                f'Cannot rename "{old_name}" to "{stem}" — '
+                f'a folder named "{stem}" already exists.'
+            ),
+        )
+
+    try:
+        folder.rename(dest)
+    except OSError as exc:
+        return RenameAddonFolderResult(
+            status="error",
+            old_name=old_name,
+            new_name=stem,
+            dest=dest,
+            detail=f'Could not rename "{old_name}" to "{stem}": {exc}',
+        )
+
+    invalidate_dir_listing(dest.parent)
+    if update_settings:
+        try:
+            from ichalaunch.config.settings import settings
+
+            settings.retarget_installed_addon(old_name, stem)
+        except Exception as exc:  # noqa: BLE001
+            _log.warning(
+                "Renamed %s → %s but could not retarget settings: %s",
+                old_name,
+                stem,
+                exc,
+            )
+    return RenameAddonFolderResult(
+        status="renamed",
+        old_name=old_name,
+        new_name=stem,
+        dest=dest,
+    )
+
+
+def place_install_addon_root(
+    root: Path,
+    addons_dir: Path,
+    dest_name: str,
+) -> tuple[str | None, AddonTocMismatch | None]:
+    """Copy an extracted addon root into AddOns under the ``.toc`` stem.
+
+    The ``.toc`` filename is the source of truth. Catalog names and extract
+    folder names (for example ``Atlas-TW`` when the file is ``Atlas-CFM.toc``)
+    are ignored when they disagree. Existing dest folders are replaced (update).
+    """
+    root = Path(root)
+    addons_dir = Path(addons_dir)
+    ensure_dir(addons_dir)
+
+    canonical = canonical_addon_folder_name(root)
+    dest_name = (canonical or dest_name or root.name).strip() or root.name
+
+    dest = addons_dir / dest_name
+    if dest.exists():
+        safe_remove(dest)
+    copy_tree(root, dest)
+    if matching_toc_path(dest) is not None:
+        return dest.name, None
+    leftover = describe_toc_mismatch(dest)
+    if leftover is None:
+        _log.warning(
+            "Installed %s is missing a folder-matching .toc — removing incomplete copy",
+            dest.name,
+        )
+        safe_remove(dest)
+        return None, None
+    return None, leftover
+
+
+def matching_toc_path(folder: Path) -> Path | None:
+    """Return ``{folder}/{folder.name}.toc`` when that file exists.
+
+    Comparison is case-insensitive so Windows/Wine folders match mixed-case TOCs.
+    WoW only loads an addon when the primary folder and ``.toc`` share a name.
+    """
+    if not folder.is_dir():
+        return None
+    wanted = f"{folder.name}.toc".lower()
+    try:
+        for child in folder.iterdir():
+            if child.is_file() and child.name.lower() == wanted:
+                return child
+    except OSError:
+        return None
+    return None
+
+
+def folder_toc_files(folder: Path) -> list[Path]:
+    """Immediate ``.toc`` files in *folder* (not recursive)."""
+    if not folder.is_dir():
+        return []
+    try:
+        return [
+            child
+            for child in folder.iterdir()
+            if child.is_file() and child.suffix.lower() == ".toc"
+        ]
+    except OSError:
+        return []
+
+
+def canonical_addon_folder_name(root: Path) -> str | None:
+    """Destination folder name WoW requires: the stem of the primary ``.toc``.
+
+    If ``{root.name}.toc`` exists, return ``root.name``. If the folder has
+    exactly one ``.toc``, return that stem so the installer can place the
+    addon under the matching name. Otherwise ``None`` (not a valid root).
+    """
+    if matching_toc_path(root) is not None:
+        return root.name
+    tocs = folder_toc_files(root)
+    if len(tocs) == 1:
+        return tocs[0].stem
+    return None
+
+
+def resolve_install_addon_roots(extracted: Path) -> list[tuple[Path, str]]:
+    """Return ``(source_root, dest_folder_name)`` for installable TOC roots."""
+    roots = find_toc_roots(extracted)
+    if not roots:
+        name = canonical_addon_folder_name(extracted)
+        if name:
+            roots = [extracted]
+    out: list[tuple[Path, str]] = []
+    seen: set[str] = set()
+    for root in roots:
+        name = canonical_addon_folder_name(root)
+        if not name:
+            continue
+        key = name.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append((root, name))
+    return out
+
+
 def find_toc_roots(root: Path) -> list[Path]:
-    """Find addon root folders (directories containing a .toc)."""
+    """Find addon root folders that have a usable ``.toc``.
+
+    A folder is usable when it contains ``{folder}.toc`` (WoW requirement)
+    or exactly one ``.toc`` (installer uses that stem as the folder name).
+    Nested library TOCs are ignored when a shallower addon root exists.
+    """
     roots: list[Path] = []
-    for toc in root.rglob("*.toc"):
-        # skip libs nested deep unless they're top-level packages
+    seen: set[Path] = set()
+    try:
+        tocs = list(root.rglob("*.toc"))
+    except OSError:
+        return []
+    for toc in tocs:
         parent = toc.parent
-        # prefer folders whose name matches toc stem roughly
-        if parent not in roots:
-            roots.append(parent)
-    # Prefer shallowest roots
+        if parent in seen:
+            continue
+        if canonical_addon_folder_name(parent) is None:
+            continue
+        seen.add(parent)
+        roots.append(parent)
     roots.sort(key=lambda p: len(p.parts))
     if not roots:
         return []

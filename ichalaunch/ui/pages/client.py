@@ -16,7 +16,10 @@ from PySide6.QtWidgets import (
 
 from ichalaunch.config.settings import settings
 from ichalaunch.game.launcher import detect_game
-from ichalaunch.mods.client_mod_hints import is_dll_injection_mod
+from ichalaunch.mods.client_mod_hints import (
+    is_dll_injection_mod,
+    should_show_mpq_patch_warning,
+)
 from ichalaunch.mods.installer import (
     apply_mod_toggle,
     apply_vanillafixes_dxvk_choice,
@@ -41,7 +44,14 @@ from ichalaunch.ui.widgets.common import (
     status_with_stamp,
 )
 from ichalaunch.ui.widgets.cursors import apply_open_hand
-from ichalaunch.ui.widgets.dialogs import DialogResult, choice, dll_security_exclusion_dialog, github_import_dialog, warning
+from ichalaunch.ui.widgets.dialogs import (
+    DialogResult,
+    choice,
+    dll_security_exclusion_dialog,
+    github_import_dialog,
+    mpq_patch_warning_dialog,
+    warning,
+)
 from ichalaunch.ui.widgets.glue_panel_button import GluePanelButton
 from ichalaunch.ui.widgets.marble_bg import MarblePanel, MarbleScrollArea
 from ichalaunch.ui.widgets.update_alert_badge import BadgeNavButton
@@ -70,21 +80,23 @@ class ClientPage(QWidget):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         root = QVBoxLayout(self)
-        # Extra top padding clears the floating MoA logo overhang
-        root.setContentsMargins(16, 28, 16, 12)
-        root.setSpacing(10)
+        # Small top clearance only — MainWindow already insets 66px for crest / caption.
+        # 28px here was leftover MoA overhang padding and stacked a huge band under chrome.
+        root.setContentsMargins(16, 6, 16, 12)
+        root.setSpacing(8)
 
         title = QLabel("Client Fixes, Tweaks & Patches")
         title.setObjectName("SectionTitle")
+        title.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         root.addWidget(title)
 
-        hint = QLabel(
-            "Select a category on the left. Checkboxes reflect desired state; Rescan syncs from disk. "
-            "Use + Git Repo for a custom release (.dll / .zip)."
+        self._status_host = QWidget()
+        self._status_host.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed
         )
-        hint.setObjectName("Muted")
-        hint.setWordWrap(True)
-        root.addWidget(hint)
+        status_l = QVBoxLayout(self._status_host)
+        status_l.setContentsMargins(0, 0, 0, 0)
+        status_l.setSpacing(4)
 
         self.loading_row = QHBoxLayout()
         self.loading_lbl = QLabel("")
@@ -97,11 +109,13 @@ class ClientPage(QWidget):
         self.loading_row.addWidget(self.loading_lbl)
         self.loading_row.addWidget(self.loading_bar)
         self.loading_row.addStretch(1)
-        root.addLayout(self.loading_row)
+        status_l.addLayout(self.loading_row)
 
         self.updates_lbl = QLabel("")
         self.updates_lbl.setStyleSheet("color: #F1C22D;")
-        root.addWidget(self.updates_lbl)
+        status_l.addWidget(self.updates_lbl)
+        self._status_host.hide()
+        root.addWidget(self._status_host)
 
         body = QHBoxLayout()
         body.setSpacing(12)
@@ -110,6 +124,7 @@ class ClientPage(QWidget):
         side = MarblePanel()
         side.setObjectName("ClientCatNav")
         side.setFixedWidth(200)
+        side.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         side_l = QVBoxLayout(side)
         # Inset so hover/checked fills sit inside the rounded purple frame
         # (top item must not square-overflow the panel corner).
@@ -254,7 +269,7 @@ class ClientPage(QWidget):
             self._add_mod_row(mod, host_l)
         host_l.addStretch(1)
         scroll.setWidget(host)
-        page_l.addWidget(scroll)
+        page_l.addWidget(scroll, 1)
         self.cat_stack.addWidget(page)
 
     def _add_mod_row(self, mod: dict, host_l: QVBoxLayout | None = None) -> ModCheckRow:
@@ -432,12 +447,20 @@ class ClientPage(QWidget):
             if 0 <= idx < len(self.cat_btns):
                 self.cat_btns[idx].set_badge_visible(cat in pending_cats)
 
+    def _sync_status_host(self) -> None:
+        """Collapse the update/progress strip when idle so the lists can grow."""
+        show_load = self.loading_lbl.isVisible() or self.loading_bar.isVisible()
+        show_upd = bool(self.updates_lbl.text())
+        self.updates_lbl.setVisible(show_upd)
+        self._status_host.setVisible(show_load or show_upd)
+
     def set_checking(self, busy: bool, msg: str = "Checking for updates…") -> None:
         # Progress lives on the bottom bar; keep only the Check Updates button gated.
         self.loading_lbl.setText("")
         self.loading_lbl.setVisible(False)
         self.loading_bar.setVisible(False)
         self.check_btn.setEnabled(not busy)
+        self._sync_status_host()
 
     def set_updates(self, updates: list[dict]) -> None:
         self._pending_updates = {u["id"]: u for u in updates if u.get("id")}
@@ -447,6 +470,7 @@ class ClientPage(QWidget):
             self.updates_lbl.setText(f"{n} client mod update(s) available")
         else:
             self.updates_lbl.setText("")
+        self._sync_status_host()
         self.update_all_btn.setEnabled(n > 0)
         self.refresh_from_settings()
         self._refresh_cat_badges()
@@ -463,6 +487,7 @@ class ClientPage(QWidget):
             self.updates_lbl.setText(f"{n} client mod update(s) available")
         else:
             self.updates_lbl.setText("")
+        self._sync_status_host()
         self.update_all_btn.setEnabled(n > 0)
         self.refresh_from_settings()
         self._refresh_cat_badges()
@@ -527,6 +552,16 @@ class ClientPage(QWidget):
         if dismissed:
             settings.set("dismissed_dll_security_exclusion_hint", True)
 
+    def _maybe_show_mpq_patch_warning(self, mod_id: str, enabled: bool) -> None:
+        if not should_show_mpq_patch_warning(
+            get_mod(mod_id),
+            enabled=enabled,
+            dismissed=bool(settings.get("dismissed_mpq_patch_warning")),
+        ):
+            return
+        if mpq_patch_warning_dialog(self):
+            settings.set("dismissed_mpq_patch_warning", True)
+
     def _reveal_rows(self, *, kick: bool = False) -> None:
         """Clear HWND-guard flags leftover from AddonRow and show catalog rows."""
         q = self._search_q
@@ -572,6 +607,7 @@ class ClientPage(QWidget):
             QTimer.singleShot(0, self._maybe_warn_dxvk_gpu)
         if enabled:
             QTimer.singleShot(0, lambda: self._maybe_show_dll_security_hint(mod_id, enabled))
+            QTimer.singleShot(0, lambda: self._maybe_show_mpq_patch_warning(mod_id, enabled))
         if enabled and mod_id == "superwow":
             QTimer.singleShot(0, self._maybe_superwow_enable_check)
         self.refresh_plan()

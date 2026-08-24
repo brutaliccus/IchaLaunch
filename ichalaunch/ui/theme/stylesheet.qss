@@ -9,7 +9,7 @@ QMainWindow {
 }
 
 QWidget#Root {
-    /* Transparent host — FolderFrameStroke paints the purple folder outline.
+    /* Transparent host — FolderFrameStroke paints metal rails/corners.
        TopNavStrip / ContentPanel / BottomBar carry the fills. */
     background-color: transparent;
     color: #e6e0ee;
@@ -251,7 +251,7 @@ QPushButton#ApplyReadyButtonPulse {
     background-color: #5a3a90;
 }
 
-/* Folder-tab strip — gutters transparent; Necrolord floor is per-tab paint */
+/* Folder-tab strip — gutters transparent; glue plates painted in NavTabButton */
 QWidget#TopNav {
     background: transparent;
     border: none;
@@ -262,55 +262,54 @@ QPushButton#TopNavButton {
     /* Extra top / less bottom so labels sit higher in the tab shape */
     padding: 10px 18px 4px 18px;
     margin: 2px 0 0 0;
-    border: 1px solid rgba(150, 131, 158, 0.22);
-    border-bottom: none;
-    border-top-left-radius: 9px;
-    border-top-right-radius: 9px;
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
-    /* Floor tiles painted in NavTabButton; QSS stays clear so tiles show. */
+    border: none;
+    outline: none;
     background-color: transparent;
     font-size: 12px;
     font-weight: 700;
     letter-spacing: 1.2px;
-    color: #9990ab;
+    color: transparent;
     min-width: 92px;
     min-height: 28px;
 }
 
-QPushButton#TopNavButton:hover {
-    color: #e6e0ee;
-    background-color: rgba(26, 22, 20, 0.28);
-    border-color: rgba(150, 131, 158, 0.40);
+QPushButton#TopNavButton:hover,
+QPushButton#TopNavButton:pressed,
+QPushButton#TopNavButton:focus {
+    color: transparent;
+    background-color: transparent;
+    border: none;
+    outline: none;
 }
 
-/* Selected: gold label on the tab floor; body shelf stroke stays closed */
+/* Selected: slightly taller plate; gold label is painted in NavTabButton */
 QPushButton#TopNavButton:checked {
-    color: #F1C22D;
+    color: transparent;
     background-color: transparent;
-    border: 1px solid rgba(124, 92, 196, 0.55);
-    border-bottom: none;
+    border: none;
+    outline: none;
     margin-top: 0;
     padding-top: 12px;
     padding-bottom: 6px;
     min-height: 32px;
 }
 
-/* Folder body — floor + Mechagon top rail in ContentPanel.paintEvent.
-   Closed purple shelf/sides/bottom via FolderFrameStroke (not QSS). */
+/* Folder body — floor in ContentPanel.paintEvent.
+   Metal chrome via FolderFrameStroke (not QSS). */
 QWidget#ContentPanel {
     background-color: transparent;
     border: none;
     border-radius: 0;
 }
 
-/* RavenCraft nav strip between content and play bar — painted via NavBottomBanner. */
-QWidget#NavBottomBanner {
+/* RavenCraft nav strip — PNG via NavBottomBanner; fills via NavBannerUnderFill. */
+QWidget#NavBottomBanner,
+QWidget#NavBannerUnderFill {
     background-color: transparent;
     border: none;
 }
 
-/* Play strip — mist in BottomBar.paintEvent; purple stroke via FolderFrameStroke. */
+/* Play strip — mist in BottomBar.paintEvent; metal rails via FolderFrameStroke. */
 QWidget#BottomBar {
     background-color: transparent;
     border: none;
@@ -857,36 +856,3 @@ QLabel#CountdownLive {
     font-weight: 700;
 }
 
-/* Settings — auto-scan cooldown slider */
-QSlider#SettingsAutoScanCooldown::groove:horizontal {
-    border: 1px solid rgba(124, 92, 196, 0.35);
-    height: 6px;
-    background: #2c2632;
-    border-radius: 3px;
-}
-
-QSlider#SettingsAutoScanCooldown::sub-page:horizontal {
-    background: #7c5cc4;
-    border-radius: 3px;
-}
-
-QSlider#SettingsAutoScanCooldown::add-page:horizontal {
-    background: #2c2632;
-    border-radius: 3px;
-}
-
-QSlider#SettingsAutoScanCooldown::handle:horizontal {
-    background: #F1C22D;
-    border: 1px solid #c9a020;
-    width: 14px;
-    margin: -5px 0;
-    border-radius: 7px;
-}
-
-QSlider#SettingsAutoScanCooldown::handle:horizontal:hover {
-    background: #ffd84a;
-}
-
-QSlider#SettingsAutoScanCooldown::tick-mark:horizontal {
-    color: #7a6e88;
-}
