@@ -1362,6 +1362,18 @@ def test_detect_game_ravencraft_subfolder():
 def test_assess_dxvk_gpu():
     from ichalaunch.core import gpu_compat
 
+    # The name table is the Windows verdict, so off Windows it is exercised
+    # directly: assess_dxvk_gpu() answers a different question there, and a
+    # DRM driver name never carries a string these patterns could match.
+    if sys.platform != "win32":
+        bad = gpu_compat._assess_by_name(("Intel(R) HD Graphics 4000",))
+        assert bad is not None and bad[0] == "bad", bad
+        assert "Intel" in bad[1][0]
+        assert gpu_compat._assess_by_name(("NVIDIA GeForce RTX 3070",)) is None
+        assert gpu_compat._assess_by_name(("amdgpu [1002:13C0]",)) is None
+        print("OK assess dxvk gpu (name table only, off Windows)")
+        return
+
     orig = gpu_compat.query_gpu_names
     try:
         gpu_compat.query_gpu_names = lambda: ("Intel(R) HD Graphics 4000",)
@@ -4703,6 +4715,83 @@ def test_linux_proton_launch_resolution():
     print("OK linux proton launch resolution")
 
 
+def test_linux_dxvk_vulkan_preflight():
+    """DXVK suitability on Linux turns on 32-bit Vulkan, not on the GPU name.
+
+    Drives a fake ICD layout so the verdict does not depend on whatever the
+    machine running the suite happens to have installed.
+    """
+    if sys.platform == "win32":
+        print("OK linux dxvk vulkan pre-flight (skipped on Windows)")
+        return
+
+    import os
+
+    from ichalaunch.core import gpu_compat
+
+    def _elf(path: Path, bits: int) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"\x7fELF" + (b"\x01" if bits == 32 else b"\x02") + b"\0" * 59)
+
+    def _verdict(manifests, lib32_dir):
+        gpu_compat._LIB32_DIRS = (str(lib32_dir),)
+        os.environ["VK_DRIVER_FILES"] = os.pathsep.join(str(m) for m in manifests)
+        gpu_compat.find_vulkan_icds_32bit.cache_clear()
+        gpu_compat.find_vulkan_loader_32bit.cache_clear()
+        return gpu_compat._assess_dxvk_linux()[0]
+
+    real_dirs = gpu_compat._LIB32_DIRS
+    real_env = os.environ.get("VK_DRIVER_FILES")
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            lib32 = root / "lib32"
+            manifest = root / "icd.d" / "radeon_icd.json"
+            manifest.parent.mkdir(parents=True)
+            # A bare soname, shared between both architectures -- the common
+            # case, and the reason a manifest's own path proves nothing.
+            manifest.write_text(json.dumps({"ICD": {"library_path": "libvulkan_radeon.so"}}))
+
+            # Vulkan installed for 64-bit only: DXVK cannot load at all.
+            _elf(root / "lib64" / "libvulkan_radeon.so", 64)
+            lib32.mkdir()
+            assert _verdict([manifest], lib32) == "bad"
+
+            # A 32-bit driver but no 32-bit loader: Proton usually carries one.
+            _elf(lib32 / "libvulkan_radeon.so", 32)
+            assert _verdict([manifest], lib32) == "warn"
+
+            # Both present.
+            _elf(lib32 / "libvulkan.so.1", 32)
+            assert _verdict([manifest], lib32) == "ok"
+
+            # A 64-bit library in a lib32 directory is still 64-bit.
+            _elf(lib32 / "libvulkan_radeon.so", 64)
+            assert _verdict([manifest], lib32) == "bad"
+
+            # No drivers at all is a softer message: nothing to repair.
+            assert _verdict([root / "nope.json"], lib32) == "warn"
+
+            assert gpu_compat._is_elf32(lib32 / "libvulkan.so.1")
+            assert not gpu_compat._is_elf32(root / "lib64" / "libvulkan_radeon.so")
+            assert not gpu_compat._is_elf32(root / "absent.so")
+    finally:
+        gpu_compat._LIB32_DIRS = real_dirs
+        os.environ.pop("VK_DRIVER_FILES", None)
+        if real_env is not None:
+            os.environ["VK_DRIVER_FILES"] = real_env
+        gpu_compat.find_vulkan_icds_32bit.cache_clear()
+        gpu_compat.find_vulkan_loader_32bit.cache_clear()
+
+    # The bug this replaces: on Linux wmic does not exist, so every machine
+    # was told its graphics card could not be detected.
+    level, _gpus, message = gpu_compat.assess_dxvk_gpu()
+    assert level in {"ok", "warn", "bad"}
+    assert "Could not detect your graphics card" not in message
+
+    print("OK linux dxvk vulkan pre-flight")
+
+
 def main():
     import ichalaunch.config.settings as settings_mod
 
@@ -4788,6 +4877,7 @@ def _run_smoke_tests():
     test_prepare_for_launch_syncs_dlls_txt()
     test_client_exe_probe_is_case_insensitive()
     test_linux_proton_launch_resolution()
+    test_linux_dxvk_vulkan_preflight()
     test_prepare_for_launch_clears_data_readonly()
     test_plan_missing_installs_dxvk()
     test_play_prep_plans_remove()
