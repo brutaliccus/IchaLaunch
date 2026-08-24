@@ -55,6 +55,10 @@ filtered triage.
 The Action skips opening a PR if the repo URL is already in `addons.json`, and
 comments the PR link (or skip reason) on the issue.
 
+**Repo setting (once):** Settings → Actions → General → Workflow permissions →
+enable **Allow GitHub Actions to create and approve pull requests** so
+`GITHUB_TOKEN` can open the draft PR.
+
 ## Example request body
 
 ```json

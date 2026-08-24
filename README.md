@@ -164,6 +164,9 @@ issues until a maintainer approves.
 4. Keep ``ADDON_SUBMIT_URL`` in ``ichalaunch/addons/submit.py`` pointed at the
    live Worker URL (clients ship this hardcoded; no Settings paste)
 5. Create the GitHub label ``catalog-approved`` on this repo (one-time)
+6. Enable **Settings → Actions → General → Workflow permissions → Allow
+   GitHub Actions to create and approve pull requests** (needed so the Action
+   can open the draft PR with ``GITHUB_TOKEN``)
 
 Full steps and example JSON: ``tools/addon-submit-worker/README.md``.
 
