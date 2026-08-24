@@ -156,10 +156,19 @@ issues until a maintainer approves.
    the issue, and closes the issue. Already-in-catalog skips do nothing.
 4. Clients pick up the entry on the next Available catalog refresh.
 
+**Fork network at submit time:** the Worker resolves the fork-network root
+(GitHub ``source`` / ``parent`` if the submission is a fork), lists up to **40**
+active (non-archived/disabled) forks, and opens a separate ``[catalog]`` issue
+for the root, each fork, and the submitted repo if needed. Repos already in
+``addons.json`` (primary or nested ``forks[]``) or already covered by an open
+``[catalog]`` issue are skipped. Fan-out is best-effort; the client still gets
+one success response. Approve each issue independently with ``catalog-approved``.
+
 **Maintainer setup (once):**
 
 1. Deploy the Worker (`cd tools/addon-submit-worker && wrangler deploy`)
-2. `wrangler secret put GITHUB_TOKEN` — fine-grained: **Issues: Read and write** on this repo
+2. `wrangler secret put GITHUB_TOKEN` — fine-grained: **Issues: Read and write**
+   on this repo, plus ability to read public repo metadata (forks / parent)
 3. `wrangler secret put GITHUB_REPO` → `brutaliccus/IchaLaunch`
 4. Keep ``ADDON_SUBMIT_URL`` in ``ichalaunch/addons/submit.py`` pointed at the
    live Worker URL (clients ship this hardcoded; no Settings paste)

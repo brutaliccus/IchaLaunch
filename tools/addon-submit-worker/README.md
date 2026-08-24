@@ -24,7 +24,8 @@ payload, rate-limits, and opens a GitHub Issue on `brutaliccus/IchaLaunch` using
    wrangler secret put GITHUB_REPO
    ```
    - `GITHUB_TOKEN` — fine-grained PAT with **Issues: Read and write** on
-     `brutaliccus/IchaLaunch` (and Metadata read). Classic `public_repo` also
+     `brutaliccus/IchaLaunch` (and Metadata read), plus ability to read public
+     repo metadata for fork/parent resolution. Classic `public_repo` also
      works but is broader than needed.
    - `GITHUB_REPO` — `brutaliccus/IchaLaunch` (required if you do not rely on
      the Worker default).
@@ -43,6 +44,31 @@ filtered triage.
 `.github/workflows/catalog-approve.yml`, which opens a PR editing only
 `ichalaunch/data/addons.json`, squash-merges it, comments the result, and closes
 the issue. Spam submissions stay as issues until you approve.
+
+## Fork network fan-out (submit time)
+
+On every suggestion (in-app **Suggest for catalog** or auto-submit), the Worker:
+
+1. Loads the submitted repo via the GitHub API.
+2. Resolves the **network root** (`source` if present, else `parent`, else the
+   repo itself when it is not a fork).
+3. Lists active (non-archived / non-disabled) forks of that root, ranked like
+   `tools/enrich_catalog_forks.py`, capped at **40**.
+4. Opens a separate `[catalog]` issue for:
+   - the root
+   - each active fork
+   - the originally submitted repo if it is not already in that set
+5. Skips a repo if its URL is already in live `addons.json` (primary or nested
+   `forks[]`) or already mentioned in an open `[catalog]` issue.
+6. Returns **one** success response to the client; additional issues are
+   best-effort (failures are logged per fork and do not fail the whole submit
+   when at least one issue opens).
+
+Fan-out runs at **submit** time (not on `catalog-approved`) so maintainers can
+approve each fork independently without waiting on the root.
+
+Token needs **Issues: Read and write** on this repo plus read access to public
+repo metadata (forks / parent). Classic `public_repo` also works.
 
 ## Promote issue → `addons.json`
 
