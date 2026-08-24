@@ -1761,6 +1761,25 @@ def _backfill_detected_installed_mods(actual: dict[str, bool]) -> None:
         settings.set_installed_mod(mid, _backfill_installed_mod_meta(mid, mod))
 
 
+def _addon_remote_identity(
+    mod: dict[str, Any], *, catalog_only: bool = False
+) -> dict[str, Any] | None:
+    """Fingerprint a mod's companion ``addon_source``, or None if it has none.
+
+    Mods like SuperWoW ship as a pair: a DLL pinned to the latest release and a
+    companion addon tracked off a branch HEAD. Only the DLL half was ever
+    fingerprinted, so the two could drift apart silently.
+    """
+    addon_src = mod.get("addon_source")
+    if not addon_src:
+        return None
+    try:
+        return _remote_identity(addon_src, catalog_only=catalog_only)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Could not fingerprint addon half of %s: %s", mod.get("id"), exc)
+        return None
+
+
 def _record_mod_install(
     mod_id: str, mod: dict[str, Any], source_override: dict[str, Any] | None = None
 ) -> None:
@@ -1802,6 +1821,10 @@ def _record_mod_install(
         meta["version_key"] = source["url"]
         meta["version_display"] = "catalog"
         meta["url"] = source["url"]
+    addon_remote = _addon_remote_identity(mod)
+    if addon_remote and addon_remote.get("key"):
+        meta["addon_version_key"] = addon_remote.get("key")
+        meta["addon_version_display"] = addon_remote.get("display")
     if mod.get("kind") == "mpq_file":
         meta["variant_id"] = mod_id
         src_url = (source or {}).get("url")
@@ -1946,15 +1969,37 @@ def check_mod_updates(
                     },
                 }
             )
+            addon_base = _addon_remote_identity(mod, catalog_only=True)
+            if addon_base and addon_base.get("key"):
+                meta["addon_version_key"] = addon_base.get("key")
+                meta["addon_version_display"] = addon_base.get("display")
             settings.set_installed_mod(mid, meta)
             continue
-        if local_key != remote.get("key"):
+        addon_remote = _addon_remote_identity(mod, catalog_only=True)
+        addon_local = local.get("addon_version_key")
+        addon_drifted = bool(
+            addon_remote
+            and addon_remote.get("key")
+            and addon_local
+            and addon_local != addon_remote.get("key")
+        )
+        if local_key != remote.get("key") or addon_drifted:
             updates.append(
                 {
                     "id": mid,
                     "name": mod.get("name") or mid,
-                    "local": local.get("version_display") or str(local_key)[:12],
-                    "remote": remote.get("display") or str(remote.get("key"))[:12],
+                    "local": (local.get("version_display") or str(local_key)[:12])
+                    + (
+                        f" (addon {str(addon_local)[:7]})"
+                        if addon_drifted and local_key == remote.get("key")
+                        else ""
+                    ),
+                    "remote": (remote.get("display") or str(remote.get("key"))[:12])
+                    + (
+                        f" (addon {addon_remote.get('display') or str(addon_remote.get('key'))[:7]})"
+                        if addon_drifted and local_key == remote.get("key")
+                        else ""
+                    ),
                     "kind": remote.get("kind"),
                 }
             )
