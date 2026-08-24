@@ -89,8 +89,8 @@ def stage_mpq_before_data(artifact: Path, dest_rel: str | Path, work: Path) -> P
     """Rename the downloaded MPQ to the install basename before any Data/ copy.
 
     The Pretty Night Sky host file is still named patch-9.mpq (same as the
-    official Turtle/RavenCraft archive). Staging under the letter slot in
-    the work directory means Data/ never sees that stock name.
+    official Turtle/RavenCraft archive). Staging under patch-Z in the work
+    directory means Data/ never sees that stock name (patch-Y is Fog Pushback).
     """
     dest_name = _mpq_dest_basename(dest_rel)
     if not dest_name:
@@ -120,6 +120,74 @@ def stage_mpq_before_data(artifact: Path, dest_rel: str | Path, work: Path) -> P
         staged.unlink()
     artifact.replace(staged)
     return staged
+
+
+# Letter survey (v1.2.7): stock Turtle/RavenCraft is numeric (patch.mpq, patch-2…9).
+# Launcher HD/client tweaks already take A B C D E G H I J(detect) L M N O P S T U W Y.
+# Unused: F K Q R V X Z. Pretty Night Sky uses Z (latest free). Fog Pushback keeps Y.
+_PRETTY_NIGHT_SKY_DEST = "Data/patch-Z.mpq"
+_LEGACY_PRETTY_NIGHT_SKY_DEST = "Data/patch-Y.mpq"
+_NIGHT_SKY_MIGRATE_MAX_BYTES = 16 * 1024 * 1024
+# Legion skybox textures; Fog Pushback is Light*.dbc (never rename that Y).
+_NIGHT_SKY_PAYLOAD_MARKERS = (
+    b"environments\\stars",
+    b"environments/stars",
+    b"textures\\stars",
+    b"textures/stars",
+)
+_FOG_PUSHBACK_PAYLOAD_MARKERS = (
+    b"light.dbc",
+    b"lightparams.dbc",
+    b"lightintband.dbc",
+    b"lightskybox.dbc",
+)
+
+
+def looks_like_pretty_night_sky_mpq(path: Path) -> bool:
+    """True only when *path* looks like the Pretty Night Sky payload, not Fog Pushback."""
+    try:
+        size = path.stat().st_size
+    except OSError:
+        return False
+    if size < 4 or size > _NIGHT_SKY_MIGRATE_MAX_BYTES:
+        return False
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return False
+    if data[:3] != b"MPQ":
+        return False
+    low = data.lower()
+    if any(marker in low for marker in _FOG_PUSHBACK_PAYLOAD_MARKERS):
+        return False
+    return any(marker in low for marker in _NIGHT_SKY_PAYLOAD_MARKERS)
+
+
+def migrate_legacy_pretty_night_sky_y(game_path: Path) -> bool:
+    """One-time rename of a leftover night-sky ``patch-Y.mpq`` to ``patch-Z.mpq``.
+
+    Fog Pushback owns Y. Only rename when the file is clearly the night-sky
+    payload and Z is free. Unknown or fog-like Y is left alone.
+    """
+    game = Path(game_path)
+    if resolve_ci(game, _PRETTY_NIGHT_SKY_DEST) is not None:
+        return False
+    src = resolve_ci(game, _LEGACY_PRETTY_NIGHT_SKY_DEST)
+    if src is None or not src.is_file():
+        return False
+    if is_stock_data_mpq(src.name) or not looks_like_pretty_night_sky_mpq(src):
+        return False
+    dest = game / _PRETTY_NIGHT_SKY_DEST
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        if src.resolve() == dest.resolve():
+            return False
+    except OSError:
+        pass
+    src.replace(dest)
+    invalidate_dir_listing(dest.parent)
+    log.info("Renamed leftover Pretty Night Sky %s → %s", src.name, dest.name)
+    return True
 
 
 def _install_copy(src: Path, dest: Path, game_path: Path | None = None) -> None:
@@ -1025,6 +1093,10 @@ def _detect_mod(
 
 def detect_actual_state(game_path: Path) -> dict[str, bool]:
     """Scan installed client mods. Never LoadLibrary game DLLs; never raise per-mod."""
+    try:
+        migrate_legacy_pretty_night_sky_y(game_path)
+    except OSError as exc:
+        log.warning("Pretty Night Sky Y→Z migrate skipped: %s", exc)
     state: dict[str, bool] = {}
     root_names = listed_basenames(game_path)
     for mod in load_mod_catalog():

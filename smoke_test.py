@@ -403,17 +403,22 @@ def test_stock_patch9_not_owned_by_pretty_night_sky():
     assert is_stock_data_mpq("patch.mpq")
     assert is_stock_data_mpq("PATCH-2.MPQ")
     assert not is_stock_data_mpq("Data/patch-Y.mpq")
+    assert not is_stock_data_mpq("Data/patch-Z.mpq")
     assert not is_stock_data_mpq("Data/patch-A.mpq")
 
     sky = get_mod("pretty_night_sky")
-    assert sky is not None
-    assert (sky.get("destination") or "").replace("\\", "/").lower() == "data/patch-y.mpq"
-    assert (sky.get("source") or {}).get("filename", "").lower() == "patch-y.mpq"
-    assert "fog_pushback" in (sky.get("conflicts") or [])
+    fog = get_mod("fog_pushback")
+    assert sky is not None and fog is not None
+    assert (sky.get("destination") or "").replace("\\", "/").lower() == "data/patch-z.mpq"
+    assert (sky.get("source") or {}).get("filename", "").lower() == "patch-z.mpq"
+    assert (fog.get("destination") or "").replace("\\", "/").lower() == "data/patch-y.mpq"
+    assert "fog_pushback" not in (sky.get("conflicts") or [])
+    assert "pretty_night_sky" not in (fog.get("conflicts") or [])
     assert not is_stock_data_mpq(sky.get("destination") or "")
     owned = _mod_owned_paths(sky)
     assert not any("patch-9.mpq" in p for p in owned), owned
-    assert any(p.endswith("patch-y.mpq") for p in owned), owned
+    assert not any(p.endswith("patch-y.mpq") for p in owned), owned
+    assert any(p.endswith("patch-z.mpq") for p in owned), owned
 
     keys = (
         "desired_mods",
@@ -449,7 +454,7 @@ def test_stock_patch9_not_owned_by_pretty_night_sky():
             apply_mod_toggle("pretty_night_sky", True)
             apply_mod_toggle("fog_pushback", True)
             assert s.desired_mods.get("fog_pushback") is True
-            assert s.desired_mods.get("pretty_night_sky") is not True
+            assert s.desired_mods.get("pretty_night_sky") is True
 
             s.set("desired_mods", {})
             s.set("user_set_mods", [])
@@ -476,11 +481,11 @@ def test_stock_patch9_not_owned_by_pretty_night_sky():
             work.mkdir()
             downloaded = work / "patch-9.mpq"
             downloaded.write_bytes(b"NIGHT-SKY")
-            staged = stage_mpq_before_data(downloaded, "Data/patch-Y.mpq", work)
-            assert staged.name.lower() == "patch-y.mpq"
+            staged = stage_mpq_before_data(downloaded, "Data/patch-Z.mpq", work)
+            assert staged.name.lower() == "patch-z.mpq"
             assert staged.read_bytes() == b"NIGHT-SKY"
             assert not downloaded.exists()
-            assert not (data / "patch-Y.mpq").exists()
+            assert not (data / "patch-Z.mpq").exists()
             try:
                 stage_mpq_before_data(work / "x.mpq", "Data/patch-9.mpq", work)
                 raise AssertionError("stock dest must be rejected")
@@ -518,6 +523,93 @@ def test_stock_patch9_collision_migration():
     assert explicit["desired_mods"]["pretty_night_sky"] is True
     assert "pretty_night_sky" not in explicit["installed_mods"]
     print("OK stock patch-9 collision migration")
+
+
+def test_catalog_mpq_letters_unique():
+    """Letter destinations are unique except known HD L/T variants."""
+    share_ok = {
+        frozenset({"hd_patch_l", "hd_patch_l_less_thicc"}),
+        frozenset({"hd_patch_t", "hd_patch_t_ultra"}),
+    }
+    dest_owners: dict[str, list[str]] = {}
+    for mod in load_mod_catalog():
+        dest = (mod.get("destination") or "").replace("\\", "/").lower()
+        if not dest.endswith(".mpq") or not mod.get("id"):
+            continue
+        dest_owners.setdefault(dest, []).append(str(mod["id"]))
+    for dest, ids in dest_owners.items():
+        if len(ids) < 2:
+            continue
+        assert frozenset(ids) in share_ok, (dest, ids)
+    print("OK catalog MPQ letter destinations unique")
+
+
+def test_pretty_night_sky_migrates_off_fog_y():
+    """Leftover night-sky Y is renamed to Z; Fog Pushback's Y is never stolen."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import (
+        detect_actual_state,
+        looks_like_pretty_night_sky_mpq,
+        migrate_legacy_pretty_night_sky_y,
+    )
+
+    sky_bytes = b"MPQ\x1a" + b"\0" * 16 + b"Environments\\Stars\\stars.blp"
+    fog_bytes = b"MPQ\x1a" + b"\0" * 16 + b"DBFilesClient\\Light.dbc"
+    unknown = b"MPQ\x1a" + b"\0" * 16 + b"unknown-payload"
+
+    keys = ("desired_mods", "user_set_mods", "installed_mods", "user_mods", "game_path", "addons_path")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            data = game / "Data"
+            data.mkdir()
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("desired_mods", {})
+            s.set("user_set_mods", [])
+            s.set("installed_mods", {})
+            s.set("user_mods", [])
+            clear_fs_caches()
+
+            y = data / "patch-Y.mpq"
+            y.write_bytes(sky_bytes)
+            assert looks_like_pretty_night_sky_mpq(y)
+            actual = detect_actual_state(game)
+            assert not y.exists()
+            z = data / "patch-Z.mpq"
+            assert z.is_file() and z.read_bytes() == sky_bytes
+            assert actual.get("pretty_night_sky") is True
+            assert actual.get("fog_pushback") is not True
+
+            z.unlink()
+            y.write_bytes(fog_bytes)
+            clear_fs_caches()
+            assert not looks_like_pretty_night_sky_mpq(y)
+            assert migrate_legacy_pretty_night_sky_y(game) is False
+            actual = detect_actual_state(game)
+            assert y.is_file() and y.read_bytes() == fog_bytes
+            assert actual.get("fog_pushback") is True
+            assert actual.get("pretty_night_sky") is not True
+
+            y.write_bytes(unknown)
+            clear_fs_caches()
+            assert migrate_legacy_pretty_night_sky_y(game) is False
+            assert y.is_file()
+
+            z.write_bytes(b"MPQZ")
+            y.write_bytes(sky_bytes)
+            clear_fs_caches()
+            assert migrate_legacy_pretty_night_sky_y(game) is False
+            assert y.is_file() and y.read_bytes() == sky_bytes
+            assert z.read_bytes() == b"MPQZ"
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK pretty night sky Y to Z migrate leaves fog Y alone")
 
 
 def test_stock_patch9_reacquire_detect():
@@ -4604,6 +4696,8 @@ def _run_smoke_tests():
     test_mod_remove_desired_state()
     test_stock_patch9_not_owned_by_pretty_night_sky()
     test_stock_patch9_collision_migration()
+    test_catalog_mpq_letters_unique()
+    test_pretty_night_sky_migrates_off_fog_y()
     test_stock_patch9_reacquire_detect()
     test_darker_nights_migration()
     test_mod_toggle_resolution()
