@@ -40,24 +40,27 @@ Issue titles are prefixed with `[catalog]`. Optionally create a
 filtered triage.
 
 **Approve for catalog:** label the issue **`catalog-approved`**. That triggers
-`.github/workflows/catalog-approve.yml`, which opens a draft PR editing only
-`ichalaunch/data/addons.json`. Spam submissions stay as issues until you approve.
+`.github/workflows/catalog-approve.yml`, which opens a PR editing only
+`ichalaunch/data/addons.json`, squash-merges it, comments the result, and closes
+the issue. Spam submissions stay as issues until you approve.
 
 ## Promote issue → `addons.json`
 
 1. Review the issue (repo exists, Turtle-compatible, category fits).
 2. Label the issue **`catalog-approved`**.
-3. Review the draft PR the Action opens (`catalog: add Owner/Repo`).
-4. **Merge the PR** — that puts the entry on `master`. Clients pick it up on the
-   next Available catalog refresh (no launcher rebuild).
-5. Closing the issue alone does **not** update the catalog.
+3. The Action opens `catalog: add Owner/Repo`, squash-merges to `master`,
+   comments the merged PR on the issue, and closes it.
+4. Clients pick up the entry on the next Available catalog refresh (no launcher
+   rebuild).
 
-The Action skips opening a PR if the repo URL is already in `addons.json`, and
-comments the PR link (or skip reason) on the issue.
+The Action skips if the repo URL is already in `addons.json` (no PR / no merge)
+and comments the skip reason on the issue.
 
 **Repo setting (once):** Settings → Actions → General → Workflow permissions →
 enable **Allow GitHub Actions to create and approve pull requests** so
-`GITHUB_TOKEN` can open the draft PR.
+`GITHUB_TOKEN` can open and merge the PR. Master is currently unprotected;
+if you add required reviews later, allow `github-actions[bot]` to bypass or
+`gh pr merge --admin` needs a token that can.
 
 ## Example request body
 
@@ -66,12 +69,14 @@ enable **Allow GitHub Actions to create and approve pull requests** so
   "repo": "https://github.com/owner/MyAddon",
   "name": "MyAddon",
   "category": "General",
-  "description": "Short blurb for the Available list",
+  "description": "# MyAddon\n\nREADME excerpt used as the issue description…",
   "folder": "MyAddon",
   "launcher_version": "1.2.10",
   "client_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 }
 ```
 
-`folder`, `name`, and `description` may be empty strings; `repo` and `category`
-are required. `client_id` is an anonymous UUID for rate-limit hints only.
+`name` and `folder` may be omitted or empty — the Worker fills them from the
+repo slug. `description` is typically a truncated README excerpt (max 4000
+chars). `repo` and `category` are required. `client_id` is an anonymous UUID
+for rate-limit hints only.

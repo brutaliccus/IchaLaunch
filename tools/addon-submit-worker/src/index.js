@@ -6,9 +6,9 @@
  * Issue on brutaliccus/IchaLaunch using Worker secrets.
  */
 
-const MAX_BODY_BYTES = 8 * 1024;
+const MAX_BODY_BYTES = 16 * 1024;
 const MAX_NAME = 120;
-const MAX_DESC = 500;
+const MAX_DESC = 4000;
 const MAX_FOLDER = 80;
 const MAX_CATEGORY = 64;
 const MAX_CLIENT_ID = 64;
@@ -63,6 +63,11 @@ function normalizeRepo(raw) {
   return `https://github.com/${m[1]}/${m[2]}`;
 }
 
+function repoSlug(repoUrl) {
+  const parts = String(repoUrl || "").split("/");
+  return parts[parts.length - 1] || "";
+}
+
 function validatePayload(data) {
   if (!data || typeof data !== "object" || Array.isArray(data)) {
     return { error: "JSON object required." };
@@ -71,10 +76,11 @@ function validatePayload(data) {
   if (!repo) {
     return { error: "repo must be https://github.com/owner/repo." };
   }
-  const name = String(data.name || "").trim();
+  const slug = repoSlug(repo);
+  const name = String(data.name || "").trim() || slug;
   const category = String(data.category || "").trim();
   const description = String(data.description || "").trim();
-  const folder = String(data.folder || "").trim();
+  const folder = String(data.folder || "").trim() || slug;
   const launcherVersion = String(data.launcher_version || "").trim().slice(0, 32);
   const clientId = String(data.client_id || "").trim().slice(0, MAX_CLIENT_ID);
 
@@ -104,13 +110,23 @@ function validatePayload(data) {
 }
 
 function issueBody(p) {
+  const hasDesc = Boolean(p.description);
+  const entry = {
+    name: p.name || undefined,
+    repo: p.repo,
+    category: p.category,
+    source: "community",
+    folder: p.folder || undefined,
+  };
+  // Keep description out of the JSON fence (multi-line README breaks naive
+  // ```json … ``` extraction). Full text lives in the README excerpt section.
   const lines = [
     "### Catalog suggestion (from IchaLaunch)",
     "",
     `- **repo:** ${p.repo}`,
     `- **name:** ${p.name || "(none)"}`,
     `- **category:** ${p.category}`,
-    `- **description:** ${p.description || "(none)"}`,
+    `- **description:** ${hasDesc ? "(README excerpt below)" : "(none)"}`,
     `- **folder:** ${p.folder || "(none)"}`,
     `- **launcher_version:** ${p.launcher_version || "(unknown)"}`,
     `- **client_id:** ${p.client_id || "(none)"}`,
@@ -118,24 +134,25 @@ function issueBody(p) {
     "Suggested `addons.json` entry:",
     "",
     "```json",
-    JSON.stringify(
-      {
-        name: p.name || undefined,
-        repo: p.repo,
-        category: p.category,
-        description: p.description || undefined,
-        source: "community",
-        folder: p.folder || undefined,
-      },
-      null,
-      2
-    ),
+    JSON.stringify(entry, null, 2),
     "```",
+  ];
+  if (hasDesc) {
+    lines.push(
+      "",
+      "### README excerpt",
+      "",
+      "````markdown",
+      p.description,
+      "````"
+    );
+  }
+  lines.push(
     "",
     "Maintainers: review, then label this issue `catalog-approved`.",
-    "A GitHub Action opens a PR that edits `ichalaunch/data/addons.json`.",
-    "Merge that PR to publish on `master` (closing this issue alone does nothing).",
-  ];
+    "A GitHub Action opens a PR that edits `ichalaunch/data/addons.json`,",
+    "squash-merges it to `master`, and closes this issue."
+  );
   return lines.join("\n");
 }
 
@@ -149,7 +166,7 @@ async function createIssue(env, payload) {
     return { ok: false, status: 500, message: "Server misconfigured (bad repo)." };
   }
 
-  const titleName = payload.name || payload.folder || payload.repo.split("/").pop();
+  const titleName = payload.name || payload.folder || repoSlug(payload.repo);
   const title = `[catalog] ${titleName}`.slice(0, 200);
   const res = await fetch(`https://api.github.com/repos/${repo}/issues`, {
     method: "POST",

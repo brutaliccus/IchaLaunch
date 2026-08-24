@@ -67,7 +67,12 @@ def parse_issue_body(body: str) -> dict[str, str]:
         fields["repo"] = m.group(1).strip()
 
     for m in FIELD_BULLET_RE.finditer(body):
-        fields[m.group(1).lower()] = m.group(2).strip()
+        key = m.group(1).lower()
+        val = m.group(2).strip()
+        # Placeholder when README is in a separate section
+        if key == "description" and val.lower().startswith("(readme"):
+            continue
+        fields[key] = val
 
     # Prefer the fenced suggested JSON block when present (authoritative shape).
     fence = re.search(r"```json\s*(\{.*?\})\s*```", body, re.DOTALL | re.IGNORECASE)
@@ -81,6 +86,17 @@ def parse_issue_body(body: str) -> dict[str, str]:
                 val = suggested.get(key)
                 if isinstance(val, str) and val.strip():
                     fields[key] = val.strip()
+
+    # README excerpt section (Worker puts multi-line description here).
+    readme = re.search(
+        r"###\s*README excerpt\s*\n+````(?:markdown)?\s*\n(.*?)````",
+        body,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if readme:
+        excerpt = readme.group(1).strip()
+        if excerpt:
+            fields["description"] = excerpt
 
     return fields
 

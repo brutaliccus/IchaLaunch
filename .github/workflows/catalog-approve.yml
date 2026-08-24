@@ -1,8 +1,8 @@
 name: Catalog approve → PR
 
 # When a maintainer labels a catalog suggestion issue `catalog-approved`,
-# open a PR that only adds the entry to ichalaunch/data/addons.json.
-# Merge that PR to put the addon on master (closing the issue alone does nothing).
+# open a PR that only adds the entry to ichalaunch/data/addons.json, then
+# squash-merge it onto master (no manual merge step).
 #
 # Repo setting required (once): Settings → Actions → General → Workflow permissions
 # → enable "Allow GitHub Actions to create and approve pull requests"
@@ -61,7 +61,7 @@ jobs:
           REPO: ${{ steps.meta.outputs.repo }}
         run: |
           gh issue comment "${{ github.event.issue.number }}" --body "$(cat <<EOF
-          Skipped: \`${REPO}\` is already present in \`ichalaunch/data/addons.json\`. No PR opened.
+          Skipped: \`${REPO}\` is already present in \`ichalaunch/data/addons.json\`. No PR opened or merged.
           EOF
           )"
 
@@ -81,20 +81,7 @@ jobs:
             echo "found=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Comment existing PR link
-        if: steps.meta.outputs.skipped != 'true' && steps.existing.outputs.found == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_URL: ${{ steps.existing.outputs.pr_url }}
-        run: |
-          gh issue comment "${{ github.event.issue.number }}" --body "$(cat <<EOF
-          Catalog PR already open: ${PR_URL}
-
-          Merge that PR to put the addon on \`master\`. Closing this issue alone does nothing.
-          EOF
-          )"
-
-      - name: Create branch and draft PR
+      - name: Create branch and PR
         if: steps.meta.outputs.skipped != 'true' && steps.existing.outputs.found != 'true'
         id: pr
         env:
@@ -127,16 +114,13 @@ jobs:
           )"
           git push -u origin "$BRANCH" --force
 
-          if ! PR_URL=$(gh pr create --draft \
+          if ! PR_URL=$(gh pr create \
             --title "$TITLE" \
             --body "$(cat <<EOF
           ## Summary
           - Adds [${OWNER}/${RNAME}](${REPO_URL}) to \`ichalaunch/data/addons.json\` (\`source: community\`).
           - Opened from catalog suggestion issue #${ISSUE_NUMBER} (label \`catalog-approved\`).
-
-          ## Maintainer
-          - Review the entry, then **merge this PR** to publish on \`master\`.
-          - Closing the issue alone does not update the catalog.
+          - This Action squash-merges automatically after creation.
 
           Closes #${ISSUE_NUMBER}
           EOF
@@ -153,15 +137,51 @@ jobs:
           fi
           echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
 
-      - name: Comment PR link on issue
-        if: steps.meta.outputs.skipped != 'true' && steps.existing.outputs.found != 'true' && steps.pr.outputs.pr_url != ''
+      - name: Resolve PR URL
+        id: target
+        if: steps.meta.outputs.skipped != 'true'
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.existing.outputs.found }}" = "true" ]; then
+            echo "pr_url=${{ steps.existing.outputs.pr_url }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "pr_url=${{ steps.pr.outputs.pr_url }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Mark ready and squash-merge
+        id: merge
+        if: steps.meta.outputs.skipped != 'true' && steps.target.outputs.pr_url != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_URL: ${{ steps.pr.outputs.pr_url }}
+          PR_URL: ${{ steps.target.outputs.pr_url }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
-          gh issue comment "${{ github.event.issue.number }}" --body "$(cat <<EOF
-          Catalog PR opened: ${PR_URL}
+          set -euo pipefail
+          # Ready for review if still draft (legacy open PRs / retries)
+          if [ "$(gh pr view "$PR_URL" --json isDraft --jq '.isDraft')" = "true" ]; then
+            gh pr ready "$PR_URL"
+          fi
 
-          Merge that PR to put the addon on \`master\`. Closing this issue alone does nothing.
+          if gh pr merge "$PR_URL" --squash --delete-branch --admin; then
+            MERGED_URL=$(gh pr view "$PR_URL" --json url --jq '.url')
+            echo "merged=true" >> "$GITHUB_OUTPUT"
+            echo "pr_url=$MERGED_URL" >> "$GITHUB_OUTPUT"
+            gh issue comment "$ISSUE_NUMBER" --body "$(cat <<EOF
+          Catalog entry merged via ${MERGED_URL} (squash). Clients pick it up on the next Available catalog refresh.
           EOF
           )"
+            # Close if squash "Closes #" did not (e.g. reused PR without that line)
+            STATE=$(gh issue view "$ISSUE_NUMBER" --json state --jq '.state')
+            if [ "$STATE" = "OPEN" ]; then
+              gh issue close "$ISSUE_NUMBER" --comment "Closed after catalog squash-merge of ${MERGED_URL}."
+            fi
+          else
+            echo "merged=false" >> "$GITHUB_OUTPUT"
+            gh issue comment "$ISSUE_NUMBER" --body "$(cat <<EOF
+          Catalog PR is open but auto-merge failed: ${PR_URL}
+
+          Merge it manually (or fix branch protection so \`GITHUB_TOKEN\` / Actions can squash-merge). If required reviews block the bot, allow \`github-actions[bot]\` to bypass or use \`gh pr merge --admin\` with a token that can.
+          EOF
+          )"
+            exit 1
+          fi

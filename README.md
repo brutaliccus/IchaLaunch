@@ -151,10 +151,10 @@ issues until a maintainer approves.
 1. Review the issue (repo exists, Turtle-compatible, category fits).
 2. Label the issue **`catalog-approved`**.
 3. The Action [``.github/workflows/catalog-approve.yml``](.github/workflows/catalog-approve.yml)
-   opens a draft PR that only adds the entry to ``ichalaunch/data/addons.json``
-   (``source: community``). It comments the PR link on the issue.
-4. **Merge the PR** — entry is on ``master``; clients pick it up on catalog refresh.
-5. Closing the issue alone does **not** update the catalog.
+   opens a PR that adds the entry to ``ichalaunch/data/addons.json``
+   (``source: community``), **squash-merges it**, comments the merged PR link on
+   the issue, and closes the issue. Already-in-catalog skips do nothing.
+4. Clients pick up the entry on the next Available catalog refresh.
 
 **Maintainer setup (once):**
 
@@ -166,7 +166,9 @@ issues until a maintainer approves.
 5. Create the GitHub label ``catalog-approved`` on this repo (one-time)
 6. Enable **Settings → Actions → General → Workflow permissions → Allow
    GitHub Actions to create and approve pull requests** (needed so the Action
-   can open the draft PR with ``GITHUB_TOKEN``)
+   can open/merge PRs with ``GITHUB_TOKEN``). If branch protection later requires
+   reviews, allow ``github-actions[bot]`` to bypass or the Action's
+   ``gh pr merge --admin`` will need a token that can.
 
 Full steps and example JSON: ``tools/addon-submit-worker/README.md``.
 
