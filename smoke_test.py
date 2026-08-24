@@ -2945,16 +2945,22 @@ def test_auto_scan_cooldown_persists_to_disk():
     assert not hasattr(page, "cooldown_slider")
     assert settings.auto_scan_cooldown_minutes() == 15
     if sys.platform != "win32":
-        assert page.linux_umu_edit is not None
-        page.linux_umu_edit.setText("/opt/umu-run")
-        page.linux_umu_edit.editingFinished.emit()
-        assert settings.get("linux_umu_path") == "/opt/umu-run"
-        page.cb_linux_latest.setChecked(True)
-        assert settings.get("linux_use_latest_proton") is True
-        assert page.linux_proton_edit.isEnabled() is False
-        page.refresh()
-        assert page.linux_umu_edit.text() == "/opt/umu-run"
-        assert page.cb_linux_latest.isChecked() is True
+        prev_umu = settings.get("linux_umu_path")
+        prev_latest = settings.get("linux_use_latest_proton")
+        try:
+            assert page.linux_umu_edit is not None
+            page.linux_umu_edit.setText("/opt/umu-run")
+            page.linux_umu_edit.editingFinished.emit()
+            assert settings.get("linux_umu_path") == "/opt/umu-run"
+            page.cb_linux_latest.setChecked(True)
+            assert settings.get("linux_use_latest_proton") is True
+            assert page.linux_proton_edit.isEnabled() is False
+            page.refresh()
+            assert page.linux_umu_edit.text() == "/opt/umu-run"
+            assert page.cb_linux_latest.isChecked() is True
+        finally:
+            settings.set("linux_umu_path", prev_umu or "")
+            settings.set("linux_use_latest_proton", bool(prev_latest))
     print("OK auto scan cooldown has no settings slider")
 
 
