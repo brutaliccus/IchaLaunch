@@ -213,7 +213,7 @@ class AddonsPage(QWidget):
         action_row.addWidget(self.page_lbl)
         action_row.addWidget(self.next_btn)
 
-        # Catalog search — top of marble panel, right of the filter title
+        # Catalog search — top of marble panel, right of Installed / category filters
         self.search = CastingBarSearchEdit()
         self.search.setPlaceholderText("Search catalog…")
         self._search_timer = QTimer(self)
@@ -222,17 +222,7 @@ class AddonsPage(QWidget):
         self._search_timer.timeout.connect(self._on_search_changed)
         self.search.textChanged.connect(self._on_search_text)
 
-        self.filter_title = QLabel("Installed")
-        self.filter_title.setObjectName("SectionTitle")
-        title_row = QHBoxLayout()
-        title_row.setSpacing(10)
-        title_row.addWidget(self.filter_title, 0, Qt.AlignmentFlag.AlignVCenter)
-        title_row.addStretch(1)
-        title_row.addWidget(self.search, 2)
-
-        # Filters / actions sit at the bottom near the play bar
-        tools = QHBoxLayout()
-        self.filter_box = GlueComboBox()
+        self.filter_box = GlueComboBox(min_width=160)
         self.filter_box.blockSignals(True)
         self.filter_box.addItems(["Installed", "Available", "Update Available", "All"])
         self.filter_box.blockSignals(False)
@@ -240,7 +230,7 @@ class AddonsPage(QWidget):
         self.filter_box.popupShown.connect(self._on_combo_popup_shown)
         self.filter_box.popupHidden.connect(self._on_combo_popup_hidden)
 
-        self.cat_box = GlueComboBox()
+        self.cat_box = GlueComboBox(min_width=160)
         self.cat_box.blockSignals(True)
         self.cat_box.addItem("All categories")
         self.cat_box.blockSignals(False)
@@ -248,6 +238,16 @@ class AddonsPage(QWidget):
         self.cat_box.popupShown.connect(self._on_combo_popup_shown)
         self.cat_box.popupHidden.connect(self._on_combo_popup_hidden)
 
+        # Filter dropdowns replace the old section title; search stays on the right.
+        title_row = QHBoxLayout()
+        title_row.setSpacing(10)
+        title_row.addWidget(self.filter_box, 0, Qt.AlignmentFlag.AlignVCenter)
+        title_row.addWidget(self.cat_box, 0, Qt.AlignmentFlag.AlignVCenter)
+        title_row.addStretch(1)
+        title_row.addWidget(self.search, 2)
+
+        # Actions sit at the bottom near the play bar
+        tools = QHBoxLayout()
         check_btn = GluePanelButton("Check Updates", self)
         check_btn.clicked.connect(self.check_updates_requested.emit)
         self.check_btn = check_btn
@@ -258,8 +258,7 @@ class AddonsPage(QWidget):
         import_btn = GluePanelButton("+ Git Repo", self)
         import_btn.clicked.connect(self._open_github_import_dialog)
 
-        tools.addWidget(self.filter_box)
-        tools.addWidget(self.cat_box)
+        tools.addStretch(1)
         tools.addWidget(rescan_btn)
         tools.addWidget(check_btn)
         tools.addWidget(update_all_btn)
@@ -319,6 +318,8 @@ class AddonsPage(QWidget):
         self._rendering_avail = False
         self._pending_avail_search = False
         self._list_freeze_until = 0.0
+        # True when installed_list was built with only update rows (Update Available refresh).
+        self._installed_built_for_updates_only = False
         self._pending_list_work: set[str] = set()
         self._flush_timer = QTimer(self)
         self._flush_timer.setSingleShot(True)
@@ -543,15 +544,24 @@ class AddonsPage(QWidget):
                 self._hide_installed_by_search()
             return
         # Installed / Update Available: hide existing rows — no catalog rebuild.
-        self._hide_installed_by_search()
+        self._apply_installed_row_visibility()
 
-    def _hide_installed_by_search(self) -> None:
-        """In-place hide; never clear() installed rows for a keystroke."""
+    def _pending_update_folder_set(self) -> set[str]:
+        return {
+            str(u.get("folder") or "").lower()
+            for u in self._pending_updates
+            if u.get("folder")
+        }
+
+    def _apply_installed_row_visibility(self) -> None:
+        """In-place hide for search and Update Available — never clear() rows."""
         try:
+            mode = self.filter_box.currentText()
             q = (self.search.text() or "").lower().strip()
             count = self.installed_list.count()
         except RuntimeError:
             return
+        update_folders = self._pending_update_folder_set()
         for i in range(count):
             try:
                 item = self.installed_list.item(i)
@@ -559,10 +569,22 @@ class AddonsPage(QWidget):
                     continue
                 row = self.installed_list.itemWidget(item)
                 if not isinstance(row, AddonRow):
+                    # Empty-state placeholders stay visible.
                     continue
-                item.setHidden(not self._entry_matches_search(row.entry, q))
+                matches = self._entry_matches_search(row.entry, q)
+                if mode == "Update Available":
+                    folder = str(row.entry.get("folder") or row.entry.get("name") or "")
+                    status = str(getattr(row, "_status_text", "") or "")
+                    has_update = folder.lower() in update_folders or status.startswith("Update")
+                    item.setHidden(not (has_update and matches))
+                else:
+                    item.setHidden(not matches)
             except RuntimeError:
                 continue
+
+    def _hide_installed_by_search(self) -> None:
+        """Back-compat alias — search uses the same visibility rules as the filter."""
+        self._apply_installed_row_visibility()
 
     @staticmethod
     def _entry_matches_search(entry: dict, q: str) -> bool:
@@ -681,6 +703,10 @@ class AddonsPage(QWidget):
             mode = self.filter_box.currentText()
         except RuntimeError:
             return
+        # Leaving an updates-only rebuild requires a full installed list again.
+        if mode in ("Installed", "All") and self._installed_built_for_updates_only:
+            self._request_list_work("refresh")
+            return
         if mode in ("Installed", "Update Available", "All") and (
             self._dirty or self.installed_list.count() == 0
         ):
@@ -689,14 +715,7 @@ class AddonsPage(QWidget):
         self._refreshing = True
         self._sync_filter_lock()
         try:
-            if mode == "Update Available":
-                self.filter_title.setText("Updates Available")
-            elif mode == "Available":
-                self.filter_title.setText("Available")
-            elif mode == "All":
-                self.filter_title.setText("All")
-            else:
-                self.filter_title.setText("Installed")
+            # Filter selection is shown in the header dropdowns — no duplicate title.
             if mode in ("Available", "All"):
                 self._ensure_available_base()
                 q = (self.search.text() or "").lower().strip()
@@ -714,6 +733,11 @@ class AddonsPage(QWidget):
                 except RuntimeError:
                     pass
             self._apply_section_visibility(mode)
+            # Fast path: Installed list is already built — hide non-matching rows
+            # (Update Available) and re-apply search. Do not skip this or the
+            # dropdown switch leaves every installed addon visible.
+            if mode in ("Installed", "Update Available", "All"):
+                self._apply_installed_row_visibility()
         except RuntimeError:
             self.mark_dirty()
         finally:
@@ -795,10 +819,9 @@ class AddonsPage(QWidget):
             return
 
     def _installed_status_text(self, folder: str, meta: dict | None, never_u: bool) -> str:
-        update_map = {u["folder"]: u for u in self._pending_updates}
         if never_u:
             return "Never update"
-        if folder in update_map:
+        if folder.lower() in self._pending_update_folder_set():
             return "Update available"
         if not self._addons_scan_done:
             return "Not checked"
@@ -838,15 +861,12 @@ class AddonsPage(QWidget):
                 meta = installed_meta.get(folder) or {}
                 status = self._installed_status_text(folder, meta, never_u)
                 row.apply_status(status, never_update=never_u)
-                if mode == "Update Available":
-                    item.setHidden(not status.startswith("Update"))
-                else:
-                    item.setHidden(False)
             except RuntimeError:
                 return False
         if not has_row:
             # Available-only view has no installed rows; scan must not rebuild that list.
             return mode == "Available"
+        self._apply_installed_row_visibility()
         return True
 
     def _page_is_live(self) -> bool:
@@ -1098,7 +1118,7 @@ class AddonsPage(QWidget):
         installed_folders = set(installed_meta.keys()) | disk_folders
         installed_lower = {f.lower() for f in installed_folders}
         self._installed_lower = installed_lower
-        update_map = {u["folder"]: u for u in self._pending_updates}
+        update_folders = self._pending_update_folder_set()
 
         # Hide lists for the whole rebuild so new rows parented to them never flash,
         # and so clear() never unparents a still-visible item widget (HWND spam).
@@ -1114,20 +1134,12 @@ class AddonsPage(QWidget):
             _safe_clear_list(self.installed_list)
             shown_installed = 0
             show_installed = mode in ("Installed", "All", "Update Available")
-            # Top title always reflects the filter; Installed section header only in All.
-            if mode == "Update Available":
-                self.filter_title.setText("Updates Available")
-                self.installed_hdr.setText("Updates Available")
-            elif mode == "Available":
-                self.filter_title.setText("Available")
-                self.installed_hdr.setText("Installed")
-            elif mode == "All":
-                self.filter_title.setText("All")
-                self.installed_hdr.setText("Installed")
-            else:
-                self.filter_title.setText("Installed")
-                self.installed_hdr.setText("Installed")
+            # Section titles only when All shows both panels; otherwise the
+            # header dropdown is the sole filter label.
+            self.installed_hdr.setText("Installed")
+            self.avail_hdr.setText("Available")
             self.installed_hdr.setVisible(show_installed and mode == "All")
+            self._installed_built_for_updates_only = mode == "Update Available"
 
             if show_installed:
                 if mode == "All":
@@ -1149,7 +1161,7 @@ class AddonsPage(QWidget):
 
                 rows_to_show: list[tuple[int, str, dict, str, list[str], bool, bool]] = []
                 for folder in installed_folders:
-                    if mode == "Update Available" and folder not in update_map:
+                    if mode == "Update Available" and folder.lower() not in update_folders:
                         continue
                     meta = installed_meta.get(folder) or {}
                     if not meta:
@@ -1272,8 +1284,8 @@ class AddonsPage(QWidget):
                     empty = QListWidgetItem(msg)
                     empty.setFlags(Qt.ItemFlag.NoItemFlags)
                     self.installed_list.addItem(empty)
-                elif show_installed and q:
-                    self._hide_installed_by_search()
+                elif show_installed:
+                    self._apply_installed_row_visibility()
 
             self._ensure_available_base(force=True)
             if mode in ("Available", "All"):

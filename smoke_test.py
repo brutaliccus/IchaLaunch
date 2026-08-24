@@ -4582,10 +4582,12 @@ def test_chrome_buttons_clear_metal_tr():
     from ichalaunch.core.paths import theme_file
     from ichalaunch.ui import main_window as mw
 
-    assert mw._CHROME_BTN_INSET_X >= mw._METAL_CORNER_DRAW
+    assert mw._CHROME_BTN_INSET_X >= mw._METAL_EDGE_DRAW
     assert mw._CHROME_BTN_INSET_Y >= mw._METAL_EDGE_DRAW
     assert mw._METAL_FLOOR_OUTSET >= 1
+    assert mw._METAL_CORNER_DRAW >= 100  # full L arms, not a ~40 stub cell
     src = Path(mw.__file__).read_text(encoding="utf-8")
+    assert "_crop_metal_corner_cell" not in src
     assert "_metal_underfill_path" in src
     assert "_FRAME_STROKE" not in src
     assert "painter.drawPath(path)" not in src
@@ -4595,6 +4597,8 @@ def test_chrome_buttons_clear_metal_tr():
     assert "class PortraitPlayFrame" in src
     assert "WA_TransparentForMouseEvents" in src
     for name in (
+        mw._METAL_EDGE_NAME,
+        mw._METAL_CORNER_NAME,
         mw._PORTRAIT_EDGE_BOTTOM_NAME,
         mw._PORTRAIT_EDGE_LEFT_NAME,
         mw._PORTRAIT_EDGE_RIGHT_NAME,

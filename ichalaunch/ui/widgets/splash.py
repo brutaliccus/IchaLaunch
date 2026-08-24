@@ -1,4 +1,4 @@
-"""Lightweight startup splash — soft-edged *square* icon with a gentle breathe pulse."""
+"""Lightweight startup splash — soft-edged icon over smoke, with a gentle breathe pulse."""
 
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ from PySide6.QtCore import (
     QTimer,
 )
 from PySide6.QtGui import (
-    QColor,
     QGuiApplication,
     QImage,
     QPainter,
@@ -21,10 +20,10 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QWidget
 
-# Warm dark pad behind the icon (RavenCraft-adjacent, not purple glow).
-_PAD = QColor(18, 16, 14, 200)
 _ICON_PX = 200
-_WINDOW_PX = 280
+# 2× previous smoke (~268 → 536); window grows so breathe scale never clips it.
+_SMOKE_PX = 536
+_WINDOW_PX = 560
 # Fraction of the square side used as a soft border fade (not a radial circle).
 _EDGE_FEATHER = 0.14
 _MAX_LIFETIME_MS = 45_000
@@ -39,6 +38,7 @@ def soft_edge_icon(source: QPixmap, size: int = _ICON_PX, feather: float = _EDGE
     """Scale icon to a square and feather alpha along the *square* edges only.
 
     Uses distance-to-nearest-edge falloff so the icon stays square (not a circular crop).
+    Source should already have a transparent backdrop (see ichalaunch_splash.png).
     """
     if source.isNull():
         return QPixmap()
@@ -77,23 +77,22 @@ def soft_edge_icon(source: QPixmap, size: int = _ICON_PX, feather: float = _EDGE
     return QPixmap.fromImage(img)
 
 
-def soft_square_pad(size: int, color: QColor = _PAD, feather: float = _EDGE_FEATHER) -> QPixmap:
-    """Warm dark square with the same edge feather (backdrop for the icon)."""
-    img = QImage(size, size, QImage.Format.Format_ARGB32)
-    img.fill(Qt.GlobalColor.transparent)
-    feather_px = max(1.0, size * max(0.02, min(0.45, feather)))
-    last = size - 1
-    for py in range(size):
-        for px in range(size):
-            dist = min(px, py, last - px, last - py)
-            if dist <= 0:
-                a = 0
-            elif dist >= feather_px:
-                a = color.alpha()
-            else:
-                a = int(color.alpha() * _smoothstep(dist / feather_px))
-            img.setPixelColor(px, py, QColor(color.red(), color.green(), color.blue(), a))
-    return QPixmap.fromImage(img)
+def load_smoke_pixmap(size: int = _SMOKE_PX) -> QPixmap:
+    """Load bundled Worgen smoke texture, scaled larger than the splash icon."""
+    from ichalaunch.core.paths import theme_file
+
+    path = theme_file("Worgen_Smoke_01.PNG")
+    if not path.exists():
+        return QPixmap()
+    source = QPixmap(str(path))
+    if source.isNull():
+        return QPixmap()
+    return source.scaled(
+        size,
+        size,
+        Qt.AspectRatioMode.KeepAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
 
 
 class SplashScreen(QWidget):
@@ -107,14 +106,16 @@ class SplashScreen(QWidget):
             | Qt.WindowType.WindowStaysOnTopHint
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
+        self.setAutoFillBackground(False)
+        self.setStyleSheet("background: transparent;")
         self.setFixedSize(_WINDOW_PX, _WINDOW_PX)
 
+        self._smoke = load_smoke_pixmap()
         self._icon = soft_edge_icon(pixmap) if not pixmap.isNull() else QPixmap()
-        self._pad = soft_square_pad(int(_ICON_PX * 1.12))
         self._breathe_t = 0.0
         self._scale = 1.0
-        self._opacity = 0.88
         self._finished = False
 
         self._anim = QPropertyAnimation(self, b"breathe", self)
@@ -134,8 +135,8 @@ class SplashScreen(QWidget):
     def set_breathe(self, t: float) -> None:
         self._breathe_t = t
         wave = 0.5 - 0.5 * math.cos(t * math.pi * 2)
+        # Scale-only pulse; splash art stays at full opacity.
         self._scale = 0.94 + 0.06 * wave
-        self._opacity = 0.78 + 0.20 * wave
         self.update()
 
     breathe = Property(float, get_breathe, set_breathe)
@@ -163,18 +164,20 @@ class SplashScreen(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        painter.setOpacity(self._opacity)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+        painter.setOpacity(1.0)
 
         cx = self.width() * 0.5
         cy = self.height() * 0.5
 
-        if not self._pad.isNull():
-            pw = self._pad.width() * self._scale
-            ph = self._pad.height() * self._scale
+        # Smoke behind the icon (no dark fill — widget backdrop is transparent).
+        if not self._smoke.isNull():
+            sw = self._smoke.width() * self._scale
+            sh = self._smoke.height() * self._scale
             painter.drawPixmap(
-                QRectF(cx - pw * 0.5, cy - ph * 0.5, pw, ph),
-                self._pad,
-                QRectF(self._pad.rect()),
+                QRectF(cx - sw * 0.5, cy - sh * 0.5, sw, sh),
+                self._smoke,
+                QRectF(self._smoke.rect()),
             )
 
         if self._icon.isNull():
@@ -201,10 +204,11 @@ class SplashScreen(QWidget):
 
 
 def load_splash_pixmap() -> QPixmap:
-    """Load app icon for splash (png preferred for alpha quality)."""
+    """Load splash art (transparent-backdrop PNG preferred)."""
     from ichalaunch.core.paths import theme_file
 
-    for name in ("ichalaunch.png", "ichalaunch.ico"):
+    # ichalaunch_splash.png: same raven art with the baked-in dark square keyed out.
+    for name in ("ichalaunch_splash.png", "ichalaunch.png", "ichalaunch.ico"):
         path = theme_file(name)
         if path.exists():
             pm = QPixmap(str(path))

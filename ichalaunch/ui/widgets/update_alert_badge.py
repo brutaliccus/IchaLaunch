@@ -45,26 +45,26 @@ def update_alert_badge_pixmap() -> QPixmap:
 
 
 def paint_update_alert_badge(painter: QPainter, rect: QRect) -> None:
-    """Paint the alert badge in the top-right of rect (fallback: gold dot)."""
+    """Paint the alert badge on the right of rect, vertically centered (fallback: gold dot)."""
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
     painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
     alert = update_alert_badge_pixmap()
     if alert.isNull():
         radius = 4.5
         center_x = rect.right() - radius - 7.0
-        center_y = rect.top() + radius + 5.0
+        center_y = rect.center().y()
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor("#F1C22D"))
         painter.drawEllipse(center_x - radius, center_y - radius, radius * 2, radius * 2)
         return
     margin = 3
     x = rect.right() - alert.width() - margin + 1
-    y = rect.top() + margin
+    y = rect.top() + (rect.height() - alert.height()) // 2
     painter.drawPixmap(x, y, alert)
 
 
 class BadgeNavButton(QPushButton):
-    """Push button with optional pending-update alert badge (top-right)."""
+    """Push button with optional pending-update alert badge (right, vertically centered)."""
 
     def __init__(self, text: str, parent: QWidget | None = None):
         super().__init__(text, parent)

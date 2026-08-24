@@ -98,20 +98,21 @@ _BOTTOM_BAR_H = 88
 _CORNER_RADIUS_F = float(_CORNER_RADIUS)
 # Main ContentPanel floor — opaque RavenCraft base, then tiles + wash on top.
 _FLOOR_BASE = QColor("#181315")
-# Generic-metal chrome — individual crops from UIFrameGenericMetal.PNG (256×256).
-# Atlas: y=0–31 top edge tile; y=64+ diamond-rivet TL + left stem (see theme crops).
-_METAL_EDGE_TOP_NAME = "metal_edge_top.png"
-_METAL_EDGE_LEFT_NAME = "metal_edge_left.png"
-_METAL_EDGE_RIGHT_NAME = "metal_edge_right.png"
-_METAL_CORNER_TL_NAME = "metal_corner_tl.png"
-_METAL_CORNER_TR_NAME = "metal_corner_tr.png"
+# Generic-metal chrome — single edge + TL corner sources (BorderFrameArt /
+# CornerFrameArt). Edges are rotated/flipped so the light-grey lip faces
+# outward; TR/BL/BR corners are mirrors of the TL source.
+_METAL_EDGE_NAME = "metal_edge.png"
+_METAL_CORNER_NAME = "metal_corner.png"
 # Edge thickness on the window edge (not inset into the page).
 _METAL_EDGE_DRAW = 20
-# Corners scale uniformly (48px cell → this); arms meet the 20px rails.
-_METAL_CORNER_DRAW = 40
+# Full L corner (165×165, ~27px arms) scaled so arms match the 20px rails.
+# Do not crop the arms — edges meet the arm tips.
+_METAL_CORNER_DRAW = 122
 # 1px past the folder box — matches rail dest (box.x()-1). Fringe is trimmed
 # off the crops so this is the metal lip, not a black halo.
 _METAL_CORNER_HANG = 1
+# Hairline where tiled edges meet corner arm tips (not a tuck-under stub).
+_METAL_ARM_JOIN = 1
 # Floor past each metal dest (AA / hang) so desktop cannot peek.
 # Keep this small — a wide band reads as a #181315 outline.
 _METAL_FLOOR_OUTSET = 2
@@ -165,9 +166,10 @@ _FRAME_OUTSET_MARGIN = 4
 # Bottom gutter stays 24 so the 88px play strip keeps its sit-height
 # (PLAY ~40px from the window bottom). Do not steal width to fix height.
 _FRAME_OUTSET_BOTTOM = 24
-# −/X sit inside the framed panel, clear of metal_corner_tr (~40) and the right rail (~20).
+# −/X sit inside the framed panel, clear of the TR vertical stem (~20) and
+# below the top arm (~20). Long horizontal arms do not cover the buttons.
 _CHROME_BTN_INSET_X = 44
-# Below the 20px top rail (was 10 — sat on the rail after shifting left of TR).
+# Below the 20px top rail / corner top arm.
 _CHROME_BTN_INSET_Y = 24
 
 from ichalaunch import __version__
@@ -891,6 +893,49 @@ def _load_bundled_pixmap(name: str) -> QPixmap:
     return pm if not pm.isNull() else QPixmap()
 
 
+def _mirror_pixmap(pm: QPixmap, *, horizontal: bool = False, vertical: bool = False) -> QPixmap:
+    if pm.isNull() or (not horizontal and not vertical):
+        return pm
+    return pm.transformed(QTransform().scale(-1.0 if horizontal else 1.0, -1.0 if vertical else 1.0))
+
+
+def _rotate_pixmap(pm: QPixmap, degrees: float) -> QPixmap:
+    if pm.isNull() or degrees == 0:
+        return pm
+    return pm.transformed(QTransform().rotate(degrees), Qt.TransformationMode.FastTransformation)
+
+
+def _metal_edge_orientations(src: QPixmap) -> tuple[QPixmap, QPixmap, QPixmap, QPixmap]:
+    """Top/left/right/bottom rails with the light-grey lip on the outside.
+
+    Source is a horizontal strip (light on top). Left = 90° CCW, right = 90° CW,
+    bottom = vertical flip.
+    """
+    if src.isNull():
+        empty = QPixmap()
+        return empty, empty, empty, empty
+    top = src
+    left = _rotate_pixmap(src, -90.0)
+    right = _rotate_pixmap(src, 90.0)
+    bottom = _mirror_pixmap(src, vertical=True)
+    return top, left, right, bottom
+
+
+def _metal_corner_orientations(src: QPixmap) -> tuple[QPixmap, QPixmap, QPixmap, QPixmap]:
+    """TL/TR/BL/BR from a left (TL) corner: H-flip, V-flip, and both.
+
+    Keeps the full L geometry (both arms at full length) — no stub crop.
+    """
+    if src.isNull():
+        empty = QPixmap()
+        return empty, empty, empty, empty
+    tl = src
+    tr = _mirror_pixmap(src, horizontal=True)
+    bl = _mirror_pixmap(src, vertical=True)
+    br = _mirror_pixmap(src, horizontal=True, vertical=True)
+    return tl, tr, bl, br
+
+
 def _metal_line_is_fringe(img, *, x: int | None = None, y: int | None = None) -> bool:
     """True if this row/col is empty or flat black (atlas halo, not the lip)."""
     w, h = img.width(), img.height()
@@ -994,25 +1039,21 @@ class FolderFrameStroke(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self._host = host
         self._floor = _load_theme_texture(_FLOOR_NAME, _FLOOR_EXTERNAL)
-        self._edge_top = _trim_metal_outer_fringe(
-            _load_bundled_pixmap(_METAL_EDGE_TOP_NAME), top=True
+        edge_top, edge_left, edge_right, _edge_bottom = _metal_edge_orientations(
+            _load_bundled_pixmap(_METAL_EDGE_NAME)
         )
-        self._edge_left = _trim_metal_outer_fringe(
-            _load_bundled_pixmap(_METAL_EDGE_LEFT_NAME), left=True
-        )
-        self._edge_right = _trim_metal_outer_fringe(
-            _load_bundled_pixmap(_METAL_EDGE_RIGHT_NAME), right=True
+        self._edge_top = _trim_metal_outer_fringe(edge_top, top=True)
+        self._edge_left = _trim_metal_outer_fringe(edge_left, left=True)
+        self._edge_right = _trim_metal_outer_fringe(edge_right, right=True)
+        tl_src, tr_src, _bl_src, _br_src = _metal_corner_orientations(
+            _load_bundled_pixmap(_METAL_CORNER_NAME)
         )
         self._tl = _scaled_corner(
-            _trim_metal_outer_fringe(
-                _load_bundled_pixmap(_METAL_CORNER_TL_NAME), left=True, top=True
-            ),
+            _trim_metal_outer_fringe(tl_src, left=True, top=True),
             _METAL_CORNER_DRAW,
         )
         self._tr = _scaled_corner(
-            _trim_metal_outer_fringe(
-                _load_bundled_pixmap(_METAL_CORNER_TR_NAME), right=True, top=True
-            ),
+            _trim_metal_outer_fringe(tr_src, right=True, top=True),
             _METAL_CORNER_DRAW,
         )
 
@@ -1024,23 +1065,33 @@ class FolderFrameStroke(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
         hang = _METAL_CORNER_HANG
-        cw = max(self._tl.width(), self._tr.width(), 1)
-        ch = max(self._tl.height(), self._tr.height(), 1)
+        join = _METAL_ARM_JOIN
+        tl_w = max(self._tl.width(), 1)
+        tl_h = max(self._tl.height(), 1)
+        tr_w = max(self._tr.width(), 1)
+        tr_h = max(self._tr.height(), 1)
         ew = _METAL_EDGE_DRAW
         eh = _METAL_EDGE_DRAW
-        # Rails tuck under the corner arms so the join is the rivet, not a seam.
-        overlap = min(8, cw // 3, ch // 3)
 
+        tl_pos = QPoint(box.x() - hang, box.y() - hang)
+        tr_pos = QPoint(
+            box.x() + box.width() - tr_w + hang,
+            box.y() - hang,
+        )
+
+        # Tiled edges span between corner arm tips (not under cropped stubs).
+        top_x0 = tl_pos.x() + tl_w - join
+        top_x1 = tr_pos.x() + join
         top = QRect(
-            box.x() + cw - overlap,
+            top_x0,
             box.y() - 1,
-            max(1, box.width() - 2 * (cw - overlap)),
+            max(1, top_x1 - top_x0),
             eh,
         )
 
-        # Rails run from the TL/TR arms down to the solid banner bar, then tuck
-        # under the opaque strip. Banner PNG is raised above this overlay.
-        side_top = box.y() + ch - overlap
+        # Rails run from the TL/TR vertical arm tips down to the solid banner
+        # bar, then tuck under the opaque strip. Banner PNG is raised above.
+        side_top = max(tl_pos.y() + tl_h, tr_pos.y() + tr_h) - join
         side_stop = box.y() + box.height()
         banner = getattr(self._host, "_nav_bottom_banner", None)
         if banner is not None and banner.height() > 0:
@@ -1050,11 +1101,6 @@ class FolderFrameStroke(QWidget):
         side_h = max(1, side_stop - side_top)
         left = QRect(box.x() - 1, side_top, ew, side_h)
         right = QRect(box.x() + box.width() - ew + 1, side_top, ew, side_h)
-        tl_pos = QPoint(box.x() - hang, box.y() - hang)
-        tr_pos = QPoint(
-            box.x() + box.width() - self._tr.width() + hang,
-            box.y() - hang,
-        )
 
         # Floor first — U-band under and slightly outside the metal. No pen.
         # Side bands stop at side_stop; spike valleys use the under-banner fill.
