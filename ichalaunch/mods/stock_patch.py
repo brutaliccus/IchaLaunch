@@ -7,6 +7,7 @@ separate, explicit download from the share host — never started silently.
 
 from __future__ import annotations
 
+import os
 import shutil
 import tempfile
 from dataclasses import dataclass
@@ -222,7 +223,17 @@ def reacquire_stock_patch9(
     source = stock_patch9_source(url)
     source["expected_size"] = expected
 
-    with tempfile.TemporaryDirectory(prefix="ichalaunch-patch9-") as td:
+    # Stage inside Data/ so the final swap is a same-filesystem rename rather
+    # than a ~483 MiB copy. Also keeps the download off /tmp, which is tmpfs
+    # (i.e. RAM) on most Linux setups.
+    try:
+        staging_dir: str | None = str(dest.parent)
+    except Exception:  # pragma: no cover - defensive
+        staging_dir = None
+
+    with tempfile.TemporaryDirectory(
+        prefix="ichalaunch-patch9-", dir=staging_dir
+    ) as td:
         work = Path(td)
         artifact = _download_source(source, work, progress)
         if not isinstance(artifact, Path) or not artifact.is_file():
@@ -238,8 +249,32 @@ def reacquire_stock_patch9(
             )
         if dest.exists():
             ensure_data_writable(dest, game)
-            dest.unlink()
-        shutil.copy2(artifact, dest)
+        # Atomic swap: the old patch survives until the new one is fully in
+        # place. os.replace() is atomic on the same filesystem, so a crash or a
+        # full disk can no longer leave a truncated patch-9 behind -- which is
+        # the exact state the Reacquire button exists to repair.
+        try:
+            os.replace(artifact, dest)
+        except OSError:
+            # Different filesystem (e.g. staging fell back to the default
+            # tempdir): stage beside the destination, then swap.
+            part = dest.with_name(dest.name + ".part")
+            try:
+                if part.exists():
+                    part.unlink()
+                shutil.copy2(artifact, part)
+                staged = part.stat().st_size
+                if staged != got:
+                    raise RuntimeError(
+                        f"Staged patch-9 is {staged} bytes; expected {got}"
+                    )
+                os.replace(part, dest)
+            finally:
+                if part.exists():
+                    try:
+                        part.unlink()
+                    except OSError:
+                        pass
         ensure_data_writable(dest, game)
         invalidate_dir_listing(dest.parent)
         log.info("Reacquired official %s (%s bytes) -> %s", dest.name, got, dest)
