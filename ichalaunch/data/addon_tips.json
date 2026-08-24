@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-24T02:21:15Z",
+  "generated_at": "2026-08-24T03:50:28Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -6378,9 +6378,9 @@
     },
     "brues-code/auctionquerythrottle": {
       "default_branch": "main",
-      "sha": "2006eb7a213613513333a03403cddfa53cc0853c",
+      "sha": "f32d23adf16daf4bf209b2a3a7a077406bd08b54",
       "branches": {
-        "main": "2006eb7a213613513333a03403cddfa53cc0853c"
+        "main": "f32d23adf16daf4bf209b2a3a7a077406bd08b54"
       },
       "latest_tag": "v1.1.0"
     },
