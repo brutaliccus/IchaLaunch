@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-24T14:37:47Z",
+  "generated_at": "2026-08-24T15:36:43Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -6386,9 +6386,9 @@
     },
     "brues-code/classicapi": {
       "default_branch": "master",
-      "sha": "a2d25cef8b8c6b8a397110703e971073736ea54d",
+      "sha": "7f52afeef4068e79725f46ba1ee4b3c9019d8c64",
       "branches": {
-        "master": "a2d25cef8b8c6b8a397110703e971073736ea54d"
+        "master": "7f52afeef4068e79725f46ba1ee4b3c9019d8c64"
       },
       "latest_tag": "v1.12.2"
     },
