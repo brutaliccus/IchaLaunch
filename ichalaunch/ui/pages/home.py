@@ -345,12 +345,10 @@ class HomePage(QWidget):
         self._set_chrome_visible(True)
 
         # Z-order (back → front on Root):
-        #   art → MoA → bottom mist → metal stroke → portrait frame → banner
-        #   → −/X → RC crest
-        # Art stays under the metal stroke. Banner PNG stays above metal/portrait
-        # so rails tuck under the solid bar. Do not leave bottom_bar last.
-        self.talent_bg.raise_()
-        self.logo.raise_()
+        #   bottom mist → under-banner fill → art → MoA → metal → portrait →
+        #   banner → −/X → RC crest
+        # Art above underfill is handled in MainWindow._position_frame_stroke so
+        # banner-tuck shows through the PNG top pad. Do not leave bottom_bar last.
         if isinstance(bottom_bar, QWidget):
             bottom_bar.raise_()
         if banner is not None:
@@ -359,6 +357,11 @@ class HomePage(QWidget):
         if callable(pos_frame):
             pos_frame()
         else:
+            under = getattr(win, "_banner_underfill", None)
+            if isinstance(under, QWidget):
+                under.raise_()
+            self.talent_bg.raise_()
+            self.logo.raise_()
             stroke = getattr(win, "_frame_stroke", None)
             if isinstance(stroke, QWidget):
                 stroke.raise_()

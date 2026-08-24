@@ -1737,6 +1737,15 @@ class MainWindow(QMainWindow):
             under.show()
             under.update()
             under.raise_()
+        # HOME rotating art tucks under the banner; keep it above underfill so
+        # the tuck shows through the PNG top pad (else floor fill reads as a gap).
+        home = getattr(self, "home", None)
+        talent = getattr(home, "talent_bg", None) if home is not None else None
+        if isinstance(talent, QWidget) and talent.isVisible():
+            talent.raise_()
+            moa = getattr(home, "logo", None)
+            if isinstance(moa, QWidget) and moa.isVisible():
+                moa.raise_()
         stroke.raise_()
         portrait = getattr(self, "_portrait_frame", None)
         if portrait is not None:
