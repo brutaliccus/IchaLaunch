@@ -16,7 +16,7 @@ _HOOK_DLL = "SuperWoWhook.dll"
 _SUPERAPI_FOLDER = "SuperAPI"
 _HOOK_MIN_BYTES = 200_000
 
-SUPERWOW_TROUBLESHOOT_TITLE = "Broken talents after SuperWoW via IchaLaunch"
+SUPERWOW_TROUBLESHOOT_TITLE = "SuperWoW install issue"
 
 SUPERWOW_TROUBLESHOOT_BODY = (
     "This usually means Windows Security blocked or damaged SuperWoWhook.dll "

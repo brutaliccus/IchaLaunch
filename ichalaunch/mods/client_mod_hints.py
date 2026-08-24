@@ -29,7 +29,7 @@ def dll_security_exclusion_message(game_folder: str) -> str:
         "etc.) copy hook files into your game folder and register them in dlls.txt.\n\n"
         "Windows Defender often blocks or quarantines these DLLs during install — "
         "especially in Downloads, Desktop, or Documents. That can leave a broken "
-        "install (crashes, broken talents, mods that won't turn off).\n\n"
+        "install (crashes, mods that won't turn off).\n\n"
         "Before you Apply or Play, add your game folder as a Windows Security "
         "exclusion:\n"
         "1. Open Settings → Privacy & security → Windows Security\n"

@@ -749,6 +749,14 @@ def test_mod_toggle_resolution():
         s.set("user_set_mods", [])
         env = resolve_mod_toggle("hd_patch_b", True)
         assert env.get("hd_patch_d") and env.get("hd_patch_e") and env.get("vanilla_helpers")
+        # Patch-E lists Fog Pushback as an include — not Pretty Night Sky / Epoch Water.
+        assert env.get("fog_pushback") is True
+        assert env.get("vanilla_tweaks") is True  # fog dependency
+        assert env.get("pretty_night_sky") is not True
+        assert env.get("epoch_water") is not True
+        e_only = resolve_mod_toggle("hd_patch_e", True)
+        assert e_only.get("fog_pushback") is True
+        assert e_only.get("pretty_night_sky") is not True
         apply_mod_toggle("hd_patch_l", True)
         swap_l = resolve_mod_toggle("hd_patch_l_less_thicc", True)
         assert swap_l.get("hd_patch_l") is False and swap_l.get("hd_patch_l_less_thicc") is True
@@ -769,6 +777,39 @@ def test_mod_toggle_resolution():
             s.set(k, saved[k])
     print("OK mod toggle deps/conflicts")
 
+
+def test_hd_patch_e_includes_caption():
+    """Patch-E advertises Fog Pushback; Pretty Night Sky must not claim Patch-E."""
+    from ichalaunch.mods.installer import get_mod, mod_contains_caption, mod_includes_caption
+
+    e = get_mod("hd_patch_e")
+    assert e is not None
+    assert "fog_pushback" in (e.get("includes") or [])
+    assert "pretty_night_sky" not in (e.get("includes") or [])
+    caption = mod_includes_caption(e)
+    assert "Fog Pushback" in caption
+    assert "Pretty Night" not in caption
+    contains = mod_contains_caption(e)
+    assert "Environment" in contains
+    assert "Fog Pushback" in contains
+
+    a = get_mod("hd_patch_a")
+    assert "Characters & NPCs" in mod_contains_caption(a)
+
+    sky = get_mod("pretty_night_sky")
+    assert sky is not None
+    desc = (sky.get("description") or "").lower()
+    assert "bundled in" not in desc
+    assert "also bundled" not in desc
+    assert "standalone" in desc
+    assert "not included" in desc
+
+    water = get_mod("epoch_water")
+    assert water is not None
+    wdesc = (water.get("description") or "").lower()
+    assert "also included" not in wdesc
+    assert "standalone" in wdesc
+    print("OK hd patch-e includes caption")
 
 def test_mod_author_labels():
     from ichalaunch.ui.widgets.common import mod_author
@@ -5007,6 +5048,7 @@ def _run_smoke_tests():
     test_stock_patch9_reacquire_detect()
     test_darker_nights_migration()
     test_mod_toggle_resolution()
+    test_hd_patch_e_includes_caption()
     test_mod_author_labels()
     test_vanillafixes_dxvk_reconcile()
     test_dxvk_detect_plan_clean()

@@ -653,6 +653,7 @@ class Card(QFrame):
 class ModCheckRow(QWidget):
     """Compact row: [checkbox] Name [▸ desc] — status [Update] [Open in Git] [Reinstall].
     Description stays collapsed behind the caret until expanded.
+    Optional *contains* line (e.g. bundled companions) stays visible beneath the title.
     """
     toggled = Signal(str, bool)
     update_clicked = Signal(str)
@@ -666,6 +667,7 @@ class ModCheckRow(QWidget):
         checked: bool = False,
         *,
         author: str | None = None,
+        contains: str | None = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -742,11 +744,22 @@ class ModCheckRow(QWidget):
         row.addWidget(self.update_btn, 0, Qt.AlignmentFlag.AlignVCenter)
         row.addWidget(self.open_git_btn, 0, Qt.AlignmentFlag.AlignVCenter)
         row.addWidget(self.reinstall_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.contains_lbl = QLabel(self)
+        self.contains_lbl.setObjectName("Muted")
+        self.contains_lbl.setWordWrap(True)
+        contains_text = (contains or "").strip()
+        if contains_text:
+            self.contains_lbl.setText(contains_text)
+            self.contains_lbl.setVisible(True)
+        else:
+            self.contains_lbl.clear()
+            self.contains_lbl.setVisible(False)
         self.desc_lbl = QLabel(self)
         self.desc_lbl.setObjectName("Muted")
         self.desc_lbl.setWordWrap(True)
         self.desc_lbl.setVisible(False)
         outer.addLayout(row)
+        outer.addWidget(self.contains_lbl)
         outer.addWidget(self.desc_lbl)
     def _toggle_desc(self) -> None:
         self._desc_expanded = not self._desc_expanded

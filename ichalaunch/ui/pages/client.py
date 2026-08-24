@@ -26,6 +26,7 @@ from ichalaunch.mods.installer import (
     detect_actual_state,
     get_mod,
     load_mod_catalog,
+    mod_contains_caption,
     plan_changes,
     reconcile_exclusive_desired_mods,
     vanillafixes_dxvk_both_enabled,
@@ -69,6 +70,10 @@ CATEGORY_ORDER = [
     "Custom",
 ]
 
+# Title / plan / update-status share this extra left pad (page already has 16).
+# Settings uses 24; 16+8 matches that and sits clear of the ~20px metal rail.
+_HEADER_LEFT_INSET = 8
+
 
 class ClientPage(QWidget):
     apply_clicked = Signal()
@@ -94,6 +99,7 @@ class ClientPage(QWidget):
         title = QLabel("Client Fixes, Tweaks & Patches")
         title.setObjectName("SectionTitle")
         title.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        title.setContentsMargins(_HEADER_LEFT_INSET, 0, 0, 0)
         root.addWidget(title)
 
         self._patch9_host = QWidget()
@@ -123,7 +129,7 @@ class ClientPage(QWidget):
             QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed
         )
         status_l = QVBoxLayout(self._status_host)
-        status_l.setContentsMargins(0, 0, 0, 0)
+        status_l.setContentsMargins(_HEADER_LEFT_INSET, 0, 0, 0)
         status_l.setSpacing(4)
 
         self.loading_row = QHBoxLayout()
@@ -207,6 +213,7 @@ class ClientPage(QWidget):
         self.plan_lbl = QLabel("")
         self.plan_lbl.setObjectName("Muted")
         self.plan_lbl.setWordWrap(True)
+        self.plan_lbl.setContentsMargins(_HEADER_LEFT_INSET, 0, 0, 0)
         root.addWidget(self.plan_lbl)
 
         # Actions sit at the bottom near the play bar (avoids MoA logo collision)
@@ -316,12 +323,14 @@ class ClientPage(QWidget):
             cat = "Custom"
         else:
             cat = mod.get("category") or "Client Enhancements"
+        contains_text = mod_contains_caption(mod)
         row = ModCheckRow(
             mid,
             mod["name"],
             desc,
             checked=bool(settings.desired_mods.get(mid, False)),
             author=mod_author(mod),
+            contains=contains_text or None,
             parent=host_l.parentWidget() if host_l is not None else self,
         )
         row.toggled.connect(self._on_toggle)
@@ -335,6 +344,7 @@ class ClientPage(QWidget):
             "description": str(mod.get("description") or ""),
             "note": str(mod.get("note") or ""),
             "author": str(mod_author(mod) or ""),
+            "includes": contains_text,
         }
         layout = host_l or self._cat_hosts.get(cat)
         if layout is not None:
@@ -420,6 +430,7 @@ class ClientPage(QWidget):
                         str(meta.get("description") or ""),
                         str(meta.get("note") or ""),
                         str(meta.get("author") or ""),
+                        str(meta.get("includes") or ""),
                     ]
                 ).lower()
                 hit = (not q) or q in hay

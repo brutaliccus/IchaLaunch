@@ -186,7 +186,7 @@ Run **`IchaLaunch.exe` natively on Windows 10/11** — not under Proton/Wine. In
 **Windows Defender / Controlled Folder Access blocks VanillaFixes or DLL mods**  
 Allow `IchaLaunch.exe`, `VanillaFixes.exe`, and `WoW.exe`, or move the game out of a protected folder. Use **Check Game Permissions** in Settings.
 
-### Broken talents after SuperWoW via IchaLaunch
+### SuperWoW install issues / Windows Security
 
 This usually means Windows Security blocked or damaged `SuperWoWhook.dll` during install, or the **SuperAPI** companion addon was left behind when turning the mod off.
 

@@ -47,7 +47,8 @@ _ART_TOP_PAD_PX = 8
 _ART_SIDE_INSET_PX = 2
 _ART_BOTTOM_INSET_PX = 0
 # Hide the hard art / black fringe under the grey banner bar (not into spike valleys).
-_ART_BANNER_TUCK_PX = 8
+# A few extra px closes the visible gap so rotating art meets the nav banner.
+_ART_BANNER_TUCK_PX = 12
 # MoA wordmark prefer width, centered along the art bottom.
 _MOA_ART_LOGO_W = 190  # ~5% under prior 200px prefer width
 # Pad from art bottom for the MoA wordmark.

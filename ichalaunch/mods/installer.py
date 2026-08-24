@@ -561,6 +561,57 @@ def _collect_mod_dependents(
     return ordered
 
 
+def _collect_mod_includes(
+    mod_id: str,
+    catalog: dict[str, dict[str, Any]],
+    seen: set[str] | None = None,
+) -> list[str]:
+    """Return included companion mod ids (and their includes) for *mod_id*."""
+    if seen is None:
+        seen = set()
+    if mod_id in seen or mod_id not in catalog:
+        return []
+    seen.add(mod_id)
+    ordered: list[str] = []
+    for inc in catalog[mod_id].get("includes") or []:
+        if inc not in catalog or inc in seen:
+            continue
+        ordered.extend(_collect_mod_includes(inc, catalog, seen))
+        ordered.append(inc)
+    return ordered
+
+
+def mod_includes_caption(mod: dict[str, Any] | None, catalog: dict[str, dict[str, Any]] | None = None) -> str:
+    """Human-readable 'Includes: …' line for catalog companions listed on *mod*."""
+    if not mod:
+        return ""
+    ids = [str(x) for x in (mod.get("includes") or []) if x]
+    if not ids:
+        return ""
+    cat = catalog if catalog is not None else mod_catalog_map()
+    names: list[str] = []
+    for mid in ids:
+        entry = cat.get(mid) or {}
+        names.append(str(entry.get("name") or mid))
+    return f"Includes: {', '.join(names)}"
+
+
+def mod_contains_caption(mod: dict[str, Any] | None, catalog: dict[str, dict[str, Any]] | None = None) -> str:
+    """Subtitle beneath a client mod row: pack contents and/or bundled companions."""
+    if not mod:
+        return ""
+    parts: list[str] = []
+    mid = str(mod.get("id") or "")
+    name = str(mod.get("name") or "")
+    if mid.startswith(_HD_PATCH_PREFIX) and "(" in name and name.rstrip().endswith(")"):
+        inner = name[name.rfind("(") + 1 : name.rfind(")")].strip()
+        if inner:
+            parts.append(inner)
+    includes = mod_includes_caption(mod, catalog)
+    if includes:
+        parts.append(includes)
+    return " · ".join(parts)
+
 def resolve_mod_toggle(mod_id: str, enabled: bool) -> dict[str, bool]:
     """Compute desired-state changes for a user toggle (deps, conflicts, dependents)."""
     catalog = mod_catalog_map()
@@ -575,6 +626,15 @@ def resolve_mod_toggle(mod_id: str, enabled: bool) -> dict[str, bool]:
             return changes[mid]
         return bool(desired.get(mid, False))
 
+    def enable_with_deps(mid: str) -> None:
+        for dep in _collect_mod_dependencies(mid, catalog):
+            changes[dep] = True
+        changes[mid] = True
+
+    def enable_includes_for(mid: str) -> None:
+        for inc in _collect_mod_includes(mid, catalog):
+            enable_with_deps(inc)
+
     def disable_branch(mid: str, seen: set[str]) -> None:
         if mid in seen or mid not in catalog:
             return
@@ -586,9 +646,11 @@ def resolve_mod_toggle(mod_id: str, enabled: bool) -> dict[str, bool]:
         changes[mid] = False
 
     if enabled:
-        for dep in _collect_mod_dependencies(mod_id, catalog):
-            changes[dep] = True
-        changes[mod_id] = True
+        enable_with_deps(mod_id)
+        # Bundled companions (e.g. Fog Pushback with Patch-E) — not hard deps.
+        for mid in list(changes):
+            if changes.get(mid):
+                enable_includes_for(mid)
         for mid in list(changes):
             if not changes.get(mid):
                 continue
@@ -600,6 +662,7 @@ def resolve_mod_toggle(mod_id: str, enabled: bool) -> dict[str, bool]:
                 continue
             for dep in _collect_mod_dependencies(mid, catalog):
                 changes[dep] = True
+            enable_includes_for(mid)
     else:
         if mod_id == _VANILLA_HELPERS_ID and _any_hd_patch_desired(
             {**desired, **changes}
