@@ -1357,10 +1357,22 @@ def _download_source(source: dict[str, Any], work: Path, progress: ProgressCb | 
         if not source.get("timeout") and filename.lower().endswith(".mpq"):
             # HD patches are multi-GB; allow slower links between read chunks.
             file_timeout = (30, 600)
+        try:
+            known_total = int(source.get("expected_size") or 0)
+        except (TypeError, ValueError):
+            known_total = 0
         if _looks_like_zip(filename, stype):
-            return download_bytes(url, progress=bytes_cb, timeout=timeout)
+            return download_bytes(
+                url, progress=bytes_cb, timeout=timeout, known_total=known_total
+            )
         dest = work / filename
-        download_file(url, dest, progress=bytes_cb, timeout=file_timeout)
+        download_file(
+            url,
+            dest,
+            progress=bytes_cb,
+            timeout=file_timeout,
+            known_total=known_total,
+        )
         return dest
     if stype == "github_release_latest":
         repo = source["repo"]

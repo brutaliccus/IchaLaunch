@@ -520,6 +520,98 @@ def test_stock_patch9_collision_migration():
     print("OK stock patch-9 collision migration")
 
 
+def test_stock_patch9_reacquire_detect():
+    """Missing or undersized official patch-9 offers reacquire; healthy size does not."""
+    from ichalaunch.mods import installer as installer_mod
+    from ichalaunch.mods.stock_patch import (
+        STOCK_PATCH9_EXPECTED_SIZE,
+        STOCK_PATCH9_MIN_BYTES,
+        classify_stock_patch9,
+        inspect_stock_patch9,
+        patch9_url_from_index_html,
+        reacquire_stock_patch9,
+        resolve_stock_patch9_url,
+        should_offer_stock_patch9_reacquire,
+        stock_patch9_size_floor,
+    )
+
+    assert classify_stock_patch9(False, 0) == "missing"
+    assert classify_stock_patch9(True, 1024) == "too_small"
+    assert classify_stock_patch9(True, STOCK_PATCH9_MIN_BYTES - 1) == "too_small"
+    assert classify_stock_patch9(True, STOCK_PATCH9_MIN_BYTES) == "ok"
+    assert classify_stock_patch9(True, STOCK_PATCH9_EXPECTED_SIZE) == "ok"
+    assert classify_stock_patch9(True, STOCK_PATCH9_EXPECTED_SIZE + 4096) == "ok"
+    floor = stock_patch9_size_floor()
+    assert 400 * 1024 * 1024 <= floor <= STOCK_PATCH9_EXPECTED_SIZE
+
+    html = (
+        '<a href="patch-9.mpq">patch-9.mpq</a> 483.2 MB'
+    )
+    url = patch9_url_from_index_html(html, "https://share.ichasarmory.quest/")
+    assert url == "https://share.ichasarmory.quest/patch-9.mpq"
+    evil = patch9_url_from_index_html(
+        '<a href="https://evil.example/patch-9.mpq">x</a>',
+        "https://share.ichasarmory.quest/",
+    )
+    assert evil is None
+    fallback = resolve_stock_patch9_url(html="<html>no file here</html>")
+    assert fallback == "https://share.ichasarmory.quest/patch-9.mpq"
+
+    orig_dl = installer_mod._download_source
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            data = game / "Data"
+            data.mkdir()
+
+            missing = inspect_stock_patch9(game)
+            assert missing.state == "missing"
+            assert should_offer_stock_patch9_reacquire(missing)
+
+            stub = data / "patch-9.mpq"
+            stub.write_bytes(b"MPQ" + b"\0" * 200)
+            tiny = inspect_stock_patch9(game)
+            assert tiny.state == "too_small"
+            assert should_offer_stock_patch9_reacquire(tiny)
+
+            healthy_bytes = b"MPQ" + b"H" * 500
+            stub.write_bytes(healthy_bytes)
+            ok = inspect_stock_patch9(game, expected_size=400, min_bytes=400)
+            assert ok.state == "ok"
+            assert not should_offer_stock_patch9_reacquire(ok)
+
+            def fake_dl(source, work, progress=None):
+                assert "share.ichasarmory.quest" in str(source.get("url") or "")
+                out = Path(work) / "patch-9.mpq"
+                out.write_bytes(b"MPQ" + b"N" * 500)
+                return out
+
+            installer_mod._download_source = fake_dl
+            stub.write_bytes(b"STUB")
+            dest = reacquire_stock_patch9(
+                game, expected_size=400, min_bytes=400,
+                download_url="https://share.ichasarmory.quest/patch-9.mpq",
+            )
+            assert dest.is_file()
+            assert dest.read_bytes().startswith(b"MPQ")
+            assert dest.stat().st_size > 400
+            assert stub.read_bytes() != b"STUB"
+
+            try:
+                reacquire_stock_patch9(
+                    game, expected_size=400, min_bytes=400,
+                    download_url="https://share.ichasarmory.quest/patch-9.mpq",
+                )
+                raise AssertionError("must not clobber a healthy-sized patch-9")
+            except RuntimeError as exc:
+                assert "complete" in str(exc).lower()
+            assert dest.read_bytes().startswith(b"MPQ")
+    finally:
+        installer_mod._download_source = orig_dl
+    print("OK stock patch-9 reacquire detect")
+
+
 def test_darker_nights_migration():
     """Legacy darker_nights settings migrate to hd_patch_n on load."""
     from ichalaunch.config.settings import migrate_legacy_mod_ids
@@ -4512,6 +4604,7 @@ def _run_smoke_tests():
     test_mod_remove_desired_state()
     test_stock_patch9_not_owned_by_pretty_night_sky()
     test_stock_patch9_collision_migration()
+    test_stock_patch9_reacquire_detect()
     test_darker_nights_migration()
     test_mod_toggle_resolution()
     test_mod_author_labels()

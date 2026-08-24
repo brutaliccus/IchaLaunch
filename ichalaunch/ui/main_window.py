@@ -1583,6 +1583,7 @@ class MainWindow(QMainWindow):
         self.client.check_updates_requested.connect(self._check_mod_updates)
         self.client.update_mod_requested.connect(self._update_client_mod)
         self.client.reinstall_mod_requested.connect(self._reinstall_client_mod)
+        self.client.reacquire_patch9_requested.connect(self._reacquire_stock_patch9)
         self.client.update_all_mods_requested.connect(self._update_all_client_mods)
         self.client.custom_dll_import_requested.connect(self._custom_dll_import)
         self.addons.install_requested.connect(self._install_catalog_addon)
@@ -3671,6 +3672,20 @@ class MainWindow(QMainWindow):
         worker = Worker(update_mod, mod_id)
         worker.failed.connect(on_fail)
         self._busy(f"Reinstalling {mod_id}…", worker, on_ok=on_ok)
+
+    def _reacquire_stock_patch9(self) -> None:
+        """User-triggered download of official Data/patch-9.mpq (~500 MB)."""
+        from ichalaunch.mods.stock_patch import reacquire_stock_patch9
+
+        if not is_installed():
+            themed.warning(self, "No game", "Set a valid game path first.")
+            return
+
+        def on_ok(_result):
+            self.status_lbl.setText("Reacquired official patch-9")
+
+        worker = Worker(reacquire_stock_patch9, force=True)
+        self._busy("Reacquiring patch-9…", worker, on_ok=on_ok)
 
     def _open_mod_git(self, mod_id: str) -> None:
         from ichalaunch.mods.installer import load_mod_catalog

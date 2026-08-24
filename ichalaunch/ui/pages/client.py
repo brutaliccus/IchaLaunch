@@ -30,6 +30,11 @@ from ichalaunch.mods.installer import (
     reconcile_exclusive_desired_mods,
     vanillafixes_dxvk_both_enabled,
 )
+from ichalaunch.mods.stock_patch import (
+    STOCK_PATCH9_BANNER_TEXT,
+    inspect_stock_patch9,
+    should_offer_stock_patch9_reacquire,
+)
 from ichalaunch.mods.superwow_support import (
     SuperWoWTrigger,
     detect_superwow_issues,
@@ -52,7 +57,7 @@ from ichalaunch.ui.widgets.dialogs import (
     mpq_patch_warning_dialog,
     warning,
 )
-from ichalaunch.ui.widgets.glue_panel_button import GluePanelButton
+from ichalaunch.ui.widgets.glue_panel_button import GLUE_BTN_H, GluePanelButton
 from ichalaunch.ui.widgets.marble_bg import MarblePanel, MarbleScrollArea
 from ichalaunch.ui.widgets.update_alert_badge import BadgeNavButton
 
@@ -73,6 +78,7 @@ class ClientPage(QWidget):
     reinstall_mod_requested = Signal(str)
     update_all_mods_requested = Signal()
     custom_dll_import_requested = Signal(str)
+    reacquire_patch9_requested = Signal()
     badge_state_changed = Signal()
     open_git_requested = Signal(str)
 
@@ -89,6 +95,28 @@ class ClientPage(QWidget):
         title.setObjectName("SectionTitle")
         title.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         root.addWidget(title)
+
+        self._patch9_host = QWidget()
+        self._patch9_host.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed
+        )
+        patch9_l = QHBoxLayout(self._patch9_host)
+        patch9_l.setContentsMargins(0, 0, 0, 0)
+        patch9_l.setSpacing(8)
+        self.patch9_lbl = QLabel(STOCK_PATCH9_BANNER_TEXT)
+        self.patch9_lbl.setStyleSheet("color: #F1C22D;")
+        self.patch9_lbl.setWordWrap(True)
+        self.reacquire_patch9_btn = GluePanelButton(
+            "Reacquire patch-9", role="primary", width=148, height=GLUE_BTN_H
+        )
+        self.reacquire_patch9_btn.setToolTip(
+            "Download official Data/patch-9.mpq (~500 MB) into the client folder"
+        )
+        self.reacquire_patch9_btn.clicked.connect(self.reacquire_patch9_requested.emit)
+        patch9_l.addWidget(self.patch9_lbl, 1)
+        patch9_l.addWidget(self.reacquire_patch9_btn, 0)
+        self._patch9_host.hide()
+        root.addWidget(self._patch9_host)
 
         self._status_host = QWidget()
         self._status_host.setSizePolicy(
@@ -150,6 +178,7 @@ class ClientPage(QWidget):
         self._search_q = ""
         self._vf_dxvk_prompted = False
         self._dxvk_gpu_warned = False
+        self._patch9_prompted = False
 
         by_cat: dict[str, list] = {}
         for mod in load_mod_catalog():
@@ -497,6 +526,7 @@ class ClientPage(QWidget):
         super().showEvent(event)
         self._reveal_rows(kick=True)
         QTimer.singleShot(0, self._maybe_prompt_vf_dxvk_conflict)
+        QTimer.singleShot(0, self._maybe_prompt_stock_patch9)
 
     def _maybe_prompt_vf_dxvk_conflict(self) -> None:
         if self._vf_dxvk_prompted or not vanillafixes_dxvk_both_enabled():
@@ -624,6 +654,40 @@ class ClientPage(QWidget):
             if issues:
                 maybe_show_superwow_troubleshoot(self, SuperWoWTrigger.CLIENT_DRIFT, issues=issues)
 
+    def _refresh_patch9_banner(self) -> None:
+        game = detect_game()
+        status = inspect_stock_patch9(game) if game else None
+        if should_offer_stock_patch9_reacquire(status):
+            self.patch9_lbl.setText(STOCK_PATCH9_BANNER_TEXT)
+            self._patch9_host.show()
+        else:
+            self._patch9_host.hide()
+
+    def _maybe_prompt_stock_patch9(self) -> None:
+        if self._patch9_prompted:
+            return
+        game = detect_game()
+        if not game:
+            return
+        status = inspect_stock_patch9(game)
+        if not should_offer_stock_patch9_reacquire(status):
+            return
+        self._patch9_prompted = True
+        self._refresh_patch9_banner()
+        result = choice(
+            self,
+            "Patch-9 missing or incomplete",
+            "Patch-9 is missing or incomplete.\n\n"
+            "Reacquire the official Data/patch-9.mpq (~500 MB) through the launcher?",
+            [
+                ("Later", DialogResult.No),
+                ("Reacquire", DialogResult.Yes),
+            ],
+            kind="warning",
+        )
+        if result == DialogResult.Yes:
+            self.reacquire_patch9_requested.emit()
+
     @staticmethod
     def _mod_can_reinstall(mod: dict) -> bool:
         """True when a downloadable source exists (same gate as update checks)."""
@@ -681,6 +745,7 @@ class ClientPage(QWidget):
         if vanillafixes_dxvk_both_enabled():
             QTimer.singleShot(0, self._maybe_prompt_vf_dxvk_conflict)
         QTimer.singleShot(0, self._maybe_superwow_client_drift)
+        self._refresh_patch9_banner()
         self._refresh_cat_badges()
 
     @staticmethod
