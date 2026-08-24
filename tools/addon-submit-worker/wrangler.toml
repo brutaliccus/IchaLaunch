@@ -1,0 +1,11 @@
+name = "ichalaunch-addon-submit"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+# Secrets (do not put tokens in this file):
+#   wrangler secret put GITHUB_TOKEN
+#   wrangler secret put GITHUB_REPO   # optional; default brutaliccus/IchaLaunch
+#
+# Or set vars for the repo only (token must stay a secret):
+# [vars]
+# GITHUB_REPO = "brutaliccus/IchaLaunch"

@@ -99,9 +99,73 @@ When VanillaFixes is installed and enabled in Settings, the launcher prefers `Va
 - Browse the Turtle WoW wiki **catalog**, search, and filter
 - **Install** from the catalog opens the **install picker** (fork, version, README preview)
 - **Add from GitHub** — paste any public addon repo with the same preview flow
+- **Suggest for catalog** — propose a public repo for the shared Available list (HTTPS POST to a maintainer endpoint; no GitHub login or token in the client)
 - **Settings** on an installed addon — change fork/version when a GitHub token is saved
 - **Update** / **Update All** when a newer version is available
 - Uncheck an addon to **unload** it (stays on disk; the game won't load it)
+
+### Catalog & tip index (live without a new build)
+
+The Available list comes from ``ichalaunch/data/addons.json`` on GitHub. Launchers
+fetch that file on startup/periodic update checks (15‑minute TTL), cache it under
+AppData, and fall back to the bundled copy when offline. New catalog entries appear
+after the file is merged to ``master`` — no launcher rebuild required.
+
+Each entry uses the same shape the UI expects, for example:
+
+```json
+{
+  "name": "MyAddon",
+  "repo": "https://github.com/owner/MyAddon",
+  "category": "General",
+  "description": "Short blurb",
+  "source": "turtle_wiki",
+  "folder": "MyAddon"
+}
+```
+
+Optional fields: ``pin_release``, ``updates`` (``false`` to skip auto-updates),
+``forks``, ``installable``.
+
+**To add an addon to the live Available list:** edit ``ichalaunch/data/addons.json``
+(or regenerate via ``tools/parse_wiki_addons.py``), commit, and merge to ``master``.
+Clients pick it up on their next catalog refresh. The hourly tip-index Action only
+rebuilds ``addon_tips.json`` tip SHAs from the catalog; it does not rewrite
+``addons.json``.
+
+### Suggest an addon for the catalog (in-app)
+
+Users stay in the launcher — no browser GitHub login, and **no credentials** are
+sent. **ADDONS → Suggest for catalog** (also mentioned when Available search has
+no hits) opens a themed form (repo URL required, name / category / description /
+optional folder). The client POSTs JSON to the built-in Cloudflare Worker
+(``https://ichalaunch-addon-submit.ichalaunch.workers.dev`` — see
+``ichalaunch/addons/submit.py``).
+
+The Worker holds a GitHub token as a **secret**, validates the payload,
+rate-limits, and opens an Issue on ``brutaliccus/IchaLaunch``. Spam stays as
+issues until a maintainer approves.
+
+**Approve a suggestion (maintainer):**
+
+1. Review the issue (repo exists, Turtle-compatible, category fits).
+2. Label the issue **`catalog-approved`**.
+3. The Action [``.github/workflows/catalog-approve.yml``](.github/workflows/catalog-approve.yml)
+   opens a draft PR that only adds the entry to ``ichalaunch/data/addons.json``
+   (``source: community``). It comments the PR link on the issue.
+4. **Merge the PR** — entry is on ``master``; clients pick it up on catalog refresh.
+5. Closing the issue alone does **not** update the catalog.
+
+**Maintainer setup (once):**
+
+1. Deploy the Worker (`cd tools/addon-submit-worker && wrangler deploy`)
+2. `wrangler secret put GITHUB_TOKEN` — fine-grained: **Issues: Read and write** on this repo
+3. `wrangler secret put GITHUB_REPO` → `brutaliccus/IchaLaunch`
+4. Keep ``ADDON_SUBMIT_URL`` in ``ichalaunch/addons/submit.py`` pointed at the
+   live Worker URL (clients ship this hardcoded; no Settings paste)
+5. Create the GitHub label ``catalog-approved`` on this repo (one-time)
+
+Full steps and example JSON: ``tools/addon-submit-worker/README.md``.
 
 ### GitHub token & addon scans
 
@@ -109,7 +173,7 @@ When VanillaFixes is installed and enabled in Settings, the launcher prefers `Va
 
 A token in **SETTINGS → GitHub API** is still optional and unlocks fork/version browsing plus README previews in the install picker. REST is only a fallback if git/Atom fail; that fallback is still paced at 60 requests/hour without a token.
 
-The tip index is rebuilt hourly on GitHub (addons + client mods). Launchers refresh their cached copy about once per hour when checking for updates.
+The tip index is rebuilt hourly on GitHub (addons + client mods). Launchers refresh their cached tip index and Available catalog about once per hour when checking for updates.
 
 To rebuild the bundled catalog tip index locally: ``python tools/build_addon_tips.py`` (``--limit 20`` for a short test run).
 

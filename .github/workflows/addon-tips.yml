@@ -1,5 +1,10 @@
 name: Refresh catalog tips
 
+# Hourly tip-SHA rebuild. The Available-addon catalog is ichalaunch/data/addons.json
+# on this branch (clients fetch it on periodic refresh). This job only refreshes
+# addon_tips.json tip SHAs from that catalog + mods.json — it must not overwrite
+# or strip catalog entries in addons.json.
+
 on:
   workflow_dispatch:
   schedule:

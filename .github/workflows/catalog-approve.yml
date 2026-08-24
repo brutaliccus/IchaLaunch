@@ -1,0 +1,131 @@
+name: Catalog approve → PR
+
+# When a maintainer labels a catalog suggestion issue `catalog-approved`,
+# open a PR that only adds the entry to ichalaunch/data/addons.json.
+# Merge that PR to put the addon on master (closing the issue alone does nothing).
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  open-catalog-pr:
+    if: github.event.label.name == 'catalog-approved'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Parse issue and update addons.json
+        id: catalog
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$ISSUE_BODY" > /tmp/issue-body.md
+          OUT=$(python tools/catalog_approve_from_issue.py --body-file /tmp/issue-body.md)
+          echo "$OUT"
+          SKIPPED=$(echo "$OUT" | python -c 'import json,sys; print(json.load(sys.stdin).get("skipped", False))')
+          REPO=$(echo "$OUT" | python -c 'import json,sys; print(json.load(sys.stdin).get("repo",""))')
+          OWNER=$(echo "$OUT" | python -c 'import json,sys; print(json.load(sys.stdin).get("owner",""))')
+          RNAME=$(echo "$OUT" | python -c 'import json,sys; print(json.load(sys.stdin).get("repo_name",""))')
+          REASON=$(echo "$OUT" | python -c 'import json,sys; print(json.load(sys.stdin).get("reason",""))')
+          SKIPPED_L=$(echo "$SKIPPED" | tr '[:upper:]' '[:lower:]')
+          echo "skipped=$SKIPPED_L" >> "$GITHUB_OUTPUT"
+          echo "repo=$REPO" >> "$GITHUB_OUTPUT"
+          echo "owner=$OWNER" >> "$GITHUB_OUTPUT"
+          echo "repo_name=$RNAME" >> "$GITHUB_OUTPUT"
+          echo "reason=$REASON" >> "$GITHUB_OUTPUT"
+          # Sanitize branch: lowercase alnum / . _ / - only
+          SAFE=$(echo "catalog/issue-${ISSUE_NUMBER}-${RNAME}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._/-]/-/g' | cut -c1-80)
+          echo "branch=$SAFE" >> "$GITHUB_OUTPUT"
+
+      - name: Comment — already in catalog
+        if: steps.catalog.outputs.skipped == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ steps.catalog.outputs.repo }}
+        run: |
+          gh issue comment "${{ github.event.issue.number }}" --body "$(cat <<EOF
+          Skipped: \`${REPO}\` is already present in \`ichalaunch/data/addons.json\`. No PR opened.
+          EOF
+          )"
+
+      - name: Create branch and draft PR
+        if: steps.catalog.outputs.skipped != 'true'
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ steps.catalog.outputs.branch }}
+          OWNER: ${{ steps.catalog.outputs.owner }}
+          RNAME: ${{ steps.catalog.outputs.repo_name }}
+          REPO_URL: ${{ steps.catalog.outputs.repo }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          TITLE="catalog: add ${OWNER}/${RNAME}"
+          # Reuse existing open PR for this branch if present
+          EXISTING=$(gh pr list --state open --head "$BRANCH" --json url --jq '.[0].url // empty')
+          if [ -n "$EXISTING" ]; then
+            echo "pr_url=$EXISTING" >> "$GITHUB_OUTPUT"
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add ichalaunch/data/addons.json
+          if git diff --cached --quiet; then
+            echo "No catalog changes to commit."
+            exit 1
+          fi
+          git commit -m "$(cat <<EOF
+          catalog: add ${OWNER}/${RNAME}
+
+          From issue #${ISSUE_NUMBER}.
+          EOF
+          )"
+          git push -u origin "$BRANCH" --force
+
+          PR_URL=$(gh pr create --draft \
+            --title "$TITLE" \
+            --body "$(cat <<EOF
+          ## Summary
+          - Adds [${OWNER}/${RNAME}](${REPO_URL}) to \`ichalaunch/data/addons.json\` (\`source: community\`).
+          - Opened from catalog suggestion issue #${ISSUE_NUMBER} (label \`catalog-approved\`).
+
+          ## Maintainer
+          - Review the entry, then **merge this PR** to publish on \`master\`.
+          - Closing the issue alone does not update the catalog.
+
+          Closes #${ISSUE_NUMBER}
+          EOF
+          )")
+          echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
+          echo "created=true" >> "$GITHUB_OUTPUT"
+
+      - name: Comment PR link on issue
+        if: steps.catalog.outputs.skipped != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ steps.pr.outputs.pr_url }}
+        run: |
+          gh issue comment "${{ github.event.issue.number }}" --body "$(cat <<EOF
+          Catalog PR opened: ${PR_URL}
+
+          Merge that PR to put the addon on \`master\`. Closing this issue alone does nothing.
+          EOF
+          )"
