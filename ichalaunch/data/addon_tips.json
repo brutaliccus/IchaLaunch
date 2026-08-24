@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-24T13:48:26Z",
+  "generated_at": "2026-08-24T14:37:47Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -6390,7 +6390,7 @@
       "branches": {
         "master": "a2d25cef8b8c6b8a397110703e971073736ea54d"
       },
-      "latest_tag": "v1.12.1"
+      "latest_tag": "v1.12.2"
     },
     "retrocro/turtlewow-mods": {
       "default_branch": "main",
