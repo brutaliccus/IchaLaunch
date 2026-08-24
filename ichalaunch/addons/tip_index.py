@@ -3,6 +3,9 @@
 The file is produced by ``tools/build_addon_tips.py`` from ``addons.json`` and
 ``mods.json``, then optionally published to GitHub. The launcher prefers a fresh
 remote copy, then an appdata cache, then a bundled copy next to ``addons.json``.
+
+The Available-addon *catalog* itself is a separate JSON (``addons.json``) refreshed
+by ``ichalaunch.addons.catalog`` on the same periodic update-check cadence.
 """
 
 from __future__ import annotations

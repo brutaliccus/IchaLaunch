@@ -2414,8 +2414,14 @@ def test_addon_toc_folder_rename():
     )
 
     clear_pending_toc_mismatches()
+    assert settings.auto_fix_addon_toc_mismatch() is True
     prev_addons = settings.installed_addons
+    prev_toc_fix = settings.get("auto_fix_addon_toc_mismatch", True)
     try:
+        settings.set_auto_fix_addon_toc_mismatch(False)
+        assert settings.auto_fix_addon_toc_mismatch() is False
+        settings.set_auto_fix_addon_toc_mismatch(True)
+        assert settings.auto_fix_addon_toc_mismatch() is True
         with tempfile.TemporaryDirectory() as tmp:
             addons = Path(tmp) / "AddOns"
             addons.mkdir()
@@ -2511,12 +2517,14 @@ def test_addon_toc_folder_rename():
             assert matching_toc_path(dest_install) is not None
     finally:
         settings.set("installed_addons", prev_addons)
+        settings.set("auto_fix_addon_toc_mismatch", prev_toc_fix)
         clear_pending_toc_mismatches()
     print("OK addon toc folder rename")
 
 
 def test_addon_update_check_uses_catalog_index_only():
     """Bulk addon checks compare the tip index and never probe GitHub per addon."""
+    from ichalaunch.addons import catalog as cat
     from ichalaunch.addons import github as gh
     from ichalaunch.addons import tip_index as tips
     from ichalaunch.addons.tip_index import clear_tip_index_cache, normalize_index
@@ -2540,6 +2548,7 @@ def test_addon_update_check_uses_catalog_index_only():
     orig_tip = gh.github_remote_tip
     orig_tag = gh.github_latest_version_tag
     orig_refresh = tips.refresh_tip_index
+    orig_cat_refresh = cat.refresh_catalog
 
     def boom(*_a, **_k):
         raise AssertionError("per-addon GitHub probe should not run")
@@ -2547,9 +2556,13 @@ def test_addon_update_check_uses_catalog_index_only():
     def fake_refresh(*, force: bool = False):
         return index
 
+    def fake_cat_refresh(*, force: bool = False):
+        return cat.load_bundled_catalog()
+
     try:
         tips._loaded = (0.0, index)
         tips.refresh_tip_index = fake_refresh
+        cat.refresh_catalog = fake_cat_refresh
         gh.github_remote_tip = boom
         gh.github_latest_version_tag = boom
         settings.set(
@@ -2568,15 +2581,154 @@ def test_addon_update_check_uses_catalog_index_only():
         assert result.checked_count == 1
         assert len(result.updates) == 1
         assert result.updates[0]["folder"] == "pfUI"
+        assert result.catalog_refreshed is True
     finally:
         gh.github_remote_tip = orig_tip
         gh.github_latest_version_tag = orig_tag
         tips.refresh_tip_index = orig_refresh
+        cat.refresh_catalog = orig_cat_refresh
         settings.set("installed_addons", prev_addons)
         tips._loaded = prev_loaded
         if prev_loaded is None:
             clear_tip_index_cache()
     print("OK addon update check uses catalog index only")
+
+
+def test_available_catalog_remote_refresh_and_merge():
+    """Remote Available catalog replaces on success; merge helper overlays by folder."""
+    import tempfile
+    from pathlib import Path
+
+    from ichalaunch.addons import catalog as cat
+
+    bundled = [
+        {
+            "name": "OldOne",
+            "folder": "OldOne",
+            "repo": "https://github.com/a/OldOne",
+            "category": "General",
+            "description": "bundled",
+            "source": "turtle_wiki",
+        },
+        {
+            "name": "Shared",
+            "folder": "Shared",
+            "repo": "https://github.com/a/Shared",
+            "category": "General",
+            "description": "bundled-shared",
+            "source": "turtle_wiki",
+        },
+    ]
+    remote = [
+        {
+            "name": "Shared",
+            "folder": "Shared",
+            "repo": "https://github.com/b/Shared",
+            "category": "Bags",
+            "description": "remote-shared",
+            "source": "turtle_wiki",
+        },
+        {
+            "name": "NewOne",
+            "folder": "NewOne",
+            "repo": "https://github.com/c/NewOne",
+            "category": "General",
+            "description": "new",
+            "source": "turtle_wiki",
+        },
+    ]
+
+    merged = cat.merge_catalog(bundled, remote)
+    by_folder = {e["folder"]: e for e in merged}
+    assert set(by_folder) == {"OldOne", "Shared", "NewOne"}
+    assert by_folder["Shared"]["repo"] == "https://github.com/b/Shared"
+    assert by_folder["Shared"]["description"] == "remote-shared"
+    assert by_folder["OldOne"]["description"] == "bundled"
+
+    prev = cat._loaded
+    orig_fetch = cat.fetch_remote_catalog
+    orig_cache_path = cat.catalog_cache_path
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_file = Path(tmp) / "addons_catalog.json"
+            cat.catalog_cache_path = lambda: cache_file
+            cat.clear_catalog_cache()
+
+            def fake_fetch(url=None):
+                return list(remote)
+
+            cat.fetch_remote_catalog = fake_fetch
+            entries = cat.refresh_catalog(force=True)
+            assert len(entries) == 2
+            assert {e["folder"] for e in entries} == {"Shared", "NewOne"}
+            assert cat.current_catalog_source() == "remote"
+            assert cat.load_catalog()[0]["folder"] in {"Shared", "NewOne"}
+            assert cache_file.is_file()
+
+            # Failed remote within TTL keeps the in-memory remote snapshot
+            cat.fetch_remote_catalog = lambda url=None: None
+            again = cat.refresh_catalog(force=False)
+            assert again == entries
+
+            # Force after failure: use appdata cache written earlier
+            cat.clear_catalog_cache()
+            from_cache = cat.refresh_catalog(force=True)
+            assert len(from_cache) == 2
+            assert cat.current_catalog_source() == "cache"
+
+            # No cache file → bundled fallback
+            cache_file.unlink()
+            cat.clear_catalog_cache()
+            fallback = cat.refresh_catalog(force=True)
+            assert cat.catalog_entry_count(fallback) >= 500
+            assert cat.current_catalog_source() == "bundled"
+    finally:
+        cat.fetch_remote_catalog = orig_fetch
+        cat.catalog_cache_path = orig_cache_path
+        cat._loaded = prev
+        if prev is None:
+            cat.clear_catalog_cache()
+    print("OK available catalog remote refresh and merge")
+
+
+def test_available_catalog_offline_keeps_cache():
+    """When remote fetch fails, appdata cache is preferred over re-reading only if present."""
+    import tempfile
+    from pathlib import Path
+
+    from ichalaunch.addons import catalog as cat
+
+    cached_entries = [
+        {
+            "name": "CachedAddon",
+            "folder": "CachedAddon",
+            "repo": "https://github.com/x/CachedAddon",
+            "category": "General",
+            "description": "from-cache",
+            "source": "turtle_wiki",
+        }
+    ]
+    prev = cat._loaded
+    orig_fetch = cat.fetch_remote_catalog
+    orig_cache_path = cat.catalog_cache_path
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_file = Path(tmp) / "addons_catalog.json"
+            cat.write_catalog_file(cache_file, cached_entries)
+            cat.catalog_cache_path = lambda: cache_file
+            cat.clear_catalog_cache()
+            cat.fetch_remote_catalog = lambda url=None: None
+            entries = cat.refresh_catalog(force=True)
+            assert len(entries) == 1
+            assert entries[0]["folder"] == "CachedAddon"
+            assert cat.current_catalog_source() == "cache"
+    finally:
+        cat.fetch_remote_catalog = orig_fetch
+        cat.catalog_cache_path = orig_cache_path
+        cat._loaded = prev
+        if prev is None:
+            cat.clear_catalog_cache()
+    print("OK available catalog offline keeps cache")
 
 
 def test_git_refs_live_optional():
@@ -5088,6 +5240,8 @@ def _run_smoke_tests():
     test_addon_toc_folder_name_required()
     test_addon_toc_folder_rename()
     test_addon_update_check_uses_catalog_index_only()
+    test_available_catalog_remote_refresh_and_merge()
+    test_available_catalog_offline_keeps_cache()
     test_git_refs_live_optional()
     test_github_token_not_sent_to_third_party_readme_hosts()
     test_github_bad_token_retries_without_auth()

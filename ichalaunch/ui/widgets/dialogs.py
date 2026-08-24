@@ -2148,6 +2148,450 @@ def confirm_preview(
     return dlg.result_value == DialogResult.Yes
 
 
+class _CatalogSubmitThread(QThread):
+    ok = Signal(object)
+    err = Signal(str)
+
+    def __init__(self, payload: dict, parent=None):
+        super().__init__(parent)
+        self._payload = payload
+
+    def run(self) -> None:
+        try:
+            from ichalaunch.addons.submit import submit_catalog_suggestion
+
+            self.ok.emit(submit_catalog_suggestion(self._payload))
+        except Exception as exc:  # noqa: BLE001
+            self.err.emit(str(exc) or exc.__class__.__name__)
+
+
+class CatalogSuggestDialog(QDialog):
+    """Suggest a GitHub addon for the shared Available catalog (no credentials)."""
+
+    _DUPLICATE_MSG = (
+        "This repository is already in the Available catalog. "
+        "You do not need to suggest it again."
+    )
+
+    def __init__(
+        self,
+        parent: QWidget | None,
+        *,
+        categories: list[str] | None = None,
+        catalog_entries: list | None = None,
+        initial_repo: str = "",
+    ):
+        from ichalaunch.ui.widgets.glue_combo import GlueComboBox
+
+        super().__init__(parent)
+        self.setObjectName("ThemedDialog")
+        self.setWindowFlags(_themed_dialog_flags())
+        self.setModal(True)
+        self.setMinimumSize(520, 420)
+        self.resize(640, 560)
+        self._worker: _CatalogSubmitThread | None = None
+        self._preview_worker: _PreviewFetchThread | None = None
+        self._preview_gen = 0
+        self._cache_dir = ""
+        self._preview_info: dict | None = None
+        self._readme_for_submit = ""
+        self._duplicate = False
+        self._result_ok = False
+        self._success_message = ""
+        self._catalog_entries = catalog_entries
+
+        cats = [c for c in (categories or []) if str(c).strip()]
+        if not cats:
+            cats = [
+                "Bags",
+                "Client",
+                "Combat",
+                "Economy",
+                "General",
+                "Hardcore",
+                "Maps",
+                "Professions",
+                "PvP",
+                "Questing",
+                "Raiding",
+                "Recommended",
+                "Roleplay",
+                "SuperWoW",
+                "UI",
+            ]
+        if "General" not in cats:
+            cats = ["General", *cats]
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+
+        card = QWidget()
+        card.setObjectName("ThemedDialogCard")
+        body = QVBoxLayout(card)
+        body.setContentsMargins(22, 18, 22, 18)
+        body.setSpacing(10)
+
+        title_lbl = QLabel("Suggest for catalog")
+        title_lbl.setObjectName("ThemedDialogTitle")
+        body.addWidget(title_lbl)
+
+        hint = QLabel(
+            "Propose a public GitHub addon for the shared Available list. "
+            "The README is used as the suggestion description — no typing needed. "
+            "No GitHub login or token is used."
+        )
+        hint.setObjectName("ThemedDialogBody")
+        hint.setWordWrap(True)
+        body.addWidget(hint)
+
+        self.repo_edit = QLineEdit()
+        self.repo_edit.setPlaceholderText("https://github.com/owner/repo (required)")
+        self.repo_edit.setClearButtonEnabled(True)
+        if initial_repo.strip():
+            self.repo_edit.setText(initial_repo.strip())
+        self.repo_edit.textChanged.connect(self._on_repo_changed)
+        self.repo_edit.editingFinished.connect(self._on_repo_blur)
+        body.addWidget(self.repo_edit)
+
+        cat_row = QHBoxLayout()
+        cat_row.setSpacing(10)
+        cat_lbl = QLabel("Category")
+        cat_lbl.setObjectName("Muted")
+        self.cat_box = GlueComboBox(card, min_width=160)
+        for c in cats:
+            self.cat_box.addItem(c)
+        idx = self.cat_box.findText("General")
+        if idx >= 0:
+            self.cat_box.setCurrentIndex(idx)
+        cat_row.addWidget(cat_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
+        cat_row.addWidget(self.cat_box, 1)
+        body.addLayout(cat_row)
+
+        self.browser = QTextBrowser()
+        self.browser.setObjectName("ThemedPreviewBrowser")
+        self.browser.setOpenExternalLinks(False)
+        self.browser.setOpenLinks(False)
+        self.browser.anchorClicked.connect(self._open_link)
+        self.browser.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        body.addWidget(self.browser, 1)
+
+        # Loud status banner above Submit (not muted subtitle).
+        self.status_lbl = QLabel()
+        self.status_lbl.setObjectName("SuggestStatusBanner")
+        self.status_lbl.setWordWrap(True)
+        self.status_lbl.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        body.addWidget(self.status_lbl)
+        self._set_status(
+            "Paste a GitHub link to load the README preview.",
+            kind="info",
+        )
+
+        row = QHBoxLayout()
+        row.setSpacing(10)
+        row.addStretch(1)
+        self.cancel_btn = _dialog_glue_button("Cancel", card, primary=False)
+        self.cancel_btn.clicked.connect(self.reject)
+        self.submit_btn = _dialog_glue_button("Submit", card, primary=True)
+        self.submit_btn.setEnabled(False)
+        self.submit_btn.clicked.connect(self._on_submit)
+        row.addWidget(self.cancel_btn)
+        row.addWidget(self.submit_btn)
+        body.addLayout(row)
+
+        root.addWidget(card)
+        self._debounce = QTimer(self)
+        self._debounce.setSingleShot(True)
+        self._debounce.setInterval(450)
+        self._debounce.timeout.connect(self._refresh_repo_state)
+        self.setStyleSheet(
+            "QDialog#ThemedDialog { background: transparent; }"
+            "QWidget#ThemedDialogCard {"
+            "  background-color: #100d0c;"
+            "  border: 1px solid rgba(150, 131, 158, 0.22);"
+            "  border-top: 3px solid #F1C22D;"
+            "  border-radius: 10px;"
+            "}"
+            "QTextBrowser#ThemedPreviewBrowser {"
+            "  background-color: #181412;"
+            "  color: #e6e0ee;"
+            "  border: 1px solid rgba(150, 131, 158, 0.22);"
+            "  border-radius: 8px;"
+            "  padding: 10px;"
+            "  selection-background-color: #4a2f7a;"
+            "  selection-color: #ffffff;"
+            "}"
+        )
+        if initial_repo.strip():
+            QTimer.singleShot(0, self._refresh_repo_state)
+
+    def _open_link(self, url: QUrl) -> None:
+        if url.isValid():
+            QDesktopServices.openUrl(url)
+
+    def _set_status(self, text: str, *, kind: str = "info") -> None:
+        """Loud banner status — warning gold / error red / ready green / info."""
+        self.status_lbl.setText(text)
+        styles = {
+            "warning": (
+                "color: #F1C22D;"
+                "background-color: rgba(241, 194, 45, 0.16);"
+                "border: 1px solid rgba(241, 194, 45, 0.55);"
+            ),
+            "error": (
+                "color: #ff8a80;"
+                "background-color: rgba(198, 40, 40, 0.22);"
+                "border: 1px solid rgba(229, 115, 115, 0.65);"
+            ),
+            "ready": (
+                "color: #8fd99a;"
+                "background-color: rgba(76, 175, 80, 0.16);"
+                "border: 1px solid rgba(129, 199, 132, 0.55);"
+            ),
+            "info": (
+                "color: #e6e0ee;"
+                "background-color: rgba(150, 131, 158, 0.14);"
+                "border: 1px solid rgba(150, 131, 158, 0.35);"
+            ),
+        }
+        tone = styles.get(kind, styles["info"])
+        self.status_lbl.setStyleSheet(
+            "QLabel#SuggestStatusBanner {"
+            f"  {tone}"
+            "  font-size: 14px;"
+            "  font-weight: 700;"
+            "  padding: 10px 12px;"
+            "  border-radius: 8px;"
+            "}"
+        )
+
+    def _on_repo_changed(self, _text: str = "") -> None:
+        self._debounce.start()
+
+    def _on_repo_blur(self) -> None:
+        self._debounce.stop()
+        self._refresh_repo_state()
+
+    def _clear_preview(self, status: str, *, kind: str = "info") -> None:
+        from ichalaunch.addons.github import cleanup_readme_cache
+
+        self._preview_gen += 1
+        cleanup_readme_cache(self._cache_dir)
+        self._cache_dir = ""
+        self._preview_info = None
+        self._readme_for_submit = ""
+        self.browser.clear()
+        self._set_status(status, kind=kind)
+        self.submit_btn.setEnabled(False)
+
+    def _check_duplicate(self, repo_text: str) -> bool:
+        from ichalaunch.addons.submit import repo_in_catalog
+
+        return repo_in_catalog(repo_text, self._catalog_entries)
+
+    def _refresh_repo_state(self) -> None:
+        from ichalaunch.addons.github import cleanup_readme_cache, parse_github_url
+        from ichalaunch.addons.submit import normalize_repo_url
+
+        raw = self.repo_edit.text().strip()
+        if not raw:
+            self._duplicate = False
+            self._clear_preview(
+                "Paste a GitHub link to load the README preview.",
+                kind="info",
+            )
+            return
+        if not parse_github_url(raw) or not normalize_repo_url(raw):
+            self._duplicate = False
+            self._clear_preview(
+                "Enter a valid GitHub repository URL (github.com/owner/repo).",
+                kind="warning",
+            )
+            return
+
+        if self._check_duplicate(raw):
+            self._duplicate = True
+            self._clear_preview(self._DUPLICATE_MSG, kind="warning")
+            return
+
+        self._duplicate = False
+        cleanup_readme_cache(self._cache_dir)
+        self._cache_dir = ""
+        self._preview_info = None
+        self._readme_for_submit = ""
+        self.submit_btn.setEnabled(False)
+        self._set_status("Loading README preview…", kind="info")
+        self.browser.clear()
+
+        self._preview_gen += 1
+        gen = self._preview_gen
+        worker = _PreviewFetchThread("addon", raw, self)
+        self._preview_worker = worker
+
+        def on_ok(info: object) -> None:
+            if gen != self._preview_gen:
+                if isinstance(info, dict):
+                    cleanup_readme_cache(info.get("readme_cache_dir"))
+                return
+            if not isinstance(info, dict):
+                self._set_status("Preview failed.", kind="error")
+                return
+            # Re-check in case catalog changed; URL is the source of truth.
+            if self._check_duplicate(raw):
+                self._duplicate = True
+                cleanup_readme_cache(info.get("readme_cache_dir"))
+                self._clear_preview(self._DUPLICATE_MSG, kind="warning")
+                return
+            self._apply_preview(info)
+
+        def on_err(msg: str) -> None:
+            if gen != self._preview_gen:
+                return
+            self._preview_info = None
+            self._readme_for_submit = ""
+            self.browser.setPlainText("(Could not load README preview.)")
+            self._set_status(msg or "Preview failed.", kind="error")
+            # Allow submit with empty description if the repo URL itself is valid.
+            self.submit_btn.setEnabled(not self._duplicate)
+
+        worker.ok.connect(on_ok)
+        worker.err.connect(on_err)
+        worker.start()
+
+    def _apply_preview(self, info: dict) -> None:
+        self._preview_info = info
+        self._cache_dir = str(info.get("readme_cache_dir") or "")
+        raw_md = str(info.get("readme_raw") or "").strip()
+        preview_md = str(info.get("readme_markdown") or "").strip()
+        gh_desc = str(info.get("description") or "").strip()
+        if gh_desc in {"(no description)", ""}:
+            gh_desc = ""
+        self._readme_for_submit = raw_md or gh_desc
+
+        base = str(info.get("readme_base_url") or "")
+        if base:
+            self.browser.document().setBaseUrl(QUrl(base))
+        if preview_md:
+            self.browser.setMarkdown(preview_md)
+            self._set_status(
+                "README preview ready — submit to suggest this addon.",
+                kind="ready",
+            )
+        elif gh_desc:
+            self.browser.setPlainText(gh_desc)
+            self._set_status(
+                "No README found — GitHub description will be used.",
+                kind="warning",
+            )
+        else:
+            self.browser.setPlainText("(No README found for this repository.)")
+            self._set_status(
+                "No README found — you can still submit (description will be empty).",
+                kind="warning",
+            )
+        self.submit_btn.setEnabled(True)
+
+    def _set_busy(self, busy: bool) -> None:
+        self.cancel_btn.setEnabled(not busy)
+        self.repo_edit.setEnabled(not busy)
+        self.cat_box.setEnabled(not busy)
+        if busy:
+            self.submit_btn.setEnabled(False)
+        else:
+            self.submit_btn.setEnabled(not self._duplicate and bool(self.repo_edit.text().strip()))
+
+    def _on_submit(self) -> None:
+        from ichalaunch.addons.submit import build_submit_payload
+
+        raw = self.repo_edit.text().strip()
+        if self._check_duplicate(raw):
+            self._duplicate = True
+            self._set_status(self._DUPLICATE_MSG, kind="warning")
+            self.submit_btn.setEnabled(False)
+            return
+
+        payload, err = build_submit_payload(
+            repo=raw,
+            category=self.cat_box.currentText(),
+            description=self._readme_for_submit,
+        )
+        if err or payload is None:
+            self._set_status(err or "Invalid suggestion.", kind="error")
+            return
+
+        self._set_status("Submitting…", kind="info")
+        self._set_busy(True)
+        worker = _CatalogSubmitThread(payload, self)
+        self._worker = worker
+
+        def on_ok(result: object) -> None:
+            self._set_busy(False)
+            ok = bool(getattr(result, "ok", False))
+            msg = str(getattr(result, "message", "") or "")
+            issue = str(getattr(result, "issue_url", "") or "").strip()
+            if ok:
+                self._result_ok = True
+                text = msg or "Suggestion submitted."
+                if issue:
+                    text = f"{text}\n{issue}"
+                self._success_message = text
+                self.accept()
+            else:
+                self._set_status(msg or "Suggestion failed.", kind="error")
+
+        def on_err(msg: str) -> None:
+            self._set_busy(False)
+            self._set_status(msg or "Suggestion failed.", kind="error")
+
+        worker.ok.connect(on_ok)
+        worker.err.connect(on_err)
+        worker.start()
+
+    def closeEvent(self, event) -> None:  # noqa: N802
+        from ichalaunch.addons.github import cleanup_readme_cache
+
+        self._preview_gen += 1
+        cleanup_readme_cache(self._cache_dir)
+        self._cache_dir = ""
+        if self._preview_info and self._preview_info.get("readme_cache_dir"):
+            cleanup_readme_cache(self._preview_info.get("readme_cache_dir"))
+        super().closeEvent(event)
+
+    @property
+    def submitted(self) -> bool:
+        return self._result_ok
+
+    @property
+    def success_message(self) -> str:
+        return self._success_message
+
+
+def catalog_suggest_dialog(
+    parent: QWidget | None,
+    *,
+    categories: list[str] | None = None,
+    catalog_entries: list | None = None,
+    initial_repo: str = "",
+    initial_name: str = "",  # retained for call-site compatibility; unused
+) -> bool:
+    """Open catalog suggestion dialog. Returns True if a suggestion was accepted."""
+    del initial_name  # display name removed; name is derived from the repo slug
+    dlg = CatalogSuggestDialog(
+        parent,
+        categories=categories,
+        catalog_entries=catalog_entries,
+        initial_repo=initial_repo,
+    )
+    dlg.exec()
+    if dlg.submitted:
+        info(
+            parent,
+            "Suggestion sent",
+            dlg.success_message or "Suggestion submitted. Maintainers will review it.",
+        )
+        return True
+    return False
+
+
 def github_import_dialog(
     parent: QWidget | None,
     *,

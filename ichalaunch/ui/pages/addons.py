@@ -37,7 +37,11 @@ from ichalaunch.ui.widgets.common import (
     open_url_in_browser,
     status_with_stamp,
 )
-from ichalaunch.ui.widgets.dialogs import github_import_dialog, github_preview_dialog
+from ichalaunch.ui.widgets.dialogs import (
+    catalog_suggest_dialog,
+    github_import_dialog,
+    github_preview_dialog,
+)
 from ichalaunch.ui.widgets import dialogs as themed
 from ichalaunch.ui.widgets.glue_combo import GlueComboBox
 from ichalaunch.ui.widgets.glue_panel_button import GluePanelButton
@@ -257,12 +261,20 @@ class AddonsPage(QWidget):
         rescan_btn.clicked.connect(self.rescan_requested.emit)
         import_btn = GluePanelButton("+ Git Repo", self)
         import_btn.clicked.connect(self._open_github_import_dialog)
+        suggest_btn = GluePanelButton("Suggest for catalog", self, width=168)
+        suggest_btn.setToolTip(
+            "Propose a public GitHub addon for the shared Available list "
+            "(no GitHub login — posts to the configured HTTPS endpoint)."
+        )
+        suggest_btn.clicked.connect(self._open_catalog_suggest_dialog)
+        self.suggest_btn = suggest_btn
 
         tools.addStretch(1)
         tools.addWidget(rescan_btn)
         tools.addWidget(check_btn)
         tools.addWidget(update_all_btn)
         tools.addWidget(import_btn)
+        tools.addWidget(suggest_btn)
 
         # Outer marble window: installed section and available section are siblings.
         # Pagination lives *inside* the available section so Prev/Next never steals
@@ -402,6 +414,23 @@ class AddonsPage(QWidget):
         url = github_import_dialog(self, kind="addon")
         if url:
             self.github_import_requested.emit(url)
+
+    def _catalog_categories(self) -> list[str]:
+        cats = sorted(
+            {
+                str(e.get("category") or "").strip()
+                for e in (self._catalog_cache or [])
+                if str(e.get("category") or "").strip()
+            }
+        )
+        return cats
+
+    def _open_catalog_suggest_dialog(self) -> None:
+        catalog_suggest_dialog(
+            self,
+            categories=self._catalog_categories(),
+            catalog_entries=self._catalog_cache,
+        )
 
     def open_preview(self, entry: dict) -> None:
         from ichalaunch.ui.widgets.common import github_repo_browse_url
@@ -995,8 +1024,29 @@ class AddonsPage(QWidget):
         self.badge_state_changed.emit()
 
     def reload_catalog(self) -> None:
+        """Reload Available entries from the current catalog snapshot."""
         self._catalog_cache = load_catalog()
+        self._available_base_ready = False
+        # Refresh category filter options when remote catalog adds new categories.
+        try:
+            current = self.cat_box.currentText()
+        except RuntimeError:
+            current = "All categories"
+        cats = sorted({e.get("category") or "General" for e in self._catalog_cache})
+        self.cat_box.blockSignals(True)
+        try:
+            while self.cat_box.count() > 1:
+                self.cat_box.removeItem(1)
+            for c in cats:
+                self.cat_box.addItem(c)
+            idx = self.cat_box.findText(current)
+            if idx >= 0:
+                self.cat_box.setCurrentIndex(idx)
+        finally:
+            self.cat_box.blockSignals(False)
         self.mark_dirty()
+        if self._page_is_live():
+            self.refresh()
 
     def _page(self, delta: int) -> None:
         if self._lists_frozen() or self._refreshing or self._rendering_avail:
@@ -1045,6 +1095,21 @@ class AddonsPage(QWidget):
                 break
 
         total = len(self._filtered_available)
+        if total == 0:
+            q = (self.search.text() or "").strip()
+            if q:
+                msg = (
+                    f'No Available addons matched “{q}”. '
+                    "Use Suggest for catalog if this should be listed."
+                )
+            else:
+                msg = "No Available addons to show."
+            empty = QListWidgetItem(msg)
+            empty.setFlags(Qt.ItemFlag.NoItemFlags)
+            try:
+                self.list.addItem(empty)
+            except RuntimeError:
+                pass
         max_page = max(0, (total - 1) // PAGE_SIZE) if total else 0
         showing = f"{start + 1}–{min(start + PAGE_SIZE, total)}" if total else "0"
         try:

@@ -1996,6 +1996,9 @@ class MainWindow(QMainWindow):
         if not self._startup_checks_scheduled:
             self._startup_checks_scheduled = True
             QTimer.singleShot(_STARTUP_UPDATE_DELAY_MS, self._run_startup_update_checks)
+        if not getattr(self, "_toc_mismatch_flush_scheduled", False):
+            self._toc_mismatch_flush_scheduled = True
+            QTimer.singleShot(0, self._flush_pending_toc_mismatch_prompt)
         if not getattr(self, "_addons_preload_scheduled", False):
             self._addons_preload_scheduled = True
             QTimer.singleShot(0, self._preload_hidden_addon_rows)
@@ -2759,6 +2762,30 @@ class MainWindow(QMainWindow):
                 )
         return renamed
 
+    def _maybe_prompt_toc_mismatches(self) -> list[str]:
+        """Disk-scan prompts when the setting is on. Guards against reentrant double prompts."""
+        if not settings.auto_fix_addon_toc_mismatch():
+            return []
+        if getattr(self, "_toc_mismatch_prompting", False):
+            return []
+        self._toc_mismatch_prompting = True
+        try:
+            return self._prompt_addon_toc_renames(scan_mismatched_toc_addon_folders())
+        finally:
+            self._toc_mismatch_prompting = False
+
+    def _flush_pending_toc_mismatch_prompt(self) -> None:
+        """Run deferred startup mismatch prompts once the window is visible."""
+        if not getattr(self, "_toc_mismatch_prompt_pending", False):
+            return
+        self._toc_mismatch_prompt_pending = False
+        renamed = self._maybe_prompt_toc_mismatches()
+        if renamed:
+            full_resync()
+            self.addons.reset_scan_done()
+            self.client.reset_scan_done()
+            self.addons.mark_dirty()
+
     def _apply_toc_mismatch_prompts(self, result: object) -> object:
         """UI-thread prompts for install mismatches collected on a worker."""
         if isinstance(result, AddonInstallResult):
@@ -2770,6 +2797,8 @@ class MainWindow(QMainWindow):
         else:
             pending = take_pending_toc_mismatches()
         if not pending:
+            return result
+        if not settings.auto_fix_addon_toc_mismatch():
             return result
         renamed = self._prompt_addon_toc_renames(pending)
         if isinstance(result, AddonInstallResult):
@@ -2786,8 +2815,13 @@ class MainWindow(QMainWindow):
                 themed.warning(self, "No game", "Set a valid game path first.")
             return
         renamed: list[str] = []
-        if not silent:
-            renamed = self._prompt_addon_toc_renames(scan_mismatched_toc_addon_folders())
+        if settings.auto_fix_addon_toc_mismatch():
+            # Avoid modal dialogs during __init__ before the window is shown.
+            if silent and not self.isVisible():
+                self._toc_mismatch_prompt_pending = True
+            else:
+                renamed = self._maybe_prompt_toc_mismatches()
+                self._toc_mismatch_prompt_pending = False
         result = full_resync()
         # Disk rescan is not an update-check — keep / reset scan-done so we don't
         # claim "Up to date" without a successful Check Updates pass.
@@ -3766,6 +3800,8 @@ class MainWindow(QMainWindow):
             if isinstance(result, AddonUpdateCheckResult):
                 updates = result.updates
                 status = result.status_message
+                if result.catalog_refreshed:
+                    self.addons.reload_catalog()
             else:
                 updates = result or []
                 status = None

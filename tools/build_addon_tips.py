@@ -22,9 +22,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from ichalaunch.addons.git_refs import fetch_git_refs  # noqa: E402
+from ichalaunch.addons.catalog import load_bundled_catalog  # noqa: E402
 from ichalaunch.addons.github import (  # noqa: E402
     catalog_locks_updates,
-    load_catalog,
     parse_github_url,
 )
 from ichalaunch.addons.tip_index import (  # noqa: E402
@@ -61,7 +61,7 @@ def _add_repo(
 def _catalog_repos(*, include_locked: bool = False) -> list[tuple[str, str]]:
     seen: set[str] = set()
     out: list[tuple[str, str]] = []
-    for entry in load_catalog():
+    for entry in load_bundled_catalog():
         if not include_locked and catalog_locks_updates(entry):
             continue
         parsed = parse_github_url(str(entry.get("repo") or entry.get("url") or ""))

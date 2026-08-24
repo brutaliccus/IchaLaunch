@@ -71,7 +71,7 @@ if you add required reviews later, allow `github-actions[bot]` to bypass or
   "category": "General",
   "description": "# MyAddon\n\nREADME excerpt used as the issue description…",
   "folder": "MyAddon",
-  "launcher_version": "1.2.10",
+  "launcher_version": "1.2.11",
   "client_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 }
 ```

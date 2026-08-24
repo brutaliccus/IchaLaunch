@@ -87,6 +87,8 @@ class AddonUpdateCheckResult:
     checked_count: int = 0
     total_count: int = 0
     resume_after_sec: int | None = None
+    # True when remote/cached Available catalog was refreshed this check.
+    catalog_refreshed: bool = False
 
 
 @dataclass
@@ -1132,8 +1134,13 @@ def fetch_repo_readme(owner: str, repo: str, branch: str | None = None) -> dict[
         text, owner=owner, repo=repo, branch=use_branch, readme_dir=readme_dir
     )
     cache_dir = Path(tempfile.mkdtemp(prefix="ichalaunch-readme-"))
-    md = localize_readme_images(md, cache_dir=cache_dir)
-    return {"markdown": md, "base_url": base_url, "cache_dir": str(cache_dir)}
+    localized = localize_readme_images(md, cache_dir=cache_dir)
+    return {
+        "markdown": localized,
+        "raw_markdown": text,
+        "base_url": base_url,
+        "cache_dir": str(cache_dir),
+    }
 
 
 _IMG_URL_COLLECT_RE = re.compile(
@@ -1420,6 +1427,7 @@ def preview_addon_repo(url: str) -> dict[str, Any]:
         "already_installed": installed_meta is not None,
         "installed_folder": (installed_meta or {}).get("folder"),
         "readme_markdown": (readme or {}).get("markdown") or "",
+        "readme_raw": (readme or {}).get("raw_markdown") or "",
         "readme_base_url": (readme or {}).get("base_url") or "",
         "readme_cache_dir": (readme or {}).get("cache_dir") or "",
     }
@@ -1997,13 +2005,15 @@ def check_addon_updates(
 ) -> AddonUpdateCheckResult:
     """Compare installed GitHub addons to the shared catalog tip-SHA JSON.
 
-    One remote fetch of ``addon_tips.json``, then a local compare. Per-addon
-    git/REST probes are not used here (those remain for install/update of a
-    single addon). Child modules of a multi-folder pack are skipped.
+    Refreshes the Available-addon catalog (``addons.json``) and tip index
+    (``addon_tips.json``), then does a local compare. Per-addon git/REST probes
+    are not used here (those remain for install/update of a single addon).
+    Child modules of a multi-folder pack are skipped.
     """
     if respect_cooldown and recently_checked_addon_updates():
         return AddonUpdateCheckResult(skipped_recent=True)
 
+    from ichalaunch.addons.catalog import catalog_entry_count, refresh_catalog
     from ichalaunch.addons.loadstate import addon_disk_path
     from ichalaunch.addons.tip_index import index_repo_count, refresh_tip_index
     from ichalaunch.core.detect import (
@@ -2013,6 +2023,20 @@ def check_addon_updates(
         read_local_git_head_sha,
         resolve_catalog_entry,
     )
+
+    on_count = getattr(progress, "on_count", None) if progress is not None else None
+
+    # Available list: pull remote master catalog before indexing installed addons.
+    clear_addon_scan_queue()
+    status_only(progress, "Fetching addon catalog…")
+    if callable(on_count):
+        on_count(0, 1, "Fetching addon catalog…")
+    catalog_refreshed = False
+    try:
+        catalog_entries = refresh_catalog()
+        catalog_refreshed = catalog_entry_count(catalog_entries) > 0
+    except Exception as exc:  # noqa: BLE001
+        log.debug("Addon catalog refresh skipped: %s", exc)
 
     repair_missing_addon_git_origins(progress)
 
@@ -2041,10 +2065,7 @@ def check_addon_updates(
             owner, name = str(repo).split("/", 1)
         to_check.append((folder, meta, owner, name, str(repo)))
 
-    on_count = getattr(progress, "on_count", None) if progress is not None else None
-
     # Leftover REST-hour queues from older builds are unused now.
-    clear_addon_scan_queue()
     status_only(progress, "Fetching update catalog…")
     if callable(on_count):
         on_count(0, 1, "Fetching update catalog…")
@@ -2064,6 +2085,7 @@ def check_addon_updates(
             checked_count=0,
             total_count=len(to_check),
             status_message="Update catalog unavailable",
+            catalog_refreshed=catalog_refreshed,
         )
 
     total = len(to_check)
@@ -2074,7 +2096,12 @@ def check_addon_updates(
         _mark_addon_update_check_time()
         if callable(on_count):
             on_count(1, 1, "Checking addon updates…")
-        return AddonUpdateCheckResult(updates=[], checked_count=0, total_count=0)
+        return AddonUpdateCheckResult(
+            updates=[],
+            checked_count=0,
+            total_count=0,
+            catalog_refreshed=catalog_refreshed,
+        )
 
     log.info(
         "Addon update check via catalog index (%d repo(s)); comparing %d installed addon(s)",
@@ -2131,6 +2158,7 @@ def check_addon_updates(
         updates=list(updates),
         checked_count=checked,
         total_count=total,
+        catalog_refreshed=catalog_refreshed,
     )
 
 
@@ -2228,7 +2256,14 @@ def uninstall_addon(folder: str) -> None:
     settings.remove_installed_addon(target)
 
 def load_catalog() -> list[dict[str, Any]]:
-    from ichalaunch.core.paths import data_file
+    """Available-addon catalog (remote cache when refreshed, else bundled)."""
+    from ichalaunch.addons.catalog import load_catalog as _load
 
-    path = data_file("addons.json")
-    return json.loads(path.read_text(encoding="utf-8"))
+    return _load()
+
+
+def refresh_available_catalog(*, force: bool = False) -> list[dict[str, Any]]:
+    """Fetch/replace the Available catalog from the remote master list."""
+    from ichalaunch.addons.catalog import refresh_catalog
+
+    return refresh_catalog(force=force)

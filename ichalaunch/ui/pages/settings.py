@@ -180,6 +180,22 @@ class SettingsPage(QWidget):
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
         upd_card.body.addWidget(self.cb_auto_updates)
+        self.cb_toc_mismatch = ThemeCheckBox(
+            "Prompt to fix addon folder / .toc name mismatches"
+        )
+        self.cb_toc_mismatch.setChecked(settings.auto_fix_addon_toc_mismatch())
+        self.cb_toc_mismatch.setToolTip(
+            "When enabled, addon disk scans (startup, Rescan Disk, game/AddOns path "
+            "changes) ask you to rename folders whose names do not match their .toc "
+            "file — the same prompts as Rescan Disk. Turn off to skip these prompts; "
+            "scans still run."
+        )
+        self.cb_toc_mismatch.toggled.connect(settings.set_auto_fix_addon_toc_mismatch)
+        self.cb_toc_mismatch.setMinimumHeight(28)
+        self.cb_toc_mismatch.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+        upd_card.body.addWidget(self.cb_toc_mismatch)
 
         gh_card = MarbleCard()
         gh_card.body.setSpacing(10)
@@ -333,6 +349,9 @@ class SettingsPage(QWidget):
         self.cb_auto_updates.blockSignals(True)
         self.cb_auto_updates.setChecked(settings.check_updates_on_startup())
         self.cb_auto_updates.blockSignals(False)
+        self.cb_toc_mismatch.blockSignals(True)
+        self.cb_toc_mismatch.setChecked(settings.auto_fix_addon_toc_mismatch())
+        self.cb_toc_mismatch.blockSignals(False)
         # Avoid clobbering in-progress edits / firing textChanged autosave.
         stored = str(settings.get("github_token") or "")
         if self.token_edit.text() != stored:

@@ -48,7 +48,11 @@ DEFAULTS: dict[str, Any] = {
     # Legacy key — ignored; refresh interval is AUTO_SCAN_COOLDOWN_MINUTES.
     "auto_scan_cooldown_minutes": AUTO_SCAN_COOLDOWN_MINUTES,
     "auto_install_updates": False,
+    # Prompt to rename addon folders whose names do not match their .toc (disk scans).
+    "auto_fix_addon_toc_mismatch": True,
     "github_token": "",
+    # Anonymous UUID for rate-limit hints only (no PII). Generated on first use.
+    "anonymous_client_id": "",
     "last_addon_update_check": None,
     "last_mod_update_check": None,
     "last_launcher_release_check": None,
@@ -266,6 +270,13 @@ class Settings:
         # Keep the legacy addon-only flag in sync with the unified toggle.
         self._data["check_addon_updates_on_startup"] = enabled
         self.save()
+
+    def auto_fix_addon_toc_mismatch(self) -> bool:
+        """Whether disk scans should prompt to rename folder/.toc mismatches."""
+        return bool(self.get("auto_fix_addon_toc_mismatch", True))
+
+    def set_auto_fix_addon_toc_mismatch(self, enabled: bool) -> None:
+        self.set("auto_fix_addon_toc_mismatch", bool(enabled))
 
     def auto_scan_cooldown_minutes(self) -> int:
         return AUTO_SCAN_COOLDOWN_MINUTES
