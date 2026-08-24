@@ -7552,5 +7552,13 @@
     "source": "manual",
     "folder": "SurpriseMe",
     "installable": true
+  },
+  {
+    "name": "Atlas-CFM",
+    "repo": "https://github.com/byCFM2/Atlas-CFM",
+    "category": "Maps",
+    "source": "community",
+    "folder": "Atlas-CFM",
+    "description": "(README excerpt below)"
   }
 ]
