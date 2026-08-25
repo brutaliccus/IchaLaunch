@@ -459,45 +459,6 @@ class AddonsPage(QWidget):
         if url:
             github_preview_dialog(self, url)
 
-    def preview_update_row_demo(self) -> None:
-        """TEST/dev: force one installed row into Update-available UI (no download)."""
-        try:
-            box = getattr(self, "filter_box", None)
-            if box is not None:
-                for i in range(box.count()):
-                    if "install" in str(box.itemText(i)).lower():
-                        box.setCurrentIndex(i)
-                        break
-        except RuntimeError:
-            pass
-        list_w = getattr(self, "installed_list", None)
-        if list_w is None:
-            return
-        try:
-            count = list_w.count()
-        except RuntimeError:
-            return
-        for i in range(count):
-            try:
-                item = list_w.item(i)
-                if item is None:
-                    continue
-                row = list_w.itemWidget(item)
-                if row is None:
-                    continue
-                apply = getattr(row, "apply_status", None)
-                if not callable(apply):
-                    continue
-                apply("Update available — test preview")
-                flash = getattr(row, "flash_highlight", None)
-                if callable(flash):
-                    flash()
-                list_w.scrollToItem(item)
-                return
-            except RuntimeError:
-                continue
-
-
     def open_addon_settings(self, entry: dict) -> None:
         from ichalaunch.ui.widgets.dialogs import addon_settings_dialog
 

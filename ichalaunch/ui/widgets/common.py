@@ -218,19 +218,20 @@ class PassRemoveButton(QPushButton):
         painter.end()
 
 
-# Addon-row Update: one glowing GLUE_ROW plate — MicroStream arrow left, GlueCombo caret right.
+# Addon-row Update: compact glowing plate (~2× height) — arrow left, caret right.
+_UPDATE_SPLIT_W = GLUE_ROW_H * 2  # 56 — match Reinstall height, not full GLUE_ROW_W
 _UPDATE_ARROW = "UI-MicroStream-Yellow.PNG"
 _UPDATE_ARROW_EXTERNAL = Path(r"F:\wow-ui-textures\Buttons") / _UPDATE_ARROW
-_UPDATE_ARROW_PX = 16
+_UPDATE_ARROW_PX = 14
 _UPDATE_ARROW_CACHE: QPixmap | None = None
-_UPDATE_ARROW_PAD_L = 10
+_UPDATE_ARROW_PAD_L = 6
 
 _CARET_UP = "UI-ScrollBar-ScrollDownButton-Up.PNG"
 _CARET_DOWN = "UI-ScrollBar-ScrollDownButton-Down.PNG"
 _CARET_EXTERNAL = Path(r"F:\wow-ui-textures\Buttons")
 # GlueCombo caret math scaled to GLUE_ROW_H (28) from GLUE_BTN_H (34).
-_CARET_SIZE = 28
-_CARET_PAD_R = 5
+_CARET_SIZE = 22
+_CARET_PAD_R = 3
 _CARET_X_NUDGE = 2
 _CARET_Y_NUDGE = 2
 _CARET_PRESS_DX = -2
@@ -279,7 +280,7 @@ def _row_update_caret_raw(pressed: bool) -> QPixmap:
 
 
 class AddonRowUpdateSplit(QPushButton):
-    """Single glowing rectangular Update control (GLUE_ROW_W × GLUE_ROW_H).
+    """Compact glowing Update control (~2× GLUE_ROW_H wide × GLUE_ROW_H tall).
 
     Left / arrow area → Update; right caret (GlueCombo ScrollDown art + nudges)
     → Never Update menu. Gold CheckButtonGlow frames the whole plate.
@@ -306,7 +307,7 @@ class AddonRowUpdateSplit(QPushButton):
             "  color: transparent;"
             "}"
         )
-        self._chrome_w = GLUE_ROW_W
+        self._chrome_w = _UPDATE_SPLIT_W
         self._chrome_h = GLUE_ROW_H
         self._glow_pm = check_button_glow_for_plate(self._chrome_w, self._chrome_h)
         gw = self._glow_pm.width() if not self._glow_pm.isNull() else self._chrome_w + 16

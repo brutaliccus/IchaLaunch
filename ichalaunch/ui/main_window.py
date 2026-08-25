@@ -1779,9 +1779,6 @@ class MainWindow(QMainWindow):
         self.settings_page.clear_cache_clicked.connect(self._clear_app_cache)
         self.settings_page.check_permissions_clicked.connect(self._check_game_permissions)
         self.settings_page.verify_clicked.connect(self._verify_game)
-        self.settings_page.preview_addon_update_clicked.connect(
-            self._preview_addon_update_row
-        )
 
         self._refresh_play_button()
         self._nav(0)
@@ -3732,14 +3729,6 @@ class MainWindow(QMainWindow):
             "Clear Cache",
             "Launcher data has been reset. Restart IchaLaunch if anything still looks outdated.",
         )
-
-    def _preview_addon_update_row(self) -> None:
-        """Settings Dev/Test: show Addons with a fake update-available row."""
-        self._nav(1)  # Home=0, Addons=1
-        preview = getattr(self.addons, "preview_update_row_demo", None)
-        if callable(preview):
-            preview()
-
 
     def _verify_game(self) -> None:
         if is_installed():
