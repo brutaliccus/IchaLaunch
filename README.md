@@ -1,7 +1,6 @@
 # IchaLaunch
 
 [![Release](https://img.shields.io/github/v/release/brutaliccus/IchaLaunch?label=version)](https://github.com/brutaliccus/IchaLaunch/releases/latest)
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/jeb32411u)
 
 **IchaLaunch** installs a game client, manages addons and client mods, and launches the game — with a themed window for **HOME**, **ADDONS**, **CLIENT**, **SETTINGS**, and **PLAY**.
 
