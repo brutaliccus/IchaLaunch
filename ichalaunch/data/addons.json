@@ -15098,5 +15098,13 @@
     "source": "community",
     "folder": "TourGuideVanilla",
     "description": "See TourGuideClassic for 1.13!!         Tekkub's TourGuide Addon backported for WoW 1.12"
+  },
+  {
+    "name": "TourGuideVanilla",
+    "repo": "https://github.com/Vempz/TourGuideVanilla",
+    "category": "General",
+    "source": "community",
+    "folder": "TourGuideVanilla",
+    "description": "Tekkub's TourGuide Addon backported for WoW 1.12"
   }
 ]
