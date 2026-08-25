@@ -14410,5 +14410,13 @@
         "repo": "https://github.com/RavenOfSeven/CallOfElements"
       }
     ]
+  },
+  {
+    "name": "pfQuest-turtle",
+    "repo": "https://github.com/leokem/pfQuest-turtle",
+    "category": "General",
+    "source": "community",
+    "folder": "pfQuest-turtle",
+    "description": "A TurtleWoW DB extension for pfQuest"
   }
 ]
