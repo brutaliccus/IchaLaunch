@@ -14858,5 +14858,13 @@
     "source": "community",
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition"
+  },
+  {
+    "name": "AtlasLoot",
+    "repo": "https://github.com/Otari98/AtlasLoot",
+    "category": "General",
+    "source": "community",
+    "folder": "AtlasLoot",
+    "description": "# AtlasLoot\nAtlasLoot Turtle WoW Edition allows you to view loot from bosses/ enchants/ crafted items/ reputation rewards/ PvP rewards in game!\n## Features of this fork\n - Option to show source and drop rate on item tooltips.\n - All professions sorted by slot/purpose.\n - New menus for dungeons/raids and world bosses.\n - Reworked menus for crafting/reputations/collections/pvp.\n - Reworked dropdown menus.\n - Keybinds, and many bugfixes.\n\n## Recommended addons to use with AtlasLoot\n  - [Atlas](https://github.com/Otari98/Atlas)\n  - [AtlasQuest](https://github.com/Otari98/AtlasQuest)\n\n## Preview\n![123](https://github.com/user-attachments/assets/69f48fbf-c9a0-42d6-a907-24b7f2f1d81c)\n\n\n\n\n![2222](https://github.com/user-attachments/assets/a7d86059-0b1d-461a-aab1-e0aef0863cad)\n\n\n\n\n![333](https://github.com/user-attachments/assets/1d3164bf-438a-4268-85c4-35782e59ec46)\n# Thanks to original author and all contributors\n - Daviesh (original author)\n - Pompa (Turtle WoW World Bosses)\n - Xerron (Turtle WoW World Bosses)\n - Gurky (Turtle WoW 1.16/1.16.1 Dungeons)\n - Shagu (pfUI update code)\n - Lexie (Turtle WoW fixes/updates)\n - Otari (overhaul/revamp, menu changes, bugfixes/updates)"
   }
 ]
