@@ -4000,10 +4000,21 @@ class MainWindow(QMainWindow):
             if not silent:
                 self.status_lbl.setText("Set a game path before checking updates")
             return
-        if _safe_worker_running(self._update_worker):
+        # Gate on the busy flag as well as the QThread: finished_ok clears the
+        # worker attribute while UI apply (set_updates / list patch) can still be
+        # running. A second click in that window has caused silent Qt aborts.
+        if self._checking_addons or _safe_worker_running(self._update_worker):
             if not silent:
                 self.status_lbl.setText("Update check already running…")
             return
+        try:
+            refreshing = bool(getattr(self.addons, "_refreshing", False))
+            pending = getattr(self.addons, "_pending_list_work", None) or set()
+            if not silent and not force and (refreshing or pending):
+                self.status_lbl.setText("Update check already running…")
+                return
+        except RuntimeError:
+            pass
 
         # Cooldown gate for automatic (silent/periodic) checks: skip if a scan ran
         # within the hardcoded 15-minute refresh. Manual checks arrive with
@@ -4028,10 +4039,11 @@ class MainWindow(QMainWindow):
             # Keep UI apply off the critical QThread teardown path as much as
             # possible: never let an exception escape a queued slot (that can
             # abort Qt), and defer catalog combo rebuilds (see reload_catalog).
+            # Keep _checking_addons True until apply finishes so a second Check
+            # Updates click cannot overlap list mutations.
             updates: list = []
             status = None
             try:
-                self._checking_addons = False
                 self._addon_check_status = ""
                 self._check_addon_pct = 100
                 if isinstance(result, AddonUpdateCheckResult):
@@ -4057,21 +4069,30 @@ class MainWindow(QMainWindow):
                 )
             except Exception:  # noqa: BLE001
                 log.exception("Addon update-check UI apply failed")
-                self._checking_addons = False
                 self._addon_check_status = ""
             finally:
+                # Settle one event-loop turn after apply so deferred list flushes
+                # and QThread finished/deleteLater can run before re-arming Check.
+                def _settle() -> None:
+                    self._checking_addons = False
+                    self._refresh_check_loading()
+                    self._update_worker = None
+                    self._refresh_nav_badges()
+
+                QTimer.singleShot(50, _settle)
+
+        def fail(msg: str):
+            self._addon_check_status = ""
+            if not self._checking_mods:
+                self.status_lbl.setText(f"Update check failed: {msg[:80]}")
+
+            def _settle() -> None:
+                self._checking_addons = False
                 self._refresh_check_loading()
                 self._update_worker = None
                 self._refresh_nav_badges()
 
-        def fail(msg: str):
-            self._checking_addons = False
-            self._addon_check_status = ""
-            if not self._checking_mods:
-                self.status_lbl.setText(f"Update check failed: {msg[:80]}")
-            self._refresh_check_loading()
-            self._update_worker = None
-            self._refresh_nav_badges()
+            QTimer.singleShot(50, _settle)
 
         worker.status.connect(self._on_addon_check_status)
         worker.progress_pct.connect(lambda p: self._on_check_progress_pct("addons", p))
@@ -4086,7 +4107,7 @@ class MainWindow(QMainWindow):
             if not silent:
                 self.status_lbl.setText("Set a game path before checking updates")
             return
-        if _safe_worker_running(self._mod_update_worker):
+        if self._checking_mods or _safe_worker_running(self._mod_update_worker):
             if not silent:
                 self.status_lbl.setText("Client mod update check already running…")
             return
@@ -4105,38 +4126,46 @@ class MainWindow(QMainWindow):
         worker = Worker(check_mod_updates, respect_cooldown=False)
 
         def done(result):
-            self._checking_mods = False
             self._check_mod_pct = 100
-            if isinstance(result, ModUpdateCheckResult):
-                updates = result.updates
-                status = result.status_message
-                if result.skipped_recent:
+            try:
+                if isinstance(result, ModUpdateCheckResult):
+                    if result.skipped_recent:
+                        return
+                    updates = result.updates
+                    status = result.status_message
+                else:
+                    updates = result or []
+                    status = None
+                self.client.set_updates(updates)
+                if not self._checking_addons:
+                    if status:
+                        self.status_lbl.setText(status)
+                    elif updates:
+                        self.status_lbl.setText(f"{len(updates)} client mod update(s) available")
+                    else:
+                        self.status_lbl.setText("Client mods up to date")
+            except Exception:  # noqa: BLE001
+                log.exception("Client mod update-check UI apply failed")
+            finally:
+                def _settle() -> None:
+                    self._checking_mods = False
                     self._refresh_check_loading()
                     self._mod_update_worker = None
                     self._refresh_nav_badges()
-                    return
-            else:
-                updates = result or []
-                status = None
-            self.client.set_updates(updates)
-            if not self._checking_addons:
-                if status:
-                    self.status_lbl.setText(status)
-                elif updates:
-                    self.status_lbl.setText(f"{len(updates)} client mod update(s) available")
-                else:
-                    self.status_lbl.setText("Client mods up to date")
-            self._refresh_check_loading()
-            self._mod_update_worker = None
-            self._refresh_nav_badges()
+
+                QTimer.singleShot(50, _settle)
 
         def fail(msg: str):
-            self._checking_mods = False
             if not self._checking_addons:
                 self.status_lbl.setText(f"Client mod check failed: {msg[:80]}")
-            self._refresh_check_loading()
-            self._mod_update_worker = None
-            self._refresh_nav_badges()
+
+            def _settle() -> None:
+                self._checking_mods = False
+                self._refresh_check_loading()
+                self._mod_update_worker = None
+                self._refresh_nav_badges()
+
+            QTimer.singleShot(50, _settle)
 
         worker.progress_pct.connect(lambda p: self._on_check_progress_pct("mods", p))
         worker.finished_ok.connect(done)
