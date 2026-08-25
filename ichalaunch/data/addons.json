@@ -14450,5 +14450,13 @@
     "source": "community",
     "folder": "pfQuest-turtle",
     "description": "A TurtleWoW DB extension for pfQuest"
+  },
+  {
+    "name": "pfQuest-octo",
+    "repo": "https://github.com/vill8/pfQuest-octo",
+    "category": "General",
+    "source": "community",
+    "folder": "pfQuest-octo",
+    "description": "A TurtleWoW DB extension for pfQuest (Moonwhisper70%)"
   }
 ]
