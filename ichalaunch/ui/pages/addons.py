@@ -17,7 +17,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ichalaunch.addons.github import catalog_locks_updates, catalog_pin_tag, load_catalog
+from ichalaunch.addons.github import (
+    catalog_locks_updates,
+    catalog_pin_tag,
+    group_catalog_fork_families,
+    load_catalog,
+)
 from ichalaunch.addons.loadstate import addon_disk_path, addon_is_loaded, set_addon_loaded
 from ichalaunch.config.settings import settings
 from ichalaunch.core.detect import (
@@ -56,6 +61,7 @@ LIST_FREEZE_MS = 180
 SEARCH_DEBOUNCE_MS = 220
 _SCAN_TIP = "Wait for scan to finish"
 _INIT_TIP = "Wait for addons to finish loading"
+_SCAN_PLACEHOLDER = "Scanning addons…"
 
 
 def _copied_addon_status(meta: dict | None) -> bool:
@@ -348,6 +354,10 @@ class AddonsPage(QWidget):
         # True when installed_list was built with only update rows (Update Available refresh).
         self._installed_built_for_updates_only = False
         self._pending_list_work: set[str] = set()
+        # True while first-open (or filter) reveal is flipping WA_DontShowOnScreen.
+        self._revealing = False
+        # Mirror of MainWindow._checking_addons for local button gating.
+        self._check_busy = False
         self._flush_timer = QTimer(self)
         self._flush_timer.setSingleShot(True)
         self._flush_timer.setInterval(LIST_FREEZE_MS)
@@ -362,24 +372,138 @@ class AddonsPage(QWidget):
         for c in cats:
             self.cat_box.addItem(c)
         self.cat_box.blockSignals(False)
+        # Keep Check Updates off until the first list build + reveal finish —
+        # early-launch clicks into a half-built list abort Qt with no traceback.
         self.set_checking(False)
         self._sync_filter_lock()
         # Do not refresh() here — building rows before the page is in the stack
         # (or while hidden) is the launch-time HWND spam. First paint is on show.
 
+    def update_check_ui_ready(self) -> bool:
+        """True when Check Updates / set_updates apply is safe for the list widgets.
+
+        Covers the early-launch race (open Addons → click Check immediately) and
+        the double-click window: never mutate rows while rebuild, reveal, or a
+        pending list flush is in flight. When Addons is on-screen, lists must
+        also be fully revealed (no leftover WA_DontShowOnScreen).
+        """
+        try:
+            if not self._lists_ready:
+                return False
+            if self._scanning or self._check_busy:
+                return False
+            if self.lists_mutating():
+                return False
+            if self._page_is_live() and self._lists_need_reveal():
+                return False
+            return True
+        except RuntimeError:
+            return False
+
+    def lists_mutating(self) -> bool:
+        """True while any list rebuild/reveal/patch flush is active or queued."""
+        try:
+            if self._refreshing or self._rendering_avail or self._revealing:
+                return True
+            if self._pending_list_work:
+                return True
+            if self._pending_avail_search:
+                return True
+            return False
+        except RuntimeError:
+            return True
+
+    def _lists_need_reveal(self) -> bool:
+        """True when on-screen sections still carry WA_DontShowOnScreen."""
+        try:
+            if self._want_installed_visible and self.installed_list.testAttribute(
+                Qt.WidgetAttribute.WA_DontShowOnScreen
+            ):
+                return True
+            if self._want_avail_visible and self.list.testAttribute(
+                Qt.WidgetAttribute.WA_DontShowOnScreen
+            ):
+                return True
+        except RuntimeError:
+            return True
+        return False
+
+    def _scan_busy(self) -> bool:
+        """True while the update-scan gate blocks heavy list mutations.
+
+        Intentionally does NOT include ``_check_busy``: settle must be able to
+        drop the scan gate (so deferred refresh/reveal can flush) while keeping
+        Check Updates disabled via ``_check_busy`` alone.
+        """
+        return bool(self._scanning)
+
+    def _heavy_list_work_blocked(self) -> bool:
+        """Block clear()/setItemWidget/reveal while popup cooldown, rebuild, or scan.
+
+        In-place status patches may still run during a scan; HWND-touching rebuild
+        and first-open reveal must wait until the scan gate drops.
+        """
+        return bool(
+            self._lists_frozen()
+            or self._refreshing
+            or self._revealing
+            or self._scan_busy()
+        )
+
+    def _show_scan_placeholder(self) -> None:
+        """Visible tab content while first list build waits for scan idle."""
+        try:
+            self.loading_lbl.setText(_SCAN_PLACEHOLDER)
+            self.loading_lbl.setVisible(True)
+            self.loading_bar.setVisible(True)
+        except RuntimeError:
+            pass
+
+    def _hide_scan_placeholder(self) -> None:
+        try:
+            self.loading_lbl.setText("")
+            self.loading_lbl.setVisible(False)
+            self.loading_bar.setVisible(False)
+        except RuntimeError:
+            pass
+
+    def _sync_check_btn(self) -> None:
+        """Enable Check Updates only when idle and not mid check/apply."""
+        try:
+            # Hard Qt disable — must not rely on handler-side gating alone.
+            ready = (not self._check_busy) and self.update_check_ui_ready()
+            self.check_btn.setEnabled(ready)
+        except RuntimeError:
+            pass
+
     def set_checking(self, busy: bool, msg: str = "Checking for updates…") -> None:
-        # Progress lives on the bottom bar; keep only the Check Updates button gated.
-        self.loading_lbl.setText("")
-        self.loading_lbl.setVisible(False)
-        self.loading_bar.setVisible(False)
-        self.check_btn.setEnabled(not busy)
-        if busy:
-            self.set_scanning(True)
+        # Progress lives on the bottom bar. ``_check_busy`` gates the button;
+        # ``set_scanning`` owns the list-mutation gate (may be dropped earlier
+        # during settle so deferred refresh/reveal can flush safely).
+        del msg
+        self._check_busy = bool(busy)
+        self.set_scanning(busy)
+        self._sync_check_btn()
+
+    def set_check_busy(self, busy: bool) -> None:
+        """Toggle Check Updates lock without changing the scan/list gate."""
+        self._check_busy = bool(busy)
+        self._sync_check_btn()
 
     def set_scanning(self, busy: bool) -> None:
-        """Disable filter combos while an update scan or list-rebuild worker runs."""
+        """Disable filter combos while an update scan or list-rebuild worker runs.
+
+        Dropping the scan gate flushes any first-open refresh/reveal that was
+        deferred so opening Addons mid-scan cannot race scan UI apply.
+        """
+        was = bool(self._scanning)
         self._scanning = bool(busy)
         self._sync_filter_lock()
+        self._sync_check_btn()
+        if was and not self._scanning:
+            self._hide_scan_placeholder()
+            if self._pending_list_work or self._pending_avail_search:
+                QTimer.singleShot(0, self._flush_list_work)
 
     def _sync_filter_lock(self) -> None:
         """Combo stays off until first list is built, during scan/rebuild, and post-popup cooldown."""
@@ -471,17 +595,12 @@ class AddonsPage(QWidget):
         updated = addon_settings_dialog(self, entry, meta=meta)
         if not updated:
             return
+        action = str(updated.pop("_action", "") or "").strip()
+        prefer = bool(updated.pop("_prefer_selection", False))
+        never_update = updated.pop("never_update", None)
         entry.clear()
         entry.update(updated)
         folder_key = str(entry.get("folder") or entry.get("name") or "")
-        if folder_key and isinstance(meta, dict):
-            tag = str(entry.get("tag") or entry.get("pin_release") or "").strip()
-            if tag:
-                meta = dict(meta)
-                meta["tag"] = tag
-                meta["version"] = tag
-                settings.installed_addons[folder_key] = meta
-                settings.save()
         for i in range(self.installed_list.count()):
             item = self.installed_list.item(i)
             if item is None:
@@ -491,6 +610,25 @@ class AddonsPage(QWidget):
                 row.entry.clear()
                 row.entry.update(updated)
                 break
+        if action == "reinstall":
+            payload = dict(updated)
+            if prefer:
+                payload["_prefer_selection"] = True
+            if folder_key:
+                payload["folder"] = folder_key
+            self.reinstall_requested.emit(payload)
+            return
+        if folder_key and isinstance(meta, dict):
+            tag = str(entry.get("tag") or entry.get("pin_release") or "").strip()
+            if tag:
+                # Prefer live settings so we do not clobber never_update below.
+                live = dict(settings.installed_addons.get(folder_key) or meta)
+                live["tag"] = tag
+                live["version"] = tag
+                settings.installed_addons[folder_key] = live
+                settings.save()
+        if never_update is not None and folder_key:
+            self.set_never_update(entry, bool(never_update))
 
     def set_addon_loaded_ui(self, entry: dict, loaded: bool) -> None:
         folder = str(entry.get("folder") or entry.get("name") or "")
@@ -526,8 +664,20 @@ class AddonsPage(QWidget):
         else:
             self.updates_lbl.setText("")
         # Scan callback must NEVER clear()/rebuild lists. In-place status only,
-        # and only after the combo popup + cooldown have settled.
-        self._request_list_work("patch")
+        # and only after rebuild/reveal (and combo cooldown) are fully idle.
+        if (
+            self.lists_mutating()
+            or self._refreshing
+            or self._revealing
+            or (self._page_is_live() and self._lists_need_reveal())
+        ):
+            self._pending_list_work.add("patch")
+            if self._page_is_live() and self._lists_need_reveal():
+                self._pending_list_work.add("reveal")
+            self._sync_check_btn()
+            self._arm_flush_timer()
+        else:
+            self._request_list_work("patch")
         self.badge_state_changed.emit()
 
     def _combo_popup_open(self) -> bool:
@@ -633,9 +783,14 @@ class AddonsPage(QWidget):
         if not q:
             return True
         folder = entry.get("folder") or entry.get("name") or ""
+        fork_bits = " ".join(
+            str(f.get("label") or f.get("repo") or "")
+            for f in (entry.get("forks") or [])
+            if isinstance(f, dict)
+        )
         blob = (
             f"{entry.get('name', '')} {entry.get('description', '')} "
-            f"{entry.get('category', '')} {folder} "
+            f"{entry.get('category', '')} {folder} {fork_bits} "
             f"{addon_fork_label(entry)} {addon_version_label(entry)}"
         ).lower()
         return q in blob
@@ -658,8 +813,10 @@ class AddonsPage(QWidget):
                 k.lower() for k in settings.installed_addons
             }
             self._installed_lower = installed_lower
+        # One Available row per install-folder family; forks stay in the picker.
+        catalog_rows = group_catalog_fork_families(self._catalog_cache)
         base: list[dict] = []
-        for entry in self._catalog_cache:
+        for entry in catalog_rows:
             folder = entry.get("folder") or entry.get("name") or ""
             if folder.lower() in installed_lower:
                 continue
@@ -686,7 +843,7 @@ class AddonsPage(QWidget):
             self._ensure_available_base()
         except RuntimeError:
             pass
-        if self._refreshing or self._rendering_avail or self._lists_frozen():
+        if self._refreshing or self._rendering_avail or self._lists_frozen() or self._revealing or self._scan_busy():
             self._arm_flush_timer()
             return
         self._flush_avail_search()
@@ -699,7 +856,7 @@ class AddonsPage(QWidget):
         except RuntimeError:
             self._arm_flush_timer()
             return
-        if self._refreshing or self._rendering_avail or self._lists_frozen():
+        if self._refreshing or self._rendering_avail or self._lists_frozen() or self._revealing or self._scan_busy():
             self._arm_flush_timer()
             return
         self._pending_avail_search = False
@@ -734,12 +891,16 @@ class AddonsPage(QWidget):
             self._combo_popup_open()
             or time.monotonic() < self._list_freeze_until
             or self._rendering_avail
+            or self._revealing
+            or self._scan_busy()
         ):
             self._pending_list_work.add("mode")
             self._arm_flush_timer()
+            self._sync_check_btn()
             return
         if self._refreshing:
             self._pending_list_work.add("mode")
+            self._sync_check_btn()
             return
         try:
             mode = self.filter_box.currentText()
@@ -785,27 +946,55 @@ class AddonsPage(QWidget):
         finally:
             self._refreshing = False
             self._sync_filter_lock()
+            self._sync_check_btn()
 
     def _arm_flush_timer(self) -> None:
         self._flush_timer.start(LIST_FREEZE_MS)
 
     def _on_flush_timer(self) -> None:
-        if self._lists_frozen():
+        if self._lists_frozen() or self._revealing or self._scan_busy():
             self._arm_flush_timer()
             return
         self._flush_list_work()
         self._sync_filter_lock()
+        self._sync_check_btn()
 
     def _request_list_work(self, kind: str) -> None:
         self._pending_list_work.add(kind)
-        if self._lists_frozen() or self._refreshing:
+        self._sync_check_btn()
+        # Never start a second rebuild/patch/reveal while one is in progress —
+        # overlapping clear()/setItemWidget has aborted Qt with no traceback.
+        # Heavy kinds also wait out an in-flight update scan (open-tab race).
+        if kind in ("refresh", "reveal", "mode") and self._scan_busy():
+            self._arm_flush_timer()
+            return
+        if self._lists_frozen() or self._refreshing or self._revealing:
             self._arm_flush_timer()
             return
         self._flush_list_work()
 
     def _flush_list_work(self) -> None:
-        if self._lists_frozen() or self._refreshing:
+        if self._lists_frozen() or self._refreshing or self._revealing:
             self._arm_flush_timer()
+            return
+        # During an update scan, only in-place "patch" may run. Rebuild/reveal/mode
+        # stay queued until set_scanning(False) flushes — avoids open-tab races.
+        if self._scan_busy():
+            if "patch" in self._pending_list_work:
+                self._pending_list_work.discard("patch")
+                try:
+                    patched = False
+                    if not self._dirty:
+                        patched = bool(self._patch_installed_statuses())
+                    if not patched and not self._dirty:
+                        # Lists still mid-reveal / hidden — keep patch queued.
+                        self._pending_list_work.add("patch")
+                except RuntimeError:
+                    self.mark_dirty()
+                finally:
+                    self._sync_check_btn()
+            if self._pending_list_work or self._pending_avail_search:
+                self._arm_flush_timer()
             return
         work = set(self._pending_list_work)
         self._pending_list_work.clear()
@@ -814,15 +1003,31 @@ class AddonsPage(QWidget):
                 self._do_refresh()
             elif "mode" in work:
                 self._apply_filter_mode()
-            if "patch" in work and not self._dirty and "refresh" not in work:
-                # Scan path: in-place status only. Never escalate to clear/rebuild.
-                self._patch_installed_statuses()
+            # Reveal before patch — never apply_status while rows still carry
+            # WA_DontShowOnScreen from a queued first-open / post-rebuild reveal.
             if "reveal" in work:
                 self._reveal_lists_if_current()
+            if "patch" in work and not self._dirty and "refresh" not in work:
+                if self._revealing or (
+                    self._page_is_live() and self._lists_need_reveal()
+                ):
+                    self._pending_list_work.add("patch")
+                    self._pending_list_work.add("reveal")
+                else:
+                    # In-place status only. Never escalate to clear/rebuild.
+                    self._patch_installed_statuses()
             if self._pending_avail_search:
                 self._flush_avail_search()
         except RuntimeError:
             self.mark_dirty()
+        finally:
+            self._sync_check_btn()
+            if self._pending_list_work and not self._lists_frozen() and not self._scan_busy():
+                # Reveal-only while the page is off-stack must not spin the flush
+                # loop — showEvent will drain it when Addons becomes current.
+                if self._pending_list_work <= {"reveal"} and not self._page_is_live():
+                    return
+                QTimer.singleShot(0, self._flush_list_work)
 
     def _apply_section_visibility(self, mode: str | None = None) -> None:
         """Show exactly one section for Available/Installed; both columns for All.
@@ -874,7 +1079,9 @@ class AddonsPage(QWidget):
 
         Never called as a path to clear() — scan only uses this for in-place text.
         """
-        if self._lists_frozen() or self._refreshing:
+        if self._lists_frozen() or self._refreshing or self._revealing:
+            return False
+        if self._page_is_live() and self._lists_need_reveal():
             return False
         if self._dirty:
             return False
@@ -895,9 +1102,10 @@ class AddonsPage(QWidget):
                     continue
                 has_row = True
                 folder = str(row.entry.get("folder") or row.entry.get("name") or "")
-                never_u = bool(getattr(row, "_never_update", False)) or settings.is_addon_never_update(
-                    folder
-                )
+                # Trust settings (and catalog pins), not the row's cached flag —
+                # ORing row._never_update made Reinstall unable to clear the
+                # "Never update" status on in-place patches.
+                never_u = settings.is_addon_never_update(folder)
                 meta = installed_meta.get(folder) or {}
                 status = self._installed_status_text(folder, meta, never_u)
                 row.apply_status(status, never_update=never_u)
@@ -919,8 +1127,15 @@ class AddonsPage(QWidget):
         )
 
     def preload_rows(self) -> None:
-        """Build lists while HOME is showing — rows stay off-screen / parented."""
+        """Build lists while HOME is showing — rows stay off-screen / parented.
+
+        Skip while an update scan owns the page: building now would race the
+        scan's set_updates / reload_catalog apply on the UI thread.
+        """
         if not self._dirty:
+            return
+        if self._scan_busy():
+            self._pending_list_work.add("refresh")
             return
         self._allow_hidden_build = True
         try:
@@ -936,30 +1151,86 @@ class AddonsPage(QWidget):
             self.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
             super().showEvent(event)
             return
+        # Opening Addons during startup/manual scan: show the tab shell +
+        # placeholder, but never clear()/setItemWidget/reveal until the scan
+        # gate drops. Overlapping first paint with scan UI apply aborts Qt.
+        if self._scan_busy():
+            self._show_scan_placeholder()
+            if self._dirty or not self._lists_ready:
+                self._pending_list_work.add("refresh")
+            self._pending_list_work.add("reveal")
+            super().showEvent(event)
+            # Page chrome (placeholder / Check btn) may paint; list HWNDs stay
+            # off-screen until deferred reveal after scan idle.
+            self.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, False)
+            try:
+                self.installed_section.hide()
+                self.avail_section.hide()
+                self.installed_list.hide()
+                self.list.hide()
+                self.installed_list.setAttribute(
+                    Qt.WidgetAttribute.WA_DontShowOnScreen, True
+                )
+                self.list.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+            except RuntimeError:
+                pass
+            self._sync_check_btn()
+            return
         # Refresh while still off-screen so first-open does not spawn row HWNDs.
         if self._dirty:
             self.refresh()
         super().showEvent(event)
         self.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, False)
-        QTimer.singleShot(0, self._reveal_lists_if_current)
+        # Queue reveal (do not run inline): keeps Check Updates disabled until
+        # WA_DontShowOnScreen flips finish — early click into that window aborts Qt.
+        self._pending_list_work.add("reveal")
+        self._sync_check_btn()
+        QTimer.singleShot(0, self._flush_list_work)
         self._git_kick_timer.start(300)
 
     def _reveal_lists_if_current(self) -> None:
         if not self._page_is_live():
+            # Do not drop reveal from pending — otherwise update_check_ui_ready
+            # can go True while rows still have WA_DontShowOnScreen set.
+            self._pending_list_work.add("reveal")
+            self._sync_check_btn()
             return
-        if self._lists_frozen():
+        if self._lists_frozen() or self._refreshing or self._scan_busy():
             self._request_list_work("reveal")
             return
-        self._apply_section_visibility()
-        self.installed_list.setUpdatesEnabled(True)
-        self.list.setUpdatesEnabled(True)
-        if self._want_installed_visible:
-            _reveal_item_widgets(self.installed_list, self)
-        if self._want_avail_visible:
-            _reveal_item_widgets(self.list, self)
+        if self._revealing:
+            return
+        self._revealing = True
+        self._sync_check_btn()
+        try:
+            self._hide_scan_placeholder()
+            self._apply_section_visibility()
+            self.installed_list.setUpdatesEnabled(True)
+            self.list.setUpdatesEnabled(True)
+            if self._want_installed_visible:
+                _reveal_item_widgets(self.installed_list, self)
+            if self._want_avail_visible:
+                _reveal_item_widgets(self.list, self)
+        finally:
+            self._revealing = False
+            # Early-return inside _reveal_item_widgets must not leave Check
+            # enabled while lists still carry DontShowOnScreen.
+            if self._lists_need_reveal():
+                self._pending_list_work.add("reveal")
+            self._sync_check_btn()
+            if self._pending_list_work and not self._lists_frozen() and not self._scan_busy():
+                if self._pending_list_work <= {"reveal"} and not self._page_is_live():
+                    return
+                QTimer.singleShot(0, self._flush_list_work)
 
     def _kick_deferred_git_checks(self) -> None:
-        if not self._lists_ready or self._lists_frozen() or self._refreshing:
+        if (
+            not self._lists_ready
+            or self._lists_frozen()
+            or self._refreshing
+            or self._revealing
+            or self._scan_busy()
+        ):
             self._git_kick_timer.start(LIST_FREEZE_MS)
             return
         for lw in (self.installed_list, self.list):
@@ -986,7 +1257,7 @@ class AddonsPage(QWidget):
         settings.set_addon_never_update(str(folder), bool(enabled))
         if enabled:
             self.clear_pending_update(str(folder))
-        # Defer rebuild so any transient Never Update menu can finish closing first.
+        # Defer rebuild so status/list can settle after settings Save.
         QTimer.singleShot(0, self._finish_never_update_change)
 
     def _finish_never_update_change(self) -> None:
@@ -1034,6 +1305,16 @@ class AddonsPage(QWidget):
             self._request_list_work("refresh")
         self.badge_state_changed.emit()
 
+    def ingest_catalog_update(self) -> None:
+        """Load the latest catalog snapshot without touching list widgets.
+
+        Check Updates apply must never clear()/setItemWidget — only patch
+        installed statuses. Available rows pick up the new catalog on the next
+        filter/search refresh (``_available_base_ready`` is cleared here).
+        """
+        self._catalog_cache = load_catalog()
+        self._available_base_ready = False
+
     def reload_catalog(self) -> None:
         """Reload Available entries from the current catalog snapshot.
 
@@ -1041,11 +1322,21 @@ class AddonsPage(QWidget):
         and mark dirty. Mutating GlueComboBox items during startup preload has
         aborted Qt natively (WER Qt6Core.dll / 0xc0000409, no Python traceback).
         Combo categories rebuild the next time ADDONS is shown via refresh().
+
+        Also skip live combo/list mutations while a scan gate, check/apply, or
+        reveal/rebuild is in flight — queue a single-flight refresh instead.
         """
-        self._catalog_cache = load_catalog()
-        self._available_base_ready = False
+        self.ingest_catalog_update()
         self.mark_dirty()
         if not self._page_is_live():
+            return
+        # Never rebuild beside an in-flight Check Updates apply/settle.
+        if (
+            self._heavy_list_work_blocked()
+            or self._rendering_avail
+            or self._check_busy
+        ):
+            self._request_list_work("refresh")
             return
         # Refresh category filter options when remote catalog adds new categories.
         try:
@@ -1065,8 +1356,15 @@ class AddonsPage(QWidget):
         finally:
             self.cat_box.blockSignals(False)
         self.refresh()
+
     def _page(self, delta: int) -> None:
-        if self._lists_frozen() or self._refreshing or self._rendering_avail:
+        if (
+            self._lists_frozen()
+            or self._refreshing
+            or self._rendering_avail
+            or self._revealing
+            or self._scan_busy()
+        ):
             return
         max_page = max(0, (len(self._filtered_available) - 1) // PAGE_SIZE)
         self._page_index = max(0, min(max_page, self._page_index + delta))
@@ -1077,7 +1375,9 @@ class AddonsPage(QWidget):
         finally:
             self._apply_section_visibility()
             self.list.setUpdatesEnabled(True)
-            QTimer.singleShot(0, self._reveal_lists_if_current)
+            self._pending_list_work.add("reveal")
+            self._sync_check_btn()
+            QTimer.singleShot(0, self._flush_list_work)
             self._git_kick_timer.start(300)
 
     def _install_selected(self, *_args) -> None:
@@ -1177,13 +1477,15 @@ class AddonsPage(QWidget):
         ):
             self._dirty = True
             return
-        if self._lists_frozen() or self._refreshing:
+        if self._lists_frozen() or self._refreshing or self._revealing or self._scan_busy():
             self._dirty = True
             self._pending_list_work.add("refresh")
             self._arm_flush_timer()
+            self._sync_check_btn()
             return
         self._refreshing = True
         self._sync_filter_lock()
+        self._sync_check_btn()
         self._search_timer.stop()
         self.filter_box.blockSignals(True)
         self.cat_box.blockSignals(True)
@@ -1343,7 +1645,6 @@ class AddonsPage(QWidget):
                     row.open_git_clicked.connect(self.open_git)
                     row.settings_clicked.connect(self.open_addon_settings)
                     row.loaded_toggled.connect(self.set_addon_loaded_ui)
-                    row.never_update_changed.connect(self.set_never_update)
                     item = QListWidgetItem()
                     item.setSizeHint(QSize(0, row.preferred_height()))
 
@@ -1387,13 +1688,16 @@ class AddonsPage(QWidget):
                 self.installed_list.hide()
                 self.list.hide()
             else:
-                QTimer.singleShot(0, self._reveal_lists_if_current)
+                self._pending_list_work.add("reveal")
+                self._sync_check_btn()
+                QTimer.singleShot(0, self._flush_list_work)
                 self._git_kick_timer.start(300)
         except RuntimeError:
             self.mark_dirty()
         finally:
             self._refreshing = False
             self._sync_filter_lock()
+            self._sync_check_btn()
             try:
                 self.filter_box.currentTextChanged.connect(self._on_filter_changed)
                 self.cat_box.currentTextChanged.connect(self._on_filter_changed)
@@ -1407,7 +1711,7 @@ class AddonsPage(QWidget):
             except RuntimeError:
                 pass
             if self._pending_list_work:
-                if self._lists_frozen():
+                if self._lists_frozen() or self._revealing or self._scan_busy():
                     self._arm_flush_timer()
                 else:
                     QTimer.singleShot(0, self._flush_list_work)

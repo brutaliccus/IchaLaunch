@@ -5,9 +5,9 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QObject, QRect, QSize, QTimer, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QPainter, QPen, QPixmap
-from PySide6.QtWidgets import QComboBox, QFrame, QListView, QSizePolicy, QWidget
+from PySide6.QtCore import QEvent, QObject, QPoint, QRect, QSize, QTimer, Qt, Signal
+from PySide6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPen, QPixmap
+from PySide6.QtWidgets import QApplication, QComboBox, QFrame, QListView, QSizePolicy, QWidget
 
 try:
     from shiboken6 import isValid as _shiboken_is_valid
@@ -241,6 +241,68 @@ class GlueComboBox(QComboBox):
         except RuntimeError:
             pass
 
+    def _popup_container(self) -> QWidget | None:
+        try:
+            view = self.view()
+        except RuntimeError:
+            return None
+        if view is None:
+            return None
+        try:
+            return view.parentWidget()
+        except RuntimeError:
+            return None
+
+    def _native_popup_visible(self) -> bool:
+        try:
+            view = self.view()
+            if view is not None and view.isVisible():
+                return True
+            container = self._popup_container()
+            return bool(container is not None and container.isVisible())
+        except RuntimeError:
+            return False
+
+    def _install_popup_watchers(self) -> None:
+        container = self._popup_container()
+        if container is not None:
+            try:
+                container.installEventFilter(self)
+            except RuntimeError:
+                pass
+        app = QApplication.instance()
+        if app is not None:
+            try:
+                app.installEventFilter(self)
+            except RuntimeError:
+                pass
+
+    def _remove_popup_watchers(self) -> None:
+        app = QApplication.instance()
+        if app is not None:
+            try:
+                app.removeEventFilter(self)
+            except RuntimeError:
+                pass
+
+    def _click_inside_combo_or_popup(self, global_pos: QPoint) -> bool:
+        try:
+            if self.rect().contains(self.mapFromGlobal(global_pos)):
+                return True
+        except RuntimeError:
+            return False
+        view = self.view()
+        container = self._popup_container()
+        for w in (view, container):
+            if w is None:
+                continue
+            try:
+                if w.isVisible() and w.rect().contains(w.mapFromGlobal(global_pos)):
+                    return True
+            except RuntimeError:
+                continue
+        return False
+
     def showPopup(self) -> None:  # noqa: N802
         if not _alive(self):
             return
@@ -255,10 +317,11 @@ class GlueComboBox(QComboBox):
             return
         if time.monotonic() < self._show_blocked_until:
             return
-        view = self.view()
         try:
-            if view is not None and view.isVisible():
+            if self._native_popup_visible():
+                # Native list already up; resync flags and do not re-enter showPopup.
                 self._popup_open = True
+                self._install_popup_watchers()
                 return
         except RuntimeError:
             return
@@ -273,29 +336,36 @@ class GlueComboBox(QComboBox):
                     )
             except RuntimeError:
                 return
+        # Show the native popup BEFORE popupShown. Handlers that call hidePopup
+        # (e.g. lazy version fetch -> sync) must not run between flag=True and
+        # super().showPopup(), or the HWND stays up while _popup_open is False
+        # and the list never dismisses inside the app.
         self._popup_open = True
         try:
-            self.popupShown.emit()
             self.update()
             super().showPopup()
         except RuntimeError:
             self._popup_open = False
+            self._remove_popup_watchers()
+            return
+        if not self._popup_open or self._hiding_popup:
             return
         self._style_popup_container()
-        view = self.view()
-        if view is not None:
-            try:
-                container = view.parentWidget()
-            except RuntimeError:
-                container = None
-            if container is not None:
-                container.installEventFilter(self)
+        self._install_popup_watchers()
+        try:
+            self.popupShown.emit()
+        except RuntimeError:
+            pass
 
     def hidePopup(self) -> None:  # noqa: N802
-        if self._hiding_popup or not self._popup_open:
+        if self._hiding_popup:
+            return
+        # Recover from desync: flags say closed but native list is still visible.
+        if not self._popup_open and not self._native_popup_visible():
             return
         self._hiding_popup = True
         self._show_blocked_until = time.monotonic() + (_POPUP_REENTRY_MS / 1000.0)
+        self._remove_popup_watchers()
         try:
             if _alive(self):
                 super().hidePopup()
@@ -315,16 +385,48 @@ class GlueComboBox(QComboBox):
             if not _alive(self):
                 return True
             view = self.view()
-            try:
-                container = view.parentWidget() if view is not None else None
-            except RuntimeError:
-                container = None
+            container = self._popup_container()
             if obj in (view, container) and self._popup_open:
+                self._remove_popup_watchers()
                 self._mark_popup_closed()
+        elif et in (QEvent.Type.WindowDeactivate, QEvent.Type.ApplicationDeactivate):
+            container = self._popup_container()
+            if self._popup_open and obj in (container, self.window()):
+                try:
+                    self.hidePopup()
+                except RuntimeError:
+                    pass
+        elif et == QEvent.Type.MouseButtonPress and self._popup_open:
+            # Frameless dialog parents often fail to deactivate Qt.Popup lists on
+            # in-app clicks; dismiss when the press is outside combo + list.
+            gp: QPoint | None = None
+            if isinstance(event, QMouseEvent):
+                try:
+                    gp = event.globalPosition().toPoint()
+                except Exception:
+                    try:
+                        gp = event.globalPos()
+                    except Exception:
+                        gp = None
+            if gp is not None and not self._click_inside_combo_or_popup(gp):
+                try:
+                    self.hidePopup()
+                except RuntimeError:
+                    pass
         try:
             return super().eventFilter(obj, event)
         except RuntimeError:
             return False
+
+    def keyPressEvent(self, event) -> None:  # noqa: N802
+        try:
+            if self._popup_open and event.key() == Qt.Key.Key_Escape:
+                event.accept()
+                self.hidePopup()
+                return
+            super().keyPressEvent(event)
+        except RuntimeError:
+            pass
 
     def changeEvent(self, event) -> None:  # noqa: N802
         try:
@@ -410,7 +512,7 @@ class GlueComboBox(QComboBox):
         if not _alive(self) or not self.isEnabled() or self._hiding_popup:
             event.accept()
             return
-        if self._popup_open:
+        if self._popup_open or self._native_popup_visible():
             # Close only — do not let QComboBox hide+show on the same click
             # while the native popup HWND is still destroying.
             event.accept()

@@ -14436,22 +14436,6 @@
     "description": "A TurtleWoW DB extension for pfQuest"
   },
   {
-    "name": "pfQuest-turtle",
-    "repo": "https://github.com/AmonRA/pfQuest-turtle",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-turtle",
-    "description": "A TurtleWoW DB extension for pfQuest"
-  },
-  {
-    "name": "pfQuest-turtle",
-    "repo": "https://github.com/Zaruth/pfQuest-turtle",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-turtle",
-    "description": "A TurtleWoW DB extension for pfQuest"
-  },
-  {
     "name": "pfQuest-octo",
     "repo": "https://github.com/vill8/pfQuest-octo",
     "category": "General",
@@ -14461,47 +14445,7 @@
   },
   {
     "name": "pfQuest-turtle",
-    "repo": "https://github.com/yani9o/pfQuest-turtle",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-turtle",
-    "description": "A TurtleWoW DB extension for pfQuest"
-  },
-  {
-    "name": "pfQuest-turtle",
-    "repo": "https://github.com/terradcm-code/pfQuest-turtle",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-turtle",
-    "description": "A TurtleWoW DB extension for pfQuest"
-  },
-  {
-    "name": "pfQuest-turtle",
-    "repo": "https://github.com/zyyysxd/pfQuest-turtle",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-turtle",
-    "description": "A TurtleWoW DB extension for pfQuest"
-  },
-  {
-    "name": "pfQuest-turtle",
-    "repo": "https://github.com/whtmst/pfQuest-turtle",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-turtle",
-    "description": "A TurtleWoW DB extension for pfQuest"
-  },
-  {
-    "name": "pfQuest-turtle",
     "repo": "https://github.com/talex00/pfQuest-turtle",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-turtle",
-    "description": "A TurtleWoW DB extension for pfQuest"
-  },
-  {
-    "name": "pfQuest-turtle",
-    "repo": "https://github.com/sabrekenshi/pfQuest-turtle",
     "category": "General",
     "source": "community",
     "folder": "pfQuest-turtle",
@@ -14517,14 +14461,6 @@
   },
   {
     "name": "pfQuest-turtle",
-    "repo": "https://github.com/sangwei/pfQuest-turtle",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-turtle",
-    "description": "A TurtleWoW DB extension for pfQuest"
-  },
-  {
-    "name": "pfQuest-turtle",
     "repo": "https://github.com/superyoung9208/pfQuest-turtle",
     "category": "General",
     "source": "community",
@@ -14534,70 +14470,6 @@
   {
     "name": "pfQuest-turtle",
     "repo": "https://github.com/tomek7667/pfQuest-turtle",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-turtle",
-    "description": "A TurtleWoW DB extension for pfQuest"
-  },
-  {
-    "name": "pfQuest-turtle",
-    "repo": "https://github.com/tr0812/pfQuest-turtle",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-turtle",
-    "description": "A TurtleWoW DB extension for pfQuest"
-  },
-  {
-    "name": "pfQuest-turtle",
-    "repo": "https://github.com/ShigemuneKurogane/pfQuest-turtle",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-turtle",
-    "description": "A TurtleWoW DB extension for pfQuest"
-  },
-  {
-    "name": "pfQuest-turtle",
-    "repo": "https://github.com/jilinge2/pfQuest-turtle",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-turtle",
-    "description": "A TurtleWoW DB extension for pfQuest"
-  },
-  {
-    "name": "pfQuest-turtle",
-    "repo": "https://github.com/Mxrk/pfQuest-turtle",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-turtle",
-    "description": "A TurtleWoW DB extension for pfQuest"
-  },
-  {
-    "name": "pfQuest-turtle",
-    "repo": "https://github.com/jiangxt316/pfQuest-turtle",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-turtle",
-    "description": "A TurtleWoW DB extension for pfQuest"
-  },
-  {
-    "name": "pfQuest-turtle",
-    "repo": "https://github.com/laytya/pfQuest-turtle",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-turtle",
-    "description": "A TurtleWoW DB extension for pfQuest"
-  },
-  {
-    "name": "pfQuest-turtle",
-    "repo": "https://github.com/dingleshu/pfQuest-turtle",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-turtle",
-    "description": "A TurtleWoW DB extension for pfQuest"
-  },
-  {
-    "name": "pfQuest-turtle",
-    "repo": "https://github.com/bailer/pfQuest-turtle",
     "category": "General",
     "source": "community",
     "folder": "pfQuest-turtle",
@@ -14621,30 +14493,6 @@
   },
   {
     "name": "pfQuest-turtle",
-    "repo": "https://github.com/Grayowlsilverfox/pfQuest-turtle",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-turtle",
-    "description": "A TurtleWoW DB extension for pfQuest"
-  },
-  {
-    "name": "pfQuest-turtle",
-    "repo": "https://github.com/dwbclz/pfQuest-turtle",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-turtle",
-    "description": "A TurtleWoW DB extension for pfQuest"
-  },
-  {
-    "name": "pfQuest-turtle",
-    "repo": "https://github.com/guavatech-llc/pfQuest-turtle",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-turtle",
-    "description": "A TurtleWoW DB extension for pfQuest"
-  },
-  {
-    "name": "pfQuest-turtle",
     "repo": "https://github.com/hat3ph/pfQuest-turtle",
     "category": "General",
     "source": "community",
@@ -14653,31 +14501,7 @@
   },
   {
     "name": "pfQuest-turtle",
-    "repo": "https://github.com/96Rex/pfQuest-turtle",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-turtle",
-    "description": "A TurtleWoW DB extension for pfQuest"
-  },
-  {
-    "name": "pfQuest-turtle",
     "repo": "https://github.com/EVANnnn1996/pfQuest-turtle",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-turtle",
-    "description": "A TurtleWoW DB extension for pfQuest"
-  },
-  {
-    "name": "pfQuest-turtle",
-    "repo": "https://github.com/fatpowaranga/pfQuest-turtle",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-turtle",
-    "description": "A TurtleWoW DB extension for pfQuest"
-  },
-  {
-    "name": "pfQuest-turtle",
-    "repo": "https://github.com/clintonmead/pfQuest-turtle",
     "category": "General",
     "source": "community",
     "folder": "pfQuest-turtle",
@@ -14709,23 +14533,7 @@
   },
   {
     "name": "pfQuest-turtle",
-    "repo": "https://github.com/spawnedc/pfQuest-turtle",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-turtle",
-    "description": "A TurtleWoW DB extension for pfQuest"
-  },
-  {
-    "name": "pfQuest-turtle",
     "repo": "https://github.com/USS-Enterprise-Guild/pfQuest-turtle",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-turtle",
-    "description": "A TurtleWoW DB extension for pfQuest"
-  },
-  {
-    "name": "pfQuest-turtle",
-    "repo": "https://github.com/Val-kov/pfQuest-turtle",
     "category": "General",
     "source": "community",
     "folder": "pfQuest-turtle",
@@ -14973,38 +14781,6 @@
   },
   {
     "name": "TourGuideVanilla",
-    "repo": "https://github.com/Road-block/TourGuideVanilla",
-    "category": "General",
-    "source": "community",
-    "folder": "TourGuideVanilla",
-    "description": "Tekkub's TourGuide Addon backported for WoW 1.12"
-  },
-  {
-    "name": "TomTomVanilla",
-    "repo": "https://github.com/angelns/TomTomVanilla",
-    "category": "General",
-    "source": "community",
-    "folder": "TomTomVanilla",
-    "description": "Cladhaire's TomTom AddOn backported for 1.12"
-  },
-  {
-    "name": "TourGuideVanilla",
-    "repo": "https://github.com/thefuzzy0ne/TourGuideVanilla",
-    "category": "General",
-    "source": "community",
-    "folder": "TourGuideVanilla",
-    "description": "Tekkub's TourGuide Addon backported for WoW 1.12"
-  },
-  {
-    "name": "TourGuideVanilla",
-    "repo": "https://github.com/terradcm-code/TourGuideVanilla",
-    "category": "General",
-    "source": "community",
-    "folder": "TourGuideVanilla",
-    "description": "See TourGuideClassic for 1.13!!         Tekkub's TourGuide Addon backported for WoW 1.12"
-  },
-  {
-    "name": "TourGuideVanilla",
     "repo": "https://github.com/zaicopx/TourGuideVanilla",
     "category": "General",
     "source": "community",
@@ -15020,48 +14796,8 @@
     "description": "Tekkub's TourGuide Addon backported for WoW 1.12  modified for Turtle WoW"
   },
   {
-    "name": "TourGuideVanilla",
-    "repo": "https://github.com/Chad90b/TourGuideVanilla",
-    "category": "General",
-    "source": "community",
-    "folder": "TourGuideVanilla",
-    "description": "See TourGuideClassic for 1.13!!         Tekkub's TourGuide Addon backported for WoW 1.12"
-  },
-  {
-    "name": "TourGuideVanilla",
-    "repo": "https://github.com/00x1/TourGuideVanilla",
-    "category": "General",
-    "source": "community",
-    "folder": "TourGuideVanilla",
-    "description": "See TourGuideClassic for 1.13!!         Tekkub's TourGuide Addon backported for WoW 1.12"
-  },
-  {
-    "name": "TomTomVanilla",
-    "repo": "https://github.com/webbrain-one/TomTomVanilla",
-    "category": "General",
-    "source": "community",
-    "folder": "TomTomVanilla",
-    "description": "Cladhaire's TomTom AddOn backported for 1.12"
-  },
-  {
     "name": "TomTomVanilla",
     "repo": "https://github.com/cralor/TomTomVanilla",
-    "category": "General",
-    "source": "community",
-    "folder": "TomTomVanilla",
-    "description": "Cladhaire's TomTom AddOn backported for 1.12"
-  },
-  {
-    "name": "TomTomVanilla",
-    "repo": "https://github.com/Road-block/TomTomVanilla",
-    "category": "General",
-    "source": "community",
-    "folder": "TomTomVanilla",
-    "description": "Cladhaire's TomTom AddOn backported for 1.12"
-  },
-  {
-    "name": "TomTomVanilla",
-    "repo": "https://github.com/rebooting/TomTomVanilla",
     "category": "General",
     "source": "community",
     "folder": "TomTomVanilla",
@@ -15078,22 +14814,6 @@
   {
     "name": "TourGuideVanilla",
     "repo": "https://github.com/cralor/TourGuideVanilla",
-    "category": "General",
-    "source": "community",
-    "folder": "TourGuideVanilla",
-    "description": "See TourGuideClassic for 1.13!!         Tekkub's TourGuide Addon backported for WoW 1.12"
-  },
-  {
-    "name": "TomTomVanilla",
-    "repo": "https://github.com/Chad90b/TomTomVanilla",
-    "category": "General",
-    "source": "community",
-    "folder": "TomTomVanilla",
-    "description": "Cladhaire's TomTom AddOn backported for 1.12"
-  },
-  {
-    "name": "TourGuideVanilla",
-    "repo": "https://github.com/jiangxt316/TourGuideVanilla",
     "category": "General",
     "source": "community",
     "folder": "TourGuideVanilla",

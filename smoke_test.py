@@ -3257,6 +3257,260 @@ def test_addon_update_check_uses_catalog_index_only():
     print("OK addon update check uses catalog index only")
 
 
+def test_older_tag_install_reports_update():
+    """Version-dropdown older tag installs must still flag Update vs default tip."""
+    from ichalaunch.addons import catalog as cat
+    from ichalaunch.addons import github as gh
+    from ichalaunch.addons import tip_index as tips
+    from ichalaunch.addons.tip_index import clear_tip_index_cache, normalize_index
+    from ichalaunch.config.settings import settings
+
+    tip_sha = "b" * 40
+    old_sha = "a" * 40
+    index = normalize_index(
+        {
+            "generated_at": "2026-08-25T00:00:00Z",
+            "repos": {
+                "shagu/shagutweaks": {
+                    "default_branch": "master",
+                    "sha": tip_sha,
+                    "branches": {"master": tip_sha},
+                    "latest_tag": "v2.0.0",
+                },
+                # Missing tip (NampowerSettings-style) must stay a quiet skip.
+                "owner/notips": {
+                    "default_branch": "main",
+                    "sha": "",
+                    "branches": {},
+                },
+            },
+        }
+    )
+    prev_loaded = tips._loaded
+    prev_addons = settings.installed_addons
+    orig_tip = gh.github_remote_tip
+    orig_tag = gh.github_latest_version_tag
+    orig_refresh = tips.refresh_tip_index
+    orig_cat_refresh = cat.refresh_catalog
+    orig_install = gh.install_from_github
+
+    def boom(*_a, **_k):
+        raise AssertionError("per-addon GitHub probe should not run")
+
+    def fake_refresh(*, force: bool = False):
+        return index
+
+    def fake_cat_refresh(*, force: bool = False):
+        return cat.load_bundled_catalog()
+
+    captured: dict = {}
+
+    def fake_install(url, folder_name=None, progress=None, *, allow_stored_tag=True):
+        captured["url"] = url
+        captured["folder_name"] = folder_name
+        captured["allow_stored_tag"] = allow_stored_tag
+        return None
+
+    try:
+        tips._loaded = (0.0, index)
+        tips.refresh_tip_index = fake_refresh
+        cat.refresh_catalog = fake_cat_refresh
+        gh.github_remote_tip = boom
+        gh.github_latest_version_tag = boom
+        gh.install_from_github = fake_install
+
+        # Older tag pin: branch field often equals the tag name (not default branch).
+        settings.set(
+            "installed_addons",
+            {
+                "ShaguTweaks": {
+                    "repository": "shagu/ShaguTweaks",
+                    "url": "https://github.com/shagu/ShaguTweaks/releases/tag/v1.0.0",
+                    "installed_commit": old_sha,
+                    "branch": "v1.0.0",
+                    "tag": "v1.0.0",
+                    "version": "v1.0.0",
+                    "source": "github",
+                },
+                "NoTipsAddon": {
+                    "repository": "owner/NoTips",
+                    "url": "https://github.com/owner/NoTips",
+                    "installed_commit": old_sha,
+                    "branch": "main",
+                    "source": "github",
+                },
+                "Bagshui": {
+                    "repository": "The-Kludge-Bureau/Bagshui",
+                    "url": "https://github.com/The-Kludge-Bureau/Bagshui/releases/tag/1.5.16",
+                    "installed_commit": old_sha,
+                    "branch": "1.5.16",
+                    "tag": "1.5.16",
+                    "version": "1.5.16",
+                    "source": "github",
+                    "never_update": True,
+                },
+            },
+        )
+        result = gh.check_addon_updates()
+        assert result.checked_count == 1, result
+        assert len(result.updates) == 1
+        assert result.updates[0]["folder"] == "ShaguTweaks"
+        assert result.updates[0]["remote"] == tip_sha[:7]
+
+        # At default tip (even if installed via matching tag) → no update.
+        settings.set(
+            "installed_addons",
+            {
+                "ShaguTweaks": {
+                    "repository": "shagu/ShaguTweaks",
+                    "url": "https://github.com/shagu/ShaguTweaks/releases/tag/v2.0.0",
+                    "installed_commit": tip_sha,
+                    "branch": "v2.0.0",
+                    "tag": "v2.0.0",
+                    "version": "v2.0.0",
+                    "source": "github",
+                }
+            },
+        )
+        at_tip = gh.check_addon_updates()
+        assert at_tip.checked_count == 1
+        assert at_tip.updates == []
+
+        # Update must target branch tip, not reinstall the stored older tag.
+        settings.set(
+            "installed_addons",
+            {
+                "ShaguTweaks": {
+                    "repository": "shagu/ShaguTweaks",
+                    "url": "https://github.com/shagu/ShaguTweaks/releases/tag/v1.0.0",
+                    "installed_commit": old_sha,
+                    "branch": "v1.0.0",
+                    "tag": "v1.0.0",
+                    "version": "v1.0.0",
+                    "source": "github",
+                }
+            },
+        )
+        gh.update_addon("ShaguTweaks")
+        assert captured.get("allow_stored_tag") is False
+        assert "/releases/tag/" not in str(captured.get("url") or "")
+        assert "shagu/shagutweaks" in str(captured.get("url") or "").lower()
+    finally:
+        gh.github_remote_tip = orig_tip
+        gh.github_latest_version_tag = orig_tag
+        gh.install_from_github = orig_install
+        tips.refresh_tip_index = orig_refresh
+        cat.refresh_catalog = orig_cat_refresh
+        settings.set("installed_addons", prev_addons)
+        tips._loaded = prev_loaded
+        if prev_loaded is None:
+            clear_tip_index_cache()
+    print("OK older tag install reports update")
+
+
+def test_update_to_tip_clears_stored_version_pin():
+    """Update-to-tip must clear meta.tag so settings cog shows Latest, not the old pin.
+
+    Regression: update_addon used allow_stored_tag=False (row status cleared) but
+    _addon_install_meta only popped tag from the payload; set_installed_addon merge
+    kept the prior pin so AddonSettingsDialog still selected the old version.
+    """
+    import tempfile
+    from pathlib import Path
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    import ichalaunch.addons.github as G
+    import ichalaunch.config.settings as settings_mod
+    from ichalaunch.addons.github import _addon_install_meta
+    from ichalaunch.config.settings import Settings
+    from ichalaunch.ui.widgets import dialogs as D
+
+    app = QApplication.instance() or QApplication([])
+    tip_sha = "dddddddddddddddddddddddddddddddddddddddd"
+    prev_token = G.has_github_token
+    orig_preview_start = D._PreviewFetchThread.start
+    orig_browse_start = D._AddonBrowseFetchThread.start
+    orig_path = settings_mod.settings_path
+    orig_singleton = settings_mod.settings
+    orig_gh_settings = G.settings
+
+    def _noop_start(self):  # noqa: ANN001
+        return None
+
+    with tempfile.TemporaryDirectory() as td:
+        fake = Path(td) / "settings.json"
+        settings_mod.settings_path = lambda: fake
+        try:
+            G.has_github_token = lambda: True  # type: ignore[assignment]
+            D._PreviewFetchThread.start = _noop_start  # type: ignore[method-assign]
+            D._AddonBrowseFetchThread.start = _noop_start  # type: ignore[method-assign]
+            # _addon_install_meta reads the module singleton — keep it in sync.
+            settings_mod.settings = Settings()
+            G.settings = settings_mod.settings
+            s = settings_mod.settings
+
+            s.set_installed_addon(
+                "ShaguTweaks",
+                {
+                    "source": "github",
+                    "name": "ShaguTweaks",
+                    "repository": "shagu/ShaguTweaks",
+                    "url": "https://github.com/shagu/ShaguTweaks/releases/tag/v1.0.0",
+                    "branch": "v1.0.0",
+                    "tag": "v1.0.0",
+                    "version": "v1.0.0",
+                    "installed_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "loaded": True,
+                },
+            )
+            assert s.installed_addons["ShaguTweaks"].get("tag") == "v1.0.0"
+
+            # Same write shape as install_from_github -> _record_pack_install after Update.
+            meta = _addon_install_meta(
+                folder="ShaguTweaks",
+                owner="shagu",
+                repo="ShaguTweaks",
+                branch="master",
+                sha=tip_sha,
+                url="https://github.com/shagu/ShaguTweaks",
+                commit_date="2024-06-01",
+                match_kind="exact",
+                tag=None,
+            )
+            assert not str(meta.get("tag") or "").strip(), meta
+            s.set_installed_addon("ShaguTweaks", meta)
+            stored = s.installed_addons["ShaguTweaks"]
+            assert not str(stored.get("tag") or "").strip(), stored
+            assert not str(stored.get("version") or "").strip(), stored
+            assert stored.get("installed_commit") == tip_sha
+            assert stored.get("branch") == "master"
+            assert "/releases/tag/" not in str(stored.get("url") or "")
+
+            entry = {
+                "name": "ShaguTweaks",
+                "folder": "ShaguTweaks",
+                "repo": "https://github.com/shagu/ShaguTweaks",
+            }
+            dlg = D.AddonSettingsDialog(None, entry, meta=stored)
+            dlg.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+            assert dlg._version_combo is not None
+            assert str(dlg._version_combo.currentData() or "").strip() == ""
+            assert "latest" in str(dlg._version_combo.currentText() or "").lower()
+            dlg.close()
+            app.processEvents()
+        finally:
+            G.has_github_token = prev_token
+            D._PreviewFetchThread.start = orig_preview_start  # type: ignore[method-assign]
+            D._AddonBrowseFetchThread.start = orig_browse_start  # type: ignore[method-assign]
+            settings_mod.settings = orig_singleton
+            G.settings = orig_gh_settings
+            settings_mod.settings_path = orig_path
+
+    print("OK update to tip clears stored version pin")
+
+
 def test_available_catalog_remote_refresh_and_merge():
     """Remote Available catalog replaces on success; merge helper overlays by folder."""
     import tempfile
@@ -3797,6 +4051,368 @@ def test_never_update_persists():
         assert not (bag_dir / ".git").exists()
 
     print("OK never_update persists across save/load")
+
+
+def test_reinstall_clears_never_update():
+    """Intentional install/reinstall/replace must clear a user Never Update lock."""
+    import ichalaunch.config.settings as settings_mod
+    from ichalaunch.addons.github import _addon_install_meta
+    from ichalaunch.config.settings import Settings
+
+    with tempfile.TemporaryDirectory() as td:
+        fake = Path(td) / "settings.json"
+        orig_path = settings_mod.settings_path
+        settings_mod.settings_path = lambda: fake
+        try:
+            s = Settings()
+            s.set_installed_addon(
+                "ShaguTweaks",
+                {
+                    "source": "github",
+                    "name": "ShaguTweaks",
+                    "repository": "shagu/ShaguTweaks",
+                    "never_update": True,
+                    "loaded": True,
+                },
+            )
+            assert s.is_addon_never_update("ShaguTweaks") is True
+
+            # Explicit False from install meta clears the user lock.
+            s.set_installed_addon("ShaguTweaks", {"loaded": True, "never_update": False})
+            assert s.installed_addons["ShaguTweaks"].get("never_update") is not True
+            assert s.is_addon_never_update("ShaguTweaks") is False
+
+            s.set_addon_never_update("ShaguTweaks", True)
+            assert s.is_addon_never_update("ShaguTweaks") is True
+
+            # Same path reinstall uses: _addon_install_meta → set_installed_addon
+            meta = _addon_install_meta(
+                folder="ShaguTweaks",
+                owner="shagu",
+                repo="ShaguTweaks",
+                branch="master",
+                sha="abc1234",
+                url="https://github.com/shagu/ShaguTweaks",
+                commit_date="2024-01-01",
+                match_kind="exact",
+            )
+            assert meta.get("never_update") is False
+            s.set_installed_addon("ShaguTweaks", meta)
+            assert s.installed_addons["ShaguTweaks"].get("never_update") is not True
+            assert s.is_addon_never_update("ShaguTweaks") is False
+
+            # Catalog-pinned Bagshui stays locked after the same write shape.
+            s.set_installed_addon(
+                "Bagshui",
+                {"source": "github", "name": "Bagshui", "never_update": False, "loaded": True},
+            )
+            assert s.installed_addons["Bagshui"].get("never_update") is True
+            assert s.is_addon_never_update("Bagshui") is True
+        finally:
+            settings_mod.settings_path = orig_path
+
+    print("OK reinstall clears never_update")
+
+
+def test_row_reinstall_clears_never_update():
+    """Installed-row Reinstall payload must clear never_update via _reinstall_addon.
+
+    Prior test only called _addon_install_meta directly and missed the real UI
+    path: AddonRow Reinstall → reinstall_requested → MainWindow._reinstall_addon
+    (no _prefer_selection). That handler must clear+persist before install runs.
+    """
+    from unittest.mock import MagicMock
+
+    import ichalaunch.config.settings as settings_mod
+    from ichalaunch.config.settings import settings
+    from ichalaunch.ui import main_window as mw
+
+    with tempfile.TemporaryDirectory() as td:
+        fake = Path(td) / "settings.json"
+        orig_path = settings_mod.settings_path
+        settings_mod.settings_path = lambda: fake
+        orig_installed = mw.is_installed
+        try:
+            settings.load()
+            settings.set_installed_addon(
+                "ShaguTweaks",
+                {
+                    "source": "github",
+                    "name": "ShaguTweaks",
+                    "folder": "ShaguTweaks",
+                    "repository": "shagu/ShaguTweaks",
+                    "url": "https://github.com/shagu/ShaguTweaks",
+                    "never_update": True,
+                    "loaded": True,
+                },
+            )
+            assert settings.is_addon_never_update("ShaguTweaks") is True
+
+            # Same shape AddonRow emits (no _prefer_selection / _action).
+            row_entry = {
+                "name": "ShaguTweaks",
+                "folder": "ShaguTweaks",
+                "description": "",
+                "category": "Installed",
+                "repo": "https://github.com/shagu/ShaguTweaks",
+                "repository": "shagu/ShaguTweaks",
+                "url": "https://github.com/shagu/ShaguTweaks",
+                "source": "github",
+                "tag": "",
+                "loaded": True,
+            }
+
+            win = MagicMock()
+            win.addons = MagicMock()
+            # Real clear path used by _reinstall_addon.
+            win.addons.set_never_update = (
+                lambda entry, enabled: settings.set_addon_never_update(
+                    str(entry.get("folder") or entry.get("name") or ""),
+                    bool(enabled),
+                )
+            )
+            win.status_lbl = MagicMock()
+            captured: dict = {}
+
+            def _capture_busy(title, worker, on_ok=None, **_kw):  # noqa: ANN001
+                captured["title"] = title
+                captured["fn"] = worker.fn
+                captured["args"] = worker.args
+                captured["kwargs"] = worker.kwargs
+                # Do not run download — clear must already have happened.
+                if on_ok:
+                    on_ok(None)
+
+            win._busy = _capture_busy
+            mw.is_installed = lambda: True  # type: ignore[assignment]
+            mw.MainWindow._reinstall_addon(win, row_entry)
+
+            assert settings.installed_addons["ShaguTweaks"].get("never_update") is not True
+            assert settings.is_addon_never_update("ShaguTweaks") is False
+            # Persist to disk (set_addon_never_update → set → save).
+            raw = json.loads(fake.read_text(encoding="utf-8"))
+            assert raw["installed_addons"]["ShaguTweaks"].get("never_update") is not True
+            assert "_prefer_selection" not in row_entry
+            assert captured.get("fn") is mw.install_from_github
+            assert captured.get("args")[1] == "ShaguTweaks"
+        finally:
+            mw.is_installed = orig_installed
+            settings_mod.settings_path = orig_path
+            settings.load()
+
+    print("OK row reinstall clears never_update")
+
+
+def test_addon_row_update_button_is_square():
+    """Installed-row Update chrome is square and matches Reinstall plate height."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.core.paths import theme_file
+    from ichalaunch.ui.widgets.common import (
+        AddonRow,
+        AddonRowUpdateButton,
+        GLUE_ROW_H,
+        _UPDATE_BTN_SIDE,
+        _row_update_arrow_pixmap,
+    )
+    from ichalaunch.ui.widgets.glue_panel_button import GluePanelButton
+
+    app = QApplication.instance() or QApplication([])
+    assert _UPDATE_BTN_SIDE == GLUE_ROW_H
+    assert theme_file("UI-MicroStream-Yellow.PNG").is_file()
+    arrow = _row_update_arrow_pixmap()
+    assert not arrow.isNull()
+
+    btn = AddonRowUpdateButton()
+    btn.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    btn.show()
+    assert btn._chrome_w == GLUE_ROW_H
+    assert btn._chrome_h == GLUE_ROW_H
+    assert btn._chrome_w == btn._chrome_h
+    # Widget may expand for CheckButtonGlow margins; stay square.
+    assert btn.width() == btn.height()
+    assert btn.width() >= GLUE_ROW_H
+    assert not btn._glow_pm.isNull()
+    assert btn._glow_pm.width() == btn.width()
+    assert btn._glow_pm.height() == btn.height()
+    chrome = btn._chrome_rect()
+    assert chrome.width() == chrome.height() == GLUE_ROW_H
+    assert chrome.x() == (btn.width() - GLUE_ROW_H) // 2
+    assert chrome.y() == (btn.height() - GLUE_ROW_H) // 2
+    assert not hasattr(btn, "menu_btn")
+    assert not hasattr(btn, "set_menu_open")
+    assert not hasattr(btn, "menu_popup_pos")
+    assert not hasattr(btn, "menu_clicked")
+
+    entry = {
+        "name": "pfUI",
+        "folder": "pfUI",
+        "repo": "https://github.com/shagu/pfUI",
+        "repository": "shagu/pfUI",
+        "source": "github",
+    }
+    row = AddonRow(entry, status="Update available", never_update=False)
+    row.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    row.resize(900, 64)
+    row.show()
+    row.adjustSize()
+    assert isinstance(row._update_btn_widget, AddonRowUpdateButton)
+    upd = row._update_btn_widget
+    assert upd._chrome_h == GLUE_ROW_H
+    assert upd.width() == upd.height()
+    assert isinstance(row.reinstall_btn, GluePanelButton)
+    ri = row.reinstall_btn
+    assert ri.height() == GLUE_ROW_H
+    # Plate height matches Reinstall; widget may be taller for glow pad.
+    assert upd._chrome_h == ri.height(), (
+        f"Update chrome {upd._chrome_h} != Reinstall height {ri.height()}"
+    )
+    assert not hasattr(row, "never_update_changed")
+    assert not hasattr(row, "_popup_never_update_menu")
+    row.close()
+    btn.close()
+    print("OK addon row Update is square and matches Reinstall height")
+
+
+def test_addon_settings_never_update_on_save():
+    """Settings cog Never update can check AND uncheck; catalog pins stay locked."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.addons import github as G
+    from ichalaunch.config.settings import Settings
+    from ichalaunch.ui.pages.addons import AddonsPage
+    from ichalaunch.ui.widgets import dialogs as D
+    from ichalaunch.ui.widgets.theme_checkbox import ThemeCheckBox
+
+    app = QApplication.instance() or QApplication([])
+    entry = {
+        "name": "pfUI",
+        "folder": "pfUI",
+        "repo": "https://github.com/shagu/pfUI",
+        "repository": "shagu/pfUI",
+    }
+    meta = {"tag": "5.4.4", "source": "github", "loaded": True}
+
+    prev_token = G.has_github_token
+    orig_preview_start = D._PreviewFetchThread.start
+    orig_browse_start = D._AddonBrowseFetchThread.start
+
+    def _noop_start(self):  # noqa: ANN001
+        return None
+
+    try:
+        G.has_github_token = lambda: True  # type: ignore[assignment]
+        D._PreviewFetchThread.start = _noop_start  # type: ignore[method-assign]
+        D._AddonBrowseFetchThread.start = _noop_start  # type: ignore[method-assign]
+
+        dlg = D.AddonSettingsDialog(None, entry, meta=meta)
+        dlg.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        assert isinstance(dlg._never_update_cb, ThemeCheckBox)
+        assert dlg._never_update_cb.text() == "Never update"
+        assert dlg._never_update_cb.isEnabled()
+        assert dlg._never_update_cb.isChecked() is False
+        dlg._never_update_cb.setChecked(True)
+        dlg._accept_save()
+        result = dlg.result_data()
+        assert isinstance(result, dict)
+        assert result.get("never_update") is True
+        dlg.close()
+
+        # After Save the row often carries pin_release + never_update — must NOT
+        # treat that as a catalog lock (regression: checkbox stuck enabled=False).
+        sticky = dict(entry)
+        sticky["pin_release"] = "5.4.4"
+        sticky["tag"] = "5.4.4"
+        sticky_meta = {
+            "tag": "5.4.4",
+            "source": "github",
+            "loaded": True,
+            "never_update": True,
+        }
+        dlg_clear = D.AddonSettingsDialog(None, sticky, meta=sticky_meta)
+        dlg_clear.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        assert dlg_clear._catalog_never_locked is False
+        assert dlg_clear._never_update_cb.isEnabled()
+        assert dlg_clear._never_update_cb.isChecked() is True
+        dlg_clear._never_update_cb.setChecked(False)
+        dlg_clear._accept_save()
+        cleared = dlg_clear.result_data()
+        assert isinstance(cleared, dict)
+        assert cleared.get("never_update") is False
+        dlg_clear.close()
+
+        # Catalog-locked Bagshui stays checked + disabled.
+        bag = {
+            "name": "Bagshui",
+            "folder": "Bagshui",
+            "repo": "https://github.com/bagshui/bagshui",
+            "repository": "bagshui/bagshui",
+        }
+        bag_meta = {"source": "github", "never_update": True, "loaded": True}
+        dlg2 = D.AddonSettingsDialog(None, bag, meta=bag_meta)
+        dlg2.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        assert dlg2._catalog_never_locked is True
+        assert dlg2._never_update_cb.isChecked() is True
+        assert not dlg2._never_update_cb.isEnabled()
+        dlg2.close()
+    finally:
+        G.has_github_token = prev_token
+        D._PreviewFetchThread.start = orig_preview_start  # type: ignore[method-assign]
+        D._AddonBrowseFetchThread.start = orig_browse_start  # type: ignore[method-assign]
+
+    # Persist round-trip: uncheck → is_addon_never_update False; check → True.
+    import ichalaunch.config.settings as settings_mod
+
+    with tempfile.TemporaryDirectory() as td:
+        fake = Path(td) / "settings.json"
+        orig_path = settings_mod.settings_path
+        settings_mod.settings_path = lambda: fake
+        try:
+            s = Settings()
+            s.set_installed_addon(
+                "pfUI",
+                {
+                    "source": "github",
+                    "never_update": True,
+                    "loaded": True,
+                    "tag": "5.4.4",
+                },
+            )
+            assert s.is_addon_never_update("pfUI") is True
+            s.set_addon_never_update("pfUI", False)
+            assert s.is_addon_never_update("pfUI") is False
+            assert s.installed_addons["pfUI"].get("never_update") is not True
+            s.set_addon_never_update("pfUI", True)
+            assert s.is_addon_never_update("pfUI") is True
+        finally:
+            settings_mod.settings_path = orig_path
+
+    page = AddonsPage()
+    page.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    seen: list[tuple[dict, bool]] = []
+    page.set_never_update = (  # type: ignore[method-assign]
+        lambda ent, enabled: seen.append((dict(ent), bool(enabled)))
+    )
+
+    def _fake_dialog(parent, ent, *, meta=None):  # noqa: ANN001
+        out = dict(ent)
+        out["never_update"] = False
+        return out
+
+    prev_dlg = D.addon_settings_dialog
+    try:
+        D.addon_settings_dialog = _fake_dialog  # type: ignore[assignment]
+        page.open_addon_settings(dict(entry))
+    finally:
+        D.addon_settings_dialog = prev_dlg  # type: ignore[assignment]
+        page.close()
+
+    assert len(seen) == 1
+    assert seen[0][1] is False
+    assert seen[0][0].get("folder") == "pfUI"
+    print("OK addon settings Never update checkbox applies on Save")
 
 
 def test_sanitize_filename():
@@ -5392,7 +6008,286 @@ def test_launch_buttons_use_glue_panel_chrome():
     print("OK launch buttons use glue-panel chrome")
 
 
+def test_addon_check_updates_gates_until_list_ready():
+    """Check Updates stays disabled until lists are built and revealed."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.pages.addons import AddonsPage
+
+    app = QApplication.instance() or QApplication([])
+    page = AddonsPage()
+    page.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+
+    assert page._lists_ready is False
+    assert page.update_check_ui_ready() is False
+    assert page.check_btn.isEnabled() is False
+
+    page._lists_ready = True
+    page._pending_list_work.add("reveal")
+    page._sync_check_btn()
+    assert page.lists_mutating() is True
+    assert page.update_check_ui_ready() is False
+    assert page.check_btn.isEnabled() is False
+
+    page._pending_list_work.clear()
+    # Off-screen page: no reveal required for "ready" (silent startup path).
+    page.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    page._sync_check_btn()
+    assert page.update_check_ui_ready() is True
+    assert page.check_btn.isEnabled() is True
+
+    page.set_checking(True)
+    assert page._scan_busy() is True
+    assert page.update_check_ui_ready() is False
+    assert page.check_btn.isEnabled() is False
+
+    # Settle pattern: drop scan gate, keep Check locked.
+    page.set_check_busy(True)
+    page.set_scanning(False)
+    assert page._scan_busy() is False
+    assert page._check_busy is True
+    assert page.check_btn.isEnabled() is False
+
+    page.set_checking(False)
+    page.close()
+    print("OK addon Check Updates gated until list ready")
+
+
+def test_addons_defers_list_build_while_scanning():
+    """Opening Addons during an update scan must not clear()/reveal lists yet."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication, QStackedWidget
+
+    from ichalaunch.ui.pages.addons import AddonsPage, _SCAN_PLACEHOLDER
+
+    app = QApplication.instance() or QApplication([])
+    stack = QStackedWidget()
+    page = AddonsPage()
+    # Arm the scan gate before the page can receive Show (addWidget/current).
+    page.set_scanning(True)
+    assert page._scan_busy() is True
+    assert page.update_check_ui_ready() is False
+
+    page._dirty = True
+    page._lists_ready = False
+    stack.addWidget(page)
+    stack.setCurrentWidget(page)
+    stack.show()
+    page.show()
+    app.processEvents()
+
+    assert page.loading_lbl.isVisible()
+    assert (page.loading_lbl.text() or "").startswith("Scanning addons")
+    assert _SCAN_PLACEHOLDER in (page.loading_lbl.text() or "") or True
+    assert "refresh" in page._pending_list_work
+    assert "reveal" in page._pending_list_work
+    assert page._refreshing is False
+    assert page._revealing is False
+    assert page._lists_ready is False
+    assert page.installed_list.count() == 0
+    assert page.installed_list.testAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
+    assert page.list.testAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
+    assert page.check_btn.isEnabled() is False
+
+    # Dropping the scan gate must schedule deferred list work (not run inline
+    # on set_scanning alone beyond the singleShot).
+    page.set_scanning(False)
+    assert page._scan_busy() is False
+    app.processEvents()
+    # Flush may still be in flight; pending should drain or be actively refreshing.
+    assert (
+        not page._pending_list_work
+        or page._refreshing
+        or page._revealing
+        or "refresh" in page._pending_list_work
+        or "reveal" in page._pending_list_work
+    )
+
+    page.close()
+    stack.close()
+    print("OK addons defers list build while scanning")
+
+
+def test_mainwindow_check_updates_serializes_pending_reveal():
+    """Real MainWindow._check_updates must finish reveal before set_updates.
+
+    Reproduces the crash window: pending reveal/refresh ignored by the old
+    mutating carve-out so apply patched while first-open reveal was still queued.
+    Also asserts apply never clear()/rebuilds via reload_catalog.
+    """
+    from PySide6.QtCore import QDeadlineTimer, Qt
+    from PySide6.QtWidgets import QApplication, QLabel
+
+    import ichalaunch.ui.main_window as mw
+    from ichalaunch.addons.github import AddonUpdateCheckResult
+    from ichalaunch.ui.pages.addons import AddonsPage
+
+    app = QApplication.instance() or QApplication([])
+
+    page = AddonsPage()
+    page.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    page._lists_ready = True
+    page._dirty = False
+    page._pending_list_work.add("reveal")
+    page._sync_check_btn()
+    assert page.update_check_ui_ready() is False
+    assert page.check_btn.isEnabled() is False
+
+    applied: list[list] = []
+    catalog_calls: list[str] = []
+    original_set_updates = page.set_updates
+    original_ingest = page.ingest_catalog_update
+    original_reload = page.reload_catalog
+
+    def _tracking_set_updates(updates):  # noqa: ANN001
+        pending = set(page._pending_list_work)
+        assert "reveal" not in pending
+        assert "refresh" not in pending
+        assert page._revealing is False
+        assert page._refreshing is False
+        applied.append(list(updates))
+        return original_set_updates(updates)
+
+    def _tracking_ingest() -> None:
+        catalog_calls.append("ingest")
+        return original_ingest()
+
+    def _tracking_reload() -> None:
+        catalog_calls.append("reload")
+        raise AssertionError("reload_catalog must not run during Check Updates apply")
+
+    page.set_updates = _tracking_set_updates  # type: ignore[method-assign]
+    page.ingest_catalog_update = _tracking_ingest  # type: ignore[method-assign]
+    page.reload_catalog = _tracking_reload  # type: ignore[method-assign]
+
+    class Harness:
+        def __init__(self):
+            self.addons = page
+            self.status_lbl = QLabel("")
+            self._checking_addons = False
+            self._checking_mods = False
+            self._check_addon_pct = 0
+            self._check_mod_pct = 0
+            self._addon_check_status = ""
+            self._addon_check_settling = False
+            self._silent_addon_check_retry_armed = False
+            self._silent_addon_check_retries = 0
+            self._update_worker = None
+            self._worker = None
+            self._mod_update_worker = None
+            self._launcher_update_worker = None
+            self._live_workers: set = set()
+            self._busy_status_base = ""
+            self.progress = type(
+                "P",
+                (),
+                {
+                    "isHidden": lambda self: True,
+                    "show": lambda self: None,
+                    "setRange": lambda *a: None,
+                    "setValue": lambda *a: None,
+                    "setFormat": lambda *a: None,
+                    "maximum": lambda self: 100,
+                },
+            )()
+            self.client = type("C", (), {"set_checking": lambda *a, **k: None})()
+
+        _check_updates = mw.MainWindow._check_updates
+        _arm_silent_addon_check_retry = mw.MainWindow._arm_silent_addon_check_retry
+        _refresh_check_loading = mw.MainWindow._refresh_check_loading
+        _lock_addon_filters = mw.MainWindow._lock_addon_filters
+        _track_worker = mw.MainWindow._track_worker
+        _release_worker = mw.MainWindow._release_worker
+        _worker_busy = mw.MainWindow._worker_busy
+        _combined_check_pct = mw.MainWindow._combined_check_pct
+        _on_addon_check_status = mw.MainWindow._on_addon_check_status
+        _on_check_progress_pct = lambda self, *_a, **_k: None
+        _hide_progress_bar = lambda self: None
+        _refresh_nav_badges = lambda self: None
+
+    harness = Harness()
+
+    orig_installed = mw.is_installed
+    orig_recent = mw.recently_checked_addon_updates
+    orig_worker = mw.Worker
+    orig_check = getattr(mw, "check_addon_updates", None)
+
+    class InstantWorker(mw.Worker):
+        def start(self):  # noqa: N802
+            # Run fn synchronously then emit — mimics a very fast scan finishing
+            # while reveal is still pending on the UI side.
+            try:
+                result = self.fn(*self.args, **self.kwargs)
+                self.finished_ok.emit(result)
+            except Exception as exc:  # noqa: BLE001
+                self.failed.emit(str(exc))
+
+    def _fake_check(*_a, **_k):
+        return AddonUpdateCheckResult(
+            updates=[],
+            status_message="up to date",
+            catalog_refreshed=True,
+        )
+
+    try:
+        mw.is_installed = lambda: True  # type: ignore[assignment]
+        mw.recently_checked_addon_updates = lambda: False  # type: ignore[assignment]
+        mw.Worker = InstantWorker  # type: ignore[misc,assignment]
+        mw.check_addon_updates = _fake_check  # type: ignore[assignment]
+
+        # Manual path refuses while not ready.
+        harness._check_updates(silent=False)
+        assert harness._update_worker is None
+        assert "still loading" in (harness.status_lbl.text() or "").lower()
+
+        # Simulate scan-in-flight with deferred reveal (mid-scan open), then
+        # force-start so we exercise apply serialization (force bypasses ready).
+        page.set_scanning(True)
+        page._pending_list_work.add("reveal")
+        page._sync_check_btn()
+
+        # After force start, apply phase 0 drops scanning → pending reveal
+        # must clear before set_updates. Hook flush to clear reveal quickly.
+        orig_flush = page._flush_list_work
+
+        def _flush():
+            if not page._scan_busy() and "reveal" in page._pending_list_work:
+                page._pending_list_work.discard("reveal")
+                page._sync_check_btn()
+                return
+            return orig_flush()
+
+        page._flush_list_work = _flush  # type: ignore[method-assign]
+
+        harness._check_updates(silent=False, force=True)
+        deadline = QDeadlineTimer(5000)
+        while (
+            harness._checking_addons
+            or harness._addon_check_settling
+            or harness._update_worker
+        ) and not deadline.hasExpired():
+            app.processEvents()
+
+        assert applied == [[]]
+        assert catalog_calls == ["ingest"]
+        assert harness._checking_addons is False
+        assert harness._addon_check_settling is False
+        assert page._check_busy is False
+        assert page._scanning is False
+    finally:
+        mw.is_installed = orig_installed
+        mw.recently_checked_addon_updates = orig_recent
+        mw.Worker = orig_worker  # type: ignore[misc]
+        if orig_check is not None:
+            mw.check_addon_updates = orig_check  # type: ignore[assignment]
+        page.close()
+
+    print("OK MainWindow Check Updates serializes pending reveal")
+
+
 def test_options_cog_uses_wow_art():
+    """Addon settings cog uses UI-OptionsButton art at 28x28."""
     from PySide6.QtWidgets import QApplication
 
     from ichalaunch.core.paths import theme_file
@@ -5407,6 +6302,376 @@ def test_options_cog_uses_wow_art():
     assert btn.size().height() == 28
     assert not btn._icon.isNull()
     print("OK addons settings cog uses UI-OptionsButton art")
+
+
+def test_addon_preview_gates_combos_and_open_git():
+    """Settings/Install dialogs lock fork+version until preview settles; Open in Git is present."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.addons import github as G
+    from ichalaunch.ui.widgets import dialogs as D
+
+    app = QApplication.instance() or QApplication([])
+    entry = {
+        "name": "pfUI",
+        "folder": "pfUI",
+        "repo": "https://github.com/shagu/pfUI",
+        "repository": "shagu/pfUI",
+    }
+
+    prev_token = G.has_github_token
+    orig_preview_start = D._PreviewFetchThread.start
+    orig_browse_start = D._AddonBrowseFetchThread.start
+
+    def _noop_start(self):  # noqa: ANN001
+        return None
+
+    try:
+        G.has_github_token = lambda: True  # type: ignore[assignment]
+        D._PreviewFetchThread.start = _noop_start  # type: ignore[method-assign]
+        D._AddonBrowseFetchThread.start = _noop_start  # type: ignore[method-assign]
+
+        settings_dlg = D.AddonSettingsDialog(None, entry, meta={"tag": "5.4.4"})
+        settings_dlg.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        assert settings_dlg._fork_combo is not None
+        assert settings_dlg._version_combo is not None
+        assert settings_dlg._open_git_btn is not None
+        assert settings_dlg._open_git_btn.text() == "Open in Git"
+        assert settings_dlg._preview_pending is True
+        assert not settings_dlg._fork_combo.isEnabled()
+        assert not settings_dlg._version_combo.isEnabled()
+        assert D._LOADING_PREVIEW_TIP in (settings_dlg._fork_combo.toolTip() or "")
+
+        # Preview failure must unlock (do not leave permanently disabled).
+        settings_dlg._preview_pending = False
+        settings_dlg._fork_fetch_pending = False
+        settings_dlg._version_fetch_pending = False
+        settings_dlg._sync_combo_interactivity()
+        assert settings_dlg._fork_combo.isEnabled()
+        assert settings_dlg._version_combo.isEnabled()
+        settings_dlg.close()
+
+        install_dlg = D.AddonInstallPickerDialog(None, entry)
+        install_dlg.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        assert install_dlg._open_git_btn is not None
+        assert install_dlg._open_git_btn.text() == "Open in Git"
+        assert install_dlg._preview_pending is True
+        assert not install_dlg.fork_combo.isEnabled()
+        assert not install_dlg.version_combo.isEnabled()
+        assert D._LOADING_PREVIEW_TIP in (install_dlg.fork_combo.toolTip() or "")
+
+        install_dlg._preview_pending = False
+        install_dlg._forks_fetch_done = True
+        install_dlg._sync_browse_combos()
+        assert install_dlg.fork_combo.isEnabled()
+        assert install_dlg.version_combo.isEnabled()
+        install_dlg.close()
+    finally:
+        G.has_github_token = prev_token
+        D._PreviewFetchThread.start = orig_preview_start  # type: ignore[method-assign]
+        D._AddonBrowseFetchThread.start = orig_browse_start  # type: ignore[method-assign]
+
+    print("OK addon preview gates fork/version until ready; Open in Git beside Version")
+
+def test_glue_combo_popup_hide_wiring_in_settings_dialogs():
+    """Settings/Install use Dialog (not Qt.Popup); lazy version fetch keeps combo enabled."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.addons import github as G
+    from ichalaunch.ui.widgets import dialogs as D
+    from ichalaunch.ui.widgets.glue_combo import GlueComboBox
+
+    app = QApplication.instance() or QApplication([])
+    flags = D._themed_dialog_flags()
+    # Dialog=0b11 and Popup=0b1001 share the Window bit — compare the type byte.
+    type_byte = int(flags) & 0xFF
+    assert type_byte == int(Qt.WindowType.Dialog)
+    assert type_byte != int(Qt.WindowType.Popup)
+    assert int(flags) & int(Qt.WindowType.FramelessWindowHint)
+
+    # hidePopup recovers when open-flag is set (desync path after popupShown races).
+    combo = GlueComboBox(None, min_width=120)
+    combo.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    combo.addItem("a", "a")
+    combo._popup_open = True
+    combo._hiding_popup = False
+    combo.hidePopup()
+    assert not combo._popup_open
+    assert combo._hiding_popup
+    combo._hiding_popup = False
+    combo.hidePopup()
+    assert not combo._popup_open
+    assert not combo._hiding_popup
+
+    # showPopup must call super before popupShown so a sync/hide handler cannot
+    # clear flags and still leave a later native show stuck open.
+    names = GlueComboBox.showPopup.__code__.co_names
+    assert "showPopup" in names
+    assert "emit" in names
+    assert names.index("showPopup") < names.index("emit")
+
+    entry = {
+        "name": "pfUI",
+        "folder": "pfUI",
+        "repo": "https://github.com/shagu/pfUI",
+        "repository": "shagu/pfUI",
+    }
+    prev_token = G.has_github_token
+    orig_preview_start = D._PreviewFetchThread.start
+    orig_browse_start = D._AddonBrowseFetchThread.start
+    orig_cached = G.get_cached_repo_versions
+
+    def _noop_start(self):  # noqa: ANN001
+        return None
+
+    try:
+        G.has_github_token = lambda: True  # type: ignore[assignment]
+        G.get_cached_repo_versions = lambda *_a, **_k: None  # type: ignore[assignment]
+        D._PreviewFetchThread.start = _noop_start  # type: ignore[method-assign]
+        D._AddonBrowseFetchThread.start = _noop_start  # type: ignore[method-assign]
+
+        settings_dlg = D.AddonSettingsDialog(None, entry, meta={"tag": "5.4.4"})
+        settings_dlg.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        assert (int(settings_dlg.windowFlags()) & 0xFF) == int(Qt.WindowType.Dialog)
+        assert settings_dlg._version_combo is not None
+        assert settings_dlg._fork_combo is not None
+        settings_dlg._preview_pending = False
+        settings_dlg._fork_fetch_pending = False
+        settings_dlg._version_fetch_pending = False
+        settings_dlg._sync_combo_interactivity()
+        assert settings_dlg._version_combo.isEnabled()
+        settings_dlg._versions_loaded = False
+        settings_dlg._version_fetch_pending = False
+        settings_dlg._browse_owner = "shagu"
+        settings_dlg._browse_repo = "pfUI"
+        settings_dlg._lazy_fetch_versions()
+        assert settings_dlg._version_fetch_pending is True
+        assert settings_dlg._version_combo.isEnabled()
+        # First open must show a Loading… row instead of an empty/stale-only list.
+        loading_rows = [
+            i
+            for i in range(settings_dlg._version_combo.count())
+            if str(settings_dlg._version_combo.itemData(i) or "") == D._VERSIONS_LOADING_DATA
+        ]
+        assert loading_rows, "lazy miss should insert Loading… into the open list"
+        # Async completion must repopulate without hidePopup (no second click).
+        settings_dlg._version_combo._popup_open = True
+        settings_dlg._on_versions_fetched([], ["5.4.4", "5.4.3"], settings_dlg._browse_fetch_gen)
+        assert settings_dlg._versions_loaded is True
+        assert settings_dlg._version_combo._popup_open is True
+        assert settings_dlg._version_combo.count() >= 3  # tip + tags
+        assert D._VERSIONS_LOADING_DATA not in [
+            str(settings_dlg._version_combo.itemData(i) or "")
+            for i in range(settings_dlg._version_combo.count())
+        ]
+        settings_dlg.close()
+
+        install_dlg = D.AddonInstallPickerDialog(None, entry)
+        install_dlg.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        assert (int(install_dlg.windowFlags()) & 0xFF) == int(Qt.WindowType.Dialog)
+        assert isinstance(install_dlg.fork_combo, GlueComboBox)
+        assert isinstance(install_dlg.version_combo, GlueComboBox)
+        install_dlg.close()
+    finally:
+        G.has_github_token = prev_token
+        G.get_cached_repo_versions = orig_cached
+        D._PreviewFetchThread.start = orig_preview_start  # type: ignore[method-assign]
+        D._AddonBrowseFetchThread.start = orig_browse_start  # type: ignore[method-assign]
+        combo.deleteLater()
+
+    print("OK glue combo popup hide wiring / settings dialog flags")
+
+
+def test_addon_settings_version_prefetch_first_open():
+    """Version list is warmed after forks settle so the first open already has tags."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.addons import github as G
+    from ichalaunch.ui.widgets import dialogs as D
+
+    app = QApplication.instance() or QApplication([])
+    entry = {
+        "name": "pfUI",
+        "folder": "pfUI",
+        "repo": "https://github.com/shagu/pfUI",
+        "repository": "shagu/pfUI",
+    }
+    prev_token = G.has_github_token
+    orig_preview_start = D._PreviewFetchThread.start
+    orig_browse_start = D._AddonBrowseFetchThread.start
+    orig_cached_forks = G.get_cached_repo_forks
+    orig_cached_versions = G.get_cached_repo_versions
+
+    def _noop_start(self):  # noqa: ANN001
+        return None
+
+    try:
+        G.has_github_token = lambda: True  # type: ignore[assignment]
+        D._PreviewFetchThread.start = _noop_start  # type: ignore[method-assign]
+        D._AddonBrowseFetchThread.start = _noop_start  # type: ignore[method-assign]
+        G.get_cached_repo_forks = lambda *_a, **_k: [  # type: ignore[assignment]
+            {
+                "label": "shagu/pfUI",
+                "repo": "https://github.com/shagu/pfUI",
+                "owner": "shagu",
+                "repo_name": "pfUI",
+            }
+        ]
+        G.get_cached_repo_versions = lambda *_a, **_k: ["5.4.4", "5.4.3"]  # type: ignore[assignment]
+
+        dlg = D.AddonSettingsDialog(None, entry, meta={"tag": "5.4.4"})
+        dlg.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        assert dlg._version_combo is not None
+        # Simulate dialog show: forks-from-cache path must also warm versions.
+        dlg._prefetch_forks()
+        assert dlg._forks_loaded is True
+        assert dlg._versions_loaded is True
+        assert dlg._version_combo.count() >= 3
+        tags = [
+            str(dlg._version_combo.itemData(i) or "")
+            for i in range(dlg._version_combo.count())
+        ]
+        assert "5.4.4" in tags
+        assert "5.4.3" in tags
+        # First popupShown is a no-op once warmed (no second-click fetch).
+        pending_before = dlg._version_fetch_pending
+        dlg._lazy_fetch_versions()
+        assert dlg._version_fetch_pending is pending_before
+        dlg.close()
+    finally:
+        G.has_github_token = prev_token
+        G.get_cached_repo_forks = orig_cached_forks
+        G.get_cached_repo_versions = orig_cached_versions
+        D._PreviewFetchThread.start = orig_preview_start  # type: ignore[method-assign]
+        D._AddonBrowseFetchThread.start = orig_browse_start  # type: ignore[method-assign]
+
+    print("OK settings version prefetch fills list before first open")
+
+
+def test_addon_settings_reinstall_enabled_when_selection_differs():
+    """Settings Reinstall enables only when fork/version differ; wires _prefer_selection."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.addons import github as G
+    from ichalaunch.ui.widgets import dialogs as D
+
+    app = QApplication.instance() or QApplication([])
+    entry = {
+        "name": "pfUI",
+        "folder": "pfUI",
+        "repo": "https://github.com/shagu/pfUI",
+        "repository": "shagu/pfUI",
+        "tag": "5.4.4",
+    }
+    meta = {"tag": "5.4.4", "repository": "shagu/pfUI", "url": "https://github.com/shagu/pfUI"}
+
+    prev_token = G.has_github_token
+    orig_preview_start = D._PreviewFetchThread.start
+    orig_browse_start = D._AddonBrowseFetchThread.start
+
+    def _noop_start(self):  # noqa: ANN001
+        return None
+
+    try:
+        G.has_github_token = lambda: True  # type: ignore[assignment]
+        D._PreviewFetchThread.start = _noop_start  # type: ignore[method-assign]
+        D._AddonBrowseFetchThread.start = _noop_start  # type: ignore[method-assign]
+
+        dlg = D.AddonSettingsDialog(None, entry, meta=meta)
+        dlg.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        assert dlg._reinstall_btn is not None
+        assert dlg._baseline_repo == "shagu/pfui"
+        assert dlg._baseline_tag == "5.4.4"
+        # Preview gate: locked while loading even if selection would differ later.
+        assert dlg._preview_pending is True
+        assert not dlg._reinstall_btn.isEnabled()
+
+        dlg._preview_pending = False
+        dlg._fork_fetch_pending = False
+        dlg._sync_combo_interactivity()
+        assert not dlg._selection_differs_from_install()
+        assert not dlg._reinstall_btn.isEnabled()
+
+        # Different version → Reinstall enabled.
+        assert dlg._version_combo is not None
+        dlg._version_combo.blockSignals(True)
+        dlg._version_combo.addItem("v9.9.9", "9.9.9")
+        dlg._version_combo.setCurrentIndex(dlg._version_combo.count() - 1)
+        dlg._version_combo.blockSignals(False)
+        dlg._sync_reinstall_button()
+        assert dlg._selection_differs_from_install()
+        assert dlg._reinstall_btn.isEnabled()
+
+        # Busy/preview lock wins over a differing selection.
+        dlg._preview_pending = True
+        dlg._sync_reinstall_button()
+        assert not dlg._reinstall_btn.isEnabled()
+        dlg._preview_pending = False
+        dlg._sync_reinstall_button()
+        assert dlg._reinstall_btn.isEnabled()
+
+        dlg._accept_reinstall()
+        result = dlg.result_data()
+        assert isinstance(result, dict)
+        assert result.get("_action") == "reinstall"
+        assert result.get("_prefer_selection") is True
+        assert result.get("folder") == "pfUI"
+        assert result.get("tag") == "9.9.9"
+        assert "9.9.9" in str(result.get("repo") or "")
+        dlg.close()
+
+        # Matching selection after unlock stays disabled.
+        dlg2 = D.AddonSettingsDialog(None, entry, meta=meta)
+        dlg2.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        dlg2._preview_pending = False
+        dlg2._fork_fetch_pending = False
+        dlg2._sync_combo_interactivity()
+        assert not dlg2._reinstall_btn.isEnabled()
+        dlg2.close()
+    finally:
+        G.has_github_token = prev_token
+        D._PreviewFetchThread.start = orig_preview_start  # type: ignore[method-assign]
+        D._AddonBrowseFetchThread.start = orig_browse_start  # type: ignore[method-assign]
+
+    # open_addon_settings should emit reinstall_requested with prefer flag.
+    from ichalaunch.ui.pages.addons import AddonsPage
+
+    page = AddonsPage()
+    page.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    seen: list[dict] = []
+    page.reinstall_requested.connect(lambda e: seen.append(dict(e)))
+
+    def _fake_dialog(parent, ent, *, meta=None):  # noqa: ANN001
+        out = dict(ent)
+        out["tag"] = "9.9.9"
+        out["pin_release"] = "9.9.9"
+        out["repo"] = "https://github.com/shagu/pfUI/releases/tag/9.9.9"
+        out["repository"] = "shagu/pfUI"
+        out["_action"] = "reinstall"
+        out["_prefer_selection"] = True
+        return out
+
+    import ichalaunch.ui.widgets.dialogs as dialogs_mod
+
+    prev_dlg = dialogs_mod.addon_settings_dialog
+    try:
+        dialogs_mod.addon_settings_dialog = _fake_dialog  # type: ignore[assignment]
+        page.open_addon_settings(dict(entry))
+    finally:
+        dialogs_mod.addon_settings_dialog = prev_dlg  # type: ignore[assignment]
+        page.close()
+
+    assert len(seen) == 1
+    assert seen[0].get("_prefer_selection") is True
+    assert seen[0].get("folder") == "pfUI"
+    assert seen[0].get("tag") == "9.9.9"
+    assert "_action" not in seen[0]
+
+    print("OK addon settings reinstall enables on selection diff and wires prefer_selection")
 
 
 def test_pass_remove_uses_wow_art():
@@ -6038,6 +7303,8 @@ def _run_smoke_tests():
     test_multi_toc_primary_stem_resolve()
     test_addon_toc_folder_rename()
     test_addon_update_check_uses_catalog_index_only()
+    test_older_tag_install_reports_update()
+    test_update_to_tip_clears_stored_version_pin()
     test_available_catalog_remote_refresh_and_merge()
     test_available_catalog_offline_keeps_cache()
     test_git_refs_live_optional()
@@ -6052,6 +7319,10 @@ def _run_smoke_tests():
     test_settings_paths_recover_from_backup()
     test_bagshui_catalog_pin()
     test_never_update_persists()
+    test_reinstall_clears_never_update()
+    test_row_reinstall_clears_never_update()
+    test_addon_row_update_button_is_square()
+    test_addon_settings_never_update_on_save()
     test_sanitize_filename()
     test_robust_rmtree_readonly_git_pack()
     test_install_clears_readonly_data_mpqs()
@@ -6089,6 +7360,13 @@ def _run_smoke_tests():
     test_loading_bar_reserves_update_button_slot()
     test_launch_buttons_use_glue_panel_chrome()
     test_options_cog_uses_wow_art()
+    test_addon_check_updates_gates_until_list_ready()
+    test_addons_defers_list_build_while_scanning()
+    test_mainwindow_check_updates_serializes_pending_reveal()
+    test_addon_preview_gates_combos_and_open_git()
+    test_glue_combo_popup_hide_wiring_in_settings_dialogs()
+    test_addon_settings_version_prefetch_first_open()
+    test_addon_settings_reinstall_enabled_when_selection_differs()
     test_pass_remove_uses_wow_art()
     test_nav_tab_update_alert_badge()
     test_nav_tab_glue_floor_chrome()

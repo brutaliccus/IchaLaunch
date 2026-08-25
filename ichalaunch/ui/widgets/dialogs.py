@@ -76,6 +76,9 @@ def _dialog_glue_button(
 
 _LOADING_FORKS_TIP = "Loading forks from GitHub…"
 _LOADING_VERSIONS_TIP = "Loading versions from GitHub…"
+_LOADING_PREVIEW_TIP = "Wait for the preview to finish loading…"
+_VERSIONS_LOADING_LABEL = "Loading…"
+_VERSIONS_LOADING_DATA = "__loading__"
 
 
 def _addon_fork_version_row(
@@ -106,6 +109,39 @@ def _addon_fork_version_row(
         row.addWidget(trailing_widget, 0, Qt.AlignmentFlag.AlignVCenter)
     row.addStretch(1)
     return row
+
+
+def _addon_open_git_button(
+    parent: QWidget,
+    owner: QWidget,
+    *url_candidates: object,
+) -> GluePanelButton | None:
+    """Open in Git control placed to the right of Version (settings + install)."""
+    from ichalaunch.ui.widgets.common import (
+        apply_open_git_visibility,
+        github_repo_browse_url,
+    )
+
+    url = github_repo_browse_url(*url_candidates)
+    if not url:
+        return None
+    btn = GluePanelButton("Open in Git", parent, width=128, height=GLUE_BTN_H)
+    btn.setToolTip("Open the repository in your browser")
+    btn.clicked.connect(lambda _=False, u=url: QDesktopServices.openUrl(QUrl(u)))
+    apply_open_git_visibility(btn, url, owner, defer=True)
+    return btn
+
+
+def _kick_open_git_visibility(owner: QWidget, button: QWidget | None) -> None:
+    """Run deferred Open-in-Git probe once the dialog is on-screen."""
+    if button is None:
+        return
+    from ichalaunch.ui.widgets.common import apply_open_git_visibility
+
+    url = getattr(owner, "_git_url_deferred", None)
+    if not url:
+        return
+    apply_open_git_visibility(button, str(url), owner, defer=False)
 
 
 class ThemedDialog(QDialog):
@@ -1181,6 +1217,9 @@ class AddonInstallPickerDialog(QDialog):
     self._browse_fetch_gen = 0
     self._preview_url_loaded = ""
     self._preview_url_loading = ""
+    self._preview_pending = True
+    self._forks_fetch_done = False
+    self._open_git_btn = None
 
     name = str(entry.get("name") or entry.get("folder") or "addon")
     version_text = addon_version_label(entry)
@@ -1223,8 +1262,22 @@ class AddonInstallPickerDialog(QDialog):
     self.version_combo.addItem(ver_label, pin)
     self.fork_combo.currentIndexChanged.connect(self._on_fork_changed)
     self.version_combo.currentIndexChanged.connect(self._on_version_changed)
-    body.addLayout(_addon_fork_version_row(card, fork_combo=self.fork_combo, version_combo=self.version_combo))
-    self._set_browse_combos_enabled(False, loading=True)
+    self._open_git_btn = _addon_open_git_button(
+      card,
+      self,
+      entry.get("repo"),
+      entry.get("url"),
+      entry.get("repository"),
+    )
+    body.addLayout(
+      _addon_fork_version_row(
+        card,
+        fork_combo=self.fork_combo,
+        version_combo=self.version_combo,
+        trailing_widget=self._open_git_btn,
+      )
+    )
+    self._sync_browse_combos()
 
     self.status_lbl = QLabel("")
     self.status_lbl.setObjectName("Muted")
@@ -1283,23 +1336,49 @@ class AddonInstallPickerDialog(QDialog):
       self._worker.start()
       self.status_lbl.setText("Loading forks and versions from GitHub…")
     else:
+      self._forks_fetch_done = True
       self.status_lbl.setText("Could not resolve a GitHub repository for this addon.")
 
     QTimer.singleShot(0, self._load_preview)
 
-  def _set_browse_combos_enabled(self, enabled: bool, *, loading: bool = False) -> None:
+  def showEvent(self, event) -> None:  # noqa: N802
+    super().showEvent(event)
+    _kick_open_git_visibility(self, self._open_git_btn)
+
+  def _set_browse_combos_enabled(
+    self,
+    enabled: bool,
+    *,
+    loading: bool = False,
+    tip: str | None = None,
+  ) -> None:
     for combo in (self.fork_combo, self.version_combo):
-      try:
-        combo.hidePopup()
-      except RuntimeError:
-        pass
+      # Only force-close when locking; enabling must not dismiss an open list.
+      if not enabled:
+        try:
+          combo.hidePopup()
+        except RuntimeError:
+          pass
       combo.setEnabled(bool(enabled))
     if enabled:
       self.fork_combo.setToolTip("")
       self.version_combo.setToolTip("")
+    elif tip:
+      self.fork_combo.setToolTip(tip)
+      self.version_combo.setToolTip(tip)
     elif loading:
       self.fork_combo.setToolTip(_LOADING_FORKS_TIP)
       self.version_combo.setToolTip(_LOADING_VERSIONS_TIP)
+
+  def _sync_browse_combos(self) -> None:
+    """Keep fork/version locked until preview finishes (and forks finish if loading)."""
+    if self._preview_pending:
+      self._set_browse_combos_enabled(False, tip=_LOADING_PREVIEW_TIP)
+      return
+    if not self._forks_fetch_done or (self._worker and self._worker.isRunning()):
+      self._set_browse_combos_enabled(False, loading=True)
+      return
+    self._set_browse_combos_enabled(True)
 
   def _open_preview_link(self, url: QUrl) -> None:
     QDesktopServices.openUrl(url)
@@ -1334,14 +1413,20 @@ class AddonInstallPickerDialog(QDialog):
       self.browser.clear()
       self._preview_url_loaded = ""
       self._preview_url_loading = ""
+      self._preview_pending = False
+      self._sync_browse_combos()
       return
     if url == self._preview_url_loaded and self.browser.toPlainText().strip():
+      self._preview_pending = False
+      self._sync_browse_combos()
       return
     if url == self._preview_url_loading:
       return
     cleanup_readme_cache(self._cache_dir)
     self._cache_dir = ""
     self._preview_url_loading = url
+    self._preview_pending = True
+    self._sync_browse_combos()
     if not (self._worker and self._worker.isRunning()):
       self.status_lbl.setText("Loading preview…")
     self.browser.clear()
@@ -1356,9 +1441,11 @@ class AddonInstallPickerDialog(QDialog):
           cleanup_readme_cache(info.get("readme_cache_dir"))
         return
       self._preview_url_loading = ""
+      self._preview_pending = False
       if not isinstance(info, dict):
         if not (self._worker and self._worker.isRunning()):
           self.status_lbl.setText("Preview failed.")
+        self._sync_browse_combos()
         return
       self._cache_dir = str(info.get("readme_cache_dir") or "")
       self._preview_url_loaded = url
@@ -1372,14 +1459,17 @@ class AddonInstallPickerDialog(QDialog):
         self.browser.setPlainText(str(info.get("description") or "No README found."))
       if not (self._worker and self._worker.isRunning()):
         self.status_lbl.setText("")
+      self._sync_browse_combos()
 
     def on_err(msg: str) -> None:
       if gen != self._preview_gen:
         return
       if self._preview_url_loading == url:
         self._preview_url_loading = ""
+      self._preview_pending = False
       if not (self._worker and self._worker.isRunning()):
         self.status_lbl.setText(msg or "Preview failed.")
+      self._sync_browse_combos()
 
     worker.ok.connect(on_ok)
     worker.err.connect(on_err)
@@ -1463,7 +1553,8 @@ class AddonInstallPickerDialog(QDialog):
       min(selected_v, max(0, self.version_combo.count() - 1))
     )
     self.version_combo.blockSignals(False)
-    self._set_browse_combos_enabled(True)
+    self._forks_fetch_done = True
+    self._sync_browse_combos()
     self.status_lbl.setText("")
     self.install_btn.setEnabled(bool(self._preview_url()))
     after_url = self._preview_url()
@@ -1473,7 +1564,8 @@ class AddonInstallPickerDialog(QDialog):
   def _on_fetch_err(self, message: str, fetch_gen: int) -> None:
     if fetch_gen != self._browse_fetch_gen:
       return
-    self._set_browse_combos_enabled(True)
+    self._forks_fetch_done = True
+    self._sync_browse_combos()
     if not self.browser.toPlainText().strip():
       self.status_lbl.setText(message or "GitHub request failed.")
     self.install_btn.setEnabled(bool(self._preview_url()))
@@ -1578,7 +1670,6 @@ class AddonSettingsDialog(QDialog):
       addon_fork_label,
       fork_combo_label,
       addon_version_label,
-      github_repo_browse_url,
     )
     from ichalaunch.ui.widgets.glue_combo import GlueComboBox
 
@@ -1601,6 +1692,13 @@ class AddonSettingsDialog(QDialog):
     self._browse_fetch_gen = 0
     self._fork_fetch_pending = False
     self._version_fetch_pending = False
+    self._preview_pending = False
+    self._open_git_btn = None
+    self._reinstall_btn = None
+    self._never_update_cb = None
+    self._catalog_never_locked = False
+    self._baseline_repo = ""
+    self._baseline_tag = ""
 
     name = str(entry.get("name") or entry.get("folder") or "addon")
     root = QVBoxLayout(self)
@@ -1620,7 +1718,6 @@ class AddonSettingsDialog(QDialog):
     version_text = addon_version_label(entry, self._meta)
     self._fork_combo = None
     self._version_combo = None
-    self._open_git_btn = None
 
     if self._token_ok:
       from ichalaunch.ui.widgets.glue_panel_button import GLUE_BTN_W
@@ -1650,7 +1747,13 @@ class AddonSettingsDialog(QDialog):
       self._version_combo.addItem(ver_label, pin)
       self._version_combo.currentIndexChanged.connect(self._on_version_changed)
       self._version_combo.popupShown.connect(self._lazy_fetch_versions)
-      self._open_git_btn = self._make_open_git_button(card)
+      self._open_git_btn = _addon_open_git_button(
+        card,
+        self,
+        entry.get("repo"),
+        entry.get("url"),
+        entry.get("repository"),
+      )
       body.addLayout(
         _addon_fork_version_row(
           card,
@@ -1659,8 +1762,8 @@ class AddonSettingsDialog(QDialog):
           trailing_widget=self._open_git_btn,
         )
       )
-      self._set_fork_combo_interactive(False, loading=True)
-      self._set_version_combo_interactive(False)
+      self._preview_pending = True
+      self._sync_combo_interactivity()
     else:
       meta_row = QHBoxLayout()
       meta_row.setSpacing(10)
@@ -1670,7 +1773,13 @@ class AddonSettingsDialog(QDialog):
         static.setObjectName("Muted")
         static.setToolTip(NO_TOKEN_FORK_TIP)
         meta_row.addWidget(static, 0, Qt.AlignmentFlag.AlignVCenter)
-      self._open_git_btn = self._make_open_git_button(card)
+      self._open_git_btn = _addon_open_git_button(
+        card,
+        self,
+        entry.get("repo"),
+        entry.get("url"),
+        entry.get("repository"),
+      )
       if self._open_git_btn is not None:
         meta_row.addWidget(self._open_git_btn, 0, Qt.AlignmentFlag.AlignVCenter)
       meta_row.addStretch(1)
@@ -1690,14 +1799,56 @@ class AddonSettingsDialog(QDialog):
 
     row = QHBoxLayout()
     row.setSpacing(10)
+    folder_key = str(entry.get("folder") or entry.get("name") or "").strip()
+    self._never_update_cb = ThemeCheckBox("Never update", card)
+    self._never_update_cb.setCursor(Qt.CursorShape.PointingHandCursor)
+    self._never_update_cb.setMinimumHeight(28)
+    self._never_update_cb.setToolTip(
+      "Skip update checks and Update All for this addon. "
+      "Clear by unchecking and Save, or via Reinstall."
+    )
+    from ichalaunch.addons.github import catalog_locks_updates
+    from ichalaunch.config.settings import settings as _settings
+    from ichalaunch.core.detect import resolve_catalog_entry
+
+    # Lock only for true catalog pins (Bagshui updates:false / catalog pin_release).
+    # Do NOT use addon_ignores_updates(entry, …): after Save the row entry often
+    # carries user pin_release / never_update, which would permanently disable
+    # this checkbox for normal addons.
+    self._catalog_never_locked = False
+    if folder_key:
+      cat, kind = resolve_catalog_entry(folder_key, include_mods=False)
+      if kind == "exact" and isinstance(cat, dict):
+        self._catalog_never_locked = bool(catalog_locks_updates(cat))
+      elif entry.get("updates") is False:
+        self._catalog_never_locked = True
+    elif entry.get("updates") is False:
+      self._catalog_never_locked = True
+    never_on = bool(self._meta.get("never_update")) or (
+      bool(folder_key) and _settings.is_addon_never_update(folder_key)
+    )
+    if self._catalog_never_locked:
+      never_on = True
+      self._never_update_cb.setEnabled(False)
+      self._never_update_cb.setToolTip(
+        "This addon is pinned in the catalog (updates disabled)."
+      )
+    self._never_update_cb.setChecked(never_on)
+    row.addWidget(self._never_update_cb, 0, Qt.AlignmentFlag.AlignVCenter)
     row.addStretch(1)
     close_btn = _dialog_glue_button("Close", card, primary=False)
     close_btn.clicked.connect(self.reject)
     row.addWidget(close_btn)
     if self._token_ok:
-      save_btn = _dialog_glue_button("Save", card, primary=True)
-      save_btn.clicked.connect(self._accept_save)
-      row.addWidget(save_btn)
+      self._reinstall_btn = _dialog_glue_button("Reinstall", card, primary=False)
+      self._reinstall_btn.setToolTip(
+        "Replace the installed addon with the selected fork/version"
+      )
+      self._reinstall_btn.clicked.connect(self._accept_reinstall)
+      row.addWidget(self._reinstall_btn)
+    save_btn = _dialog_glue_button("Save", card, primary=True)
+    save_btn.clicked.connect(self._accept_save)
+    row.addWidget(save_btn)
     body.addLayout(row)
 
     root.addWidget(card)
@@ -1723,64 +1874,139 @@ class AddonSettingsDialog(QDialog):
     pair = parse_entry_owner_repo(entry, self._meta)
     if pair:
       self._browse_owner, self._browse_repo = pair
+      self._baseline_repo = f"{pair[0]}/{pair[1]}".lower()
+    self._baseline_tag = str(
+      self._meta.get("tag")
+      or self._meta.get("version")
+      or entry.get("pin_release")
+      or entry.get("tag")
+      or ""
+    ).strip().lower()
+    if self._token_ok:
+      self._sync_reinstall_button()
     QTimer.singleShot(0, self._load_preview)
     if self._token_ok and self._fork_combo is not None:
       QTimer.singleShot(0, self._prefetch_forks)
 
-  def _make_open_git_button(self, parent: QWidget):
-    """Open in Git control placed to the right of Version."""
-    from ichalaunch.ui.widgets.common import (
-      apply_open_git_visibility,
-      github_repo_browse_url,
-    )
-    from ichalaunch.ui.widgets.glue_panel_button import GLUE_BTN_H, GluePanelButton
+  def showEvent(self, event) -> None:  # noqa: N802
+    super().showEvent(event)
+    _kick_open_git_visibility(self, self._open_git_btn)
 
-    url = github_repo_browse_url(
-      self._entry.get("repo"),
-      self._entry.get("url"),
-      self._entry.get("repository"),
-    )
-    if not url:
-      return None
-    btn = GluePanelButton("Open in Git", parent, width=128, height=GLUE_BTN_H)
-    btn.setToolTip("Open the repository in your browser")
-    btn.clicked.connect(lambda _=False, u=url: self._open_git_url(u))
-    apply_open_git_visibility(btn, url, self, defer=True)
-    return btn
-
-  def _open_git_url(self, url: str) -> None:
-    from PySide6.QtCore import QUrl
-    from PySide6.QtGui import QDesktopServices
-
-    if url:
-      QDesktopServices.openUrl(QUrl(url))
-
-
-  def _set_fork_combo_interactive(self, enabled: bool, *, loading: bool = False) -> None:
+  def _set_fork_combo_interactive(
+    self,
+    enabled: bool,
+    *,
+    loading: bool = False,
+    tip: str | None = None,
+  ) -> None:
     if self._fork_combo is None:
       return
-    try:
-      self._fork_combo.hidePopup()
-    except RuntimeError:
-      pass
+    # Only force-close when locking; enabling must not dismiss an open list.
+    if not enabled:
+      try:
+        self._fork_combo.hidePopup()
+      except RuntimeError:
+        pass
     self._fork_combo.setEnabled(bool(enabled))
     if enabled:
       self._fork_combo.setToolTip("")
+    elif tip:
+      self._fork_combo.setToolTip(tip)
     elif loading:
       self._fork_combo.setToolTip(_LOADING_FORKS_TIP)
 
-  def _set_version_combo_interactive(self, enabled: bool, *, loading: bool = False) -> None:
+  def _set_version_combo_interactive(
+    self,
+    enabled: bool,
+    *,
+    loading: bool = False,
+    tip: str | None = None,
+  ) -> None:
     if self._version_combo is None:
       return
-    try:
-      self._version_combo.hidePopup()
-    except RuntimeError:
-      pass
+    if not enabled:
+      try:
+        self._version_combo.hidePopup()
+      except RuntimeError:
+        pass
     self._version_combo.setEnabled(bool(enabled))
     if enabled:
       self._version_combo.setToolTip("")
+    elif tip:
+      self._version_combo.setToolTip(tip)
     elif loading:
       self._version_combo.setToolTip(_LOADING_VERSIONS_TIP)
+
+  def _sync_combo_interactivity(self) -> None:
+    """Lock fork/version while preview loads; unlock on success or failure."""
+    if self._fork_combo is None:
+      return
+    if self._preview_pending:
+      self._set_fork_combo_interactive(False, tip=_LOADING_PREVIEW_TIP)
+      self._set_version_combo_interactive(False, tip=_LOADING_PREVIEW_TIP)
+      self._sync_reinstall_button()
+      return
+    if self._fork_fetch_pending:
+      self._set_fork_combo_interactive(False, loading=True)
+      self._set_version_combo_interactive(False)
+      self._sync_reinstall_button()
+      return
+    self._set_fork_combo_interactive(True)
+    # Version fetch uses status_lbl only — disabling here while the list is open
+    # used to desync GlueCombo (popupShown → hide → native show still ran).
+    self._set_version_combo_interactive(True)
+    self._sync_reinstall_button()
+
+  def _selected_repo_key(self) -> str:
+    fork = self._current_fork_data()
+    owner = str(fork.get("owner") or "").strip()
+    repo = str(fork.get("repo_name") or "").strip()
+    if owner and repo:
+      return f"{owner}/{repo}".lower()
+    raw = str(fork.get("repo") or "").strip()
+    if not raw:
+      return ""
+    from ichalaunch.addons.github import parse_github_url
+
+    parsed = parse_github_url(raw)
+    if parsed:
+      return f"{parsed.owner}/{parsed.repo}".lower()
+    if raw.count("/") == 1 and "://" not in raw:
+      return raw.lower()
+    return ""
+
+  def _selected_tag_key(self) -> str:
+    if self._version_combo is None:
+      return self._baseline_tag
+    return str(self._version_combo.currentData() or "").strip().lower()
+
+  def _selection_differs_from_install(self) -> bool:
+    """True when fork and/or version differ from the currently installed origin/tag."""
+    sel_repo = self._selected_repo_key()
+    if sel_repo and self._baseline_repo and sel_repo != self._baseline_repo:
+      return True
+    if self._selected_tag_key() != self._baseline_tag:
+      return True
+    return False
+
+  def _sync_reinstall_button(self) -> None:
+    if self._reinstall_btn is None:
+      return
+    busy = bool(self._preview_pending or self._fork_fetch_pending)
+    differs = self._selection_differs_from_install()
+    can = (not busy) and differs
+    self._reinstall_btn.setEnabled(can)
+    if busy:
+      tip = (
+        _LOADING_PREVIEW_TIP
+        if self._preview_pending
+        else _LOADING_FORKS_TIP
+      )
+    elif not differs:
+      tip = "Already on this fork/version — pick a different one to reinstall"
+    else:
+      tip = "Replace the installed addon with the selected fork/version"
+    self._reinstall_btn.setToolTip(tip)
 
   def _open_preview_link(self, url: QUrl) -> None:
     QDesktopServices.openUrl(url)
@@ -1813,9 +2039,13 @@ class AddonSettingsDialog(QDialog):
     if not url:
       self.status_lbl.setText("No GitHub repository URL for preview.")
       self.browser.clear()
+      self._preview_pending = False
+      self._sync_combo_interactivity()
       return
     cleanup_readme_cache(self._cache_dir)
     self._cache_dir = ""
+    self._preview_pending = True
+    self._sync_combo_interactivity()
     self.status_lbl.setText("Loading preview…")
     self.browser.clear()
     self._preview_gen += 1
@@ -1828,8 +2058,10 @@ class AddonSettingsDialog(QDialog):
         if isinstance(info, dict):
           cleanup_readme_cache(info.get("readme_cache_dir"))
         return
+      self._preview_pending = False
       if not isinstance(info, dict):
         self.status_lbl.setText("Preview failed.")
+        self._sync_combo_interactivity()
         return
       self._cache_dir = str(info.get("readme_cache_dir") or "")
       md = str(info.get("readme_markdown") or "").strip()
@@ -1842,11 +2074,14 @@ class AddonSettingsDialog(QDialog):
       else:
         self.browser.setPlainText(str(info.get("description") or "No README found."))
         self.status_lbl.setText("")
+      self._sync_combo_interactivity()
 
     def on_err(msg: str) -> None:
       if gen != self._preview_gen:
         return
+      self._preview_pending = False
       self.status_lbl.setText(msg or "Preview failed.")
+      self._sync_combo_interactivity()
 
     worker.ok.connect(on_ok)
     worker.err.connect(on_err)
@@ -1872,8 +2107,7 @@ class AddonSettingsDialog(QDialog):
 
     owner, repo = self._browse_owner, self._browse_repo
     if not owner or not repo:
-      self._set_fork_combo_interactive(True)
-      self._set_version_combo_interactive(True)
+      self._sync_combo_interactivity()
       return
     if self._fork_fetch_pending:
       return
@@ -1881,14 +2115,15 @@ class AddonSettingsDialog(QDialog):
     if cached:
       self._populate_forks(cached)
       self._forks_loaded = True
-      self._set_fork_combo_interactive(True)
-      self._set_version_combo_interactive(True)
+      self._sync_combo_interactivity()
+      # Forks-from-cache skips the browse thread — still warm the version list
+      # so the first Version click is already populated.
+      self._prefetch_versions()
       return
     self._fork_fetch_pending = True
     self._browse_fetch_gen += 1
     fetch_gen = self._browse_fetch_gen
-    self._set_fork_combo_interactive(False, loading=True)
-    self._set_version_combo_interactive(False)
+    self._sync_combo_interactivity()
     self.status_lbl.setText("Loading forks from GitHub…")
     self._browse_worker = _AddonBrowseFetchThread(owner, repo, self)
     self._browse_worker.ok.connect(
@@ -1899,29 +2134,64 @@ class AddonSettingsDialog(QDialog):
     )
     self._browse_worker.start()
 
-  def _lazy_fetch_versions(self) -> None:
-    if not self._token_ok or self._version_combo is None or self._versions_loaded:
-      return
+  def _version_owner_repo(self) -> tuple[str, str]:
     fork = self._current_fork_data()
     owner = str(fork.get("owner") or self._browse_owner or "").strip()
     repo = str(fork.get("repo_name") or self._browse_repo or "").strip()
-    if not owner or not repo:
+    return owner, repo
+
+  def _show_versions_loading_placeholder(self) -> None:
+    """Keep an open Version list usable while a fetch is in flight."""
+    if self._version_combo is None or self._versions_loaded:
       return
-    if self._version_fetch_pending:
+    combo = self._version_combo
+    for i in range(combo.count()):
+      if str(combo.itemData(i) or "") == _VERSIONS_LOADING_DATA:
+        return
+    pin = str(combo.currentData() or "").strip()
+    pin_text = str(combo.currentText() or "").strip() or (
+      f"v{pin}" if pin else "Latest (branch tip)"
+    )
+    combo.blockSignals(True)
+    combo.clear()
+    combo.addItem(pin_text, pin)
+    combo.addItem(_VERSIONS_LOADING_LABEL, _VERSIONS_LOADING_DATA)
+    combo.setCurrentIndex(0)
+    combo.blockSignals(False)
+
+  def _prefetch_versions(self) -> None:
+    """Warm the Version combo before the user opens it (first click shows tags)."""
+    if not self._token_ok or self._version_combo is None or self._versions_loaded:
+      return
+    if self._version_fetch_pending or self._fork_fetch_pending:
+      return
+    owner, repo = self._version_owner_repo()
+    if not owner or not repo:
       return
     from ichalaunch.addons.github import get_cached_repo_versions
 
     cached = get_cached_repo_versions(owner, repo)
-    if cached:
-      self._populate_versions(cached)
+    if cached is not None:
+      self._populate_versions(cached, close_popup=False)
       self._versions_loaded = True
-      self._set_version_combo_interactive(True)
+      return
+    self._start_version_fetch(owner, repo, show_status=not self._preview_pending)
+
+  def _start_version_fetch(
+    self,
+    owner: str,
+    repo: str,
+    *,
+    show_status: bool = True,
+  ) -> None:
+    if self._version_fetch_pending:
       return
     self._version_fetch_pending = True
     self._browse_fetch_gen += 1
     fetch_gen = self._browse_fetch_gen
-    self._set_version_combo_interactive(False, loading=True)
-    self.status_lbl.setText("Loading versions from GitHub…")
+    # Do not disable/hide while the dropdown is open — that desynced GlueCombo.
+    if show_status:
+      self.status_lbl.setText("Loading versions from GitHub…")
     self._browse_worker = _AddonBrowseFetchThread(owner, repo, self)
     self._browse_worker.ok.connect(
       lambda forks, versions, g=fetch_gen: self._on_versions_fetched(forks, versions, g)
@@ -1931,39 +2201,65 @@ class AddonSettingsDialog(QDialog):
     )
     self._browse_worker.start()
 
-  def _on_forks_fetched(self, forks: object, _versions: object, fetch_gen: int) -> None:
+  def _lazy_fetch_versions(self) -> None:
+    if not self._token_ok or self._version_combo is None or self._versions_loaded:
+      return
+    if self._preview_pending:
+      return
+    owner, repo = self._version_owner_repo()
+    if not owner or not repo:
+      return
+    from ichalaunch.addons.github import get_cached_repo_versions
+
+    cached = get_cached_repo_versions(owner, repo)
+    if cached is not None:
+      # Keep the open list; closing here made the first open feel stuck/empty.
+      self._populate_versions(cached, close_popup=False)
+      self._versions_loaded = True
+      return
+    if self._version_fetch_pending:
+      self._show_versions_loading_placeholder()
+      return
+    self._show_versions_loading_placeholder()
+    self._start_version_fetch(owner, repo)
+
+  def _on_forks_fetched(self, forks: object, versions: object, fetch_gen: int) -> None:
     if fetch_gen != self._browse_fetch_gen:
       return
     self._fork_fetch_pending = False
     if isinstance(forks, list):
       self._populate_forks(forks)
       self._forks_loaded = True
-    self._set_fork_combo_interactive(True)
+    # Browse thread already fetched tags — fill Version now so first open is full.
+    if isinstance(versions, list) and not self._versions_loaded:
+      self._populate_versions(versions, close_popup=False)
+      self._versions_loaded = True
+    self._sync_combo_interactivity()
+    if not self._preview_pending:
+      self.status_lbl.setText("")
     if not self._versions_loaded:
-      self._set_version_combo_interactive(True)
-    self.status_lbl.setText("")
+      self._prefetch_versions()
 
   def _on_versions_fetched(self, _forks: object, versions: object, fetch_gen: int) -> None:
     if fetch_gen != self._browse_fetch_gen:
       return
     self._version_fetch_pending = False
     if isinstance(versions, list):
-      self._populate_versions(versions)
+      # Never hidePopup here — first-open lazy fetch must repopulate in place.
+      self._populate_versions(versions, close_popup=False)
       self._versions_loaded = True
-    self._set_version_combo_interactive(True)
-    self.status_lbl.setText("")
+    self._sync_combo_interactivity()
+    if not self._preview_pending:
+      self.status_lbl.setText("")
 
   def _on_browse_err(self, message: str, fetch_gen: int, *, kind: str = "") -> None:
     if fetch_gen != self._browse_fetch_gen:
       return
     if kind == "forks":
       self._fork_fetch_pending = False
-      self._set_fork_combo_interactive(True)
-      if not self._versions_loaded:
-        self._set_version_combo_interactive(True)
     elif kind == "versions":
       self._version_fetch_pending = False
-      self._set_version_combo_interactive(True)
+    self._sync_combo_interactivity()
     self.status_lbl.setText(message or "GitHub request failed.")
 
   def _populate_forks(self, forks: list) -> None:
@@ -1999,14 +2295,35 @@ class AddonSettingsDialog(QDialog):
     else:
       self._fork_combo.setCurrentIndex(min(selected, max(0, self._fork_combo.count() - 1)))
     self._fork_combo.blockSignals(False)
+    self._sync_reinstall_button()
 
-  def _populate_versions(self, versions: list) -> None:
+  def _populate_versions(self, versions: list, *, close_popup: bool = True) -> None:
     if self._version_combo is None:
       return
-    self._version_combo.hidePopup()
+    popup_open = False
+    try:
+      popup_open = bool(
+        self._version_combo._popup_open and not self._version_combo._hiding_popup
+      )
+    except RuntimeError:
+      popup_open = False
+    # Never dismiss an open list — hide+reopen forced a second click to see tags.
+    if close_popup and not popup_open:
+      try:
+        self._version_combo.hidePopup()
+      except RuntimeError:
+        pass
     pin = str(self._version_combo.currentData() or "").strip()
+    if pin == _VERSIONS_LOADING_DATA:
+      pin = ""
     if not pin:
-      pin = str(self._entry.get("pin_release") or self._entry.get("tag") or "").strip()
+      pin = str(
+        self._meta.get("tag")
+        or self._meta.get("version")
+        or self._entry.get("pin_release")
+        or self._entry.get("tag")
+        or ""
+      ).strip()
     self._version_combo.blockSignals(True)
     self._version_combo.clear()
     self._version_combo.addItem("Latest (branch tip)", "")
@@ -2022,6 +2339,18 @@ class AddonSettingsDialog(QDialog):
         selected = idx
     self._version_combo.setCurrentIndex(min(selected, max(0, self._version_combo.count() - 1)))
     self._version_combo.blockSignals(False)
+    if popup_open:
+      try:
+        view = self._version_combo.view()
+        if view is not None:
+          view.reset()
+          view.updateGeometry()
+          container = view.parentWidget()
+          if container is not None:
+            container.adjustSize()
+      except RuntimeError:
+        pass
+    self._sync_reinstall_button()
 
   def _on_fork_changed(self, _index: int) -> None:
     fork = self._current_fork_data()
@@ -2030,11 +2359,21 @@ class AddonSettingsDialog(QDialog):
     if owner and repo:
       self._browse_owner = owner
       self._browse_repo = repo
+    # Cancel any in-flight version fetch for the previous fork.
+    self._browse_fetch_gen += 1
     self._versions_loaded = False
-    self._set_version_combo_interactive(True)
+    self._version_fetch_pending = False
+    if self._version_combo is not None:
+      self._version_combo.blockSignals(True)
+      self._version_combo.clear()
+      self._version_combo.addItem("Latest (branch tip)", "")
+      self._version_combo.blockSignals(False)
+    self._sync_reinstall_button()
+    self._prefetch_versions()
     self._load_preview()
 
   def _on_version_changed(self, _index: int) -> None:
+    self._sync_reinstall_button()
     self._load_preview()
 
   def _build_result_entry(self) -> dict:
@@ -2060,10 +2399,33 @@ class AddonSettingsDialog(QDialog):
     repo_name = str(fork.get("repo_name") or "").strip()
     if owner and repo_name:
       out["repository"] = f"{owner}/{repo_name}"
+    if self._never_update_cb is not None:
+      if self._catalog_never_locked:
+        out["never_update"] = True
+      else:
+        out["never_update"] = bool(self._never_update_cb.isChecked())
     return out
 
   def _accept_save(self) -> None:
     self._result = self._build_result_entry()
+    self.accept()
+
+  def _accept_reinstall(self) -> None:
+    if self._reinstall_btn is None or not self._reinstall_btn.isEnabled():
+      return
+    if self._preview_pending or self._fork_fetch_pending:
+      return
+    if not self._selection_differs_from_install():
+      return
+    out = self._build_result_entry()
+    orig_folder = str(self._entry.get("folder") or self._entry.get("name") or "").strip()
+    if orig_folder:
+      out["folder"] = orig_folder
+    if not out.get("repo") and not out.get("repository"):
+      return
+    out["_action"] = "reinstall"
+    out["_prefer_selection"] = True
+    self._result = out
     self.accept()
 
   def closeEvent(self, event) -> None:  # noqa: N802
@@ -2085,6 +2447,7 @@ class AddonSettingsDialog(QDialog):
         pass
     cleanup_readme_cache(self._cache_dir)
     self._cache_dir = ""
+    self._preview_pending = False
     super().closeEvent(event)
 
   def result_data(self) -> dict | None:

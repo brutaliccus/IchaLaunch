@@ -436,10 +436,23 @@ class Settings:
                     break
         merged = dict(addons.get(key) or {})
         prev_never = bool(merged.get("never_update"))
+        # Explicit never_update in the payload wins (False = clear on reinstall/replace).
+        # Omitted key keeps a saved lock — loadstate / partial updates often omit flags.
+        incoming_has_never = "never_update" in meta
+        incoming_never = bool(meta.get("never_update")) if incoming_has_never else None
         merged.update(meta)
-        # Incoming payloads often omit flags; never drop a saved lock.
-        if prev_never:
+        if incoming_has_never:
+            if incoming_never:
+                merged["never_update"] = True
+            else:
+                merged.pop("never_update", None)
+        elif prev_never:
             merged["never_update"] = True
+        # Empty tag/version from tip installs clear a prior pin (same idea as
+        # never_update=False). Omitted keys still preserve existing pins.
+        for pin_key in ("tag", "version"):
+            if pin_key in meta and not str(meta.get(pin_key) or "").strip():
+                merged.pop(pin_key, None)
         self._stamp_catalog_never_update(str(key), merged)
         addons[key] = merged
         self.set("installed_addons", addons)

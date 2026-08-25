@@ -19,16 +19,15 @@ _FALLBACK_DIR = Path(r"F:\wow-ui-textures\Buttons")
 
 _EMPTY = "UI-EmptySlot.PNG"
 _DEPRESS = "UI-Quickslot-Depress.PNG"
-_CHECKED = "UI-QuickslotRed.PNG"
+_CHECK = "UI-CheckBox-Check.PNG"
 
 _INDICATOR_PX = 22
 _LABEL_SPACING = 10
-# Gold fill inset so EmptySlot frame/border ring stays visible.
-_CHECKED_FILL_SCALE = 0.72
+# Cropped check glyph scaled to this fraction of the EmptySlot so tips meet
+# the frame's inner rim (transparent corners let it sit larger than the old gold fill).
+_CHECK_FIT_SCALE = 0.94
 
 _GOLD = QColor("#F1C22D")
-_GOLD_GLAZE = QColor(241, 194, 45, 175)
-_GOLD_GLAZE_LIFT = QColor(255, 224, 138, 85)
 
 _CACHE: dict[str, QPixmap] = {}
 
@@ -82,25 +81,18 @@ def _normalize_to_square(pm: QPixmap, side: int) -> QPixmap:
     )
 
 
-def _tint_gold(src: QPixmap) -> QPixmap:
-    if src.isNull():
+def _prepare_check(pm: QPixmap, target_side: int) -> QPixmap:
+    """Crop transparent padding and scale check to fit target_side (KeepAspectRatio)."""
+    if pm.isNull() or target_side <= 0:
         return QPixmap()
-    out = QPixmap(src.size())
-    out.fill(Qt.GlobalColor.transparent)
-    p = QPainter(out)
-    if not p.isActive():
-        return src
-    p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-    p.drawPixmap(0, 0, src)
-    p.setCompositionMode(QPainter.CompositionMode.CompositionMode_Multiply)
-    p.fillRect(out.rect(), _GOLD)
-    p.fillRect(out.rect(), _GOLD)
-    if _GOLD_GLAZE.alpha() > 0:
-        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceAtop)
-        p.fillRect(out.rect(), _GOLD_GLAZE)
-        p.fillRect(out.rect(), _GOLD_GLAZE_LIFT)
-    p.end()
-    return out
+    bounds = _opaque_bounds(pm)
+    cropped = pm.copy(bounds) if bounds.isValid() else pm
+    return cropped.scaled(
+        target_side,
+        target_side,
+        Qt.AspectRatioMode.KeepAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
 
 
 def _scaled_indicator(pm: QPixmap) -> QPixmap:
@@ -115,25 +107,30 @@ def _scaled_indicator(pm: QPixmap) -> QPixmap:
 
 
 def _assets() -> tuple[QPixmap, QPixmap, QPixmap]:
-    key = "normalized_chrome_gold_v3"
+    key = "normalized_chrome_check_v1"
     if key in _CACHE:
         return _CACHE["empty"], _CACHE["depress"], _CACHE["checked"]
 
     raw_empty = _load_raw(_EMPTY)
     raw_depress = _load_raw(_DEPRESS)
-    raw_checked = _load_raw(_CHECKED)
-    sides = [pm.width() for pm in (raw_empty, raw_depress, raw_checked) if not pm.isNull()]
+    raw_check = _load_raw(_CHECK)
+    sides = [pm.width() for pm in (raw_empty, raw_depress) if not pm.isNull()]
     common = max(sides) if sides else 64
 
-    _CACHE["empty"] = _scaled_indicator(_normalize_to_square(raw_empty, common))
-    _CACHE["depress"] = _scaled_indicator(_normalize_to_square(raw_depress, common))
-    _CACHE["checked"] = _scaled_indicator(_tint_gold(_normalize_to_square(raw_checked, common)))
+    empty = _scaled_indicator(_normalize_to_square(raw_empty, common))
+    depress = _scaled_indicator(_normalize_to_square(raw_depress, common))
+    check_target = max(1, int(round(_INDICATOR_PX * _CHECK_FIT_SCALE)))
+    checked = _prepare_check(raw_check, check_target)
+
+    _CACHE["empty"] = empty
+    _CACHE["depress"] = depress
+    _CACHE["checked"] = checked
     _CACHE[key] = QPixmap()
-    return _CACHE["empty"], _CACHE["depress"], _CACHE["checked"]
+    return empty, depress, checked
 
 
 class ThemeCheckBox(QAbstractButton):
-    """Checkable control with WoW EmptySlot / Depress / gold Quickslot art."""
+    """Checkable control with WoW EmptySlot / Depress / CheckBox-Check art."""
 
     def __init__(self, text: str = "", parent: QWidget | None = None):
         super().__init__(parent)
@@ -227,17 +224,9 @@ class ThemeCheckBox(QAbstractButton):
             painter.drawPixmap(fx, fy, empty)
 
             if self.isChecked() and not checked.isNull():
-                fill_w = max(1, int(round(empty.width() * _CHECKED_FILL_SCALE)))
-                fill_h = max(1, int(round(empty.height() * _CHECKED_FILL_SCALE)))
-                fill = checked.scaled(
-                    fill_w,
-                    fill_h,
-                    Qt.AspectRatioMode.IgnoreAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-                cx = fx + (empty.width() - fill.width()) // 2
-                cy = fy + (empty.height() - fill.height()) // 2
-                painter.drawPixmap(cx, cy, fill)
+                cx = fx + (empty.width() - checked.width()) // 2
+                cy = fy + (empty.height() - checked.height()) // 2
+                painter.drawPixmap(cx, cy, checked)
 
             if self._hover and self.isEnabled() and not depress.isNull():
                 painter.drawPixmap(fx, fy, depress)
@@ -246,9 +235,14 @@ class ThemeCheckBox(QAbstractButton):
             painter.setBrush(QColor(120, 100, 150, 30))
             painter.drawRoundedRect(dest.adjusted(1, 1, -1, -1), 4, 4)
             if self.isChecked():
-                inset = max(
-                    2,
-                    int(round(min(dest.width(), dest.height()) * (1.0 - _CHECKED_FILL_SCALE) / 2)),
-                )
-                painter.fillRect(dest.adjusted(inset, inset, -inset, -inset), _GOLD)
+                if not checked.isNull():
+                    cx = dest.x() + (dest.width() - checked.width()) // 2
+                    cy = dest.y() + (dest.height() - checked.height()) // 2
+                    painter.drawPixmap(cx, cy, checked)
+                else:
+                    painter.setPen(QColor(_GOLD))
+                    # Minimal fallback tick if textures are missing.
+                    mid = dest.center()
+                    painter.drawLine(mid.x() - 5, mid.y(), mid.x() - 1, mid.y() + 4)
+                    painter.drawLine(mid.x() - 1, mid.y() + 4, mid.x() + 6, mid.y() - 5)
         painter.setOpacity(1.0)

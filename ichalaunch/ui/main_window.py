@@ -1504,6 +1504,10 @@ class MainWindow(QMainWindow):
         self._check_addon_pct = 0
         self._check_mod_pct = 0
         self._addon_check_status = ""
+        # True while apply dropped the scan gate so deferred list work can flush;
+        # keeps _lock_addon_filters from re-arming scanning mid-settle.
+        self._addon_check_settling = False
+        self._silent_addon_check_retry_armed = False
         self._resize_edges: tuple[bool, bool, bool, bool] | None = None
         self._resize_origin: QPoint | None = None
         self._resize_geo: QRect | None = None
@@ -2488,6 +2492,18 @@ class MainWindow(QMainWindow):
             return
         self.addons.preload_rows()
 
+    def prepare_addon_lists_before_show(self) -> None:
+        """Build Addons lists while the splash is still up (local disk only).
+
+        Network Check Updates stays deferred. Prebuilding here means
+        launch → Addons → Check only needs a reveal flush, not a first paint
+        clear()/setItemWidget race against a concurrent scan apply.
+        """
+        try:
+            self.addons.preload_rows()
+        except RuntimeError:
+            pass
+
     def _launcher_update_pending(self) -> bool:
         # Applying an update means replacing the running executable, which
         # apply_windows_self_replace refuses to do anywhere but Windows. The
@@ -2708,6 +2724,10 @@ class MainWindow(QMainWindow):
 
     def _lock_addon_filters(self, extra_busy: bool = False) -> None:
         """Disable addons filter combos while a scan or _busy worker is running."""
+        if getattr(self, "_addon_check_settling", False):
+            # Settle intentionally dropped the scan gate so deferred refresh/reveal
+            # can flush — do not re-arm _scanning from _checking_addons.
+            return
         busy = bool(
             extra_busy
             or getattr(self, "_checking_addons", False)
@@ -2800,9 +2820,17 @@ class MainWindow(QMainWindow):
         """
         addon_busy = self._checking_addons
         mod_busy = self._checking_mods
-        self.addons.set_checking(addon_busy, "Checking for updates…")
-        self.client.set_checking(mod_busy, "Checking for updates…")
-        self._lock_addon_filters()
+        if getattr(self, "_addon_check_settling", False):
+            # Settle dropped the scan gate so deferred list work can flush —
+            # never call set_checking(True) here (that would re-arm _scanning).
+            try:
+                self.addons.set_check_busy(True)
+            except RuntimeError:
+                pass
+        else:
+            self.addons.set_checking(addon_busy, "Checking for updates…")
+            self.client.set_checking(mod_busy, "Checking for updates…")
+            self._lock_addon_filters()
 
         if self._worker_busy():
             return
@@ -3899,14 +3927,32 @@ class MainWindow(QMainWindow):
             return
         from ichalaunch.core.detect import overlay_git_origin
 
+        # Row Reinstall (and settings-cog Reinstall) must clear Never Update up front.
+        # Install meta also writes never_update=False, but the Installed-row path
+        # previously relied only on that — and in-place status patches kept the
+        # sticky row._never_update flag, so the UI could stay "Never update"
+        # even after a successful reinstall. Clear + persist here (catalog pins
+        # like Bagshui are re-stamped by set_addon_never_update).
+        self.addons.set_never_update(
+            {"folder": str(folder), "name": str(folder)},
+            False,
+        )
+
+        # Settings cog may pass an explicit fork/version selection; row Reinstall
+        # keeps preferring live .git origin / installed meta over catalog fields.
+        prefer = bool(entry.get("_prefer_selection"))
         meta = overlay_git_origin(
             str(folder),
             settings.installed_addons.get(folder) or {},
         )
-        tag = str(entry.get("tag") or meta.get("tag") or "").strip()
-        repo = str(meta.get("repository") or entry.get("repository") or "").strip()
-        # Prefer live .git origin / overlay meta over catalog entry repo.
-        url = meta.get("url") or entry.get("repo") or entry.get("url") or ""
+        if prefer:
+            tag = str(entry.get("tag") or entry.get("pin_release") or "").strip()
+            repo = str(entry.get("repository") or meta.get("repository") or "").strip()
+            url = str(entry.get("repo") or entry.get("url") or meta.get("url") or "").strip()
+        else:
+            tag = str(entry.get("tag") or meta.get("tag") or "").strip()
+            repo = str(meta.get("repository") or entry.get("repository") or "").strip()
+            url = meta.get("url") or entry.get("repo") or entry.get("url") or ""
         if tag and "/" in repo:
             from ichalaunch.addons.github import github_tag_page_url
 
@@ -3922,7 +3968,11 @@ class MainWindow(QMainWindow):
             self.addons.clear_pending_update(folder)
             self.status_lbl.setText(f"Reinstalled {folder}")
 
-        worker = Worker(install_from_github, url, folder)
+        install_kwargs: dict = {}
+        if prefer and not tag:
+            # Explicit "Latest" from settings — do not reuse a prior pin.
+            install_kwargs["allow_stored_tag"] = False
+        worker = Worker(install_from_github, url, folder, **install_kwargs)
         self._busy(
             f"Reinstalling {folder}…",
             worker,
@@ -4003,18 +4053,27 @@ class MainWindow(QMainWindow):
         # Gate on the busy flag as well as the QThread: finished_ok clears the
         # worker attribute while UI apply (set_updates / list patch) can still be
         # running. A second click in that window has caused silent Qt aborts.
-        if self._checking_addons or _safe_worker_running(self._update_worker):
+        if (
+            self._checking_addons
+            or getattr(self, "_addon_check_settling", False)
+            or _safe_worker_running(self._update_worker)
+        ):
             if not silent:
                 self.status_lbl.setText("Update check already running…")
             return
+        # Manual AND silent/startup must wait until lists are idle. Starting a
+        # worker (or applying set_updates) into a half-built / mid-reveal list
+        # aborts Qt with no Python traceback.
         try:
-            refreshing = bool(getattr(self.addons, "_refreshing", False))
-            pending = getattr(self.addons, "_pending_list_work", None) or set()
-            if not silent and not force and (refreshing or pending):
-                self.status_lbl.setText("Update check already running…")
-                return
+            list_ready = bool(self.addons.update_check_ui_ready())
         except RuntimeError:
-            pass
+            list_ready = False
+        if not force and not list_ready:
+            if silent or periodic:
+                self._arm_silent_addon_check_retry(periodic=periodic)
+                return
+            self.status_lbl.setText("Addons list still loading…")
+            return
 
         # Cooldown gate for automatic (silent/periodic) checks: skip if a scan ran
         # within the hardcoded 15-minute refresh. Manual checks arrive with
@@ -4027,9 +4086,12 @@ class MainWindow(QMainWindow):
             )
             return
 
+        self._silent_addon_check_retry_armed = False
+        self._silent_addon_check_retries = 0
         self._addon_check_status = "Checking addon updates…"
         self.status_lbl.setText("Checking addon updates…")
         self._checking_addons = True
+        self._addon_check_settling = False
         self._check_addon_pct = 0
         self.addons.set_scanning(True)
         self._refresh_check_loading()
@@ -4038,55 +4100,136 @@ class MainWindow(QMainWindow):
         def done(result):
             # Keep UI apply off the critical QThread teardown path as much as
             # possible: never let an exception escape a queued slot (that can
-            # abort Qt), and defer catalog combo rebuilds (see reload_catalog).
-            # Keep _checking_addons True until apply finishes so a second Check
-            # Updates click cannot overlap list mutations.
-            updates: list = []
-            status = None
-            try:
-                self._addon_check_status = ""
-                self._check_addon_pct = 100
-                if isinstance(result, AddonUpdateCheckResult):
-                    updates = list(result.updates or [])
-                    status = result.status_message
-                    if result.catalog_refreshed:
-                        QTimer.singleShot(0, self.addons.reload_catalog)
-                else:
-                    updates = list(result or [])
-                self.addons.set_updates(updates)
-                if not self._checking_mods:
-                    if status:
-                        self.status_lbl.setText(status)
-                    elif updates:
-                        self.status_lbl.setText(
-                            f"{len(updates)} addon update(s) available"
-                        )
-                    else:
-                        self.status_lbl.setText("Addons up to date")
-                log.info(
-                    "Addon update check applied (%d update(s))",
-                    len(updates),
-                )
-            except Exception:  # noqa: BLE001
-                log.exception("Addon update-check UI apply failed")
-                self._addon_check_status = ""
-            finally:
-                # Settle one event-loop turn after apply so deferred list flushes
-                # and QThread finished/deleteLater can run before re-arming Check.
-                def _settle() -> None:
-                    self._checking_addons = False
-                    self._refresh_check_loading()
-                    self._update_worker = None
-                    self._refresh_nav_badges()
+            # abort Qt), and serialize catalog reload through list work.
+            # Keep Check locked until apply + deferred refresh/reveal finish.
+            settle_tries = 0
+            apply_tries = 0
+            apply_phase = 0
+            catalog_done = False
+            catalog_refreshed = False
+            if isinstance(result, AddonUpdateCheckResult):
+                catalog_refreshed = bool(result.catalog_refreshed)
 
+            def _addons_list_mutating() -> bool:
+                """Any active or queued list mutation — no carve-outs."""
+                try:
+                    if self.addons.lists_mutating():
+                        return True
+                    # Visible Addons with unrevealed lists is still unsafe for apply.
+                    if self.addons._page_is_live() and self.addons._lists_need_reveal():
+                        return True
+                    return False
+                except RuntimeError:
+                    return True
+
+            def _drop_scan_gate_keep_check_locked() -> None:
+                """Allow deferred refresh/reveal to flush; keep Check disabled."""
+                self._addon_check_settling = True
+                try:
+                    # Keep button busy without re-arming the scan gate.
+                    self.addons.set_check_busy(True)
+                    self.addons.set_scanning(False)
+                except RuntimeError:
+                    pass
+
+            def _finish_check() -> None:
+                self._addon_check_settling = False
+                self._checking_addons = False
+                self._refresh_check_loading()
+                self._update_worker = None
+                self._refresh_nav_badges()
+
+            def _settle() -> None:
+                nonlocal settle_tries
+                settle_tries += 1
+                # Scan gate is already down (apply phase 0). Wait until deferred
+                # rebuild/reveal/patch are fully idle before re-enabling Check.
+                if settle_tries < 40 and _addons_list_mutating():
+                    QTimer.singleShot(50, _settle)
+                    return
+                _finish_check()
+
+            def _apply() -> None:
+                nonlocal apply_tries, apply_phase, catalog_done
+                apply_tries += 1
+                # Phase 0: drop scan gate so mid-scan-open refresh/reveal can
+                # finish BEFORE set_updates touches rows.
+                if apply_phase == 0:
+                    _drop_scan_gate_keep_check_locked()
+                    apply_phase = 1
+                if apply_phase == 1:
+                    if apply_tries < 80 and _addons_list_mutating():
+                        QTimer.singleShot(50, _apply)
+                        return
+                    apply_phase = 2
+                if apply_phase == 2:
+                    # Catalog fetch must NOT clear()/rebuild live lists during
+                    # Check Updates apply — that overlapped set_updates/reveal
+                    # and aborted Qt. Cache-only ingest; Available refreshes later.
+                    if catalog_refreshed and not catalog_done:
+                        catalog_done = True
+                        try:
+                            self.addons.ingest_catalog_update()
+                        except RuntimeError:
+                            pass
+                    if apply_tries < 80 and _addons_list_mutating():
+                        QTimer.singleShot(50, _apply)
+                        return
+                    apply_phase = 3
+                updates: list = []
+                status = None
+                try:
+                    self._addon_check_status = ""
+                    self._check_addon_pct = 100
+                    if isinstance(result, AddonUpdateCheckResult):
+                        updates = list(result.updates or [])
+                        status = result.status_message
+                    else:
+                        updates = list(result or [])
+                    self.addons.set_updates(updates)
+                    if not self._checking_mods:
+                        if status:
+                            self.status_lbl.setText(status)
+                        elif updates:
+                            self.status_lbl.setText(
+                                f"{len(updates)} addon update(s) available"
+                            )
+                        else:
+                            self.status_lbl.setText("Addons up to date")
+                    log.info(
+                        "Addon update check applied (%d update(s))",
+                        len(updates),
+                    )
+                except Exception:  # noqa: BLE001
+                    log.exception("Addon update-check UI apply failed")
+                    self._addon_check_status = ""
                 QTimer.singleShot(50, _settle)
 
+            _apply()
         def fail(msg: str):
             self._addon_check_status = ""
             if not self._checking_mods:
                 self.status_lbl.setText(f"Update check failed: {msg[:80]}")
+            settle_tries = 0
 
             def _settle() -> None:
+                nonlocal settle_tries
+                settle_tries += 1
+                if not getattr(self, "_addon_check_settling", False):
+                    self._addon_check_settling = True
+                    try:
+                        self.addons.set_check_busy(True)
+                        self.addons.set_scanning(False)
+                    except RuntimeError:
+                        pass
+                try:
+                    mutating = bool(self.addons.lists_mutating())
+                except RuntimeError:
+                    mutating = False
+                if settle_tries < 40 and mutating:
+                    QTimer.singleShot(50, _settle)
+                    return
+                self._addon_check_settling = False
                 self._checking_addons = False
                 self._refresh_check_loading()
                 self._update_worker = None
@@ -4102,6 +4245,36 @@ class MainWindow(QMainWindow):
         self._track_worker(worker)
         worker.start()
 
+    def _arm_silent_addon_check_retry(self, *, periodic: bool) -> None:
+        """Defer startup/periodic addon check until lists are idle (no busy-loop)."""
+        if self._silent_addon_check_retry_armed:
+            return
+        retries = int(getattr(self, "_silent_addon_check_retries", 0))
+        if retries >= 40:
+            log.info("Silent addon check deferred too long — giving up until next trigger")
+            self._silent_addon_check_retries = 0
+            return
+        self._silent_addon_check_retry_armed = True
+        self._silent_addon_check_retries = retries + 1
+
+        def _retry() -> None:
+            self._silent_addon_check_retry_armed = False
+            if self._checking_addons or getattr(self, "_addon_check_settling", False):
+                return
+            if _safe_worker_running(self._update_worker):
+                return
+            try:
+                ready = bool(self.addons.update_check_ui_ready())
+            except RuntimeError:
+                ready = False
+            if not ready:
+                # Keep trying briefly — preload/reveal usually finishes quickly.
+                self._arm_silent_addon_check_retry(periodic=periodic)
+                return
+            self._silent_addon_check_retries = 0
+            self._check_updates(silent=True, periodic=periodic)
+
+        QTimer.singleShot(250, _retry)
     def _check_mod_updates(self, silent: bool = False, periodic: bool = False, force: bool = False) -> None:
         if not is_installed():
             if not silent:

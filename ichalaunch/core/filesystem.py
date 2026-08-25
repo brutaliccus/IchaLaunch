@@ -831,25 +831,38 @@ def toc_mismatch_prompt_text(current_name: str, toc_name: str) -> str:
 
 
 def describe_toc_mismatch(folder: Path) -> AddonTocMismatch | None:
-    """Return mismatch info when *folder* has exactly one non-matching ``.toc``.
+    """Return mismatch info when *folder* has a clear non-matching primary ``.toc``.
 
-    Case-only differences are not mismatches — :func:`matching_toc_path`
-    already accepts those on Windows/Wine.
+    Handles a single ``.toc``, or multi-TOC primary/variant sets (e.g.
+    ``pfQuest.toc`` + ``pfQuest-tbc.toc`` under a leftover ``pfQuest-main``
+    GitHub unwrap). Case-only differences are not mismatches —
+    :func:`matching_toc_path` already accepts those on Windows/Wine.
+    Unrelated sibling ``.toc`` files (no clear primary) return ``None``.
     """
     folder = Path(folder)
     if matching_toc_path(folder) is not None:
         return None
     tocs = folder_toc_files(folder)
-    if len(tocs) != 1:
+    if not tocs:
         return None
-    toc = tocs[0]
-    if toc.stem.lower() == folder.name.lower():
+    if len(tocs) == 1:
+        toc = tocs[0]
+        if toc.stem.lower() == folder.name.lower():
+            return None
+        return AddonTocMismatch(
+            folder=folder,
+            current_name=folder.name,
+            toc_stem=toc.stem,
+            toc_name=toc.name,
+        )
+    primary = _primary_toc_stem(tocs)
+    if not primary or primary.lower() == folder.name.lower():
         return None
     return AddonTocMismatch(
         folder=folder,
         current_name=folder.name,
-        toc_stem=toc.stem,
-        toc_name=toc.name,
+        toc_stem=primary,
+        toc_name=f"{primary}.toc",
     )
 
 

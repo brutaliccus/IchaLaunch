@@ -430,7 +430,11 @@ def _glow_inner_hole_width(img: QImage) -> int:
 
 
 def check_button_glow_for_plate(plate_w: int, plate_h: int) -> QPixmap:
-    """Pad-trimmed CheckButtonGlow scaled so the hole tracks the plate height."""
+    """Pad-trimmed CheckButtonGlow scaled so the hole tracks plate W and H.
+
+    X and Y are scaled independently so a rectangular plate gets even L/R and
+    T/B insets (no detached side aura from a width-only +10 stretch).
+    """
     key = (max(1, int(plate_w)), max(1, int(plate_h)))
     hit = _GLOW_BY_PLATE.get(key)
     if hit is not None:
@@ -452,9 +456,10 @@ def check_button_glow_for_plate(plate_w: int, plate_h: int) -> QPixmap:
         src = src.copy(pad)
         img = src.toImage()
     hole = _glow_inner_hole_width(img) or 32
-    target_h = key[1]
+    target_w, target_h = key
+    # Match hole to plate on both axes (square glow art → rectangular plate).
+    dest_w = max(target_w + 12, int(round(src.width() * (target_w / hole))))
     dest_h = max(target_h + 12, int(round(src.height() * (target_h / hole))))
-    dest_w = max(dest_h, int(round(key[0] * (dest_h / max(1, target_h)))) + 10)
     pm = src.scaled(
         dest_w,
         dest_h,

@@ -59,6 +59,13 @@ def main() -> int:
         if icon is not None:
             win.setWindowIcon(icon)
 
+        # Local list build under the splash — not network scans. Keeps
+        # launch → Addons → Check Updates off the first-open rebuild race.
+        try:
+            win.prepare_addon_lists_before_show()
+        except Exception:  # noqa: BLE001
+            log.exception("Addon list preload before show failed")
+
         if splash is not None:
             splash.finish(win)
         else:

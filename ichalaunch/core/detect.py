@@ -63,6 +63,7 @@ def _classify_toc_dir(
             tocs = folder_toc_files(p)
             if not tocs:
                 continue
+            # Multiple unrelated .toc files — skip with no rename target.
             info = AddonTocMismatch(
                 folder=p,
                 current_name=p.name,
@@ -70,13 +71,15 @@ def _classify_toc_dir(
                 toc_name=tocs[0].name,
             )
         mismatched.append(info)
-        expected = (info.toc_stem or Path(info.toc_name).stem or "").strip()
-        if expected:
+        # Only suggest a rename when we have a clear primary stem (can_rename).
+        # Do not fall back to tocs[0] — that wrongly suggested pfQuest-tbc for
+        # multi-TOC leftovers whose primary is pfQuest.
+        if info.can_rename:
             log.warning(
                 "Skipping addon folder %s — folder name must match the .toc "
                 "(rename folder to %s)",
                 p.name,
-                expected,
+                info.toc_stem,
             )
         else:
             log.warning(

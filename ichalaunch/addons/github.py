@@ -347,6 +347,141 @@ def catalog_fork_entries(entry: dict[str, Any] | None) -> list[dict[str, Any]]:
     return out
 
 
+def catalog_entry_family_key(entry: dict[str, Any] | None) -> str:
+    """Install-folder family key used to collapse fork duplicates in Available."""
+    if not entry:
+        return ""
+    return str(entry.get("folder") or entry.get("name") or "").strip().lower()
+
+
+_SOURCE_PRIMARY_RANK: dict[str, int] = {
+    "turtle_wow_custom": 0,
+    "turtle_custom": 0,
+    "custom_turtle": 0,
+    "featured": 1,
+    "turtle_wiki": 2,
+    "wiki": 2,
+    "manual": 3,
+    "community": 6,
+}
+
+
+def _catalog_fork_stub_from_entry(entry: dict[str, Any]) -> dict[str, Any] | None:
+    """Build a nested ``forks[]`` stub from a sibling top-level catalog row."""
+    repo = str(entry.get("repo") or "").strip()
+    if not repo:
+        return None
+    fe = fork_entry_from_repo_url(repo)
+    if not fe.get("repo"):
+        return None
+    stub: dict[str, Any] = {
+        "label": str(fe.get("label") or "").strip() or repo,
+        "repo": str(fe.get("repo") or repo),
+    }
+    pin = str(entry.get("pin_release") or fe.get("pin_release") or "").strip()
+    if pin:
+        stub["pin_release"] = pin
+    folder = str(entry.get("folder") or "").strip()
+    if folder:
+        stub["folder"] = folder
+    if entry.get("archived"):
+        stub["archived"] = True
+    return stub
+
+
+def _primary_catalog_entry(
+    members: list[tuple[int, dict[str, Any]]],
+) -> dict[str, Any]:
+    """Pick the canonical Available row for a folder family.
+
+    Prefers: has repo → not archived → more nested forks → curated source
+    (wiki/featured over community) → earlier catalog order.
+    """
+
+    def rank(item: tuple[int, dict[str, Any]]) -> tuple:
+        index, entry = item
+        has_repo = 0 if str(entry.get("repo") or "").strip() else 1
+        archived = 1 if entry.get("archived") else 0
+        nested = -len(entry.get("forks") or [])
+        source = str(entry.get("source") or "").strip().lower()
+        source_rank = _SOURCE_PRIMARY_RANK.get(source, 4)
+        return (has_repo, archived, nested, source_rank, index)
+
+    return min(members, key=rank)[1]
+
+
+def group_catalog_fork_families(
+    entries: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
+    """Collapse top-level catalog forks that share an install folder.
+
+    Returns one row per ``folder``/``name`` family. Sibling top-level repos and
+    their nested ``forks[]`` are merged into the primary's ``forks`` so the
+    Install picker dropdown still lists every fork. Distinct folders (e.g.
+    AtlasLoot vs AtlasLoot-GearFilter) stay separate — name similarity alone
+    does not group.
+    """
+    if not entries:
+        return []
+
+    buckets: dict[str, list[tuple[int, dict[str, Any]]]] = {}
+    order: list[str] = []
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            continue
+        key = catalog_entry_family_key(entry)
+        if not key:
+            continue
+        if key not in buckets:
+            buckets[key] = []
+            order.append(key)
+        buckets[key].append((index, entry))
+
+    out: list[dict[str, Any]] = []
+    for key in order:
+        members = buckets[key]
+        if len(members) == 1:
+            out.append(members[0][1])
+            continue
+
+        primary = _primary_catalog_entry(members)
+        primary_repo = str(primary.get("repo") or "").strip().lower()
+        merged_forks: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        if primary_repo:
+            seen.add(primary_repo)
+
+        def add_fork(stub: dict[str, Any] | None) -> None:
+            if not stub:
+                return
+            repo_key = str(stub.get("repo") or "").strip().lower()
+            if not repo_key or repo_key in seen:
+                return
+            seen.add(repo_key)
+            merged_forks.append(stub)
+
+        for fork in primary.get("forks") or []:
+            if isinstance(fork, dict):
+                add_fork(dict(fork))
+
+        for _index, sibling in members:
+            if sibling is primary:
+                continue
+            add_fork(_catalog_fork_stub_from_entry(sibling))
+            for fork in sibling.get("forks") or []:
+                if isinstance(fork, dict):
+                    add_fork(dict(fork))
+
+        grouped = dict(primary)
+        if merged_forks:
+            grouped["forks"] = merged_forks
+        elif "forks" in grouped:
+            # Keep an empty list only if primary already exposed forks.
+            grouped["forks"] = list(primary.get("forks") or [])
+        out.append(grouped)
+    return out
+
+
 def parse_entry_owner_repo(
     entry: dict[str, Any] | None,
     meta: dict[str, Any] | None = None,
@@ -1655,20 +1790,24 @@ def _addon_install_meta(
         if payload.get(key):
             enriched[key] = payload[key]
     if not tag:
-        # Fresh branch install should not keep a stale pin from a prior tagged install
-        enriched.pop("tag", None)
-        if enriched.get("version") == prev.get("tag"):
-            enriched.pop("version", None)
+        # Fresh branch / Update-to-tip: clear prior version-dropdown pin.
+        # Use empty strings so set_installed_addon drops them on merge (omitted
+        # keys would leave the old tag stuck in settings). Always clear version
+        # too — tip installs have no pin label (catalog pin may re-apply below).
+        enriched["tag"] = ""
+        enriched["version"] = ""
         if kind == "exact":
             pin = catalog_pin_tag(cat)
             if pin:
                 enriched["tag"] = pin
                 enriched["version"] = pin
-    # Successful install/update clears Never Update unless the catalog pins this addon
+    # Successful install/update/reinstall clears Never Update unless the catalog
+    # pins this addon. Use an explicit False so set_installed_addon does not
+    # re-apply a prior user lock (omitted key = preserve).
     if kind == "exact" and catalog_locks_updates(cat):
         enriched["never_update"] = True
     else:
-        enriched.pop("never_update", None)
+        enriched["never_update"] = False
     enriched["loaded"] = True
     return enriched
 
@@ -1801,18 +1940,24 @@ def finalize_install_after_toc_renames(
 
 
 def install_from_github(
-    url: str, folder_name: str | None = None, progress: ProgressCb | None = None
+    url: str,
+    folder_name: str | None = None,
+    progress: ProgressCb | None = None,
+    *,
+    allow_stored_tag: bool = True,
 ) -> AddonInstallResult:
     parsed = parse_github_url(url)
     if not parsed:
         raise ValueError("Not a valid GitHub repository URL")
     owner, repo, tag = parsed.owner, parsed.repo, parsed.tag
-    # Prefer tag stored on a prior install when reinstall URL was stripped to repo root
-    if not tag and folder_name:
-        prev = settings.installed_addons.get(folder_name) or {}
-        tag = str(prev.get("tag") or "").strip() or None
-    if not tag:
-        tag = _catalog_pin_for_install(owner, repo, folder_name) or None
+    # Prefer tag stored on a prior install when reinstall URL was stripped to repo root.
+    # Settings "Latest" reinstall passes allow_stored_tag=False so a pin is not reused.
+    if not tag and allow_stored_tag:
+        if folder_name:
+            prev = settings.installed_addons.get(folder_name) or {}
+            tag = str(prev.get("tag") or "").strip() or None
+        if not tag:
+            tag = _catalog_pin_for_install(owner, repo, folder_name) or None
     game = detect_game()
     if not game:
         raise FileNotFoundError("Game path not set")
@@ -2162,6 +2307,10 @@ def check_addon_updates(
     (``addon_tips.json``), then does a local compare. Per-addon git/REST probes
     are not used here (those remain for install/update of a single addon).
     Child modules of a multi-folder pack are skipped.
+
+    User-chosen older release tags are compared to the default-branch tip so
+    Check Updates can offer Update. Catalog ``pin_release`` / ``updates: false``
+    / ``never_update`` still skip via ``addon_skips_updates``.
     """
     if respect_cooldown and recently_checked_addon_updates():
         return AddonUpdateCheckResult(skipped_recent=True)
@@ -2194,15 +2343,12 @@ def check_addon_updates(
     repair_missing_addon_git_origins(progress)
 
     cat_idx = catalog_index()
-    to_check: list[tuple[str, dict[str, Any], str, str, str]] = []
+    to_check: list[tuple[str, dict[str, Any], str, str, str, str | None]] = []
     for folder, meta in settings.installed_addons.items():
         if meta.get("managed_by"):
             continue
         cat, kind = resolve_catalog_entry(folder, cat_idx, include_mods=False)
         if addon_skips_updates(folder, meta, catalog_entry=cat, catalog_kind=kind):
-            continue
-        # Pinned release-tag installs: reinstall re-fetches the same tag; skip branch tip checks
-        if str(meta.get("tag") or "").strip():
             continue
         meta = overlay_git_origin(folder, meta)
         if not _addon_has_repo(meta):
@@ -2216,7 +2362,11 @@ def check_addon_updates(
             repo = f"{owner}/{name}"
         else:
             owner, name = str(repo).split("/", 1)
-        to_check.append((folder, meta, owner, name, str(repo)))
+        # User-chosen release tags store the tag name in ``branch``; compare against
+        # the default-branch tip so older installs still surface as Update-available.
+        # Catalog pin / never_update already skipped above via addon_skips_updates.
+        check_branch = None if str(meta.get("tag") or "").strip() else meta.get("branch")
+        to_check.append((folder, meta, owner, name, str(repo), check_branch))
 
     # Leftover REST-hour queues from older builds are unused now.
     status_only(progress, "Fetching update catalog…")
@@ -2264,7 +2414,7 @@ def check_addon_updates(
 
     updates: list[dict[str, Any]] = []
     checked = 0
-    for folder, meta, owner, name, repo in to_check:
+    for folder, meta, owner, name, repo, check_branch in to_check:
         disk = addon_disk_path(folder)
         local_sha = str(meta.get("installed_commit") or "").strip()
         if not local_sha and disk is not None:
@@ -2276,7 +2426,7 @@ def check_addon_updates(
             local_ver = str(meta.get("version") or "").strip()
 
         remote = _catalog_remote_for_addon(
-            owner, name, branch=meta.get("branch"), local_sha=local_sha
+            owner, name, branch=check_branch, local_sha=local_sha
         )
         if remote is None:
             log.debug("Catalog index has no tip for %s (%s/%s)", folder, owner, name)
@@ -2353,28 +2503,33 @@ def update_addon(folder: str, progress: ProgressCb | None = None) -> None:
     if managed_by:
         folder = managed_by
         meta = settings.installed_addons.get(folder) or meta
-    from ichalaunch.core.detect import overlay_git_origin
+    from ichalaunch.core.detect import overlay_git_origin, resolve_catalog_entry
 
     meta = overlay_git_origin(folder, meta)
-    tag = str(meta.get("tag") or "").strip()
-    if not tag:
-        from ichalaunch.core.detect import resolve_catalog_entry
-
-        cat, kind = resolve_catalog_entry(folder, include_mods=False)
-        if kind == "exact":
-            tag = catalog_pin_tag(cat)
+    cat, kind = resolve_catalog_entry(folder, include_mods=False)
+    # Catalog-locked pins stay on their release tag. User-chosen older tags update
+    # to the default-branch tip (do not reinstall the same stored pin).
+    tag = ""
+    if kind == "exact" and catalog_locks_updates(cat):
+        tag = catalog_pin_tag(cat)
     repo = str(meta.get("repository") or "").strip()
     if tag and "/" in repo:
         owner, name = repo.split("/", 1)
         url = github_tag_page_url(owner, name, tag)
+        return install_from_github(url, folder_name=folder, progress=progress)
+    if "/" in repo:
+        owner, name = repo.split("/", 1)
+        url = github_browse_url(owner, name)
     else:
-        url = meta.get("url") or (f"https://github.com/{repo}" if repo else "")
-        # Recover tag from stored URL if present
-        parsed = parse_github_url(str(url))
-        if parsed and parsed.tag:
-            url = github_tag_page_url(parsed.owner, parsed.repo, parsed.tag)
-    # Pass primary folder name only as preferred primary — install keeps all module names
-    return install_from_github(url, folder_name=folder, progress=progress)
+        url = str(meta.get("url") or "").strip()
+        parsed = parse_github_url(url)
+        if parsed:
+            url = github_browse_url(parsed.owner, parsed.repo)
+    # Pass primary folder name only as preferred primary — install keeps all module names.
+    # allow_stored_tag=False so a prior version-dropdown pin is not reused.
+    return install_from_github(
+        url, folder_name=folder, progress=progress, allow_stored_tag=False
+    )
 
 
 def uninstall_addon(folder: str) -> None:
