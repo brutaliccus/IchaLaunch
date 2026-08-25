@@ -15042,5 +15042,13 @@
     "source": "community",
     "folder": "TomTomVanilla",
     "description": "Cladhaire's TomTom AddOn backported for 1.12"
+  },
+  {
+    "name": "TomTomVanilla",
+    "repo": "https://github.com/cralor/TomTomVanilla",
+    "category": "General",
+    "source": "community",
+    "folder": "TomTomVanilla",
+    "description": "Cladhaire's TomTom AddOn backported for 1.12"
   }
 ]
