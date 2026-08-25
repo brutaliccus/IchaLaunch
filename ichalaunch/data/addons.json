@@ -15010,5 +15010,13 @@
     "source": "community",
     "folder": "TourGuideVanilla",
     "description": "Tekkub's TourGuide Addon backported for WoW 1.12"
+  },
+  {
+    "name": "TourGuideTurtle",
+    "repo": "https://github.com/Blueager2/TourGuideTurtle",
+    "category": "General",
+    "source": "community",
+    "folder": "TourGuideTurtle",
+    "description": "Tekkub's TourGuide Addon backported for WoW 1.12  modified for Turtle WoW"
   }
 ]
