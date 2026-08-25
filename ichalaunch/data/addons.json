@@ -14522,5 +14522,13 @@
     "source": "community",
     "folder": "pfQuest-turtle",
     "description": "A TurtleWoW DB extension for pfQuest"
+  },
+  {
+    "name": "pfQuest-turtle",
+    "repo": "https://github.com/superyoung9208/pfQuest-turtle",
+    "category": "General",
+    "source": "community",
+    "folder": "pfQuest-turtle",
+    "description": "A TurtleWoW DB extension for pfQuest"
   }
 ]
