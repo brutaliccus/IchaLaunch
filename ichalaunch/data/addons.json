@@ -14514,5 +14514,13 @@
     "source": "community",
     "folder": "pfQuest-turtle-es",
     "description": "an spanish fork for pf-quest-turtle"
+  },
+  {
+    "name": "pfQuest-turtle",
+    "repo": "https://github.com/sangwei/pfQuest-turtle",
+    "category": "General",
+    "source": "community",
+    "folder": "pfQuest-turtle",
+    "description": "A TurtleWoW DB extension for pfQuest"
   }
 ]
