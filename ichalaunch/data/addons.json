@@ -15082,5 +15082,13 @@
     "source": "community",
     "folder": "TourGuideVanilla",
     "description": "See TourGuideClassic for 1.13!!         Tekkub's TourGuide Addon backported for WoW 1.12"
+  },
+  {
+    "name": "TomTomVanilla",
+    "repo": "https://github.com/Chad90b/TomTomVanilla",
+    "category": "General",
+    "source": "community",
+    "folder": "TomTomVanilla",
+    "description": "Cladhaire's TomTom AddOn backported for 1.12"
   }
 ]
