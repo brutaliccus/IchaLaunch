@@ -15082,5 +15082,13 @@
     "source": "community",
     "folder": "TourGuideVanilla",
     "description": "See TourGuideClassic for 1.13!!         Tekkub's TourGuide Addon backported for WoW 1.12"
+  },
+  {
+    "name": "TourGuide-Turtle",
+    "repo": "https://github.com/Azgaardian/TourGuide-Turtle",
+    "category": "General",
+    "source": "community",
+    "folder": "TourGuide-Turtle",
+    "description": "See TourGuideClassic for 1.13!!         Tekkub's TourGuide Addon backported for WoW 1.12"
   }
 ]
