@@ -231,6 +231,10 @@ class AddonsPage(QWidget):
         self.filter_box = GlueComboBox(min_width=160, height=GLUE_BTN_H)
         self.filter_box.blockSignals(True)
         self.filter_box.addItems(["Installed", "Available", "Update Available", "All"])
+        # Default to All (two-column Available | Installed).
+        all_idx = self.filter_box.findText("All")
+        if all_idx >= 0:
+            self.filter_box.setCurrentIndex(all_idx)
         self.filter_box.blockSignals(False)
         self.filter_box.currentTextChanged.connect(self._on_filter_changed)
         self.filter_box.popupShown.connect(self._on_combo_popup_shown)
