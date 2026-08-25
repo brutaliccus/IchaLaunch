@@ -14610,5 +14610,13 @@
     "source": "community",
     "folder": "pfQuest-turtle",
     "description": "pfQuest-turtle 汉化自用存档"
+  },
+  {
+    "name": "pfQuest-turtle",
+    "repo": "https://github.com/Haaxor1689/pfQuest-turtle",
+    "category": "General",
+    "source": "community",
+    "folder": "pfQuest-turtle",
+    "description": "A TurtleWoW DB extension for pfQuest"
   }
 ]
