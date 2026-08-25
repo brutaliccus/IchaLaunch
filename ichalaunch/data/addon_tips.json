@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-25T16:43:31Z",
+  "generated_at": "2026-08-25T17:37:51Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -3878,11 +3878,11 @@
     },
     "determinedpanda/difficultbulletinboard": {
       "default_branch": "master",
-      "sha": "39423709b68fd2c08382c5b3d1103be3781d6a31",
+      "sha": "6eb7629c36b3e767be1febb468ee24b30da7ff33",
       "branches": {
-        "master": "39423709b68fd2c08382c5b3d1103be3781d6a31"
+        "master": "6eb7629c36b3e767be1febb468ee24b30da7ff33"
       },
-      "latest_tag": "V2.40"
+      "latest_tag": "V3.00"
     },
     "thezephyrsong/difficultbulletinboard": {
       "default_branch": "master",
@@ -16437,9 +16437,9 @@
     },
     "torchlite-bit/aegis_courier": {
       "default_branch": "main",
-      "sha": "42010149d2623fda2380d09fb360df43d98ef778",
+      "sha": "d46f99573d4c1d56b3eb0f465d5991afc4c51774",
       "branches": {
-        "main": "42010149d2623fda2380d09fb360df43d98ef778"
+        "main": "d46f99573d4c1d56b3eb0f465d5991afc4c51774"
       }
     },
     "torchlite-bit/aegis_exchange": {
