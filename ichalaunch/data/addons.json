@@ -14778,5 +14778,13 @@
     "source": "community",
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition"
+  },
+  {
+    "name": "AtlasLoot",
+    "repo": "https://github.com/GidraBW/AtlasLoot",
+    "category": "General",
+    "source": "community",
+    "folder": "AtlasLoot",
+    "description": "AtlasLoot Turtle WoW Edition"
   }
 ]
