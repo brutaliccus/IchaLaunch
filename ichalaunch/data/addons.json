@@ -14730,5 +14730,13 @@
     "source": "community",
     "folder": "pfQuest-turtle",
     "description": "A TurtleWoW DB extension for pfQuest"
+  },
+  {
+    "name": "AtlasLoot",
+    "repo": "https://github.com/19XXX/AtlasLoot",
+    "category": "General",
+    "source": "community",
+    "folder": "AtlasLoot",
+    "description": "AtlasLoot Turtle WoW Edition"
   }
 ]
