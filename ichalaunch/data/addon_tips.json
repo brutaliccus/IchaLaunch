@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-24T23:19:11Z",
+  "generated_at": "2026-08-25T00:50:02Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -6331,9 +6331,9 @@
     },
     "cinos03/surpriseme-1.12": {
       "default_branch": "main",
-      "sha": "c94436c08c967a35f7a8cd5b9f95f60e2672696c",
+      "sha": "5be9b5eaeb3b01a2862d1ac21873000b84d8a46a",
       "branches": {
-        "main": "c94436c08c967a35f7a8cd5b9f95f60e2672696c"
+        "main": "5be9b5eaeb3b01a2862d1ac21873000b84d8a46a"
       }
     },
     "bycfm2/atlas-cfm": {
@@ -6392,17 +6392,17 @@
     },
     "brues-code/auctionquerythrottle": {
       "default_branch": "main",
-      "sha": "f32d23adf16daf4bf209b2a3a7a077406bd08b54",
+      "sha": "da89a2392368b60ddddf285b5c866bf6ce46d990",
       "branches": {
-        "main": "f32d23adf16daf4bf209b2a3a7a077406bd08b54"
+        "main": "da89a2392368b60ddddf285b5c866bf6ce46d990"
       },
-      "latest_tag": "v1.1.0"
+      "latest_tag": "v1.2.0"
     },
     "brues-code/classicapi": {
       "default_branch": "master",
-      "sha": "be6dc200fee5d4b4bbe61cb85f0b63a1c6a4fca6",
+      "sha": "0f5b50ea14df0766cb23a9ad588548cc1d682726",
       "branches": {
-        "master": "be6dc200fee5d4b4bbe61cb85f0b63a1c6a4fca6"
+        "master": "0f5b50ea14df0766cb23a9ad588548cc1d682726"
       },
       "latest_tag": "v1.12.3"
     },
