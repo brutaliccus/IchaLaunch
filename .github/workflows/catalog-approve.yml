@@ -10,10 +10,17 @@ name: Catalog approve → PR
 # Repo setting required (once): Settings → Actions → General → Workflow permissions
 # → enable "Allow GitHub Actions to create and approve pull requests"
 # (API: can_approve_pull_request_reviews=true).
+#
+# Batch labeling: concurrency serializes runs so each starts from the latest
+# master tip. Refresh-before-merge rebuilds the branch if a stale PR exists.
 
 on:
   issues:
     types: [labeled]
+
+concurrency:
+  group: catalog-approve
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -27,6 +34,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -84,8 +93,64 @@ jobs:
             echo "found=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # Rebuild from latest master so batch approvals and retries never hit
+      # addons.json merge conflicts from parallel/stale branch tips.
+      - name: Refresh branch from latest master
+        id: refresh
+        if: steps.meta.outputs.skipped != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ steps.meta.outputs.branch }}
+          OWNER: ${{ steps.meta.outputs.owner }}
+          RNAME: ${{ steps.meta.outputs.repo_name }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin master
+          git checkout -B "$BRANCH" origin/master
+
+          python tools/catalog_approve_from_issue.py --body-file /tmp/issue-body.md
+
+          git add ichalaunch/data/addons.json
+          if git diff --cached --quiet; then
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            echo "Already in catalog after refresh (race with another merge)."
+            exit 0
+          fi
+          echo "skipped=false" >> "$GITHUB_OUTPUT"
+
+          git commit -m "$(cat <<EOF
+          catalog: add ${OWNER}/${RNAME}
+
+          From issue #${ISSUE_NUMBER}.
+          EOF
+          )"
+          git push -u origin "$BRANCH" --force
+
+      - name: Comment — already in catalog after refresh
+        if: steps.meta.outputs.skipped != 'true' && steps.refresh.outputs.skipped == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ steps.meta.outputs.repo }}
+        run: |
+          gh issue comment "${{ github.event.issue.number }}" --body "$(cat <<EOF
+          Skipped: \`${REPO}\` is already present in \`ichalaunch/data/addons.json\`. No PR opened or merged.
+          EOF
+          )"
+          # Close leftover open PR for this branch if any
+          if [ -n "${{ steps.existing.outputs.pr_url }}" ]; then
+            gh pr close "${{ steps.existing.outputs.pr_url }}" --delete-branch --comment "Closing: entry already in catalog." || true
+          fi
+          STATE=$(gh issue view "${{ github.event.issue.number }}" --json state --jq '.state')
+          if [ "$STATE" = "OPEN" ]; then
+            gh issue close "${{ github.event.issue.number }}" --comment "Closed: already in catalog."
+          fi
+
       - name: Create branch and PR
-        if: steps.meta.outputs.skipped != 'true' && steps.existing.outputs.found != 'true'
+        if: steps.meta.outputs.skipped != 'true' && steps.refresh.outputs.skipped != 'true' && steps.existing.outputs.found != 'true'
         id: pr
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -97,25 +162,6 @@ jobs:
         run: |
           set -euo pipefail
           TITLE="catalog: add ${OWNER}/${RNAME}"
-
-          # Apply catalog edit (not dry-run)
-          python tools/catalog_approve_from_issue.py --body-file /tmp/issue-body.md
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -B "$BRANCH"
-          git add ichalaunch/data/addons.json
-          if git diff --cached --quiet; then
-            echo "No catalog changes to commit."
-            exit 1
-          fi
-          git commit -m "$(cat <<EOF
-          catalog: add ${OWNER}/${RNAME}
-
-          From issue #${ISSUE_NUMBER}.
-          EOF
-          )"
-          git push -u origin "$BRANCH" --force
 
           if ! PR_URL=$(gh pr create \
             --title "$TITLE" \
@@ -142,7 +188,7 @@ jobs:
 
       - name: Resolve PR URL
         id: target
-        if: steps.meta.outputs.skipped != 'true'
+        if: steps.meta.outputs.skipped != 'true' && steps.refresh.outputs.skipped != 'true'
         run: |
           set -euo pipefail
           if [ "${{ steps.existing.outputs.found }}" = "true" ]; then
@@ -153,7 +199,7 @@ jobs:
 
       - name: Mark ready and squash-merge
         id: merge
-        if: steps.meta.outputs.skipped != 'true' && steps.target.outputs.pr_url != ''
+        if: steps.meta.outputs.skipped != 'true' && steps.refresh.outputs.skipped != 'true' && steps.target.outputs.pr_url != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ steps.target.outputs.pr_url }}
@@ -164,6 +210,15 @@ jobs:
           if [ "$(gh pr view "$PR_URL" --json isDraft --jq '.isDraft')" = "true" ]; then
             gh pr ready "$PR_URL"
           fi
+
+          # Brief settle so GitHub sees the refreshed tip as mergeable
+          for i in 1 2 3 4 5; do
+            MERGEABLE=$(gh pr view "$PR_URL" --json mergeable --jq '.mergeable')
+            if [ "$MERGEABLE" = "MERGEABLE" ]; then
+              break
+            fi
+            sleep 2
+          done
 
           if gh pr merge "$PR_URL" --squash --delete-branch --admin; then
             MERGED_URL=$(gh pr view "$PR_URL" --json url --jq '.url')
