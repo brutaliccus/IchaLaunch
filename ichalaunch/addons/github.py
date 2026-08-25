@@ -180,6 +180,17 @@ def format_github_error_message(exc: BaseException) -> str:
     text = str(exc)
     if "401" in text and "Unauthorized" in text and "api.github.com" in text:
         return GITHUB_TOKEN_REJECTED_MSG
+    # Offline / DNS — keep UI copy short (full urllib3 chain is noisy).
+    if isinstance(exc, (requests.ConnectionError, requests.Timeout)):
+        low = text.lower()
+        if "getaddrinfo" in low or "failed to resolve" in low or "nameresolution" in low:
+            return (
+                "Could not reach GitHub (DNS/network). "
+                "Check your internet connection or VPN/DNS settings, then retry."
+            )
+        if isinstance(exc, requests.Timeout) or "timed out" in low:
+            return "GitHub request timed out. Check your connection and try again."
+        return "Could not reach GitHub. Check your internet connection and try again."
     return text
 
 

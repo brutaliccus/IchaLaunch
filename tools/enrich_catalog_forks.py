@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
-"""Enrich addons.json ``forks[]`` with non-archived GitHub forks.
+"""Enrich addons.json ``forks[]`` with GitHub forks that diverge from upstream.
 
 Discovers forks for each catalog ``repo``, skips archived/disabled forks and
-any fork already present as the primary ``repo`` or in ``forks[]``, then merges
-new entries under the nested ``forks[]`` schema (``label``, ``repo``).
+any fork already present as the primary ``repo`` or in ``forks[]``, then keeps
+only forks that are **ahead** of the network-root default branch
+(``GET /repos/{owner}/{repo}/compare/{base}...{fork:branch}`` with
+``ahead_by > 0``). Identical, behind-only, or failed compares (404/403) are
+excluded. Merges survivors under nested ``forks[]`` (``label``, ``repo``).
+
+Same diverge rule as the addon-submit Worker fan-out.
 
   python tools/enrich_catalog_forks.py
   python tools/enrich_catalog_forks.py --limit 50
@@ -26,7 +31,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 import requests
 
@@ -42,6 +47,8 @@ UA = {
 }
 PER_PAGE = 100
 MAX_PAGES = 20
+# Compare budget per primary: score-rank then stop once max_forks ahead found.
+COMPARE_POOL_MIN = 80
 
 
 def _resolve_token() -> str:
@@ -98,6 +105,28 @@ def _parse_pushed_at(raw: str) -> datetime | None:
         return datetime.fromisoformat(text).astimezone(timezone.utc)
     except ValueError:
         return None
+
+
+def is_fork_ahead(compare: dict[str, Any] | None) -> bool:
+    """True when a Compare API payload shows head has commits base lacks.
+
+    Uses ``ahead_by > 0`` (covers status ``ahead`` and ``diverged``). Missing
+    or invalid payloads are not ahead — callers should not treat unknowns as
+    catalog candidates.
+    """
+    if not isinstance(compare, dict):
+        return False
+    try:
+        return int(compare.get("ahead_by") or 0) > 0
+    except (TypeError, ValueError):
+        return False
+
+
+def compare_pool_size(max_forks: int) -> int:
+    """How many scored forks to Compare before giving up."""
+    if max_forks <= 0:
+        return COMPARE_POOL_MIN
+    return max(int(max_forks) * 2, COMPARE_POOL_MIN)
 
 
 def load_cache(path: Path) -> dict[str, Any]:
@@ -186,6 +215,19 @@ class GitHubClient:
             time.sleep(self.sleep)
         return r
 
+    def repo_default_branch(self, owner: str, repo: str) -> str | None:
+        r = self.get(f"https://api.github.com/repos/{owner}/{repo}")
+        if r.status_code in (404, 451, 403):
+            return None
+        if r.status_code == 401:
+            raise SystemExit("GitHub token rejected (HTTP 401).")
+        r.raise_for_status()
+        data = r.json()
+        if not isinstance(data, dict):
+            return None
+        branch = str(data.get("default_branch") or "").strip()
+        return branch or None
+
     def list_forks(self, owner: str, repo: str) -> list[dict[str, Any]]:
         """Return raw fork payloads (dicts) for owner/repo."""
         out: list[dict[str, Any]] = []
@@ -207,6 +249,30 @@ class GitHubClient:
                 break
         return out
 
+    def compare(
+        self,
+        owner: str,
+        repo: str,
+        *,
+        base: str,
+        head: str,
+    ) -> dict[str, Any] | None:
+        """Compare base...head on owner/repo. None on 404/403 or bad payload."""
+        base_enc = quote(base, safe="")
+        # Keep owner:branch colon unescaped for cross-fork compares.
+        head_enc = quote(head, safe=":")
+        r = self.get(
+            f"https://api.github.com/repos/{owner}/{repo}/compare/{base_enc}...{head_enc}"
+        )
+        if r.status_code in (404, 403, 422):
+            return None
+        if r.status_code == 401:
+            raise SystemExit("GitHub token rejected (HTTP 401).")
+        if not r.ok:
+            return None
+        data = r.json()
+        return data if isinstance(data, dict) else None
+
 
 def _fork_score(item: dict[str, Any]) -> tuple[int, float]:
     stars = int(item.get("stargazers_count") or 0)
@@ -224,10 +290,16 @@ def filter_active_forks(
     max_age_days: int | None,
     min_stars: int,
     max_forks: int,
-) -> list[dict[str, str]]:
-    """Build catalog ``forks[]`` rows from API fork payloads."""
+    default_branch: str = "main",
+) -> list[dict[str, Any]]:
+    """Build scored fork candidates (before Compare diverge filter).
+
+    Each candidate includes ``label``, ``repo``, ``owner``, ``name``,
+    ``default_branch`` for a later ahead_by check.
+    """
     now = datetime.now(timezone.utc)
-    candidates: list[tuple[tuple[int, float], dict[str, str]]] = []
+    candidates: list[tuple[tuple[int, float], dict[str, Any]]] = []
+    root_branch = (default_branch or "main").strip() or "main"
 
     for item in items:
         if bool(item.get("archived")):
@@ -266,13 +338,73 @@ def filter_active_forks(
         api_owner, api_name = api_full.split("/", 1)
         # Owner-only label when fork repo name matches primary; else owner/repo.
         label = api_owner if name == primary[1] else api_full
-        row = {"label": label, "repo": _browse_url(api_owner, api_name)}
+        fork_branch = str(item.get("default_branch") or "").strip() or root_branch
+        row = {
+            "label": label,
+            "repo": _browse_url(api_owner, api_name),
+            "owner": api_owner,
+            "name": api_name,
+            "default_branch": fork_branch,
+        }
         candidates.append((_fork_score(item), row))
 
     candidates.sort(key=lambda t: (-t[0][0], -t[0][1], t[1]["label"].lower()))
     if max_forks > 0:
         candidates = candidates[:max_forks]
     return [row for _, row in candidates]
+
+
+def keep_ahead_forks(
+    client: GitHubClient,
+    candidates: list[dict[str, Any]],
+    *,
+    root_owner: str,
+    root_repo: str,
+    root_branch: str,
+    max_forks: int,
+    compare_cache: dict[str, Any],
+    force_recompare: bool = False,
+) -> list[dict[str, str]]:
+    """Keep candidates with Compare ``ahead_by > 0`` vs root default branch."""
+    base = (root_branch or "main").strip() or "main"
+    out: list[dict[str, str]] = []
+
+    for cand in candidates:
+        if max_forks > 0 and len(out) >= max_forks:
+            break
+        owner = str(cand.get("owner") or "").strip()
+        name = str(cand.get("name") or "").strip()
+        if not owner or not name:
+            continue
+        cache_key = f"{owner}/{name}".lower()
+        cached = compare_cache.get(cache_key) if not force_recompare else None
+        payload: dict[str, Any] | None
+        if isinstance(cached, dict) and "ahead_by" in cached:
+            payload = cached
+        else:
+            fork_branch = str(cand.get("default_branch") or base).strip() or base
+            head = f"{owner}:{fork_branch}"
+            payload = client.compare(root_owner, root_repo, base=base, head=head)
+            if payload is None:
+                compare_cache[cache_key] = {
+                    "ahead_by": 0,
+                    "status": "unavailable",
+                    "checked_at": datetime.now(timezone.utc).isoformat(),
+                }
+                continue
+            slim = {
+                "ahead_by": int(payload.get("ahead_by") or 0),
+                "behind_by": int(payload.get("behind_by") or 0),
+                "status": str(payload.get("status") or ""),
+                "checked_at": datetime.now(timezone.utc).isoformat(),
+            }
+            compare_cache[cache_key] = slim
+            payload = slim
+
+        if is_fork_ahead(payload):
+            out.append({"label": str(cand["label"]), "repo": str(cand["repo"])})
+
+    return out
 
 
 def existing_fork_keys(entry: dict[str, Any]) -> set[tuple[str, str]]:
@@ -331,14 +463,14 @@ def main() -> int:
         "--max-forks-per-entry",
         type=int,
         default=40,
-        help="Cap newly considered forks per entry (0 = unlimited)",
+        help="Cap newly considered diverged forks per entry (0 = unlimited)",
     )
     ap.add_argument("--dry-run", action="store_true", help="Do not write addons.json")
     ap.add_argument(
         "--resume",
         action="store_true",
         default=True,
-        help="Reuse fork list cache (default)",
+        help="Reuse fork list + compare cache (default)",
     )
     ap.add_argument(
         "--no-resume",
@@ -354,7 +486,7 @@ def main() -> int:
     ap.add_argument(
         "--force-refresh",
         action="store_true",
-        help="Refetch even when cache has this owner/repo",
+        help="Refetch forks and re-compare even when cache has this owner/repo",
     )
     args = ap.parse_args()
 
@@ -372,6 +504,8 @@ def main() -> int:
 
     client = GitHubClient(token, sleep=args.sleep)
     max_age = None if int(args.max_age_days) <= 0 else int(args.max_age_days)
+    max_forks = int(args.max_forks_per_entry)
+    pool = compare_pool_size(max_forks)
 
     # Unique primary repos in catalog order (first occurrence wins).
     work: list[tuple[int, str, str]] = []  # (catalog_index, owner, repo)
@@ -401,7 +535,8 @@ def main() -> int:
 
     print(
         f"Enriching {len(work)} unique primary repos "
-        f"(catalog size {len(catalog)}, dry_run={args.dry_run})"
+        f"(catalog size {len(catalog)}, dry_run={args.dry_run}, "
+        f"compare_pool={pool}, max_ahead={max_forks or 'all'})"
     )
 
     for i, (idx, owner, repo) in enumerate(work, start=1):
@@ -410,16 +545,20 @@ def main() -> int:
         primary = (owner, repo)
 
         try:
-            if (
+            cached_entry = cache_repos.get(cache_key)
+            use_cache = (
                 not args.force_refresh
                 and not args.no_resume
-                and cache_key in cache_repos
-                and isinstance(cache_repos[cache_key], dict)
-                and "forks" in cache_repos[cache_key]
-            ):
-                raw_forks = cache_repos[cache_key].get("forks") or []
+                and isinstance(cached_entry, dict)
+                and "forks" in cached_entry
+            )
+            if use_cache:
+                raw_forks = cached_entry.get("forks") or []
+                root_branch = str(cached_entry.get("default_branch") or "").strip()
                 cache_hits += 1
             else:
+                root_branch = client.repo_default_branch(owner, repo) or "main"
+                api_fetches += 1
                 raw_forks = client.list_forks(owner, repo)
                 api_fetches += 1
                 # Store a slim cache payload (fields we need for filtering).
@@ -434,24 +573,59 @@ def main() -> int:
                             "pushed_at": item.get("pushed_at"),
                             "stargazers_count": item.get("stargazers_count"),
                             "watchers_count": item.get("watchers_count"),
+                            "default_branch": item.get("default_branch"),
                         }
                     )
+                prev_compare: dict[str, Any] = {}
+                if isinstance(cached_entry, dict) and isinstance(
+                    cached_entry.get("compare"), dict
+                ):
+                    prev_compare = dict(cached_entry["compare"])
                 cache_repos[cache_key] = {
                     "fetched_at": datetime.now(timezone.utc).isoformat(),
+                    "default_branch": root_branch,
                     "forks": slim,
+                    "compare": prev_compare if not args.force_refresh else {},
                 }
                 raw_forks = slim
                 save_cache(args.cache, cache)
 
+            if not root_branch:
+                root_branch = client.repo_default_branch(owner, repo) or "main"
+                api_fetches += 1
+                if isinstance(cache_repos.get(cache_key), dict):
+                    cache_repos[cache_key]["default_branch"] = root_branch
+
+            entry_cache = cache_repos.setdefault(cache_key, {})
+            if not isinstance(entry_cache, dict):
+                entry_cache = {}
+                cache_repos[cache_key] = entry_cache
+            cmp_map = entry_cache.setdefault("compare", {})
+            if not isinstance(cmp_map, dict):
+                cmp_map = {}
+                entry_cache["compare"] = cmp_map
+
             existing = existing_fork_keys(entry)
-            rows = filter_active_forks(
+            candidates = filter_active_forks(
                 list(raw_forks) if isinstance(raw_forks, list) else [],
                 primary=primary,
                 existing=existing,
                 max_age_days=max_age,
                 min_stars=int(args.min_stars),
-                max_forks=int(args.max_forks_per_entry),
+                max_forks=pool,
+                default_branch=root_branch,
             )
+            rows = keep_ahead_forks(
+                client,
+                candidates,
+                root_owner=owner,
+                root_repo=repo,
+                root_branch=root_branch,
+                max_forks=max_forks,
+                compare_cache=cmp_map,
+                force_recompare=bool(args.force_refresh),
+            )
+            save_cache(args.cache, cache)
             forks_seen_active += len(rows)
             added = merge_forks(entry, rows)
             if added:
@@ -461,7 +635,7 @@ def main() -> int:
             rem = f" remaining={client.remaining}" if client.remaining is not None else ""
             print(
                 f"[{i}/{len(work)}] {cache_key}: "
-                f"+{added} forks ({len(rows)} candidates){rem}"
+                f"+{added} forks ({len(rows)} ahead / {len(candidates)} pool){rem}"
             )
         except requests.HTTPError as exc:
             errors += 1

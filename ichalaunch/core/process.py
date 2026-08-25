@@ -279,8 +279,6 @@ def google_drive_url(file_id: str) -> str:
 
 def wow_exe_running() -> bool:
     """True when WoW.exe (or VanillaFixes.exe) is running. Windows-only; no admin."""
-    import sys
-
     if sys.platform != "win32":
         return False
     names = ("WoW.exe", "VanillaFixes.exe")
@@ -302,6 +300,139 @@ def wow_exe_running() -> bool:
     except (OSError, subprocess.SubprocessError):
         return False
     return False
+
+
+def processes_locking_paths(paths: list[Path | str], *, limit: int = 6) -> list[str]:
+    """Best-effort image names holding *paths* open (Windows Restart Manager).
+
+    Returns ``[]`` when unavailable (non-Windows, API failure, or no lockers found).
+    Never raises. Does not require admin.
+    """
+    if sys.platform != "win32" or not paths:
+        return []
+    try:
+        import ctypes
+        from ctypes import wintypes
+    except ImportError:
+        return []
+
+    rstrtmgr = ctypes.windll.rstrtmgr
+    kernel32 = ctypes.windll.kernel32
+
+    class RM_UNIQUE_PROCESS(ctypes.Structure):
+        _fields_ = [
+            ("dwProcessId", wintypes.DWORD),
+            ("ProcessStartTime", wintypes.FILETIME),
+        ]
+
+    class RM_PROCESS_INFO(ctypes.Structure):
+        _fields_ = [
+            ("Process", RM_UNIQUE_PROCESS),
+            ("strAppName", wintypes.WCHAR * 256),
+            ("strServiceShortName", wintypes.WCHAR * 64),
+            ("ApplicationType", ctypes.c_uint),
+            ("AppStatus", wintypes.ULONG),
+            ("TSSessionId", wintypes.DWORD),
+            ("bRestartable", wintypes.BOOL),
+        ]
+
+    session = wintypes.DWORD(0)
+    key = ctypes.create_unicode_buffer(32)
+    if int(rstrtmgr.RmStartSession(ctypes.byref(session), 0, key)) != 0:
+        return []
+
+    found: list[str] = []
+    try:
+        existing = [str(Path(p)) for p in paths if p and Path(p).exists()]
+        if not existing:
+            return []
+        arr = (wintypes.LPCWSTR * len(existing))(*existing)
+        if int(rstrtmgr.RmRegisterResources(session, len(existing), arr, 0, None, 0, None)) != 0:
+            return []
+
+        needed = wintypes.UINT(0)
+        count = wintypes.UINT(0)
+        reboot = wintypes.DWORD(0)
+        # First call often returns ERROR_MORE_DATA (234) with the required size.
+        rc = int(
+            rstrtmgr.RmGetList(
+                session, ctypes.byref(needed), ctypes.byref(count), None, ctypes.byref(reboot)
+            )
+        )
+        if needed.value == 0:
+            return []
+        infos = (RM_PROCESS_INFO * needed.value)()
+        count = wintypes.UINT(needed.value)
+        rc = int(
+            rstrtmgr.RmGetList(
+                session,
+                ctypes.byref(needed),
+                ctypes.byref(count),
+                infos,
+                ctypes.byref(reboot),
+            )
+        )
+        if rc not in (0, 234):
+            return []
+
+        seen: set[str] = set()
+        for i in range(int(count.value)):
+            pid = int(infos[i].Process.dwProcessId)
+            name = ""
+            # Prefer the live image name when QueryFullProcessImageName succeeds.
+            handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+            if handle:
+                try:
+                    buf = ctypes.create_unicode_buffer(512)
+                    size = wintypes.DWORD(len(buf))
+                    if kernel32.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(size)):
+                        name = Path(buf.value).name
+                finally:
+                    kernel32.CloseHandle(handle)
+            if not name:
+                name = (infos[i].strAppName or "").strip() or f"PID {pid}"
+            key_name = name.lower()
+            if key_name in seen:
+                continue
+            seen.add(key_name)
+            found.append(name)
+            if len(found) >= max(1, int(limit)):
+                break
+    except (OSError, AttributeError, ValueError, TypeError):
+        return []
+    finally:
+        try:
+            rstrtmgr.RmEndSession(session)
+        except Exception:  # noqa: BLE001
+            pass
+    return found
+
+
+def file_in_use_hint(*paths: Path | str) -> str:
+    """Short user-facing diagnosis when a game-tree file cannot be replaced.
+
+    Prefers detecting WoW/VanillaFixes, then Restart Manager lockers, then a
+    generic "another process" note (not antivirus-first). Always includes
+    Task Manager End-task steps for WoW.exe / VanillaFixes.exe.
+    """
+    from ichalaunch.core.filesystem import TASK_MANAGER_END_GAME_HINT
+
+    end_tasks = f"{TASK_MANAGER_END_GAME_HINT} Then retry Apply."
+    if wow_exe_running():
+        return (
+            "WoW.exe or VanillaFixes.exe is still running "
+            "(the game window can be closed while the process stays in Task Manager). "
+            + end_tasks
+        )
+    lockers = processes_locking_paths([p for p in paths if p])
+    if lockers:
+        return f"In use by: {', '.join(lockers)}. {end_tasks}"
+    return (
+        "Another process still has the file open "
+        "(overlays, Explorer preview, backup/sync, or antivirus — "
+        "including non-Defender products). "
+        + end_tasks
+    )
 
 
 # Game client DLLs (VanillaHelpers.dll, nampower.dll, VfPatcher.dll, d3d9.dll, …)

@@ -28,6 +28,8 @@ const CRASH_RATE_MAX_PER_KEY = 4;
 const MAX_FORKS = 40;
 const FORKS_PER_PAGE = 100;
 const FORKS_MAX_PAGES = 5; // 500 listed, then score/cap to MAX_FORKS
+/** Max Compare API calls per submit (scored pool before ahead_by filter). */
+const FORKS_COMPARE_POOL = 80;
 const ADDONS_JSON_URL =
   "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/ichalaunch/data/addons.json";
 /** Sticky GitHub issues that receive crash comments (override via secrets). */
@@ -218,9 +220,18 @@ function rootFromMeta(meta) {
   const node = src || parent || meta;
   const full = String(node?.full_name || "").trim();
   const html = normalizeRepo(String(node?.html_url || "").trim());
+  const defaultBranch =
+    String(node?.default_branch || meta?.default_branch || "main").trim() || "main";
   if (html) {
     const parts = ownerRepo(html);
-    if (parts) return { ...parts, url: html, description: String(node.description || "").trim() };
+    if (parts) {
+      return {
+        ...parts,
+        url: html,
+        description: String(node.description || "").trim(),
+        default_branch: defaultBranch,
+      };
+    }
   }
   if (full.includes("/")) {
     const [owner, name] = full.split("/", 2);
@@ -229,9 +240,20 @@ function rootFromMeta(meta) {
       name,
       url: browseUrl(owner, name),
       description: String(node?.description || "").trim(),
+      default_branch: defaultBranch,
     };
   }
   return null;
+}
+
+/**
+ * True when Compare API payload shows the fork head has commits the base lacks.
+ * 404/403/missing payloads are treated as not-ahead (do not include unknowns).
+ */
+function isForkAhead(compare) {
+  if (!compare || typeof compare !== "object") return false;
+  const ahead = Number(compare.ahead_by);
+  return Number.isFinite(ahead) && ahead > 0;
 }
 
 async function fetchRepoMeta(token, owner, name) {
@@ -250,11 +272,28 @@ function forkScore(item) {
 }
 
 /**
- * Active forks of root, sorted by stars/activity, capped (enrich_catalog_forks ideas).
+ * Compare fork default branch vs network-root default branch.
+ * Returns true only when ahead_by > 0; failures → false (conservative).
  */
-async function listActiveForks(token, owner, name, rootUrl) {
+async function forkAheadOfRoot(token, rootOwner, rootName, baseBranch, forkOwner, forkBranch) {
+  const base = encodeURIComponent(baseBranch);
+  // Keep owner:branch colon unescaped (same as enrich_catalog_forks.py).
+  const head = `${encodeURIComponent(forkOwner)}:${encodeURIComponent(forkBranch)}`;
+  const url = `https://api.github.com/repos/${rootOwner}/${rootName}/compare/${base}...${head}`;
+  const { res, data } = await ghJson(token, url);
+  if (!res.ok || !data || typeof data !== "object") return false;
+  return isForkAhead(data);
+}
+
+/**
+ * Non-archived forks of root that are ahead of the root default branch
+ * (ahead_by > 0 via Compare API). Ranked by stars/activity, capped at MAX_FORKS.
+ * Matches tools/enrich_catalog_forks.py selection rules.
+ */
+async function listActiveForks(token, owner, name, rootUrl, rootDefaultBranch) {
   const candidates = [];
   const rootLower = rootUrl.toLowerCase();
+  const baseBranch = String(rootDefaultBranch || "main").trim() || "main";
 
   for (let page = 1; page <= FORKS_MAX_PAGES; page++) {
     const url =
@@ -280,6 +319,7 @@ async function listActiveForks(token, owner, name, rootUrl) {
         url: html,
         full_name: full || `${parts.owner}/${parts.name}`,
         description: String(item.description || "").trim().slice(0, MAX_DESC),
+        default_branch: String(item.default_branch || "").trim() || baseBranch,
         score,
         pushed,
       });
@@ -292,7 +332,26 @@ async function listActiveForks(token, owner, name, rootUrl) {
     if (b.pushed !== a.pushed) return b.pushed - a.pushed;
     return String(a.full_name).localeCompare(String(b.full_name));
   });
-  return candidates.slice(0, MAX_FORKS);
+
+  const pool = candidates.slice(0, FORKS_COMPARE_POOL);
+  const ahead = [];
+  for (const c of pool) {
+    if (ahead.length >= MAX_FORKS) break;
+    try {
+      const differs = await forkAheadOfRoot(
+        token,
+        owner,
+        name,
+        baseBranch,
+        c.owner,
+        c.default_branch || baseBranch
+      );
+      if (differs) ahead.push(c);
+    } catch (err) {
+      console.log(`fork-fanout: compare failed for ${c.full_name}: ${err}`);
+    }
+  }
+  return ahead;
 }
 
 async function loadCatalogRepoSet() {
@@ -414,6 +473,7 @@ async function submitWithForkFanout(env, payload) {
     name: submitted.name,
     url: payload.repo,
     description: "",
+    default_branch: "main",
   };
   const meta = await fetchRepoMeta(token, submitted.owner, submitted.name);
   if (meta.ok && meta.data) {
@@ -427,7 +487,13 @@ async function submitWithForkFanout(env, payload) {
 
   let forks = [];
   try {
-    forks = await listActiveForks(token, root.owner, root.name, root.url);
+    forks = await listActiveForks(
+      token,
+      root.owner,
+      root.name,
+      root.url,
+      root.default_branch || "main"
+    );
   } catch (err) {
     console.log(`fork-fanout: list forks failed: ${err}`);
     forks = [];

@@ -66,11 +66,14 @@ On every suggestion (in-app **Suggest for catalog** or auto-submit), the Worker:
 1. Loads the submitted repo via the GitHub API.
 2. Resolves the **network root** (`source` if present, else `parent`, else the
    repo itself when it is not a fork).
-3. Lists active (non-archived / non-disabled) forks of that root, ranked like
-   `tools/enrich_catalog_forks.py`, capped at **40**.
+3. Lists non-archived / non-disabled forks of that root, ranks by stars/activity,
+   then keeps only forks that are **ahead** of the root default branch
+   (`Compare` API `ahead_by > 0`). Identical / behind-only / compare failures
+   (404/403) are skipped. Same rules as `tools/enrich_catalog_forks.py`. Cap
+   **40** results; at most **80** compare calls per submit.
 4. Opens a separate `[catalog]` issue for:
    - the root
-   - each active fork
+   - each diverged fork
    - the originally submitted repo if it is not already in that set
 5. Skips a repo if its URL is already in live `addons.json` (primary or nested
    `forks[]`) or already mentioned in an open `[catalog]` issue.
@@ -82,7 +85,10 @@ Fan-out runs at **submit** time (not on `catalog-approved`) so maintainers can
 approve each fork independently without waiting on the root.
 
 Token needs **Issues: Read and write** on this repo plus read access to public
-repo metadata (forks / parent). Classic `public_repo` also works.
+repo metadata (forks / parent / compare). Classic `public_repo` also works.
+
+**Redeploy** this Worker after changing fan-out logic for live Suggest to pick up
+the new diverge filter.
 
 ## Promote issue → `addons.json`
 

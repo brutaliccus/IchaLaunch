@@ -8,7 +8,9 @@ never blocks the UI hard; failures are silent or one soft log line.
 
 from __future__ import annotations
 
+import getpass
 import logging
+import os
 import platform
 import re
 import threading
@@ -62,6 +64,56 @@ _SECRET_RES: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?i)(api[_ ]?key\s*[:=]\s*)\S+"),
 )
 
+# Path username segment: allow spaces (e.g. ``Matt Hadati``); stop at separator.
+_WIN_USERS_PATH_RE = re.compile(
+    r"(?i)([A-Z]:[\\/](?:Users|home)[\\/])([^\\/]+)([\\/]?)"
+)
+_UNC_USERS_PATH_RE = re.compile(
+    r"(?i)(\\\\[^\\/]+[\\/]Users[\\/])([^\\/]+)([\\/]?)"
+)
+# Legacy 8.3 Documents and Settings → username (avoid bare DOCUME~1 false positives).
+_DOCUME_SHORT_PATH_RE = re.compile(
+    r"(?i)([A-Z]:[\\/]DOCUME~1[\\/])([^\\/]+)([\\/]?)"
+)
+_LINUX_HOME_PATH_RE = re.compile(r"(?i)(/home/)([^/]+)(/?)")
+
+# Global OS-username replace needs length ≥ this (short names are too ambiguous).
+_MIN_USERNAME_REDACT_LEN = 3
+
+# Opt-in ERROR skip list: expected throttles / env noise (not real product bugs).
+# Match by exception type name (incl. subclasses via MRO) and/or message.
+_SKIP_ERROR_TYPE_NAMES = frozenset(
+    {
+        "GitHubRateLimitError",
+        "GitHubBudgetExhaustedError",  # subclass of GitHubRateLimitError
+        # Offline / DNS / transient HTTP — sticky-issue noise (see #58).
+        "ConnectionError",
+        "ConnectTimeout",
+        "ReadTimeout",
+        "Timeout",
+        "ChunkedEncodingError",
+        "NameResolutionError",
+        "MaxRetryError",
+        "ProxyError",
+    }
+)
+_SKIP_ERROR_MSG_RE = re.compile(
+    r"(?i)\b(GitHubRateLimitError|GitHubBudgetExhaustedError)\b"
+    r"|GitHub\s+rate\s+limit\b"
+    r"|getaddrinfo\s+failed"
+    r"|Failed\s+to\s+resolve\b"
+    r"|Max\s+retries\s+exceeded\b"
+    r"|Skipped\s+locked\s+or\s+antivirus-blocked\b"
+    r"|\[WinError\s+32\]"
+    r"|sharing\s+violation\b"
+    r"|being\s+used\s+by\s+another\s+process\b"
+)
+
+# crash.log blocks look like ``====…====`` … ``app_version: X`` … ``====…====``.
+_CRASH_BLOCK_RE = re.compile(
+    r"(?ms)^={20,}\s*\n.*?^={20,}\s*$"
+)
+
 
 CRASH_REPORTING_OPT_IN_KEY = "crash_reporting_opt_in_prompted_v1"
 
@@ -109,8 +161,40 @@ def crash_report_url() -> str:
     return CRASH_REPORT_URL
 
 
+def _current_os_username() -> str:
+    """Best-effort current account name for redaction (USERNAME / USER / getpass)."""
+    for key in ("USERNAME", "USER", "LOGNAME"):
+        raw = (os.environ.get(key) or "").strip()
+        if raw:
+            return raw
+    try:
+        return (getpass.getuser() or "").strip()
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _redact_current_username(text: str) -> str:
+    """Case-insensitive replace of the running OS username with ``[user]``.
+
+    Skips very short names (1–2 chars) to avoid over-redacting common words;
+    path-segment rules still cover short names inside ``Users\\…`` / ``/home/…``.
+    """
+    name = _current_os_username()
+    if not name or len(name) < _MIN_USERNAME_REDACT_LEN:
+        return text
+    # Multi-word accounts (e.g. ``Matt Hadati``): literal replace of the full name.
+    # Single-token: require non-alnum boundaries so ``Jo``-length skips already,
+    # and ``John`` does not eat ``Johnson``.
+    escaped = re.escape(name)
+    if any(ch.isspace() for ch in name):
+        pattern = escaped
+    else:
+        pattern = rf"(?<![A-Za-z0-9_]){escaped}(?![A-Za-z0-9_])"
+    return re.sub(pattern, "[user]", text, flags=re.IGNORECASE)
+
+
 def redact_secrets(text: str) -> str:
-    """Strip obvious tokens / PATs from log text before upload."""
+    """Strip obvious tokens / PATs and soften username-bearing paths before upload."""
     out = text or ""
     # Standalone token shapes → full redact.
     out = _SECRET_RES[0].sub("[REDACTED]", out)
@@ -122,23 +206,51 @@ def redact_secrets(text: str) -> str:
     out = _SECRET_RES[5].sub(r"\1[REDACTED]", out)
     out = _SECRET_RES[6].sub(r"\1[REDACTED]", out)
     out = _SECRET_RES[7].sub(r"\1[REDACTED]", out)
-    # Soften absolute paths that often embed usernames.
-    out = re.sub(
-        r"(?i)([A-Z]:\\(?:Users|home)\\)([^\\/\s]+)(\\?)",
-        r"\1[user]\3",
-        out,
-    )
-    out = re.sub(
-        r"(?i)(/home/)([^/\s]+)(/?)",
-        r"\1[user]\3",
-        out,
-    )
+    # Soften absolute paths that often embed usernames (any account, incl. spaces).
+    out = _WIN_USERS_PATH_RE.sub(r"\1[user]\3", out)
+    out = _UNC_USERS_PATH_RE.sub(r"\1[user]\3", out)
+    out = _DOCUME_SHORT_PATH_RE.sub(r"\1[user]\3", out)
+    out = _LINUX_HOME_PATH_RE.sub(r"\1[user]\3", out)
     out = re.sub(
         r'(?i)((?:game_path|addons_path|linux_wineprefix)\s*[:=]\s*")[^"]*(")',
         r"\1[REDACTED]\2",
         out,
     )
+    # Sentence / free-text mentions of *this* machine's account name.
+    out = _redact_current_username(out)
     return out
+
+
+def _should_skip_error_report(record: logging.LogRecord) -> bool:
+    """True for expected non-bug noise (rate limits, locks, offline DNS, etc.)."""
+    if record.exc_info and record.exc_info[0] is not None:
+        cls = record.exc_info[0]
+        for base in getattr(cls, "__mro__", (cls,)):
+            if getattr(base, "__name__", "") in _SKIP_ERROR_TYPE_NAMES:
+                return True
+        exc_obj = record.exc_info[1]
+        if isinstance(exc_obj, BaseException):
+            try:
+                from ichalaunch.core.filesystem import is_lock_or_av_error
+
+                if is_lock_or_av_error(exc_obj):
+                    return True
+            except Exception:  # noqa: BLE001
+                pass
+    try:
+        msg = record.getMessage()
+    except Exception:  # noqa: BLE001
+        msg = str(getattr(record, "msg", "") or "")
+    if _SKIP_ERROR_MSG_RE.search(msg):
+        return True
+    # Exception str often lands in the formatted traceback message only.
+    if record.exc_info and record.exc_info[1] is not None:
+        try:
+            if _SKIP_ERROR_MSG_RE.search(str(record.exc_info[1])):
+                return True
+        except Exception:  # noqa: BLE001
+            pass
+    return False
 
 
 def _tail_file(path: Path, max_chars: int) -> str:
@@ -151,6 +263,31 @@ def _tail_file(path: Path, max_chars: int) -> str:
     if len(data) <= max_chars:
         return data
     return "… (truncated)\n" + data[-max_chars:]
+
+
+def _crash_excerpt_current_version(path: Path, max_chars: int) -> str:
+    """Tail crash.log but keep only blocks for this launcher version.
+
+    Older installs leave multi-version crash.log history; attaching stale
+    blocks (e.g. 1.0.30 ModuleNotFoundError on a 1.2.x ERROR report) misleads
+    triage on the sticky issue.
+    """
+    try:
+        if not path.is_file():
+            return ""
+        data = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    if not data.strip():
+        return ""
+    marker = f"app_version: {__version__}"
+    blocks = [b.strip() for b in _CRASH_BLOCK_RE.findall(data) if marker in b]
+    if not blocks:
+        return ""
+    joined = "\n\n".join(blocks)
+    if len(joined) <= max_chars:
+        return joined
+    return "… (truncated)\n" + joined[-max_chars:]
 
 
 def _rate_limited() -> bool:
@@ -187,7 +324,9 @@ def _build_payload(
     if not log_excerpt:
         log_excerpt = _tail_file(app_log_path(), _MAX_LOG_CHARS)
     if not crash_excerpt:
-        crash_excerpt = _tail_file(crash_log_path(), _MAX_CRASH_CHARS)
+        crash_excerpt = _crash_excerpt_current_version(
+            crash_log_path(), _MAX_CRASH_CHARS
+        )
 
     summary_s = redact_secrets((summary or "").strip())[:_MAX_SUMMARY] or kind
     os_family = (platform.system() or "").strip().lower() or "unknown"
@@ -288,6 +427,9 @@ class _OptInErrorHandler(logging.Handler):
         # Avoid feedback from our own soft lines / nested handlers.
         msg = record.getMessage()
         if msg.startswith("Crash report "):
+            return
+        # Skip expected throttles (see _SKIP_ERROR_TYPE_NAMES) — keep real failures.
+        if _should_skip_error_report(record):
             return
         try:
             summary = f"{record.name}: {msg}"

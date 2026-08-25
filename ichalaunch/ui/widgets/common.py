@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -17,7 +18,7 @@ from typing import Any
 from urllib.parse import urlparse
 from urllib.request import urlopen
 from PySide6.QtCore import QObject, QPoint, QProcess, QRect, QSize, Qt, QThread, QTimer, QUrl, Signal
-from PySide6.QtGui import QDesktopServices, QPainter, QPixmap
+from PySide6.QtGui import QColor, QDesktopServices, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -38,6 +39,8 @@ from ichalaunch.ui.widgets.glue_panel_button import (
     GLUE_ROW_MENU_W,
     GLUE_ROW_W,
     GluePanelButton,
+    check_button_glow_for_plate,
+    glue_chrome_pixmap,
     glue_row_square_chrome,
 )
 from ichalaunch.ui.widgets.theme_checkbox import ThemeCheckBox
@@ -212,6 +215,270 @@ class PassRemoveButton(QPushButton):
             x = rect.center().x() - icon.width() // 2
             y = rect.center().y() - icon.height() // 2 + (1 if self.isDown() else 0)
             painter.drawPixmap(x, y, icon)
+        painter.end()
+
+
+# Addon-row Update: one glowing GLUE_ROW plate — MicroStream arrow left, GlueCombo caret right.
+_UPDATE_ARROW = "UI-MicroStream-Yellow.PNG"
+_UPDATE_ARROW_EXTERNAL = Path(r"F:\wow-ui-textures\Buttons") / _UPDATE_ARROW
+_UPDATE_ARROW_PX = 16
+_UPDATE_ARROW_CACHE: QPixmap | None = None
+_UPDATE_ARROW_PAD_L = 10
+
+_CARET_UP = "UI-ScrollBar-ScrollDownButton-Up.PNG"
+_CARET_DOWN = "UI-ScrollBar-ScrollDownButton-Down.PNG"
+_CARET_EXTERNAL = Path(r"F:\wow-ui-textures\Buttons")
+# GlueCombo caret math scaled to GLUE_ROW_H (28) from GLUE_BTN_H (34).
+_CARET_SIZE = 28
+_CARET_PAD_R = 5
+_CARET_X_NUDGE = 2
+_CARET_Y_NUDGE = 2
+_CARET_PRESS_DX = -2
+_CARET_PRESS_DY = 3
+_CARET_CACHE: dict[str, QPixmap] = {}
+# Content nudge when chrome is depressed (same as GluePanelButton / GlueCombo).
+_UPDATE_PRESS_DY = 1
+
+
+def _row_update_arrow_pixmap() -> QPixmap:
+    """Home UPDATE chevron (MicroStream flipped up), scaled for GLUE_ROW_H plates."""
+    global _UPDATE_ARROW_CACHE
+    if _UPDATE_ARROW_CACHE is not None:
+        return _UPDATE_ARROW_CACHE
+    path = theme_file(_UPDATE_ARROW)
+    if not path.is_file():
+        path = _UPDATE_ARROW_EXTERNAL
+    pm = QPixmap()
+    if path.is_file():
+        src = QPixmap(str(path))
+        if not src.isNull():
+            flipped = QPixmap.fromImage(src.toImage().mirrored(False, True))
+            pm = flipped.scaled(
+                _UPDATE_ARROW_PX,
+                _UPDATE_ARROW_PX,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+    _UPDATE_ARROW_CACHE = pm
+    return pm
+
+
+def _row_update_caret_raw(pressed: bool) -> QPixmap:
+    """ScrollDownButton art (raw PNG) — drawn into _CARET_SIZE like GlueCombo."""
+    key = "down" if pressed else "up"
+    hit = _CARET_CACHE.get(key)
+    if hit is not None:
+        return hit
+    name = _CARET_DOWN if pressed else _CARET_UP
+    path = theme_file(name)
+    if not path.is_file():
+        path = _CARET_EXTERNAL / name
+    pm = QPixmap(str(path)) if path.is_file() else QPixmap()
+    _CARET_CACHE[key] = pm
+    return pm
+
+
+class AddonRowUpdateSplit(QPushButton):
+    """Single glowing rectangular Update control (GLUE_ROW_W × GLUE_ROW_H).
+
+    Left / arrow area → Update; right caret (GlueCombo ScrollDown art + nudges)
+    → Never Update menu. Gold CheckButtonGlow frames the whole plate.
+    """
+
+    update_clicked = Signal()
+    menu_clicked = Signal()
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setObjectName("AddonRowUpdateSplit")
+        apply_open_hand(self)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.setFlat(True)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+        self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+        self.setStyleSheet(
+            "QPushButton#AddonRowUpdateSplit {"
+            "  background: transparent;"
+            "  border: none;"
+            "  padding: 0;"
+            "  margin: 0;"
+            "  color: transparent;"
+            "}"
+        )
+        self._chrome_w = GLUE_ROW_W
+        self._chrome_h = GLUE_ROW_H
+        self._glow_pm = check_button_glow_for_plate(self._chrome_w, self._chrome_h)
+        gw = self._glow_pm.width() if not self._glow_pm.isNull() else self._chrome_w + 16
+        gh = self._glow_pm.height() if not self._glow_pm.isNull() else self._chrome_h + 16
+        self.setFixedSize(max(self._chrome_w, gw), max(self._chrome_h, gh))
+        self._glow_pulse = 0.0
+        self._glow_timer = QTimer(self)
+        self._glow_timer.setInterval(40)
+        self._glow_timer.timeout.connect(self._tick_glow_pulse)
+        self._glow_timer.start()
+        self._icon = _row_update_arrow_pixmap()
+        self._menu_open = False
+        self._press_zone: str | None = None  # "update" | "menu"
+        # Compat aliases for AddonRow wiring / menu anchor.
+        self.update_btn = self
+        self.menu_btn = self
+        glue_chrome_pixmap(pressed=False, role="primary")
+        glue_chrome_pixmap(pressed=True, role="primary")
+        _row_update_caret_raw(False)
+        _row_update_caret_raw(True)
+        self.setToolTip(
+            "Update available — click the arrow to update, or the caret for "
+            "Never Update (skips checks and Update All; clear with Reinstall)."
+        )
+        self.setAccessibleName("Update")
+
+    def set_menu_open(self, open_: bool) -> None:
+        open_ = bool(open_)
+        if open_ != self._menu_open:
+            self._menu_open = open_
+            self.update()
+
+    def menu_popup_pos(self) -> QPoint:
+        """Global bottom-left of the caret hit area (for Never Update menu)."""
+        return self.mapToGlobal(self._caret_hit_rect().bottomLeft())
+
+    def _chrome_rect(self) -> QRect:
+        return QRect(
+            (self.width() - self._chrome_w) // 2,
+            (self.height() - self._chrome_h) // 2,
+            self._chrome_w,
+            self._chrome_h,
+        )
+
+    def _caret_hit_rect(self) -> QRect:
+        """Right-side caret footprint (GlueCombo placement + click slack)."""
+        chrome = self._chrome_rect()
+        aw = _CARET_SIZE
+        left = chrome.right() - _CARET_PAD_R - aw + _CARET_X_NUDGE - 4
+        left = max(chrome.left() + chrome.width() // 2, left)
+        return QRect(left, chrome.top(), chrome.right() - left + 1, chrome.height())
+
+    def _zone_at(self, pos: QPoint) -> str:
+        return "menu" if self._caret_hit_rect().contains(pos) else "update"
+
+    def _tick_glow_pulse(self) -> None:
+        self._glow_pulse = (self._glow_pulse + 0.10) % (2 * math.pi)
+        self.update()
+
+    def enterEvent(self, event) -> None:  # noqa: N802
+        super().enterEvent(event)
+        self.update()
+
+    def leaveEvent(self, event) -> None:  # noqa: N802
+        super().leaveEvent(event)
+        self.update()
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        if event.button() == Qt.MouseButton.LeftButton and self.isEnabled():
+            self._press_zone = self._zone_at(event.position().toPoint())
+        super().mousePressEvent(event)
+        self.update()
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802
+        zone = self._press_zone
+        self._press_zone = None
+        inside = self.rect().contains(event.position().toPoint())
+        was_down = self.isDown()
+        # Avoid QPushButton.clicked — we split left vs caret ourselves.
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.setDown(False)
+            event.accept()
+            if was_down and inside and zone and self.isEnabled():
+                # Re-check zone at release so drag-off-caret doesn't fire menu.
+                release_zone = self._zone_at(event.position().toPoint())
+                if zone == "menu" and release_zone == "menu":
+                    self.menu_clicked.emit()
+                elif zone == "update" and release_zone == "update":
+                    self.update_clicked.emit()
+            self.update()
+            return
+        super().mouseReleaseEvent(event)
+        self.update()
+
+    def _paint_glow(self, painter: QPainter) -> None:
+        if self._glow_pm.isNull() or not self.isEnabled():
+            return
+        wave = 0.5 + 0.5 * math.sin(self._glow_pulse)
+        if self.underMouse() or self.isDown() or self._menu_open:
+            opacity = 0.95
+        else:
+            opacity = 0.40 + 0.55 * wave
+        painter.setOpacity(opacity)
+        glow = self._glow_pm
+        dest = self.rect()
+        if glow.width() != dest.width() or glow.height() != dest.height():
+            x = dest.center().x() - glow.width() // 2
+            y = dest.center().y() - glow.height() // 2
+            painter.drawPixmap(x, y, glow)
+        else:
+            painter.drawPixmap(dest, glow)
+        painter.setOpacity(1.0)
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        del event
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+
+        self._paint_glow(painter)
+        rect = self._chrome_rect()
+        chrome_down = self.isDown() and self._press_zone == "update"
+        pm = glue_chrome_pixmap(
+            pressed=chrome_down,
+            role="primary",
+            disabled=not self.isEnabled(),
+        )
+        if pm.isNull():
+            painter.setPen(QColor("#7a6e88"))
+            painter.setBrush(QColor("#4a2f7a"))
+            painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 6, 6)
+        else:
+            painter.drawPixmap(rect, pm)
+
+        press_dy = _UPDATE_PRESS_DY if chrome_down else 0
+
+        # Update arrow — left side of the plate.
+        icon = self._icon
+        if icon.isNull():
+            painter.setPen(QColor("#F1C22D"))
+            painter.drawText(
+                rect.adjusted(_UPDATE_ARROW_PAD_L, press_dy, 0, press_dy),
+                Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
+                "↑",
+            )
+        else:
+            if not self.isEnabled():
+                painter.setOpacity(0.45)
+            ax = rect.left() + _UPDATE_ARROW_PAD_L
+            ay = rect.center().y() - icon.height() // 2 + press_dy
+            painter.drawPixmap(ax, ay, icon)
+            painter.setOpacity(1.0)
+
+        # Dropdown caret — same art + nudges as GlueCombo (scaled to row height).
+        caret_down = self._menu_open or (
+            self.isDown() and self._press_zone == "menu"
+        )
+        arrow = _row_update_caret_raw(caret_down)
+        if arrow.isNull():
+            painter.setPen(QColor("#e6e0ee"))
+            painter.drawText(
+                rect.adjusted(0, 0, -_CARET_PAD_R, 0),
+                Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
+                "▾",
+            )
+        else:
+            aw = _CARET_SIZE
+            caret_dx = _CARET_PRESS_DX if caret_down else 0
+            caret_dy = _CARET_PRESS_DY if caret_down else 0
+            cx = rect.right() - _CARET_PAD_R - aw + _CARET_X_NUDGE + caret_dx
+            cy = rect.center().y() - aw // 2 + _CARET_Y_NUDGE + caret_dy
+            painter.drawPixmap(QRect(cx, cy, aw, aw), arrow)
+
         painter.end()
 
 
@@ -1505,38 +1772,15 @@ class AddonRow(QWidget):
         self._git_url = git_url
         if is_installed:
             show_update = self._update_available and not self._never_update
-            self._update_btn = GluePanelButton(
-                "Update", self, role="primary", width=GLUE_ROW_W, height=GLUE_ROW_H
-            )
-            self._update_btn.clicked.connect(self._on_update_clicked)
-            self._update_btn.setVisible(show_update)
-            # Narrow caret next to Update — on-demand QMenu (no InstantPopup).
-            self._update_menu_btn = GluePanelButton(
-                "▾", self, role="primary", width=GLUE_ROW_MENU_W, height=GLUE_ROW_H
-            )
-            self._update_menu_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-            self._update_menu_btn.setToolTip(
-                "Never Update skips update checks and Update All. "
-                "Clear later with Reinstall."
-            )
-            self._update_menu_btn.clicked.connect(self._popup_never_update_menu)
-            self._update_menu_btn.setVisible(show_update)
-            update_wrap = QWidget(self)
-            update_wrap.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
-            update_l = QHBoxLayout(update_wrap)
-            update_l.setContentsMargins(0, 0, 0, 0)
-            update_l.setSpacing(2)
-            update_l.addWidget(self._update_btn)
-            update_l.addWidget(self._update_menu_btn)
-            layout.addWidget(update_wrap)
-            if git_url:
-                btn_git = GluePanelButton(
-                    "Open in Git", self, width=GLUE_ROW_W, height=GLUE_ROW_H
-                )
-                btn_git.clicked.connect(lambda: self.open_git_clicked.emit(entry))
-                layout.addWidget(btn_git)
-                self.open_git_btn = btn_git
-                apply_open_git_visibility(btn_git, git_url, self, defer=True)
+            # Glowing rectangular Update plate: arrow left, Never-Update caret right.
+            self._update_split = AddonRowUpdateSplit(self)
+            self._update_btn = self._update_split.update_btn
+            self._update_menu_btn = self._update_split.menu_btn
+            self._update_split.update_clicked.connect(self._on_update_clicked)
+            self._update_split.menu_clicked.connect(self._popup_never_update_menu)
+            self._update_split.setVisible(show_update)
+            layout.addWidget(self._update_split)
+            # Open in Git lives in Settings cog dialog (right of Version).
             if git_url or entry.get("source") == "github" or entry.get("tag"):
                 btn_ri = GluePanelButton(
                     "Reinstall", self, width=GLUE_ROW_W, height=GLUE_ROW_H
@@ -1563,6 +1807,7 @@ class AddonRow(QWidget):
                 self.settings_btn = btn_set
             self._refresh_never_update_ui()
         else:
+            self._update_split = None
             self._update_btn = None
             self._update_menu_btn = None
             btn = GluePanelButton("Install", self, width=GLUE_ROW_W, height=GLUE_ROW_H)
@@ -1610,9 +1855,19 @@ class AddonRow(QWidget):
             "Clear with Reinstall."
         )
         act.triggered.connect(self._on_never_update_chosen)
-        pos = self._update_menu_btn.mapToGlobal(self._update_menu_btn.rect().bottomLeft())
-        menu.exec(pos)
-        menu.deleteLater()
+        split = getattr(self, "_update_split", None)
+        if split is not None:
+            split.set_menu_open(True)
+            pos = split.menu_popup_pos()
+        else:
+            caret = self._update_menu_btn
+            pos = caret.mapToGlobal(caret.rect().bottomLeft())
+        try:
+            menu.exec(pos)
+        finally:
+            if split is not None:
+                split.set_menu_open(False)
+            menu.deleteLater()
 
     def _on_never_update_chosen(self) -> None:
         """One-way: set Never Update (clear only via Reinstall)."""
@@ -1633,11 +1888,15 @@ class AddonRow(QWidget):
         else:
             self.status_lbl.setText(self._status_text)
             self._apply_status_style(self._status_text)
-        if self._update_btn is not None:
-            self._update_btn.setVisible(show_update)
-        if self._update_menu_btn is not None:
-            # Caret only beside a visible Update button — never on Never Update rows.
-            self._update_menu_btn.setVisible(show_update)
+        split = getattr(self, "_update_split", None)
+        if split is not None:
+            # Rectangular Update control — never on Never Update rows.
+            split.setVisible(show_update)
+        else:
+            if self._update_btn is not None:
+                self._update_btn.setVisible(show_update)
+            if self._update_menu_btn is not None:
+                self._update_menu_btn.setVisible(show_update)
 
     def apply_status(self, status: str, *, never_update: bool | None = None) -> None:
         """Patch labels/buttons in place (no recreate — avoids HWND flashes)."""

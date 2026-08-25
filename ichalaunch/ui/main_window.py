@@ -373,6 +373,24 @@ def _format_minutes_since(settings_key: str) -> str:
     return f"{minutes} min"
 
 
+def _client_mod_failure_dialog_body(
+    failures: list[str],
+    *,
+    lead: str = "These changes could not be applied:",
+) -> str:
+    """Build Apply/sync failure dialog text; ensure Task Manager End-task guidance."""
+    from ichalaunch.core.filesystem import TASK_MANAGER_END_GAME_HINT
+
+    parts = [ln for ln in failures if isinstance(ln, str) and ln.strip()]
+    body = f"{lead}\n\n" + "\n\n".join(parts) if parts else lead
+    low = body.lower()
+    if "task manager" in low and "wow.exe" in low:
+        return body
+    return (
+        f"{body}\n\n{TASK_MANAGER_END_GAME_HINT} Then retry Apply."
+    )
+
+
 class NavTabButton(QPushButton):
     """Folder tab — floor-tinted Glue-Panel plate + optional update alert badge."""
 
@@ -1427,12 +1445,31 @@ class Worker(QThread):
             self.finished_ok.emit(result)
         except Exception as exc:  # noqa: BLE001
             from ichalaunch.addons.github import GitHubRateLimitError
+            from ichalaunch.core.filesystem import is_lock_or_av_error, user_facing_os_error
+            from requests.exceptions import (
+                ChunkedEncodingError,
+                ConnectionError as RequestsConnectionError,
+                Timeout as RequestsTimeout,
+            )
 
-            if isinstance(exc, GitHubRateLimitError):
+            # Expected environmental noise — warn only so opt-in ERROR reporting
+            # does not flood the sticky crash issue (locks, offline DNS, rate limits).
+            soft = (
+                isinstance(exc, GitHubRateLimitError)
+                or (isinstance(exc, OSError) and is_lock_or_av_error(exc))
+                or isinstance(
+                    exc,
+                    (RequestsConnectionError, RequestsTimeout, ChunkedEncodingError),
+                )
+            )
+            if soft:
                 log.warning("Worker failed: %s", exc)
             else:
                 log.exception("Worker failed")
-            self.failed.emit(format_github_error_message(exc))
+            if isinstance(exc, OSError) and is_lock_or_av_error(exc):
+                self.failed.emit(user_facing_os_error(exc))
+            else:
+                self.failed.emit(format_github_error_message(exc))
 
 
 class MainWindow(QMainWindow):
@@ -1742,6 +1779,9 @@ class MainWindow(QMainWindow):
         self.settings_page.clear_cache_clicked.connect(self._clear_app_cache)
         self.settings_page.check_permissions_clicked.connect(self._check_game_permissions)
         self.settings_page.verify_clicked.connect(self._verify_game)
+        self.settings_page.preview_addon_update_clicked.connect(
+            self._preview_addon_update_row
+        )
 
         self._refresh_play_button()
         self._nav(0)
@@ -3250,8 +3290,10 @@ class MainWindow(QMainWindow):
                     themed.error(
                         self,
                         "Could not sync client mods",
-                        "These client mod changes could not be applied:\n\n"
-                        + "\n\n".join(failures),
+                        _client_mod_failure_dialog_body(
+                            failures,
+                            lead="These client mod changes could not be applied:",
+                        ),
                     )
                     maybe_show_superwow_after_mod_failures(self, failures, "sync")
                     return
@@ -3691,6 +3733,14 @@ class MainWindow(QMainWindow):
             "Launcher data has been reset. Restart IchaLaunch if anything still looks outdated.",
         )
 
+    def _preview_addon_update_row(self) -> None:
+        """Settings Dev/Test: show Addons with a fake update-available row."""
+        self._nav(1)  # Home=0, Addons=1
+        preview = getattr(self.addons, "preview_update_row_demo", None)
+        if callable(preview):
+            preview()
+
+
     def _verify_game(self) -> None:
         if is_installed():
             themed.info(self, "Verify", f"WoW.exe found at:\n{settings.game_path}")
@@ -3719,7 +3769,7 @@ class MainWindow(QMainWindow):
                 themed.error(
                     self,
                     "Some mod changes failed",
-                    "These changes could not be applied:\n\n" + "\n\n".join(failures),
+                    _client_mod_failure_dialog_body(failures),
                 )
                 maybe_show_superwow_after_mod_failures(self, failures, "sync")
             elif verify_warns:

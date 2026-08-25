@@ -63,7 +63,15 @@ from ichalaunch.core.filesystem import (
     validate_pe_binary,
 )
 from ichalaunch.core.logging_setup import log
-from ichalaunch.core.process import download_bytes, download_bytes_cb, download_file, google_drive_url, status_only
+from ichalaunch.core.process import (
+    download_bytes,
+    download_bytes_cb,
+    download_file,
+    file_in_use_hint,
+    google_drive_url,
+    status_only,
+    wow_exe_running,
+)
 from ichalaunch.game.launcher import (
     detect_game,
     detect_vf_disk_mode,
@@ -210,9 +218,19 @@ def _install_copy(src: Path, dest: Path, game_path: Path | None = None) -> None:
         )
     if dest.suffix.lower() in {".dll", ".exe"}:
         if not copy_file_tolerant(src, dest):
+            hint_paths: list[Path] = [dest]
+            if game_path is not None:
+                hint_paths.append(game_path / "WoW.exe")
+            hint = file_in_use_hint(*hint_paths)
+            log.warning(
+                "Replace blocked for %s (wow_running=%s): %s",
+                dest.name,
+                wow_exe_running(),
+                hint,
+            )
             raise OSError(
                 13,
-                f"Skipped locked or antivirus-blocked file {dest.name}",
+                f"Could not replace {dest.name} — file in use by another process. {hint}",
                 str(dest),
             )
         if game_path is not None:
@@ -228,9 +246,10 @@ def _install_copy(src: Path, dest: Path, game_path: Path | None = None) -> None:
             ensure_data_writable(dest, game_path)
     except OSError as exc:
         if is_lock_or_av_error(exc):
+            hint = file_in_use_hint(dest)
             raise OSError(
                 getattr(exc, "errno", None) or 13,
-                f"Skipped locked file {dest.name}: {exc}",
+                f"Could not replace {dest.name} — file in use by another process. {hint}",
                 str(dest),
             ) from exc
         raise
@@ -2430,6 +2449,18 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
     if not mod:
         raise KeyError(mod_id)
 
+    if _mod_requires_game_closed(mod) and wow_exe_running():
+        hint = file_in_use_hint(game / "WoW.exe", game / "VanillaFixes.exe")
+        log.warning("Refusing %s install — game process still running: %s", mod_id, hint)
+        raise OSError(
+            32,
+            (
+                f"Cannot update {mod.get('name') or mod_id} while the game is running. "
+                f"{hint}"
+            ),
+            str(game / "WoW.exe"),
+        )
+
     kind = mod.get("kind")
     backup_root: Path | None = None
     try:
@@ -2743,6 +2774,19 @@ def _mod_remove_targets_only_stock_mpq(mod: dict[str, Any]) -> bool:
 
 _DLL_PE_MIN_BYTES = 1024
 _SUPERWOW_DLL_MIN_BYTES = 200_000
+
+
+def _mod_requires_game_closed(mod: dict[str, Any]) -> bool:
+    """True when install must replace PE files that WoW/VanillaFixes typically lock."""
+    kind = str(mod.get("kind") or "")
+    if kind in {"dll_file", "dll_bundle", "dxvk_cursor", "exe_patch", "zip_root"}:
+        return True
+    if (mod.get("dlls_txt") or {}).get("add"):
+        return True
+    for rel in _mod_owned_paths(mod):
+        if Path(str(rel).replace("\\", "/")).suffix.lower() in {".dll", ".exe"}:
+            return True
+    return False
 
 
 def _install_backup_paths(game: Path, mod: dict[str, Any]) -> list[Path]:

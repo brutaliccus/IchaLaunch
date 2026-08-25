@@ -278,7 +278,8 @@ class AddonsPage(QWidget):
         tools.addWidget(import_btn)
         tools.addWidget(suggest_btn)
 
-        # Outer marble window: installed section and available section are siblings.
+        # Outer marble window: available + installed are siblings in a row.
+        # All = two columns (Available | Installed). Other filters show one column.
         # Pagination lives *inside* the available section so Prev/Next never steals
         # height from (or reveals) the installed list.
         self.installed_section = QWidget(self)
@@ -300,14 +301,22 @@ class AddonsPage(QWidget):
         self.installed_section.hide()
         self.avail_section.hide()
 
+        self.lists_row = QWidget(self)
+        self.lists_row.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        lists_l = QHBoxLayout(self.lists_row)
+        lists_l.setContentsMargins(0, 0, 0, 0)
+        lists_l.setSpacing(12)
+        # Available left, Installed right (All mode); single-filter modes hide one.
+        lists_l.addWidget(self.avail_section, 1)
+        lists_l.addWidget(self.installed_section, 1)
+
         addons_win = MarblePanel(radius=10.0)
         addons_win.setObjectName("AddonsWindow")
         win_l = QVBoxLayout(addons_win)
         win_l.setContentsMargins(10, 10, 10, 10)
         win_l.setSpacing(8)
         win_l.addLayout(title_row)
-        win_l.addWidget(self.installed_section, 1)
-        win_l.addWidget(self.avail_section, 1)
+        win_l.addWidget(self.lists_row, 1)
 
         layout.addLayout(self.loading_row)
         layout.addWidget(self.updates_lbl)
@@ -449,6 +458,45 @@ class AddonsPage(QWidget):
         )
         if url:
             github_preview_dialog(self, url)
+
+    def preview_update_row_demo(self) -> None:
+        """TEST/dev: force one installed row into Update-available UI (no download)."""
+        try:
+            box = getattr(self, "filter_box", None)
+            if box is not None:
+                for i in range(box.count()):
+                    if "install" in str(box.itemText(i)).lower():
+                        box.setCurrentIndex(i)
+                        break
+        except RuntimeError:
+            pass
+        list_w = getattr(self, "installed_list", None)
+        if list_w is None:
+            return
+        try:
+            count = list_w.count()
+        except RuntimeError:
+            return
+        for i in range(count):
+            try:
+                item = list_w.item(i)
+                if item is None:
+                    continue
+                row = list_w.itemWidget(item)
+                if row is None:
+                    continue
+                apply = getattr(row, "apply_status", None)
+                if not callable(apply):
+                    continue
+                apply("Update available — test preview")
+                flash = getattr(row, "flash_highlight", None)
+                if callable(flash):
+                    flash()
+                list_w.scrollToItem(item)
+                return
+            except RuntimeError:
+                continue
+
 
     def open_addon_settings(self, entry: dict) -> None:
         from ichalaunch.ui.widgets.dialogs import addon_settings_dialog
@@ -812,7 +860,7 @@ class AddonsPage(QWidget):
             self.mark_dirty()
 
     def _apply_section_visibility(self, mode: str | None = None) -> None:
-        """Show exactly one section for Available/Installed; both only for All.
+        """Show exactly one section for Available/Installed; both columns for All.
 
         Installed must be fully hidden (not just covered) in Available mode so
         Prev/Next inside the available section cannot reveal it underneath.
@@ -837,10 +885,8 @@ class AddonsPage(QWidget):
             self.page_lbl.setVisible(show_avail)
             if show_installed:
                 self.installed_list.setMinimumHeight(80)
-                if mode == "All":
-                    self.installed_list.setMaximumHeight(260)
-                else:
-                    self.installed_list.setMaximumHeight(16777215)
+                # Side-by-side All shares width; single-column modes fill the row.
+                self.installed_list.setMaximumHeight(16777215)
             else:
                 self.installed_list.setMinimumHeight(0)
                 self.installed_list.setMaximumHeight(0)
@@ -1205,7 +1251,7 @@ class AddonsPage(QWidget):
             _safe_clear_list(self.installed_list)
             shown_installed = 0
             show_installed = mode in ("Installed", "All", "Update Available")
-            # Section titles only when All shows both panels; otherwise the
+            # Section titles only when All shows both columns; otherwise the
             # header dropdown is the sole filter label.
             self.installed_hdr.setText("Installed")
             self.avail_hdr.setText("Available")
@@ -1213,10 +1259,7 @@ class AddonsPage(QWidget):
             self._installed_built_for_updates_only = mode == "Update Available"
 
             if show_installed:
-                if mode == "All":
-                    self.installed_list.setMaximumHeight(260)
-                else:
-                    self.installed_list.setMaximumHeight(16777215)
+                self.installed_list.setMaximumHeight(16777215)
 
                 cat_idx = catalog_index()
                 addons_dir = resolve_addons_dir(create=False)

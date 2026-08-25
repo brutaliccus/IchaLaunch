@@ -392,15 +392,25 @@ def is_lock_or_av_error(exc: BaseException) -> bool:
 
 
 # Plain-English copy for UI — never surface raw Errno / WinError to users.
+# WinError 32 is a sharing lock ("in use by another process"), not antivirus by
+# itself; we used to lead with AV and misled users who had Defender disabled.
+TASK_MANAGER_END_GAME_HINT = (
+    "Open Task Manager (Ctrl+Shift+Esc) and End task on WoW.exe and "
+    "VanillaFixes.exe if either is listed."
+)
 LOCK_AV_VERIFY_TITLE = "Could not verify install"
 LOCK_AV_VERIFY_MESSAGE = (
-    "Could not verify the install (the file may be locked or blocked by antivirus). "
-    "The mod was left installed. Close the game and add an antivirus exclusion for "
-    "your WoW folder if problems persist."
+    "Could not verify the install because the file is in use by another process. "
+    "The mod was left installed. "
+    f"{TASK_MANAGER_END_GAME_HINT} Then retry. "
+    "Overlays, Explorer previews, backup/sync, Controlled Folder Access, or "
+    "antivirus (not only Windows Defender) can also hold the file."
 )
 LOCK_AV_APPLY_MESSAGE = (
-    "Could not apply this change (the file may be locked or blocked by antivirus). "
-    "Close the game and add an antivirus exclusion for your WoW folder if problems persist."
+    "Could not apply this change because the file is in use by another process. "
+    f"{TASK_MANAGER_END_GAME_HINT} Then retry Apply. "
+    "Overlays, Explorer previews, backup/sync, Controlled Folder Access, or "
+    "antivirus (not only Windows Defender) can also hold the file."
 )
 
 _RAW_OS_DETAIL = frozenset(
@@ -422,18 +432,53 @@ def _looks_like_raw_os_detail(text: str) -> bool:
     return low.startswith(("[errno", "[winerror")) or "winerror" in low
 
 
+def _ensure_task_manager_guidance(text: str, *, retry_apply: bool = True) -> str:
+    """Append Task Manager End-task steps when *text* lacks them."""
+    body = (text or "").strip()
+    low = body.lower()
+    has_tm = "task manager" in low and "wow.exe" in low and "vanillafixes" in low
+    if has_tm:
+        return body
+    suffix = (
+        f"{TASK_MANAGER_END_GAME_HINT} Then retry Apply."
+        if retry_apply
+        else f"{TASK_MANAGER_END_GAME_HINT} Then retry."
+    )
+    return f"{body}\n\n{suffix}" if body else suffix
+
+
 def user_facing_os_error(exc: BaseException, *, kept_install: bool = False) -> str:
     """User-visible OSError text — lock/AV → plain English; never raw errno jargon.
 
     Launcher-authored ``OSError`` detail strings (missing file, truncated PE, …)
-    are preserved even when errno happens to be 22.
+    are preserved even when errno happens to be 22. Lock/sharing failures always
+    include Task Manager guidance to end WoW.exe / VanillaFixes.exe.
     """
     detail = ""
-    if isinstance(exc, OSError) and len(exc.args) > 1:
-        detail = str(exc.args[1] or "").strip()
+    filename = ""
+    if isinstance(exc, OSError):
+        if len(exc.args) > 1:
+            detail = str(exc.args[1] or "").strip()
+        filename = str(getattr(exc, "filename", None) or "")
     if is_lock_or_av_error(exc) and _looks_like_raw_os_detail(detail):
-        return LOCK_AV_VERIFY_MESSAGE if kept_install else LOCK_AV_APPLY_MESSAGE
+        base = LOCK_AV_VERIFY_MESSAGE if kept_install else LOCK_AV_APPLY_MESSAGE
+        if filename:
+            try:
+                from ichalaunch.core.process import file_in_use_hint
+
+                hint = file_in_use_hint(filename)
+                # Only append a *specific* diagnosis (game running / named lockers).
+                if hint.startswith("WoW.exe") or hint.startswith("In use by:"):
+                    return _ensure_task_manager_guidance(
+                        f"{base}\n\n{hint}",
+                        retry_apply=not kept_install,
+                    )
+            except Exception:  # noqa: BLE001
+                pass
+        return base
     if detail:
+        if is_lock_or_av_error(exc):
+            return _ensure_task_manager_guidance(detail, retry_apply=not kept_install)
         return detail
     text = str(exc).strip()
     if is_lock_or_av_error(exc):
@@ -546,7 +591,7 @@ def copy_file_tolerant(src: Path, dest: Path) -> bool:
         if is_lock_or_av_error(exc):
             mark_path_locked(src)
             mark_path_locked(dest)
-            _log.warning("Lock/AV skipped copy %s → %s: %s", src, dest, exc)
+            _log.warning("File-in-use skipped copy %s → %s: %s", src, dest, exc)
             return False
         raise
 
@@ -692,11 +737,19 @@ def remove_path_strict(path: Path) -> None:
             mark_path_locked(path)
             winerr = getattr(exc, "winerror", None)
             code = f"WinError {winerr}" if winerr else f"errno {getattr(exc, 'errno', '?')}"
+            try:
+                from ichalaunch.core.process import file_in_use_hint
+
+                hint = file_in_use_hint(path)
+            except Exception:  # noqa: BLE001
+                hint = (
+                    f"{TASK_MANAGER_END_GAME_HINT} Then retry Apply."
+                )
             raise OSError(
                 getattr(exc, "errno", None) or 13,
                 (
-                    f"Could not remove {path.name} — the file is locked or blocked ({code}). "
-                    "Close the game, file previews, or antivirus scans using it, then Apply again."
+                    f"Could not remove {path.name} — the file is in use by another process "
+                    f"({code}). {hint}"
                 ),
                 str(path),
             ) from exc
@@ -966,18 +1019,47 @@ def folder_toc_files(folder: Path) -> list[Path]:
         return []
 
 
+def _primary_toc_stem(tocs: list[Path]) -> str | None:
+    """Return the primary ``.toc`` stem when others are expansion-style variants.
+
+    Example: ``Foo.toc`` plus only ``Foo-*.toc`` / ``Foo_*.toc`` → ``Foo``.
+    Unrelated siblings (``Foo.toc`` + ``Bar.toc``) → ``None``.
+    """
+    if len(tocs) < 2:
+        return None
+    stems = [t.stem for t in tocs]
+    stems_l = [s.lower() for s in stems]
+    # Prefer shorter stems so Foo wins over Foo-tbc when both could qualify.
+    candidates = sorted(set(stems), key=lambda s: (len(s), s.lower()))
+    for candidate in candidates:
+        c_l = candidate.lower()
+        prefix_dash = c_l + "-"
+        prefix_us = c_l + "_"
+        if all(
+            s_l == c_l or s_l.startswith(prefix_dash) or s_l.startswith(prefix_us)
+            for s_l in stems_l
+        ):
+            return candidate
+    return None
+
+
 def canonical_addon_folder_name(root: Path) -> str | None:
     """Destination folder name WoW requires: the stem of the primary ``.toc``.
 
     If ``{root.name}.toc`` exists, return ``root.name``. If the folder has
     exactly one ``.toc``, return that stem so the installer can place the
-    addon under the matching name. Otherwise ``None`` (not a valid root).
+    addon under the matching name. If multiple ``.toc`` files share a clear
+    primary stem with only ``Primary-*`` / ``Primary_*`` variants (e.g.
+    pfQuest under a ``pfQuest-main`` GitHub unwrap), return that primary.
+    Otherwise ``None`` (not a valid root).
     """
     if matching_toc_path(root) is not None:
         return root.name
     tocs = folder_toc_files(root)
     if len(tocs) == 1:
         return tocs[0].stem
+    if len(tocs) > 1:
+        return _primary_toc_stem(tocs)
     return None
 
 
@@ -1005,9 +1087,9 @@ def resolve_install_addon_roots(extracted: Path) -> list[tuple[Path, str]]:
 def find_toc_roots(root: Path) -> list[Path]:
     """Find addon root folders that have a usable ``.toc``.
 
-    A folder is usable when it contains ``{folder}.toc`` (WoW requirement)
-    or exactly one ``.toc`` (installer uses that stem as the folder name).
-    Nested library TOCs are ignored when a shallower addon root exists.
+    A folder is usable when :func:`canonical_addon_folder_name` accepts it —
+    matching ``{folder}.toc``, a single ``.toc``, or multi-TOC primary/variant
+    sets. Nested library TOCs are ignored when a shallower addon root exists.
     """
     roots: list[Path] = []
     seen: set[Path] = set()

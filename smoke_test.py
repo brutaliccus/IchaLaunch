@@ -218,14 +218,31 @@ def test_dlls_txt():
 
         assert "Errno" not in LOCK_AV_VERIFY_MESSAGE
         assert "Errno" not in LOCK_AV_APPLY_MESSAGE
+        assert "another process" in LOCK_AV_APPLY_MESSAGE.lower()
+        assert "task manager" in LOCK_AV_APPLY_MESSAGE.lower()
+        assert "wow.exe" in LOCK_AV_APPLY_MESSAGE.lower()
+        assert "vanillafixes.exe" in LOCK_AV_APPLY_MESSAGE.lower()
+        assert "end task" in LOCK_AV_APPLY_MESSAGE.lower()
+        assert "antivirus" in LOCK_AV_APPLY_MESSAGE.lower()
+        assert "task manager" in LOCK_AV_VERIFY_MESSAGE.lower()
+        assert "end task" in LOCK_AV_VERIFY_MESSAGE.lower()
         assert user_facing_os_error(OSError(22, "Invalid argument")) == LOCK_AV_APPLY_MESSAGE
         assert (
             user_facing_os_error(OSError(22, "Invalid argument"), kept_install=True)
             == LOCK_AV_VERIFY_MESSAGE
         )
+        locked = OSError(13, "Could not replace ClassicAPI.dll — file in use by another process.")
+        locked.winerror = 32  # type: ignore[attr-defined]
+        locked_msg = user_facing_os_error(locked)
+        assert "Errno" not in locked_msg
+        assert "task manager" in locked_msg.lower()
+        assert "end task" in locked_msg.lower()
+        assert "wow.exe" in locked_msg.lower()
         title, body = format_mod_verify_warning(["unitxp"])
         assert title == "Could not verify install"
         assert "Errno" not in body
+        assert "another process" in body.lower()
+        assert "task manager" in body.lower()
         assert "antivirus" in body.lower()
         installed, removed, warns, fails = split_mod_apply_results(
             ["+ unitxp", "~ unitxp", "! other skipped: boom"]
@@ -2432,8 +2449,104 @@ def test_nested_catalog_forks_in_submit_duplicate_check():
     print("OK nested catalog forks in submit duplicate check")
 
 
+def test_fork_ahead_compare_helper():
+    """enrich_catalog_forks keeps only Compare ahead_by > 0 (mocked)."""
+    from tools.enrich_catalog_forks import (
+        compare_pool_size,
+        is_fork_ahead,
+        keep_ahead_forks,
+    )
+
+    assert is_fork_ahead({"ahead_by": 3, "status": "ahead"})
+    assert is_fork_ahead({"ahead_by": 1, "behind_by": 5, "status": "diverged"})
+    assert not is_fork_ahead({"ahead_by": 0, "status": "identical"})
+    assert not is_fork_ahead({"ahead_by": 0, "behind_by": 2, "status": "behind"})
+    assert not is_fork_ahead(None)
+    assert not is_fork_ahead({})
+    assert not is_fork_ahead({"ahead_by": "nope"})
+    assert compare_pool_size(40) == 80
+    assert compare_pool_size(50) == 100
+
+    class FakeClient:
+        def __init__(self, responses: dict) -> None:
+            self.responses = responses
+            self.calls: list[tuple] = []
+
+        def compare(self, owner, repo, *, base, head):
+            self.calls.append((owner, repo, base, head))
+            return self.responses.get(head)
+
+    client = FakeClient(
+        {
+            "alice:main": {"ahead_by": 2, "status": "ahead"},
+            "bob:main": {"ahead_by": 0, "status": "identical"},
+            "carol:main": None,
+            "dave:main": {"ahead_by": 1, "behind_by": 3, "status": "diverged"},
+        }
+    )
+    cands = [
+        {
+            "label": "alice",
+            "repo": "https://github.com/alice/R",
+            "owner": "alice",
+            "name": "R",
+            "default_branch": "main",
+        },
+        {
+            "label": "bob",
+            "repo": "https://github.com/bob/R",
+            "owner": "bob",
+            "name": "R",
+            "default_branch": "main",
+        },
+        {
+            "label": "carol",
+            "repo": "https://github.com/carol/R",
+            "owner": "carol",
+            "name": "R",
+            "default_branch": "main",
+        },
+        {
+            "label": "dave",
+            "repo": "https://github.com/dave/R",
+            "owner": "dave",
+            "name": "R",
+            "default_branch": "main",
+        },
+    ]
+    cache: dict = {}
+    rows = keep_ahead_forks(
+        client,
+        cands,
+        root_owner="root",
+        root_repo="R",
+        root_branch="main",
+        max_forks=40,
+        compare_cache=cache,
+    )
+    assert [r["label"] for r in rows] == ["alice", "dave"]
+    assert cache["bob/r"]["ahead_by"] == 0
+    assert cache["carol/r"]["status"] == "unavailable"
+
+    cached_client = FakeClient({})
+    rows2 = keep_ahead_forks(
+        cached_client,
+        cands,
+        root_owner="root",
+        root_repo="R",
+        root_branch="main",
+        max_forks=40,
+        compare_cache=cache,
+    )
+    assert cached_client.calls == []
+    assert [r["label"] for r in rows2] == ["alice", "dave"]
+    print("OK fork ahead compare helper")
+
+
 def test_crash_report_opt_in_and_redaction():
     """Crash reporter stays off by default and redacts obvious secrets."""
+    from unittest import mock
+
     from ichalaunch.config import settings as settings_mod
     from ichalaunch.core import crash_report as cr
 
@@ -2459,9 +2572,248 @@ def test_crash_report_opt_in_and_redaction():
         assert "SecretUser" not in redacted
         assert "secretuser" not in redacted
         assert cr.crash_report_url().endswith("/crash")
+
+        # Spaced Windows username — full segment (surname must not leak).
+        spaced = cr.redact_secrets(r"C:\Users\Matt Hadati\AppData\Local\IchaLaunch")
+        assert "Matt" not in spaced
+        assert "Hadati" not in spaced
+        assert r"C:\Users\[user]\AppData" in spaced
+
+        # Forward-slash Windows paths.
+        fwd = cr.redact_secrets("C:/Users/Matt Hadati/Documents/game")
+        assert "Hadati" not in fwd
+        assert "C:/Users/[user]/Documents" in fwd
+
+        # UNC Users path.
+        unc = cr.redact_secrets(r"\\SERVER\Users\Matt Hadati\share")
+        assert "Hadati" not in unc
+        assert r"\\SERVER\Users\[user]\share" in unc
+
+        # Legacy 8.3 Documents and Settings short path.
+        short = cr.redact_secrets(r"C:\DOCUME~1\Matt Hadati\LOCALS~1")
+        assert "Hadati" not in short
+        assert r"C:\DOCUME~1\[user]\LOCALS~1" in short
+
+        # Linux /home still works.
+        linux = cr.redact_secrets("/home/mattb/.config/ichalaunch")
+        assert "mattb" not in linux
+        assert "/home/[user]/.config" in linux
+
+        # Global replace of *current* OS username (mocked).
+        with mock.patch.object(cr, "_current_os_username", return_value="Matt Hadati"):
+            free = cr.redact_secrets("Logged in as Matt Hadati on this PC")
+            assert "Matt" not in free
+            assert "Hadati" not in free
+            assert "[user]" in free
+            # Case-insensitive.
+            assert "matt hadati" not in cr.redact_secrets("user=matt hadati").lower()
+
+        # Short usernames must not over-redact common words.
+        with mock.patch.object(cr, "_current_os_username", return_value="ab"):
+            assert "about" in cr.redact_secrets("talking about paths")
     finally:
         settings_mod.settings.set("crash_reporting_enabled", prev)
     print("OK crash report opt-in and redaction")
+
+
+def test_crash_report_skips_rate_limit_errors():
+    """GitHubRateLimitError (and similar) must not schedule an opt-in ERROR report."""
+    import logging
+    import sys
+    from unittest import mock
+
+    from ichalaunch.addons.github import GitHubBudgetExhaustedError, GitHubRateLimitError
+    from ichalaunch.config import settings as settings_mod
+    from ichalaunch.core import crash_report as cr
+
+    prev = settings_mod.settings.get("crash_reporting_enabled", False)
+    handler = cr._OptInErrorHandler()
+    try:
+        settings_mod.settings.set("crash_reporting_enabled", True)
+        with mock.patch.object(cr, "report_logged_error") as mocked:
+            try:
+                raise GitHubRateLimitError("GitHub rate limit hit — try later")
+            except GitHubRateLimitError:
+                record = logging.LogRecord(
+                    name="ichalaunch.test",
+                    level=logging.ERROR,
+                    pathname=__file__,
+                    lineno=1,
+                    msg="update check failed",
+                    args=(),
+                    exc_info=sys.exc_info(),
+                )
+            handler.emit(record)
+            mocked.assert_not_called()
+
+            try:
+                raise GitHubBudgetExhaustedError("Waiting for GitHub rate limit…")
+            except GitHubBudgetExhaustedError:
+                budget = logging.LogRecord(
+                    name="ichalaunch.test",
+                    level=logging.ERROR,
+                    pathname=__file__,
+                    lineno=1,
+                    msg="budget",
+                    args=(),
+                    exc_info=sys.exc_info(),
+                )
+            handler.emit(budget)
+            mocked.assert_not_called()
+
+            # Message-only mention (no exc_info) still skipped.
+            msg_only = logging.LogRecord(
+                name="ichalaunch.test",
+                level=logging.ERROR,
+                pathname=__file__,
+                lineno=1,
+                msg="GitHub rate limit hit — add a token",
+                args=(),
+                exc_info=None,
+            )
+            handler.emit(msg_only)
+            mocked.assert_not_called()
+
+            # Real failure still schedules.
+            real = logging.LogRecord(
+                name="ichalaunch.test",
+                level=logging.ERROR,
+                pathname=__file__,
+                lineno=1,
+                msg="unexpected addon install failure",
+                args=(),
+                exc_info=None,
+            )
+            handler.emit(real)
+            mocked.assert_called_once()
+    finally:
+        settings_mod.settings.set("crash_reporting_enabled", prev)
+    print("OK crash report skips rate-limit errors")
+
+
+def test_crash_report_skips_lock_and_network_noise():
+    """File locks and offline DNS must not schedule opt-in ERROR reports (#58)."""
+    import logging
+    import sys
+    from unittest import mock
+
+    import requests
+
+    from ichalaunch import __version__
+    from ichalaunch.config import settings as settings_mod
+    from ichalaunch.core import crash_report as cr
+
+    prev = settings_mod.settings.get("crash_reporting_enabled", False)
+    handler = cr._OptInErrorHandler()
+    try:
+        settings_mod.settings.set("crash_reporting_enabled", True)
+        with mock.patch.object(cr, "report_logged_error") as mocked:
+            try:
+                raise PermissionError(
+                    13,
+                    "Skipped locked or antivirus-blocked file ClassicAPI.dll",
+                    r"L:\game\ClassicAPI.dll",
+                )
+            except PermissionError:
+                lock_rec = logging.LogRecord(
+                    name="ichalaunch.test",
+                    level=logging.ERROR,
+                    pathname=__file__,
+                    lineno=1,
+                    msg="Worker failed",
+                    args=(),
+                    exc_info=sys.exc_info(),
+                )
+            handler.emit(lock_rec)
+            mocked.assert_not_called()
+
+            try:
+                raise requests.exceptions.ConnectionError(
+                    "HTTPSConnectionPool(host='api.github.com', port=443): "
+                    "Max retries exceeded with url: /repos/x/y/releases/latest "
+                    "(Caused by NameResolutionError("
+                    "\"Failed to resolve 'api.github.com' "
+                    "([Errno 11001] getaddrinfo failed)\"))"
+                )
+            except requests.exceptions.ConnectionError:
+                net_rec = logging.LogRecord(
+                    name="ichalaunch.test",
+                    level=logging.ERROR,
+                    pathname=__file__,
+                    lineno=1,
+                    msg="Worker failed",
+                    args=(),
+                    exc_info=sys.exc_info(),
+                )
+            handler.emit(net_rec)
+            mocked.assert_not_called()
+
+            # Message-only lock/DNS noise (no exc_info).
+            for msg in (
+                "Lock/AV skipped copy foo.dll: [WinError 32] sharing violation",
+                "getaddrinfo failed for api.github.com",
+            ):
+                handler.emit(
+                    logging.LogRecord(
+                        name="ichalaunch.test",
+                        level=logging.ERROR,
+                        pathname=__file__,
+                        lineno=1,
+                        msg=msg,
+                        args=(),
+                        exc_info=None,
+                    )
+                )
+            mocked.assert_not_called()
+
+            real = logging.LogRecord(
+                name="ichalaunch.test",
+                level=logging.ERROR,
+                pathname=__file__,
+                lineno=1,
+                msg="unexpected addon install failure",
+                args=(),
+                exc_info=None,
+            )
+            handler.emit(real)
+            mocked.assert_called_once()
+    finally:
+        settings_mod.settings.set("crash_reporting_enabled", prev)
+
+    # Stale crash.log blocks from other versions are omitted.
+    import tempfile
+    from pathlib import Path
+
+    stale = (
+        "\n"
+        + ("=" * 72)
+        + "\n"
+        + "timestamp: 2026-08-22T21:56:54+00:00\n"
+        + "app_version: 1.0.30\n"
+        + "exception: ModuleNotFoundError: No module named 'x'\n"
+        + ("=" * 72)
+        + "\n"
+    )
+    current = (
+        "\n"
+        + ("=" * 72)
+        + "\n"
+        + "timestamp: 2026-08-25T12:00:00+00:00\n"
+        + f"app_version: {__version__}\n"
+        + "exception: RuntimeError: boom\n"
+        + ("=" * 72)
+        + "\n"
+    )
+    with tempfile.TemporaryDirectory() as td:
+        path = Path(td) / "crash.log"
+        path.write_text(stale + current, encoding="utf-8")
+        excerpt = cr._crash_excerpt_current_version(path, 12_000)
+        assert f"app_version: {__version__}" in excerpt
+        assert "1.0.30" not in excerpt
+        assert "ModuleNotFoundError" not in excerpt
+        path.write_text(stale, encoding="utf-8")
+        assert cr._crash_excerpt_current_version(path, 12_000) == ""
+    print("OK crash report skips lock/network noise + stale crash.log")
 
 
 def test_crash_reporting_opt_in_prompt_one_shot():
@@ -2649,6 +3001,63 @@ def test_addon_toc_folder_name_required():
         pairs = resolve_install_addon_roots(extract)
         assert pairs == [(extract, "Atlas-CFM")]
     print("OK addon toc folder name required")
+
+
+def test_multi_toc_primary_stem_resolve():
+    """pfQuest-like multi-TOC under GitHub unwrap; single TOC; true mismatch."""
+    import tempfile
+    from pathlib import Path
+
+    from ichalaunch.core.filesystem import (
+        canonical_addon_folder_name,
+        resolve_install_addon_roots,
+    )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+
+        # pfQuest zip unwrap: folder pfQuest-main, three expansion TOCs.
+        pf = base / "pfQuest-main"
+        pf.mkdir()
+        for name in ("pfQuest.toc", "pfQuest-tbc.toc", "pfQuest-wotlk.toc"):
+            (pf / name).write_text(f"## Title: {name}\n", encoding="utf-8")
+        assert canonical_addon_folder_name(pf) == "pfQuest"
+        assert resolve_install_addon_roots(pf) == [(pf, "pfQuest")]
+
+        # Nested under extract root (zip → extract/pfQuest-main/…).
+        wrap = base / "extract"
+        nested = wrap / "pfQuest-main"
+        nested.mkdir(parents=True)
+        for name in ("pfQuest.toc", "pfQuest-tbc.toc", "pfQuest_classic.toc"):
+            (nested / name).write_text(f"## Title: {name}\n", encoding="utf-8")
+        assert resolve_install_addon_roots(wrap) == [(nested, "pfQuest")]
+
+        # Single-TOC turtle-style extract still resolves by stem.
+        turtle = base / "SomeZipFolder"
+        turtle.mkdir()
+        (turtle / "pfQuest-turtle.toc").write_text(
+            "## Title: pfQuest-turtle\n", encoding="utf-8"
+        )
+        assert canonical_addon_folder_name(turtle) == "pfQuest-turtle"
+        assert resolve_install_addon_roots(turtle) == [(turtle, "pfQuest-turtle")]
+
+        # Unrelated sibling TOCs stay rejected (no clear primary).
+        mixed = base / "MixedAddon-main"
+        mixed.mkdir()
+        (mixed / "Foo.toc").write_text("## Title: Foo\n", encoding="utf-8")
+        (mixed / "Bar.toc").write_text("## Title: Bar\n", encoding="utf-8")
+        assert canonical_addon_folder_name(mixed) is None
+        assert resolve_install_addon_roots(mixed) == []
+
+        # Expansion-only TOCs without a primary Foo.toc also fail.
+        expansions = base / "ExpOnly"
+        expansions.mkdir()
+        (expansions / "Foo-tbc.toc").write_text("## Title: tbc\n", encoding="utf-8")
+        (expansions / "Foo-wotlk.toc").write_text("## Title: wotlk\n", encoding="utf-8")
+        assert canonical_addon_folder_name(expansions) is None
+        assert resolve_install_addon_roots(expansions) == []
+
+    print("OK multi-toc primary stem resolve")
 
 
 def test_addon_toc_folder_rename():
@@ -5619,10 +6028,14 @@ def _run_smoke_tests():
     test_git_refs_and_tip_index()
     test_mod_catalog_repos_in_tip_index_builder()
     test_nested_catalog_forks_in_submit_duplicate_check()
+    test_fork_ahead_compare_helper()
     test_crash_report_opt_in_and_redaction()
+    test_crash_report_skips_rate_limit_errors()
+    test_crash_report_skips_lock_and_network_noise()
     test_crash_reporting_opt_in_prompt_one_shot()
     test_mod_remote_identity_uses_tip_index()
     test_addon_toc_folder_name_required()
+    test_multi_toc_primary_stem_resolve()
     test_addon_toc_folder_rename()
     test_addon_update_check_uses_catalog_index_only()
     test_available_catalog_remote_refresh_and_merge()

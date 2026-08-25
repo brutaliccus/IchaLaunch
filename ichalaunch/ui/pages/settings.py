@@ -33,6 +33,7 @@ class SettingsPage(QWidget):
     clear_cache_clicked = Signal()
     check_permissions_clicked = Signal()
     verify_clicked = Signal()
+    preview_addon_update_clicked = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -319,6 +320,36 @@ class SettingsPage(QWidget):
         maint_note.setWordWrap(True)
         maint_card.body.addWidget(maint_note)
 
+        # Discrete maintainer preview — not for end users.
+        dev_card = MarbleCard()
+        dev_card.body.setSpacing(10)
+        dev_title = QLabel("Dev / Test")
+        dev_title.setObjectName("CardTitle")
+        dev_card.body.addWidget(dev_title)
+        dev_row = QHBoxLayout()
+        dev_row.setSpacing(8)
+        preview_upd = GluePanelButton(
+            "Preview addon Update row", width=220, height=GLUE_BTN_H
+        )
+        preview_upd.setToolTip(
+            "TEST ONLY — force the first installed addon row to look like an "
+            "update is available (glowing rectangular Update arrow + caret). "
+            "Does not download anything."
+        )
+        preview_upd.clicked.connect(self.preview_addon_update_clicked.emit)
+        dev_row.addWidget(preview_upd)
+        dev_row.addStretch(1)
+        dev_card.body.addLayout(dev_row)
+        dev_note = QLabel(
+            "Maintainer preview: switches to Addons and fakes an update-available "
+            "state so you can check the glowing rectangular Update button "
+            "(arrow left, caret right) without a real outdated addon."
+        )
+        dev_note.setObjectName("Muted")
+        dev_note.setWordWrap(True)
+        dev_card.body.addWidget(dev_note)
+
+
         about = MarbleCard()
         about.body.setSpacing(10)
         about_title = QLabel(f"IchaLaunch {__version__}")
@@ -345,6 +376,7 @@ class SettingsPage(QWidget):
         layout.addWidget(privacy_card)
         layout.addWidget(gh_card)
         layout.addWidget(maint_card)
+        layout.addWidget(dev_card)
         layout.addWidget(about)
         layout.addStretch(1)
 

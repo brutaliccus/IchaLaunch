@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
-from PySide6.QtCore import QRect, Qt
+from PySide6.QtCore import QRect, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QPushButton, QSizePolicy
 
@@ -382,6 +383,89 @@ def launch_glue_chrome(
     return pm
 
 
+_GLOW_NAME = "CheckButtonGlow.PNG"
+_GLOW_EXTERNAL = Path(r"F:\\wow-ui-textures\\Buttons") / _GLOW_NAME
+_GLOW_PAD_ALPHA = 8
+_GLOW_BY_PLATE: dict[tuple[int, int], QPixmap] = {}
+
+
+def _glow_alpha_bounds(img: QImage, min_alpha: int) -> QRect:
+    w, h = img.width(), img.height()
+    min_x, min_y, max_x, max_y = w, h, -1, -1
+    for y in range(h):
+        for x in range(w):
+            if QColor.fromRgba(img.pixel(x, y)).alpha() >= min_alpha:
+                min_x = min(min_x, x)
+                min_y = min(min_y, y)
+                max_x = max(max_x, x)
+                max_y = max(max_y, y)
+    if max_x < min_x:
+        return QRect()
+    return QRect(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1)
+
+
+def _glow_inner_hole_width(img: QImage) -> int:
+    cy = img.height() // 2
+    w = img.width()
+    left_ring = None
+    for x in range(w):
+        if QColor.fromRgba(img.pixel(x, cy)).alpha() >= 64:
+            left_ring = x
+            break
+    if left_ring is None:
+        return 0
+    hole_start = None
+    for x in range(left_ring + 1, w):
+        if QColor.fromRgba(img.pixel(x, cy)).alpha() < 8:
+            hole_start = x
+            break
+    if hole_start is None:
+        return 0
+    hole_end = hole_start
+    for x in range(hole_start, w):
+        if QColor.fromRgba(img.pixel(x, cy)).alpha() >= 64:
+            break
+        hole_end = x
+    return max(0, hole_end - hole_start + 1)
+
+
+def check_button_glow_for_plate(plate_w: int, plate_h: int) -> QPixmap:
+    """Pad-trimmed CheckButtonGlow scaled so the hole tracks the plate height."""
+    key = (max(1, int(plate_w)), max(1, int(plate_h)))
+    hit = _GLOW_BY_PLATE.get(key)
+    if hit is not None:
+        return hit
+    path = theme_file(_GLOW_NAME)
+    if not path.is_file():
+        path = _GLOW_EXTERNAL
+    if not path.is_file():
+        pm = QPixmap()
+        _GLOW_BY_PLATE[key] = pm
+        return pm
+    src = QPixmap(str(path))
+    if src.isNull():
+        _GLOW_BY_PLATE[key] = src
+        return src
+    img = src.toImage()
+    pad = _glow_alpha_bounds(img, _GLOW_PAD_ALPHA)
+    if pad.isValid() and pad != src.rect():
+        src = src.copy(pad)
+        img = src.toImage()
+    hole = _glow_inner_hole_width(img) or 32
+    target_h = key[1]
+    dest_h = max(target_h + 12, int(round(src.height() * (target_h / hole))))
+    dest_w = max(dest_h, int(round(key[0] * (dest_h / max(1, target_h)))) + 10)
+    pm = src.scaled(
+        dest_w,
+        dest_h,
+        Qt.AspectRatioMode.IgnoreAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
+    _GLOW_BY_PLATE[key] = pm
+    return pm
+
+
+
 class GluePanelButton(QPushButton):
     """Main toolbar button painted with Glue-Panel Up/Down PNGs.
 
@@ -397,16 +481,33 @@ class GluePanelButton(QPushButton):
         role: str = "standard",
         width: int = GLUE_BTN_W,
         height: int = GLUE_BTN_H,
+        glowing: bool = False,
     ):
         super().__init__(text, parent)
         assert role in ("standard", "primary")
         self._role = role
         self._pulse = False
+        self._chrome_w = int(width)
+        self._chrome_h = int(height)
+        self._glowing = bool(glowing)
+        self._glow_pm = QPixmap()
+        self._glow_pulse = 0.0
+        self._glow_timer: QTimer | None = None
         self.setObjectName("GluePanelButton")
         apply_open_hand(self)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        self.setFixedSize(int(width), int(height))
+        if self._glowing:
+            self._glow_pm = check_button_glow_for_plate(self._chrome_w, self._chrome_h)
+            gw = self._glow_pm.width() if not self._glow_pm.isNull() else self._chrome_w + 16
+            gh = self._glow_pm.height() if not self._glow_pm.isNull() else self._chrome_h + 16
+            self.setFixedSize(max(self._chrome_w, gw), max(self._chrome_h, gh))
+            self._glow_timer = QTimer(self)
+            self._glow_timer.setInterval(40)
+            self._glow_timer.timeout.connect(self._tick_glow_pulse)
+            self._glow_timer.start()
+        else:
+            self.setFixedSize(self._chrome_w, self._chrome_h)
         self.setFlat(True)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
         self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
@@ -450,13 +551,49 @@ class GluePanelButton(QPushButton):
             return "primary_bright"
         return self._role
 
+    def _chrome_rect(self) -> QRect:
+        if not getattr(self, "_glowing", False):
+            return self.rect()
+        return QRect(
+            (self.width() - self._chrome_w) // 2,
+            (self.height() - self._chrome_h) // 2,
+            self._chrome_w,
+            self._chrome_h,
+        )
+
+    def _tick_glow_pulse(self) -> None:
+        self._glow_pulse = (self._glow_pulse + 0.10) % (2 * math.pi)
+        self.update()
+
+    def _paint_update_glow(self, painter: QPainter) -> None:
+        if self._glow_pm.isNull() or not self.isEnabled():
+            return
+        wave = 0.5 + 0.5 * math.sin(self._glow_pulse)
+        if self.underMouse() or self.isDown():
+            opacity = 0.95
+        else:
+            opacity = 0.40 + 0.55 * wave
+        painter.setOpacity(opacity)
+        dest = self.rect()
+        glow = self._glow_pm
+        if glow.width() != dest.width() or glow.height() != dest.height():
+            x = dest.center().x() - glow.width() // 2
+            y = dest.center().y() - glow.height() // 2
+            painter.drawPixmap(x, y, glow)
+        else:
+            painter.drawPixmap(dest, glow)
+        painter.setOpacity(1.0)
+
+
     def paintEvent(self, event) -> None:  # noqa: N802
         del event
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
         painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
 
-        rect = self.rect()
+        if getattr(self, "_glowing", False) and not self._glow_pm.isNull():
+            self._paint_update_glow(painter)
+        rect = self._chrome_rect()
         name, ext = (_DOWN_NAME, _DOWN_EXTERNAL) if self.isDown() else (_UP_NAME, _UP_EXTERNAL)
         pm = _colored_pm(name, ext, self._role_key(), not self.isEnabled())
         if pm.isNull():

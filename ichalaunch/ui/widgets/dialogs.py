@@ -83,8 +83,9 @@ def _addon_fork_version_row(
     *,
     fork_combo,
     version_combo,
+    trailing_widget: QWidget | None = None,
 ) -> QHBoxLayout:
-    """Fork + version combos side-by-side at standard glue control height/width."""
+    """Fork + version combos; optional trailing control sits right of Version."""
     row = QHBoxLayout()
     row.setSpacing(10)
     fork_lbl = QLabel("Fork")
@@ -101,6 +102,8 @@ def _addon_fork_version_row(
     row.addWidget(fork_combo, 0, Qt.AlignmentFlag.AlignVCenter)
     row.addWidget(ver_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
     row.addWidget(version_combo, 0, Qt.AlignmentFlag.AlignVCenter)
+    if trailing_widget is not None:
+        row.addWidget(trailing_widget, 0, Qt.AlignmentFlag.AlignVCenter)
     row.addStretch(1)
     return row
 
@@ -1617,6 +1620,7 @@ class AddonSettingsDialog(QDialog):
     version_text = addon_version_label(entry, self._meta)
     self._fork_combo = None
     self._version_combo = None
+    self._open_git_btn = None
 
     if self._token_ok:
       from ichalaunch.ui.widgets.glue_panel_button import GLUE_BTN_W
@@ -1646,20 +1650,31 @@ class AddonSettingsDialog(QDialog):
       self._version_combo.addItem(ver_label, pin)
       self._version_combo.currentIndexChanged.connect(self._on_version_changed)
       self._version_combo.popupShown.connect(self._lazy_fetch_versions)
+      self._open_git_btn = self._make_open_git_button(card)
       body.addLayout(
         _addon_fork_version_row(
-          card, fork_combo=self._fork_combo, version_combo=self._version_combo
+          card,
+          fork_combo=self._fork_combo,
+          version_combo=self._version_combo,
+          trailing_widget=self._open_git_btn,
         )
       )
       self._set_fork_combo_interactive(False, loading=True)
       self._set_version_combo_interactive(False)
     else:
+      meta_row = QHBoxLayout()
+      meta_row.setSpacing(10)
       meta_line = " · ".join(x for x in (fork_text, version_text) if x)
       if meta_line:
         static = QLabel(meta_line)
         static.setObjectName("Muted")
         static.setToolTip(NO_TOKEN_FORK_TIP)
-        body.addWidget(static)
+        meta_row.addWidget(static, 0, Qt.AlignmentFlag.AlignVCenter)
+      self._open_git_btn = self._make_open_git_button(card)
+      if self._open_git_btn is not None:
+        meta_row.addWidget(self._open_git_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+      meta_row.addStretch(1)
+      body.addLayout(meta_row)
 
     self.status_lbl = QLabel("")
     self.status_lbl.setObjectName("Muted")
@@ -1711,6 +1726,35 @@ class AddonSettingsDialog(QDialog):
     QTimer.singleShot(0, self._load_preview)
     if self._token_ok and self._fork_combo is not None:
       QTimer.singleShot(0, self._prefetch_forks)
+
+  def _make_open_git_button(self, parent: QWidget):
+    """Open in Git control placed to the right of Version."""
+    from ichalaunch.ui.widgets.common import (
+      apply_open_git_visibility,
+      github_repo_browse_url,
+    )
+    from ichalaunch.ui.widgets.glue_panel_button import GLUE_BTN_H, GluePanelButton
+
+    url = github_repo_browse_url(
+      self._entry.get("repo"),
+      self._entry.get("url"),
+      self._entry.get("repository"),
+    )
+    if not url:
+      return None
+    btn = GluePanelButton("Open in Git", parent, width=128, height=GLUE_BTN_H)
+    btn.setToolTip("Open the repository in your browser")
+    btn.clicked.connect(lambda _=False, u=url: self._open_git_url(u))
+    apply_open_git_visibility(btn, url, self, defer=True)
+    return btn
+
+  def _open_git_url(self, url: str) -> None:
+    from PySide6.QtCore import QUrl
+    from PySide6.QtGui import QDesktopServices
+
+    if url:
+      QDesktopServices.openUrl(QUrl(url))
+
 
   def _set_fork_combo_interactive(self, enabled: bool, *, loading: bool = False) -> None:
     if self._fork_combo is None:
