@@ -15090,5 +15090,13 @@
     "source": "community",
     "folder": "TomTomVanilla",
     "description": "Cladhaire's TomTom AddOn backported for 1.12"
+  },
+  {
+    "name": "TourGuide",
+    "repo": "https://github.com/valley51/TourGuide",
+    "category": "General",
+    "source": "community",
+    "folder": "TourGuide",
+    "description": "Tekkub's TourGuide Addon backported for WoW 1.12"
   }
 ]
