@@ -34,6 +34,9 @@ DEFAULTS: dict[str, Any] = {
     "linux_proton_path": "",
     "linux_use_latest_proton": False,
     "linux_wineprefix": "",
+    # New WoW64: opt-in, because not every Proton build ships the 64-bit
+    # host and DLL-injecting client mods have had little testing under it.
+    "linux_use_wow64": False,
     "addons_path": "",
     "vanillafixes_enabled": True,
     "minimize_on_launch": False,

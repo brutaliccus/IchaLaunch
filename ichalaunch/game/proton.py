@@ -77,6 +77,18 @@ def _is_proton_build(d: Path) -> bool:
     return (d / "toolmanifest.vdf").is_file()
 
 
+def proton_supports_wow64(d: Path) -> bool:
+    """Whether *d* ships the 64-bit host binaries that new WoW64 needs.
+
+    Proton's own launch script swaps its bin directory to files/bin-wow64 when
+    PROTON_USE_WOW64 is set, so a build that lacks that directory cannot honour
+    the flag and the launch fails outright. Builds genuinely differ --
+    GE-Proton10-34 ships it, GE-Proton11-5 does not -- so this is probed per
+    build rather than assumed.
+    """
+    return (d / "files" / "bin-wow64").is_dir()
+
+
 def discover_proton_builds() -> list[Path]:
     """Every Proton build on disk, newest-looking first, deduplicated."""
     roots: list[Path] = []
@@ -183,6 +195,7 @@ def build_launch_command(exe: Path, cwd: Path) -> tuple[list[str], dict[str, str
         "PROTON_NO_ESYNC",
         "PROTON_NO_FSYNC",
         "PROTON_USE_WINED3D",
+        "PROTON_USE_WOW64",
         "PROTON_VERB",
         "SDL_VIDEODRIVER",
         "STEAM_COMPAT_CLIENT_INSTALL_PATH",
@@ -199,6 +212,24 @@ def build_launch_command(exe: Path, cwd: Path) -> tuple[list[str], dict[str, str
         "GAMEID": "umu-default",
         "STORE": "none",
     })
+
+    # New WoW64 runs the 32-bit client inside a 64-bit host process, which moves
+    # Wine's own libraries, the Vulkan loader and DXVK's host-side allocations
+    # out of the application's 4 GB of address space. The client stays 32-bit and
+    # its own ceiling is unchanged; what this buys is that the ceiling stops
+    # being shared with the translation layer. Measured on a vanilla WoW client
+    # with ~11 GB of texture packs: peak use of the low 4 GB was 48%.
+    if settings.get("linux_use_wow64", False):
+        if proton_supports_wow64(proton):
+            env["PROTON_USE_WOW64"] = "1"
+            log.info("New WoW64 requested and supported by %s", proton.name)
+        else:
+            # Setting it anyway would break the launch rather than degrade it.
+            log.warning(
+                "New WoW64 is enabled in Settings but %s has no "
+                "files/bin-wow64; launching in the default mode instead.",
+                proton.name,
+            )
     return [str(umu), str(exe)], env
 
 

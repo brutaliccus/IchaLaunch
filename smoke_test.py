@@ -8366,6 +8366,92 @@ def test_linux_proton_launch_resolution():
     print("OK linux proton launch resolution")
 
 
+def test_linux_wow64_opt_in():
+    """New WoW64 is opt-in, probed per build, and never set blind.
+
+    Guards three things: that the flag is off unless asked for, that asking for
+    it on a Proton build with no files/bin-wow64 degrades to a normal launch
+    instead of breaking it, and that a value inherited from the caller's own
+    environment cannot decide the launch mode behind the setting's back.
+    """
+    if sys.platform == "win32":
+        print("OK linux wow64 opt-in (skipped on Windows)")
+        return
+
+    import os
+
+    from ichalaunch.game import proton
+
+    class _Stub:
+        def __init__(self, d):
+            self.d = dict(d)
+
+        def get(self, k, default=None):
+            return self.d.get(k, default)
+
+        def set(self, k, v):
+            self.d[k] = v
+
+    real = proton.settings
+    inherited = os.environ.get("PROTON_USE_WOW64")
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+
+            umu = root / "umu-run"
+            umu.write_text("#!/bin/sh\nexit 0\n")
+            umu.chmod(0o755)
+
+            # One build ships the 64-bit host, one does not. This is the real
+            # difference between GE-Proton10-34 and GE-Proton11-5.
+            withw = root / "GE-Proton10-34"
+            (withw / "files" / "bin-wow64").mkdir(parents=True)
+            (withw / "toolmanifest.vdf").write_text("x")
+            without = root / "GE-Proton11-5"
+            (without / "files" / "bin").mkdir(parents=True)
+            (without / "toolmanifest.vdf").write_text("x")
+
+            assert proton.proton_supports_wow64(withw)
+            assert not proton.proton_supports_wow64(without)
+
+            def cmd(build, enabled):
+                proton.settings = _Stub({
+                    "linux_proton_path": str(build),
+                    "linux_use_latest_proton": False,
+                    "linux_umu_path": str(umu),
+                    "linux_wineprefix": str(root / "prefix"),
+                    "linux_use_wow64": enabled,
+                })
+                return proton.build_launch_command(root / "WoW.exe", root)[1]
+
+            # Off by default: the flag is absent, not "0".
+            assert "PROTON_USE_WOW64" not in cmd(withw, False)
+
+            # On, and the build can honour it.
+            assert cmd(withw, True).get("PROTON_USE_WOW64") == "1"
+
+            # On, but the build has no 64-bit host. Setting it here would fail
+            # the launch outright, so it is deliberately left unset.
+            assert "PROTON_USE_WOW64" not in cmd(without, True)
+
+            # An inherited value must not survive: the setting is the only
+            # thing that decides the launch mode.
+            os.environ["PROTON_USE_WOW64"] = "1"
+            try:
+                assert "PROTON_USE_WOW64" not in cmd(withw, False)
+                assert "PROTON_USE_WOW64" not in cmd(without, True)
+            finally:
+                os.environ.pop("PROTON_USE_WOW64", None)
+    finally:
+        proton.settings = real
+        if inherited is None:
+            os.environ.pop("PROTON_USE_WOW64", None)
+        else:
+            os.environ["PROTON_USE_WOW64"] = inherited
+
+    print("OK linux wow64 opt-in")
+
+
 def test_linux_dxvk_vulkan_preflight():
     """DXVK suitability on Linux turns on 32-bit Vulkan, not on the GPU name.
 
@@ -8736,6 +8822,7 @@ def _run_smoke_tests():
     test_prepare_for_launch_syncs_dlls_txt()
     test_client_exe_probe_is_case_insensitive()
     test_linux_proton_launch_resolution()
+    test_linux_wow64_opt_in()
     test_linux_dxvk_vulkan_preflight()
     test_prepare_for_launch_clears_data_readonly()
     test_plan_missing_installs_dxvk()
