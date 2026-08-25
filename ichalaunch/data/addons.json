@@ -14458,5 +14458,13 @@
     "source": "community",
     "folder": "pfQuest-octo",
     "description": "A TurtleWoW DB extension for pfQuest (Moonwhisper70%)"
+  },
+  {
+    "name": "pfQuest-turtle",
+    "repo": "https://github.com/yani9o/pfQuest-turtle",
+    "category": "General",
+    "source": "community",
+    "folder": "pfQuest-turtle",
+    "description": "A TurtleWoW DB extension for pfQuest"
   }
 ]
