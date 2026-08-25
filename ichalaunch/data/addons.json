@@ -14954,5 +14954,13 @@
     "source": "community",
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition"
+  },
+  {
+    "name": "AtlasLoot",
+    "repo": "https://github.com/Sobeq/AtlasLoot",
+    "category": "General",
+    "source": "community",
+    "folder": "AtlasLoot",
+    "description": "AtlasLoot Turtle WoW Edition"
   }
 ]
