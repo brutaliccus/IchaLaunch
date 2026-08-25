@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-25T04:37:57Z",
+  "generated_at": "2026-08-25T05:34:31Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -12282,9 +12282,9 @@
     },
     "obszczymucha/roll-for-vanilla": {
       "default_branch": "master",
-      "sha": "2c79c875d259a3c0b3ba41859e4757757abc0290",
+      "sha": "672afba3d9c417a14d9dafa6a92f1d6e83b5c63f",
       "branches": {
-        "master": "2c79c875d259a3c0b3ba41859e4757757abc0290"
+        "master": "672afba3d9c417a14d9dafa6a92f1d6e83b5c63f"
       },
       "latest_tag": "v4.6.5"
     },
@@ -17048,7 +17048,7 @@
       "branches": {
         "master": "e793f80f6b45ed49a94dc8abdc9fcac4fe6b03dd"
       },
-      "latest_tag": "v1.12.3"
+      "latest_tag": "v1.12.4"
     },
     "retrocro/turtlewow-mods": {
       "default_branch": "main",
