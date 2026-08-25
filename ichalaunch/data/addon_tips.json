@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-25T11:28:53Z",
+  "generated_at": "2026-08-25T12:45:02Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -16528,11 +16528,11 @@
     },
     "bennylavaa/pfquest-turtle": {
       "default_branch": "master",
-      "sha": "4a12631d0f29d1a6b05f1285f5fa81502d24a660",
+      "sha": "cd20d143a193b12d5c550246005085474cf17dcd",
       "branches": {
-        "master": "4a12631d0f29d1a6b05f1285f5fa81502d24a660"
+        "master": "cd20d143a193b12d5c550246005085474cf17dcd"
       },
-      "latest_tag": "pfQuest-turtle-v1.0.1"
+      "latest_tag": "pfQuest-turtle-v1.0.2"
     },
     "shagu/pfquest-turtle": {
       "default_branch": "master",
