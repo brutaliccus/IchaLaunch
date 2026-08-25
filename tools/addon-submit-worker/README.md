@@ -1,10 +1,10 @@
-# Catalog suggestion Worker
+# Catalog suggestion + crash-report Worker
 
-Minimal HTTPS endpoint for **IchaLaunch → Suggest for catalog**.
+Minimal HTTPS endpoint for **IchaLaunch → Suggest for catalog** and optional
+**opt-in crash / error reports**.
 
 The launcher POSTs JSON here (no GitHub credentials). This Worker validates the
-payload, rate-limits, and opens a GitHub Issue on `brutaliccus/IchaLaunch` using
-**Worker secrets** only.
+payload, rate-limits, and talks to GitHub using **Worker secrets** only.
 
 ## Setup
 
@@ -22,6 +22,8 @@ payload, rate-limits, and opens a GitHub Issue on `brutaliccus/IchaLaunch` using
    ```bash
    wrangler secret put GITHUB_TOKEN
    wrangler secret put GITHUB_REPO
+   wrangler secret put CRASH_ISSUE_WINDOWS   # optional; default 58
+   wrangler secret put CRASH_ISSUE_LINUX     # optional; default 59
    ```
    - `GITHUB_TOKEN` — fine-grained PAT with **Issues: Read and write** on
      `brutaliccus/IchaLaunch` (and Metadata read), plus ability to read public
@@ -29,14 +31,26 @@ payload, rate-limits, and opens a GitHub Issue on `brutaliccus/IchaLaunch` using
      works but is broader than needed.
    - `GITHUB_REPO` — `brutaliccus/IchaLaunch` (required if you do not rely on
      the Worker default).
+   - `CRASH_ISSUE_WINDOWS` / `CRASH_ISSUE_LINUX` — sticky issues that receive
+     crash **comments** by OS
+     ([Windows #58](https://github.com/brutaliccus/IchaLaunch/issues/58),
+     [Linux #59](https://github.com/brutaliccus/IchaLaunch/issues/59)).
 4. Confirm the Worker HTTPS URL matches `ADDON_SUBMIT_URL` in
    `ichalaunch/addons/submit.py`
    (`https://ichalaunch-addon-submit.ichalaunch.workers.dev`). Clients use that
-   constant only — there is no Settings URL field.
+   constant only — there is no Settings URL field. Crash reports POST to
+   `/crash` on the same host.
+
+## Crash reports (comment chain)
+
+`POST /crash` appends a markdown comment to the sticky crash-log issue for that
+OS (**Windows** or **Linux**). It does **not** open a new Issue per report.
+Clients enable this in Settings (off by default). Rate-limited separately from
+catalog submits.
 
 ## Labels
 
-Issue titles are prefixed with `[catalog]`. Optionally create a
+Issue titles for catalog suggestions are prefixed with `[catalog]`. Optionally create a
 `catalog-suggestion` label on the repo and add it in `src/index.js` if you want
 filtered triage.
 

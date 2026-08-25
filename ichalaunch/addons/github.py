@@ -871,7 +871,14 @@ def github_remote_tip(owner: str, repo: str, branch: str | None = None) -> dict[
     if atom_sha:
         return {"sha": atom_sha, "branch": wanted or "", "message": "", "date": ""}
 
-    return github_latest_commit(owner, repo, branch=wanted)
+    try:
+        return github_latest_commit(owner, repo, branch=wanted)
+    except (GitHubRateLimitError, GitHubBudgetExhaustedError):
+        raise
+    except (requests.HTTPError, requests.RequestException, ValueError, KeyError, json.JSONDecodeError) as exc:
+        # TOC / display versions often look like tags but are not git refs (HTTP 422).
+        log.debug("REST tip fallback failed for %s/%s@%s: %s", owner, repo, wanted or "", exc)
+        return {"sha": "", "branch": wanted or "", "message": "", "date": ""}
 
 
 def _commits_match(left: str, right: str) -> bool:
@@ -1086,12 +1093,86 @@ _REF_IMG_RE = re.compile(
 )
 
 
+_README_RAW_NAMES = (
+    "README.md",
+    "Readme.md",
+    "readme.md",
+    "README.MD",
+    "README.markdown",
+    "README.txt",
+    "readme.txt",
+)
+
+
+def _readme_preview_payload(
+    text: str,
+    *,
+    owner: str,
+    repo: str,
+    branch: str,
+    readme_dir: str = "",
+) -> dict[str, str] | None:
+    """Localize README markdown for QTextBrowser preview."""
+    body = (text or "").strip()
+    if not body:
+        return None
+    if len(body) > _README_MAX_CHARS:
+        body = body[:_README_MAX_CHARS] + "\n\n… (README truncated for preview)"
+    use_branch = (branch or "main").strip() or "main"
+    dir_prefix = (readme_dir or "").strip().strip("/")
+    if dir_prefix:
+        dir_prefix = dir_prefix + "/"
+    base_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{use_branch}/{dir_prefix}"
+    md = rewrite_readme_media(
+        body, owner=owner, repo=repo, branch=use_branch, readme_dir=dir_prefix
+    )
+    cache_dir = Path(tempfile.mkdtemp(prefix="ichalaunch-readme-"))
+    localized = localize_readme_images(md, cache_dir=cache_dir)
+    return {
+        "markdown": localized,
+        "raw_markdown": body,
+        "base_url": base_url,
+        "cache_dir": str(cache_dir),
+    }
+
+
+def fetch_readme_via_raw(
+    owner: str,
+    repo: str,
+    branch: str | None = None,
+) -> dict[str, str] | None:
+    """Fetch README from raw.githubusercontent.com (no REST quota)."""
+    use_branch = (branch or "main").strip() or "main"
+    headers = {
+        "User-Agent": UA.get("User-Agent", "IchaLaunch/0.1"),
+        "Accept": "text/plain,*/*",
+    }
+    for name in _README_RAW_NAMES:
+        url = f"https://raw.githubusercontent.com/{owner}/{repo}/{use_branch}/{name}"
+        try:
+            r = requests.get(url, headers=headers, timeout=20)
+        except requests.RequestException as exc:
+            log.debug("Raw README miss %s: %s", url, exc)
+            continue
+        if r.status_code != 200 or not (r.text or "").strip():
+            continue
+        return _readme_preview_payload(
+            r.text, owner=owner, repo=repo, branch=use_branch
+        )
+    return None
+
+
 def fetch_repo_readme(owner: str, repo: str, branch: str | None = None) -> dict[str, str] | None:
-    """Fetch README markdown for preview. Returns {markdown, base_url, cache_dir} or None."""
+    """Fetch README markdown for preview. Returns {markdown, base_url, cache_dir} or None.
+
+    Prefers the REST ``/readme`` endpoint (correct path/case). On rate-limit or API
+    failure, falls back to ``raw.githubusercontent.com`` so Settings previews still work.
+    """
     import base64
 
     full = f"{owner}/{repo}"
     url = f"https://api.github.com/repos/{full}/readme"
+    data: dict[str, Any] | None = None
     try:
         r = _github_api_get(
             url,
@@ -1102,27 +1183,31 @@ def fetch_repo_readme(owner: str, repo: str, branch: str | None = None) -> dict[
         if _looks_like_rate_limit(r):
             raise GitHubRateLimitError(RATE_LIMIT_STATUS)
         if r.status_code == 404:
-            return None
-        if r.status_code == 401:
+            data = None
+        elif r.status_code == 401:
             raise requests.HTTPError(GITHUB_TOKEN_REJECTED_MSG, response=r)
-        r.raise_for_status()
-        data = r.json()
+        else:
+            r.raise_for_status()
+            parsed = r.json()
+            data = parsed if isinstance(parsed, dict) else None
     except GitHubRateLimitError:
+        raw = fetch_readme_via_raw(owner, repo, branch=branch)
+        if raw:
+            return raw
         raise
     except (requests.RequestException, ValueError, json.JSONDecodeError) as exc:
         log.warning("README fetch failed for %s: %s", full, exc)
-        return None
+        return fetch_readme_via_raw(owner, repo, branch=branch)
+
+    if data is None:
+        return fetch_readme_via_raw(owner, repo, branch=branch)
 
     try:
         raw = base64.b64decode(data.get("content") or "")
         text = raw.decode("utf-8", errors="replace")
     except Exception as exc:
         log.warning("README decode failed for %s: %s", full, exc)
-        return None
-    if not text.strip():
-        return None
-    if len(text) > _README_MAX_CHARS:
-        text = text[:_README_MAX_CHARS] + "\n\n… (README truncated for preview)"
+        return fetch_readme_via_raw(owner, repo, branch=branch)
 
     path = str(data.get("path") or "README.md").replace("\\", "/")
     parent = str(Path(path).parent).replace("\\", "/")
@@ -1130,19 +1215,14 @@ def fetch_repo_readme(owner: str, repo: str, branch: str | None = None) -> dict[
     if parent and parent != ".":
         readme_dir = parent.strip("/") + "/"
 
-    use_branch = branch or "main"
-    base_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{use_branch}/{readme_dir}"
-    md = rewrite_readme_media(
-        text, owner=owner, repo=repo, branch=use_branch, readme_dir=readme_dir
+    payload = _readme_preview_payload(
+        text,
+        owner=owner,
+        repo=repo,
+        branch=branch or "main",
+        readme_dir=readme_dir,
     )
-    cache_dir = Path(tempfile.mkdtemp(prefix="ichalaunch-readme-"))
-    localized = localize_readme_images(md, cache_dir=cache_dir)
-    return {
-        "markdown": localized,
-        "raw_markdown": text,
-        "base_url": base_url,
-        "cache_dir": str(cache_dir),
-    }
+    return payload or fetch_readme_via_raw(owner, repo, branch=branch)
 
 
 _IMG_URL_COLLECT_RE = re.compile(
@@ -1356,11 +1436,13 @@ def rewrite_readme_media(
 
 
 def preview_addon_repo(url: str) -> dict[str, Any]:
-    """Fetch GitHub repo metadata for an Add-from-GitHub confirmation preview.
+    """Fetch GitHub repo metadata for an Add-from-GitHub / Settings README preview.
 
     Does not download the zip or install anything.
-    When the URL includes a release tag, README still comes from the repo;
-    install will use the tagged archive.
+
+    Installed-addon Settings often pass a TOC version that looks like a release tag
+    but is not a git ref (``/commits/{tag}`` → 422). Those pins must not abort the
+    preview — fall back to the default-branch tip and README instead.
     """
     parsed = parse_github_url(url)
     if not parsed:
@@ -1370,12 +1452,40 @@ def preview_addon_repo(url: str) -> dict[str, Any]:
         )
     owner, repo, tag = parsed.owner, parsed.repo, parsed.tag
     full = f"{owner}/{repo}"
-    r = github_get(f"https://api.github.com/repos/{full}")
-    data = r.json()
-    branch = data.get("default_branch") or "main"
-    # Resolve commit for the tag when pinned; otherwise default branch tip.
-    commit_ref = tag or branch
-    commit = github_latest_commit(owner, repo, branch=commit_ref)
+
+    data: dict[str, Any] = {}
+    branch = "main"
+    try:
+        r = github_get(f"https://api.github.com/repos/{full}")
+        payload = r.json()
+        if isinstance(payload, dict):
+            data = payload
+            branch = str(data.get("default_branch") or "main") or "main"
+    except (GitHubRateLimitError, requests.HTTPError, requests.RequestException, ValueError, json.JSONDecodeError) as exc:
+        log.debug("Repo metadata skipped for %s: %s", full, exc)
+        try:
+            tip = github_remote_tip(owner, repo)
+            branch = str(tip.get("branch") or "main") or "main"
+        except Exception:  # noqa: BLE001
+            branch = "main"
+
+    # Resolve commit softly: TOC / display versions are often not real git tags.
+    commit: dict[str, Any] = {}
+    pin_resolved = False
+    if tag:
+        try:
+            tip = github_remote_tip(owner, repo, branch=tag)
+            if str(tip.get("sha") or "").strip():
+                commit = tip
+                pin_resolved = True
+        except Exception as exc:  # noqa: BLE001
+            log.debug("Pinned ref %s/%s@%s unresolved for preview: %s", owner, repo, tag, exc)
+    if not str(commit.get("sha") or "").strip():
+        try:
+            commit = github_remote_tip(owner, repo, branch=branch)
+        except Exception as exc:  # noqa: BLE001
+            log.debug("Tip lookup failed for %s: %s", full, exc)
+            commit = {"sha": "", "branch": branch, "message": "", "date": ""}
 
     catalog_hit = None
     for entry in load_catalog():
@@ -1404,14 +1514,22 @@ def preview_addon_repo(url: str) -> dict[str, Any]:
         date = date.split("T", 1)[0]
     msg = str(commit.get("message") or "").strip().splitlines()[0] if commit.get("message") else ""
 
-    # README from default branch for preview; try tag ref first when pinned
+    # README: only probe the pin when it resolved as a real ref; else default branch.
     readme = None
-    if tag:
-        readme = fetch_repo_readme(owner, repo, branch=tag)
-    if not readme:
-        readme = fetch_repo_readme(owner, repo, branch=branch)
+    try:
+        if tag and pin_resolved:
+            readme = fetch_repo_readme(owner, repo, branch=tag)
+        if not readme:
+            readme = fetch_repo_readme(owner, repo, branch=branch)
+    except GitHubRateLimitError:
+        readme = fetch_readme_via_raw(owner, repo, branch=branch)
 
-    install_url = github_tag_page_url(owner, repo, tag) if tag else github_browse_url(owner, repo)
+    # Prefer a real tag page only when the pin is a git ref; otherwise browse URL.
+    install_url = (
+        github_tag_page_url(owner, repo, tag)
+        if tag and pin_resolved
+        else github_browse_url(owner, repo)
+    )
 
     return {
         "kind": "addon",
@@ -1420,7 +1538,7 @@ def preview_addon_repo(url: str) -> dict[str, Any]:
         "description": (data.get("description") or "").strip() or "(no description)",
         "stars": int(data.get("stargazers_count") or 0),
         "default_branch": branch,
-        "tag": tag or "",
+        "tag": tag if pin_resolved else "",
         "commit_sha": sha[:7] if sha else "",
         "commit_date": date,
         "commit_message": msg[:120],

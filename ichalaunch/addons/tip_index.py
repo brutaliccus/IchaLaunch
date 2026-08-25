@@ -117,6 +117,34 @@ def repo_entry_from_refs(refs: GitRefs) -> dict[str, Any]:
     return entry
 
 
+def enrich_repo_entry_display_version(
+    owner: str,
+    repo: str,
+    entry: dict[str, Any],
+) -> dict[str, Any]:
+    """When ``latest_tag`` is Release/latest/stable, fill ``display_version`` from Atom titles."""
+    from ichalaunch.addons.git_refs import (
+        extract_semver_label,
+        fetch_releases_atom_display_version,
+        is_preferred_release_alias,
+    )
+
+    if not isinstance(entry, dict):
+        return entry
+    existing = extract_semver_label(str(entry.get("display_version") or ""))
+    if existing:
+        entry["display_version"] = existing
+        return entry
+    tag = str(entry.get("latest_tag") or "").strip()
+    if not is_preferred_release_alias(tag):
+        # Real semver tags are already displayable; no Atom needed.
+        return entry
+    label = fetch_releases_atom_display_version(owner, repo, prefer_tag=tag)
+    if label:
+        entry["display_version"] = label
+    return entry
+
+
 def build_index(repos: dict[str, dict[str, Any]], *, source: str) -> dict[str, Any]:
     normalized: dict[str, dict[str, Any]] = {}
     for key, val in repos.items():
@@ -178,6 +206,40 @@ def lookup_latest_tag(owner: str, repo: str) -> str:
     if not isinstance(entry, dict):
         return ""
     return str(entry.get("latest_tag") or "").strip()
+
+
+def lookup_display_version(owner: str, repo: str) -> str:
+    """UI version label: tip ``display_version``, else a real semver ``latest_tag``."""
+    from ichalaunch.addons.git_refs import (
+        extract_semver_label,
+        is_preferred_release_alias,
+        is_usable_release_tag,
+        is_version_tag,
+    )
+
+    key = repo_cache_key(owner, repo)
+    entry: dict[str, Any] | None = None
+    repos = current_index().get("repos")
+    if isinstance(repos, dict):
+        hit = repos.get(key)
+        if isinstance(hit, dict) and hit:
+            entry = hit
+    if entry is None:
+        bundled = load_index_file(bundled_tips_path()).get("repos") or {}
+        hit = bundled.get(key) if isinstance(bundled, dict) else None
+        entry = hit if isinstance(hit, dict) else None
+    if not entry:
+        return ""
+    for raw in (entry.get("display_version"), entry.get("latest_tag")):
+        text = str(raw or "").strip()
+        if not text or is_preferred_release_alias(text):
+            continue
+        extracted = extract_semver_label(text)
+        if extracted:
+            return extracted
+        if is_usable_release_tag(text) and is_version_tag(text):
+            return text if text.lower().startswith("v") or not text[0].isdigit() else f"v{text}"
+    return ""
 
 
 def fetch_remote_index(url: str | None = None) -> dict[str, Any] | None:

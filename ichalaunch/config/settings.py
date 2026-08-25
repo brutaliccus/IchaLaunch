@@ -53,6 +53,10 @@ DEFAULTS: dict[str, Any] = {
     "github_token": "",
     # Anonymous UUID for rate-limit hints only (no PII). Generated on first use.
     "anonymous_client_id": "",
+    # Opt-in: POST crash/ERROR logs to maintainer via Cloudflare Worker (default off).
+    "crash_reporting_enabled": False,
+    # One-shot first-launch prompt for crash reporting (any answer marks shown).
+    "crash_reporting_opt_in_prompted_v1": False,
     "last_addon_update_check": None,
     "last_mod_update_check": None,
     # True while an automatic update check is in flight (or died mid-apply).

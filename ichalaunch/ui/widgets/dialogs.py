@@ -360,6 +360,32 @@ def dll_security_exclusion_dialog(
     return dlg.dismissed_permanently()
 
 
+def crash_reporting_opt_in_dialog(parent: QWidget | None) -> DialogResult:
+    """One-shot crash-reporting opt-in.
+
+    Returns:
+      - ``DialogResult.Yes`` — Enable
+      - ``DialogResult.No`` — Not now (still marks the prompt as shown)
+      - ``DialogResult.Cancel`` — Don't show again (same persistence as Not now)
+    """
+    from ichalaunch.core.crash_report import (
+        CRASH_REPORTING_OPT_IN_TEXT,
+        CRASH_REPORTING_OPT_IN_TITLE,
+    )
+
+    return choice(
+        parent,
+        CRASH_REPORTING_OPT_IN_TITLE,
+        CRASH_REPORTING_OPT_IN_TEXT,
+        [
+            ("Don't show again", DialogResult.Cancel),
+            ("Not now", DialogResult.No),
+            ("Enable", DialogResult.Yes),
+        ],
+        kind="question",
+    )
+
+
 class _PreviewFetchThread(QThread):
     ok = Signal(object)
     err = Signal(str)

@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from ichalaunch.config.settings import settings
+from ichalaunch.core.filesystem import LOCK_AV_VERIFY_MESSAGE
 from ichalaunch.game.launcher import detect_game
 from ichalaunch.mods.client_mod_hints import (
     is_dll_injection_mod,
@@ -27,6 +28,7 @@ from ichalaunch.mods.installer import (
     get_mod,
     load_mod_catalog,
     mod_contains_caption,
+    mod_is_unverified,
     mod_version_label,
     plan_changes,
     reconcile_exclusive_desired_mods,
@@ -185,7 +187,6 @@ class ClientPage(QWidget):
         self._search_q = ""
         self._vf_dxvk_prompted = False
         self._dxvk_gpu_warned = False
-        self._patch9_prompted = False
 
         by_cat: dict[str, list] = {}
         for mod in load_mod_catalog():
@@ -542,6 +543,7 @@ class ClientPage(QWidget):
         super().showEvent(event)
         self._reveal_rows(kick=True)
         QTimer.singleShot(0, self._maybe_prompt_vf_dxvk_conflict)
+        # Patch-9 dialog is Home-first (MainWindow); Client keeps banner + fallback.
         QTimer.singleShot(0, self._maybe_prompt_stock_patch9)
 
     def _maybe_prompt_vf_dxvk_conflict(self) -> None:
@@ -680,29 +682,14 @@ class ClientPage(QWidget):
             self._patch9_host.hide()
 
     def _maybe_prompt_stock_patch9(self) -> None:
-        if self._patch9_prompted:
+        """Fallback if Home never ran; MainWindow owns once-per-session dismiss."""
+        win = self.window()
+        stack = getattr(win, "stack", None)
+        if stack is not None and stack.currentWidget() is not self:
             return
-        game = detect_game()
-        if not game:
-            return
-        status = inspect_stock_patch9(game)
-        if not should_offer_stock_patch9_reacquire(status):
-            return
-        self._patch9_prompted = True
-        self._refresh_patch9_banner()
-        result = choice(
-            self,
-            "Patch-9 missing or incomplete",
-            "Patch-9 is missing or incomplete.\n\n"
-            "Reacquire the official Data/patch-9.mpq (~500 MB) through the launcher?",
-            [
-                ("Later", DialogResult.No),
-                ("Reacquire", DialogResult.Yes),
-            ],
-            kind="warning",
-        )
-        if result == DialogResult.Yes:
-            self.reacquire_patch9_requested.emit()
+        fn = getattr(win, "_maybe_prompt_stock_patch9", None)
+        if callable(fn):
+            fn()
 
     @staticmethod
     def _mod_can_reinstall(mod: dict) -> bool:
@@ -740,11 +727,20 @@ class ClientPage(QWidget):
             if meta is not None:
                 meta["version"] = version
             pending = self._pending_updates.get(mid)
+            meta_inst = installed_meta.get(mid)
+            unverified = mod_is_unverified(mid, meta_inst if isinstance(meta_inst, dict) else None)
             if pending:
                 detail = f"{pending.get('local', '?')} → {pending.get('remote', '?')}"
                 row.status_lbl.setText(f"Update available ({detail})")
+                row.status_lbl.setToolTip("")
                 self._set_status_style(row.status_lbl, "StatusUpdate")
                 row.set_update_available(True, detail)
+                row.set_reinstall_visible(can_ri)
+            elif unverified and (actual.get(mid) or desired.get(mid)):
+                row.status_lbl.setText("Unverified")
+                row.status_lbl.setToolTip(LOCK_AV_VERIFY_MESSAGE)
+                self._set_status_style(row.status_lbl, "StatusWarning")
+                row.set_update_available(False)
                 row.set_reinstall_visible(can_ri)
             elif actual.get(mid):
                 if self._client_mods_scan_done:
@@ -753,10 +749,12 @@ class ClientPage(QWidget):
                 else:
                     row.status_lbl.setText("Not checked")
                     self._set_status_style(row.status_lbl, "StatusMuted")
+                row.status_lbl.setToolTip("")
                 row.set_update_available(False)
                 row.set_reinstall_visible(can_ri)
             else:
                 row.status_lbl.setText("Not installed")
+                row.status_lbl.setToolTip("")
                 self._set_status_style(row.status_lbl, "StatusMuted")
                 row.set_update_available(False)
                 row.set_reinstall_visible(False)

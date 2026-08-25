@@ -16541,7 +16541,8 @@
       "branches": {
         "master": "60c05fa1bed338f50092ee73894ee4e3b81b5a65"
       },
-      "latest_tag": "Release"
+      "latest_tag": "Release",
+      "display_version": "v2.2"
     },
     "brues-code/nampower": {
       "default_branch": "main",

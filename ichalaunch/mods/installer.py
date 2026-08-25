@@ -16,7 +16,13 @@ from urllib.parse import quote, urlparse
 
 import requests
 
-from ichalaunch.addons.git_refs import is_usable_release_tag, is_version_tag
+from ichalaunch.addons.git_refs import (
+    extract_semver_label,
+    is_preferred_release_alias,
+    is_usable_release_tag,
+    is_version_tag,
+    looks_like_timestamp_label,
+)
 from ichalaunch.addons.github import (
     GitHubRateLimitError,
     fetch_repo_readme,
@@ -29,6 +35,8 @@ from ichalaunch.addons.github import (
 from ichalaunch.config.settings import settings
 from ichalaunch.core.backup import create_backup, restore_backup
 from ichalaunch.core.filesystem import (
+    LOCK_AV_VERIFY_MESSAGE,
+    LOCK_AV_VERIFY_TITLE,
     copy_file_tolerant,
     copy_tree,
     ensure_data_writable,
@@ -51,6 +59,7 @@ from ichalaunch.core.filesystem import (
     safe_remove,
     sanitize_filename,
     update_dlls_txt,
+    user_facing_os_error,
     validate_pe_binary,
 )
 from ichalaunch.core.logging_setup import log
@@ -1181,7 +1190,54 @@ def detect_actual_state(game_path: Path) -> dict[str, bool]:
         desired=settings.desired_mods,
     )
     _backfill_detected_installed_mods(reconciled)
+    _refresh_unverified_mod_flags(game_path, reconciled)
     return reconciled
+
+
+def _pe_artifacts_for_mod(mod: dict[str, Any]) -> list[str]:
+    """Game-relative DLL/EXE paths this mod owns (for post-install / detect verify)."""
+    return sorted(
+        rel
+        for rel in _mod_owned_paths(mod)
+        if rel.lower().endswith((".dll", ".exe"))
+    )
+
+
+def _refresh_unverified_mod_flags(game: Path, actual: dict[str, bool]) -> None:
+    """Clear unverified when PE files become readable; keep flag while still locked."""
+    for mid, meta in list(settings.installed_mods.items()):
+        if not isinstance(meta, dict) or not meta.get("unverified"):
+            continue
+        if not actual.get(mid, False):
+            # Nothing on disk to verify — drop the flag so Apply can reinstall.
+            mark_mod_unverified(mid, unverified=False)
+            continue
+        mod = get_mod(mid)
+        if not mod:
+            continue
+        rels = _pe_artifacts_for_mod(mod)
+        if not rels:
+            mark_mod_unverified(mid, unverified=False)
+            continue
+        outcome = "ok"
+        for rel in rels:
+            dest = game / rel
+            if not dest.is_file():
+                continue
+            try:
+                if not validate_pe_binary(dest, min_size=_pe_min_bytes_for_rel(rel)):
+                    outcome = "soft"
+                    break
+            except OSError:
+                # Readable but invalid — verification completed; drop soft flag.
+                outcome = "corrupt"
+                break
+        if outcome == "soft":
+            log.debug("Keeping unverified flag for %s (lock/AV)", mid)
+            continue
+        mark_mod_unverified(mid, unverified=False)
+        if outcome == "ok":
+            log.info("Cleared unverified flag for %s after successful PE check", mid)
 
 
 def plan_missing_installs(desired: dict[str, bool] | None = None) -> list[dict[str, str]]:
@@ -1197,7 +1253,13 @@ def plan_manual_missing(desired: dict[str, bool] | None = None) -> list[str]:
 def _apply_planned_mod_changes(
     changes: list[dict[str, str]], progress: ProgressCb | None = None
 ) -> list[str]:
-    """Apply install/remove actions from plan_changes. Per-mod failures are logged, not raised."""
+    """Apply install/remove actions from plan_changes. Per-mod failures are logged, not raised.
+
+    Done-list protocol:
+    - ``+ id`` / ``- id`` — applied
+    - ``~ id`` — installed but PE verify soft-skipped (lock/AV); keep install
+    - ``! id …`` — hard failure (friendly text; raw errno only in logs)
+    """
     done: list[str] = []
     for ch in changes:
         if ch.get("action") not in ("install", "remove"):
@@ -1209,8 +1271,9 @@ def _apply_planned_mod_changes(
             if vf_label:
                 log.info("Mod sync: %s", vf_label)
             if action == "install":
-                install_mod(mid, progress=progress)
+                notices = install_mod(mid, progress=progress)
                 done.append(f"+ {mid}")
+                done.extend(notices)
             else:
                 remove_mod(mid, progress=progress)
                 done.append(f"- {mid}")
@@ -1218,14 +1281,76 @@ def _apply_planned_mod_changes(
                 log.info("Pre-launch mod %s: %s", action, mid)
         except OSError as exc:
             log.warning("Mod %s %s skipped (disk/AV): %s", action, mid, exc)
-            done.append(f"! {mid} skipped: {exc}")
+            done.append(f"! {mid} skipped: {user_facing_os_error(exc)}")
         except (RuntimeError, FileNotFoundError, KeyError, shutil.Error) as exc:
             log.warning("Mod %s %s failed: %s", action, mid, exc)
-            done.append(f"! {mid} failed: {exc}")
+            done.append(f"! {mid} failed: {user_facing_os_error(exc)}")
         except requests.RequestException as exc:
             log.warning("Mod %s %s failed (download): %s", action, mid, exc)
             done.append(f"! {mid} failed: {exc}")
     return done
+
+
+def split_mod_apply_results(done: list[str] | None) -> tuple[list[str], list[str], list[str], list[str]]:
+    """Split apply/sync done lines into installed, removed, verify-warnings, failures."""
+    installed: list[str] = []
+    removed: list[str] = []
+    warnings: list[str] = []
+    failures: list[str] = []
+    for ln in done or []:
+        if not isinstance(ln, str):
+            continue
+        if ln.startswith("+ "):
+            installed.append(ln[2:].strip())
+        elif ln.startswith("- "):
+            removed.append(ln[2:].strip())
+        elif ln.startswith("~ "):
+            warnings.append(ln[2:].strip())
+        elif ln.startswith("!"):
+            failures.append(ln[1:].strip())
+    return installed, removed, warnings, failures
+
+
+def format_mod_verify_warning(mod_ids: list[str]) -> tuple[str, str]:
+    """Title + body for soft-skip PE verify (install kept, unmarked as verified)."""
+    names: list[str] = []
+    catalog = {m["id"]: m for m in load_mod_catalog()}
+    for mid in mod_ids:
+        mod = catalog.get(mid) or {}
+        names.append(str(mod.get("name") or mid))
+    if not names:
+        return LOCK_AV_VERIFY_TITLE, LOCK_AV_VERIFY_MESSAGE
+    if len(names) == 1:
+        lead = f"{names[0]} could not be verified after install."
+    else:
+        lead = (
+            f"{len(names)} client mods could not be verified after install: "
+            + ", ".join(names[:6])
+            + ("…" if len(names) > 6 else "")
+            + "."
+        )
+    return LOCK_AV_VERIFY_TITLE, f"{lead}\n\n{LOCK_AV_VERIFY_MESSAGE}"
+
+
+def mod_is_unverified(mod_id: str, meta: dict[str, Any] | None = None) -> bool:
+    """True when install was kept but post-install PE verify soft-skipped (lock/AV)."""
+    if meta is None:
+        meta = settings.installed_mods.get(mod_id)
+    return bool(isinstance(meta, dict) and meta.get("unverified"))
+
+
+def mark_mod_unverified(mod_id: str, *, unverified: bool = True) -> None:
+    """Persist or clear the shared unverified flag on installed_mods metadata."""
+    if not mod_id:
+        return
+    settings.set_installed_mod(mod_id, {"unverified": bool(unverified)})
+
+
+def _effective_mod_installed(mid: str, actual: dict[str, bool]) -> bool:
+    """On-disk detect, or soft-verify keep (avoids Apply-flash reinstall loop)."""
+    if actual.get(mid, False):
+        return True
+    return mod_is_unverified(mid)
 
 
 def plan_sync_changes(desired: dict[str, bool] | None = None) -> list[dict[str, str]]:
@@ -1283,7 +1408,7 @@ def plan_changes(desired: dict[str, bool] | None = None) -> list[dict[str, str]]
         for mid, want in desired.items()
         if want
         and (
-            not actual.get(mid, False)
+            not _effective_mod_installed(mid, actual)
             or _mpq_exclusive_variant_needs_reinstall(mid, desired, catalog)
         )
     ]
@@ -1296,14 +1421,16 @@ def plan_changes(desired: dict[str, bool] | None = None) -> list[dict[str, str]]
         seen.add(mid)
         mod = catalog.get(mid) or {}
         for dep in mod.get("dependencies") or []:
-            if not actual.get(dep, False):
+            if not _effective_mod_installed(dep, actual):
                 add_with_deps(dep)
         ordered.append(mid)
 
     for mid in to_install:
         add_with_deps(mid)
 
-    if _any_hd_patch_desired(desired) and not actual.get(_VANILLA_HELPERS_ID, False):
+    if _any_hd_patch_desired(desired) and not _effective_mod_installed(
+        _VANILLA_HELPERS_ID, actual
+    ):
         add_with_deps(_VANILLA_HELPERS_ID)
 
     for mid in ordered:
@@ -1320,7 +1447,7 @@ def plan_changes(desired: dict[str, bool] | None = None) -> list[dict[str, str]]
             changes.append({"action": "install", "id": mid, "detail": f"Install {mod.get('name', mid)}"})
 
     for mid, want in desired.items():
-        have = actual.get(mid, False)
+        have = _effective_mod_installed(mid, actual)
         if not want and have:
             # DXVK bundle owns VanillaFixes.exe — never remove VF when DXVK is desired.
             if mid == _VANILLAFIXES_ID and desired.get(_DXVK_ID):
@@ -1622,6 +1749,8 @@ _BLANK_VERSION_LABELS = frozenset(
         "remote",
         "patch",
         "latest",
+        "stable",
+        "release",
         "assets",
         "mpq",
         "textures",
@@ -1630,21 +1759,37 @@ _BLANK_VERSION_LABELS = frozenset(
 
 
 def _displayable_mod_version(raw: str | None) -> str:
-    """Keep tags / short SHAs; drop fingerprints, URLs, and leftover Patch aliases."""
+    """Keep tags / short SHAs; drop fingerprints, timestamps, and Release aliases."""
     text = str(raw or "").strip().strip('"')
     if not text or text.lower() in _BLANK_VERSION_LABELS:
         return ""
     if text.startswith(("http://", "https://", "W/")) or "\\" in text:
+        # Release asset URLs often embed the real semver in the filename.
+        extracted = extract_semver_label(text.rsplit("/", 1)[-1])
+        return extracted
+    if looks_like_timestamp_label(text):
         return ""
     if len(text) > 40:
-        return ""
+        extracted = extract_semver_label(text)
+        return extracted
     if re.fullmatch(r"[0-9a-f]{40}", text, re.I):
         return text[:7]
     if re.fullmatch(r"[0-9a-f]{7,12}", text, re.I):
         return text[:7]
+    if is_preferred_release_alias(text):
+        return ""
+    extracted = extract_semver_label(text)
+    if extracted and (
+        is_preferred_release_alias(text)
+        or "/" in text
+        or "\\" in text
+        or text.lower().endswith((".zip", ".rar", ".7z", ".mpq", ".dll", ".exe"))
+        or " " in text
+    ):
+        return extracted
     if is_usable_release_tag(text) or is_version_tag(text):
         return text
-    return ""
+    return extracted
 
 
 def _tips_repo_entry(owner: str, name: str) -> dict[str, Any]:
@@ -1672,7 +1817,7 @@ def mod_version_label(
 ) -> str:
     """Grey-row version when we know a real tag, pin, or commit — empty otherwise."""
     if installed:
-        for key in ("version_display", "tag", "sha"):
+        for key in ("version_display", "tag", "sha", "url"):
             label = _displayable_mod_version(installed.get(key) if installed else None)
             if label:
                 return label
@@ -1685,6 +1830,10 @@ def mod_version_label(
     label = _displayable_mod_version(pinned)
     if label:
         return label
+    # Pinned release asset filenames often carry the real semver.
+    label = _displayable_mod_version(str(source.get("url") or ""))
+    if label:
+        return label
     repo = str(source.get("repo") or "").strip() or (_repo_from_github_url(str(source.get("url") or "")) or "")
     if "/" not in repo:
         return ""
@@ -1692,7 +1841,13 @@ def mod_version_label(
     entry = _tips_repo_entry(owner, name)
     stype = str(source.get("type") or "")
     if stype in ("github_release_latest", "github_release"):
-        return _displayable_mod_version(entry.get("latest_tag"))
+        for key in ("display_version", "latest_tag"):
+            label = _displayable_mod_version(entry.get(key))
+            if label:
+                return label
+        from ichalaunch.addons.tip_index import lookup_display_version
+
+        return lookup_display_version(owner, name)
     if stype == "github_zip":
         return _displayable_mod_version(entry.get("sha"))
     return ""
@@ -1720,11 +1875,14 @@ def _head_identity(url: str) -> dict[str, str]:
     etag = (r.headers.get("ETag") or "").strip()
     last_mod = (r.headers.get("Last-Modified") or "").strip()
     key = etag or last_mod or url
+    # Never surface Last-Modified / ISO dates as the UI "version" — keep them
+    # only in the fingerprint key / last_modified field.
+    display = (etag.strip('"')[:16] if etag else "") or "remote"
     return {
         "key": key,
         "etag": etag,
         "last_modified": last_mod,
-        "display": (etag.strip('"')[:16] if etag else last_mod[:24]) or "remote",
+        "display": display,
     }
 
 
@@ -1782,10 +1940,24 @@ def _remote_identity(
         tag = _catalog_release_tag(str(repo)) if catalog_only else _remote_release_tag(str(repo))
         if not tag:
             return None
+        display = tag
+        if is_preferred_release_alias(tag) and "/" in str(repo):
+            owner, name = str(repo).split("/", 1)
+            from ichalaunch.addons.tip_index import lookup_display_version
+
+            nicer = lookup_display_version(owner, name)
+            if nicer:
+                display = nicer
+            elif not catalog_only:
+                from ichalaunch.addons.git_refs import fetch_releases_atom_display_version
+
+                nicer = fetch_releases_atom_display_version(owner, name, prefer_tag=tag)
+                if nicer:
+                    display = nicer
         return {
             "kind": "release",
             "key": tag,
-            "display": tag,
+            "display": display,
             "repo": repo,
             "tag": tag,
         }
@@ -1981,7 +2153,11 @@ def _addon_remote_identity(
 
 
 def _record_mod_install(
-    mod_id: str, mod: dict[str, Any], source_override: dict[str, Any] | None = None
+    mod_id: str,
+    mod: dict[str, Any],
+    source_override: dict[str, Any] | None = None,
+    *,
+    unverified: bool = False,
 ) -> None:
     """Persist installed version fingerprint after a successful install."""
     from ichalaunch.addons.github import iso_date_today
@@ -1995,6 +2171,8 @@ def _record_mod_install(
         "kind": mod.get("kind"),
         "installed_at": prev.get("installed_at") or today,
         "updated_at": today,
+        # Always set so merge clears a prior soft-skip flag on clean reinstall.
+        "unverified": bool(unverified),
     }
     # Prefer the catalog-pinned tag when present (accurate for what was downloaded).
     pinned = _tag_from_release_url((source or {}).get("url") or "")
@@ -2012,7 +2190,25 @@ def _record_mod_install(
             meta["repo"] = remote["repo"]
     elif remote:
         meta["version_key"] = remote.get("key")
-        meta["version_display"] = remote.get("display")
+        display = str(remote.get("display") or "")
+        # Prefer a semver extracted from the release asset / tip over Release aliases
+        # or HTTP date fingerprints that older builds stored as version_display.
+        nicer = _displayable_mod_version(display)
+        if not nicer:
+            for candidate in (
+                remote.get("tag"),
+                source.get("url"),
+                remote.get("url"),
+            ):
+                nicer = _displayable_mod_version(candidate)
+                if nicer:
+                    break
+        if not nicer and remote.get("repo") and "/" in str(remote.get("repo")):
+            owner, name = str(remote["repo"]).split("/", 1)
+            from ichalaunch.addons.tip_index import lookup_display_version
+
+            nicer = lookup_display_version(owner, name)
+        meta["version_display"] = nicer or display
         meta["version_kind"] = remote.get("kind")
         for k in ("etag", "last_modified", "tag", "sha", "repo", "branch", "url"):
             if remote.get(k):
@@ -2225,7 +2421,8 @@ def update_mods(mod_ids: list[str], progress: ProgressCb | None = None) -> list[
     return done
 
 
-def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_latest: bool = False) -> None:
+def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_latest: bool = False) -> list[str]:
+    """Install one client mod. Returns soft-verify notices (``~ id``) when PE check soft-skips."""
     game = detect_game()
     if not game:
         raise FileNotFoundError("Game not found")
@@ -2278,8 +2475,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 if not wdb.exists():
                     wdb.write_text("", encoding="utf-8")
                 status_only(progress, "WDB block applied")
-                _record_mod_install(mod_id, mod, source)
-                return
+                return _finish_mod_install(mod_id, mod, source)
 
             if kind == "exe_patch":
                 assert source
@@ -2302,8 +2498,16 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 if tweaked.exists():
                     wow.unlink(missing_ok=True)
                     tweaked.rename(wow)
-                _record_mod_install(mod_id, mod, source)
-                return
+                soft: list[str] = []
+                try:
+                    if not validate_pe_binary(wow, min_size=_DLL_PE_MIN_BYTES):
+                        soft = [wow.name]
+                except OSError as exc:
+                    if is_lock_or_av_error(exc):
+                        soft = [wow.name]
+                    else:
+                        raise
+                return _finish_mod_install(mod_id, mod, source, soft_skipped=soft)
 
             if kind == "zip_root":
                 assert source
@@ -2331,8 +2535,8 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                     for f in vf.parent.iterdir():
                         if f.is_file():
                             _zip_root_copy(f, game / f.name)
-                _record_mod_install(mod_id, mod, source)
-                return
+                soft = _verify_mod_install(game, mod)
+                return _finish_mod_install(mod_id, mod, source, soft_skipped=soft)
 
             if kind in ("dll_file", "dll_bundle"):
                 assert source
@@ -2370,9 +2574,8 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 dlls = (mod.get("dlls_txt") or {}).get("add") or []
                 if dlls:
                     _update_dlls_txt_all(game, add=dlls)
-                _verify_mod_install(game, mod)
-                _record_mod_install(mod_id, mod, source)
-                return
+                soft = _verify_mod_install(game, mod)
+                return _finish_mod_install(mod_id, mod, source, soft_skipped=soft)
 
             if kind == "mpq_file":
                 assert source
@@ -2406,8 +2609,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 status_only(progress, f"Installing {dest.name} (large file)...")
                 _install_copy(artifact, dest, game_path=game)
-                _record_mod_install(mod_id, mod, source)
-                return
+                return _finish_mod_install(mod_id, mod, source)
 
             if kind == "config_script_memory":
                 cfg = game / "WTF" / "Config.wtf"
@@ -2418,8 +2620,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                     lines = [ln for ln in lines if not ln.strip().upper().startswith("SET SCRIPTMEMORY")]
                 lines.insert(0, 'SET scriptMemory "0"')
                 cfg.write_text("\n".join(lines) + "\n", encoding="utf-8")
-                _record_mod_install(mod_id, mod, source)
-                return
+                return _finish_mod_install(mod_id, mod, source)
 
             if kind == "glue_autologin":
                 assert source
@@ -2456,8 +2657,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                         for off, val in patches.items():
                             data[off] = val
                         wow.write_bytes(data)
-                _record_mod_install(mod_id, mod, source)
-                return
+                return _finish_mod_install(mod_id, mod, source)
 
             if kind == "dxvk_cursor":
                 assert source
@@ -2469,9 +2669,8 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 if "enlargeHardwareCursor" not in text:
                     text = (text.rstrip() + "\n\nd3d9.enlargeHardwareCursor = 2\n")
                     conf.write_text(text, encoding="utf-8")
-                _verify_mod_install(game, mod)
-                _record_mod_install(mod_id, mod, source)
-                return
+                soft = _verify_mod_install(game, mod)
+                return _finish_mod_install(mod_id, mod, source, soft_skipped=soft)
 
             if kind == "manual_link":
                 raise RuntimeError(
@@ -2571,26 +2770,58 @@ def _pe_min_bytes_for_rel(rel: str) -> int:
     return _DLL_PE_MIN_BYTES
 
 
-def _verify_mod_install(game: Path, mod: dict[str, Any]) -> None:
-    """Ensure downloaded DLL/EXE artifacts are present and look like valid PE files."""
+def _verify_mod_install(game: Path, mod: dict[str, Any]) -> list[str]:
+    """Ensure downloaded DLL/EXE artifacts are present and look like valid PE files.
+
+    Returns the list of basenames whose PE verify soft-skipped (lock/AV). Callers
+    keep the install and mark the mod unverified. Truncated or non-PE content
+    still raises (hard failure / rollback).
+
+    Covers dll_file, dll_bundle, dxvk_cursor, and zip_root (VanillaFixes / DXVK).
+    """
     kind = mod.get("kind")
-    if kind not in ("dll_file", "dll_bundle", "dxvk_cursor"):
-        return
+    if kind not in ("dll_file", "dll_bundle", "dxvk_cursor", "zip_root"):
+        return []
     failures: list[str] = []
-    for rel in sorted(_mod_owned_paths(mod)):
-        low = rel.lower()
-        if not (low.endswith(".dll") or low.endswith(".exe")):
-            continue
+    soft_skipped: list[str] = []
+    for rel in _pe_artifacts_for_mod(mod):
         dest = game / rel
         if not dest.is_file():
             failures.append(f"{rel} was not installed")
             continue
         try:
-            validate_pe_binary(dest, min_size=_pe_min_bytes_for_rel(rel))
+            if not validate_pe_binary(dest, min_size=_pe_min_bytes_for_rel(rel)):
+                log.warning(
+                    "PE verify skipped for %s (locked or antivirus scan in progress)",
+                    dest.name,
+                )
+                soft_skipped.append(dest.name)
         except OSError as exc:
-            failures.append(str(exc.args[1] if len(exc.args) > 1 else exc))
+            # Hard failure — prefer plain detail (no [Errno N] wrapping for UI).
+            failures.append(user_facing_os_error(exc))
     if failures:
         raise OSError(22, "; ".join(failures))
+    return soft_skipped
+
+
+def _finish_mod_install(
+    mod_id: str,
+    mod: dict[str, Any],
+    source: dict[str, Any] | None,
+    *,
+    soft_skipped: list[str] | None = None,
+) -> list[str]:
+    """Record install metadata; return ``~ id`` notices when PE verify soft-skipped."""
+    soft = list(soft_skipped or [])
+    _record_mod_install(mod_id, mod, source, unverified=bool(soft))
+    if soft:
+        log.warning(
+            "Install %s kept unverified after soft PE skip: %s",
+            mod_id,
+            ", ".join(soft),
+        )
+        return [f"~ {mod_id}"]
+    return []
 
 
 def _revert_failed_mod_install(

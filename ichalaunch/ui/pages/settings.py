@@ -197,6 +197,40 @@ class SettingsPage(QWidget):
         )
         upd_card.body.addWidget(self.cb_toc_mismatch)
 
+        privacy_card = MarbleCard()
+        privacy_card.body.setSpacing(10)
+        privacy_title = QLabel("Privacy")
+        privacy_title.setObjectName("CardTitle")
+        privacy_card.body.addWidget(privacy_title)
+        self.cb_crash_reports = ThemeCheckBox(
+            "Send crash and error reports to the maintainer"
+        )
+        self.cb_crash_reports.setChecked(
+            bool(settings.get("crash_reporting_enabled", False))
+        )
+        self.cb_crash_reports.setToolTip(
+            "When enabled, IchaLaunch automatically sends crash.log excerpts and "
+            "significant error logs to the project maintainer (via a Cloudflare "
+            "Worker that appends a comment on one GitHub crash-log issue). Off by "
+            "default. No Discord tokens or GitHub PATs are included; reports are "
+            "best-effort and never required."
+        )
+        self.cb_crash_reports.toggled.connect(
+            lambda v: settings.set("crash_reporting_enabled", bool(v))
+        )
+        self.cb_crash_reports.setMinimumHeight(28)
+        self.cb_crash_reports.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+        privacy_card.body.addWidget(self.cb_crash_reports)
+        privacy_note = QLabel(
+            "Optional and off by default. Helps fix bugs; only sends redacted log "
+            "excerpts when something crashes or a serious error is logged."
+        )
+        privacy_note.setObjectName("Muted")
+        privacy_note.setWordWrap(True)
+        privacy_card.body.addWidget(privacy_note)
+
         gh_card = MarbleCard()
         gh_card.body.setSpacing(10)
         gh_title = QLabel("GitHub API")
@@ -308,6 +342,7 @@ class SettingsPage(QWidget):
         layout.addWidget(addons_card)
         layout.addWidget(launch_card)
         layout.addWidget(upd_card)
+        layout.addWidget(privacy_card)
         layout.addWidget(gh_card)
         layout.addWidget(maint_card)
         layout.addWidget(about)
@@ -352,6 +387,11 @@ class SettingsPage(QWidget):
         self.cb_toc_mismatch.blockSignals(True)
         self.cb_toc_mismatch.setChecked(settings.auto_fix_addon_toc_mismatch())
         self.cb_toc_mismatch.blockSignals(False)
+        self.cb_crash_reports.blockSignals(True)
+        self.cb_crash_reports.setChecked(
+            bool(settings.get("crash_reporting_enabled", False))
+        )
+        self.cb_crash_reports.blockSignals(False)
         # Avoid clobbering in-progress edits / firing textChanged autosave.
         stored = str(settings.get("github_token") or "")
         if self.token_edit.text() != stored:

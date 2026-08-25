@@ -329,6 +329,7 @@ from ichalaunch.game.client_install import (
 from ichalaunch.game.launcher import (
     GAME_DOWNLOAD_URL,
     GOFILE_FILE_NAME,
+    detect_game,
     ensure_game_path_from_launcher,
     has_wow_exe,
     is_installed,
@@ -340,11 +341,13 @@ from ichalaunch.mods.installer import (
     apply_desired_state,
     check_mod_updates,
     ensure_desired_mods_synced,
+    format_mod_verify_warning,
     install_custom_dll_from_github,
     plan_manual_missing,
     plan_sync_changes,
     prepare_for_launch,
     recently_checked_mod_updates,
+    split_mod_apply_results,
     update_mod,
     update_mods,
 )
@@ -2056,6 +2059,9 @@ class MainWindow(QMainWindow):
         if not getattr(self, "_toc_mismatch_flush_scheduled", False):
             self._toc_mismatch_flush_scheduled = True
             QTimer.singleShot(0, self._flush_pending_toc_mismatch_prompt)
+        if not getattr(self, "_crash_opt_in_scheduled", False):
+            self._crash_opt_in_scheduled = True
+            QTimer.singleShot(0, self._maybe_prompt_crash_reporting_opt_in)
         if not getattr(self, "_addons_preload_scheduled", False):
             self._addons_preload_scheduled = True
             QTimer.singleShot(0, self._preload_hidden_addon_rows)
@@ -2887,6 +2893,57 @@ class MainWindow(QMainWindow):
             self.client.reset_scan_done()
             self.addons.mark_dirty()
 
+    def _maybe_prompt_crash_reporting_opt_in(self) -> None:
+        """One-shot first-launch prompt for optional crash/error reporting."""
+        from ichalaunch.core import crash_report as cr
+
+        if not cr.should_prompt_crash_reporting_opt_in():
+            return
+        result = themed.crash_reporting_opt_in_dialog(self)
+        if result == themed.DialogResult.Yes:
+            cr.enable_crash_reporting_from_opt_in()
+            try:
+                self.settings_page.refresh()
+            except Exception:  # noqa: BLE001
+                pass
+            return
+        # Not now, Don't show again, or dismiss — leave reporting off, never ask again.
+        cr.mark_crash_reporting_opt_in_prompted()
+
+    def _maybe_prompt_stock_patch9(self) -> None:
+        """Once per session: missing/incomplete official patch-9 (Home-first)."""
+        if getattr(self, "_patch9_prompted", False):
+            return
+        game = detect_game()
+        if not game:
+            return
+        from ichalaunch.mods.stock_patch import (
+            inspect_stock_patch9,
+            should_offer_stock_patch9_reacquire,
+        )
+
+        status = inspect_stock_patch9(game)
+        if not should_offer_stock_patch9_reacquire(status):
+            return
+        self._patch9_prompted = True
+        try:
+            self.client._refresh_patch9_banner()
+        except Exception:  # noqa: BLE001
+            pass
+        result = themed.choice(
+            self,
+            "Patch-9 missing or incomplete",
+            "Patch-9 is missing or incomplete.\n\n"
+            "Reacquire the official Data/patch-9.mpq (~500 MB) through the launcher?",
+            [
+                ("Later", themed.DialogResult.No),
+                ("Reacquire", themed.DialogResult.Yes),
+            ],
+            kind="warning",
+        )
+        if result == themed.DialogResult.Yes:
+            self._reacquire_stock_patch9()
+
     def _apply_toc_mismatch_prompts(self, result: object) -> object:
         """UI-thread prompts for install mismatches collected on a worker."""
         if isinstance(result, AddonInstallResult):
@@ -3187,11 +3244,7 @@ class MainWindow(QMainWindow):
             worker = Worker(ensure_desired_mods_synced)
 
             def on_ok(done: list[str]) -> None:
-                failures = [
-                    ln[1:].strip()
-                    for ln in (done or [])
-                    if isinstance(ln, str) and ln.startswith("!")
-                ]
+                installed, removed, verify_warns, failures = split_mod_apply_results(done)
                 if failures:
                     self._fail_play_launch("Client mod sync failed")
                     themed.error(
@@ -3202,8 +3255,6 @@ class MainWindow(QMainWindow):
                     )
                     maybe_show_superwow_after_mod_failures(self, failures, "sync")
                     return
-                installed = [ln[2:] for ln in (done or []) if ln.startswith("+ ")]
-                removed = [ln[2:] for ln in (done or []) if ln.startswith("- ")]
                 parts: list[str] = []
                 if installed:
                     parts.append(
@@ -3219,6 +3270,9 @@ class MainWindow(QMainWindow):
                     line = "Synced client mods before launch: " + ", ".join(parts)
                     self.status_lbl.setText(line)
                     log.info("%s — +%s -%s", line, installed, removed)
+                if verify_warns:
+                    title, body = format_mod_verify_warning(verify_warns)
+                    themed.warning(self, title, body)
                 self._launch_prepared()
 
             self._busy(f"Syncing client mods ({names})…", worker, on_ok=on_ok)
@@ -3650,16 +3704,17 @@ class MainWindow(QMainWindow):
 
         def on_ok(result):
             lines = result if isinstance(result, list) else []
-            detail = "; ".join(lines[:4]) if lines else "no changes"
-            more = f" (+{len(lines) - 4} more)" if len(lines) > 4 else ""
+            status_lines = [
+                ln
+                for ln in lines
+                if isinstance(ln, str) and not ln.startswith("~ ")
+            ]
+            detail = "; ".join(status_lines[:4]) if status_lines else "no changes"
+            more = f" (+{len(status_lines) - 4} more)" if len(status_lines) > 4 else ""
             self.status_lbl.setText(f"Client mods applied: {detail}{more}")
             # Per-mod lock/AV failures are tolerated by apply — surface them
             # loudly here so a stuck removal is never silent (nag loop).
-            failures = [
-                ln[1:].strip()
-                for ln in lines
-                if isinstance(ln, str) and ln.startswith("!")
-            ]
+            _installed, _removed, verify_warns, failures = split_mod_apply_results(lines)
             if failures:
                 themed.error(
                     self,
@@ -3667,6 +3722,9 @@ class MainWindow(QMainWindow):
                     "These changes could not be applied:\n\n" + "\n\n".join(failures),
                 )
                 maybe_show_superwow_after_mod_failures(self, failures, "sync")
+            elif verify_warns:
+                title, body = format_mod_verify_warning(verify_warns)
+                themed.warning(self, title, body)
 
         worker = Worker(apply_desired_state)
         self._busy("Applying client mods…", worker, on_ok=on_ok)

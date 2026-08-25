@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from PySide6.QtCore import QEvent, QPoint, QRect, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, QRect, Qt, QTimer, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -420,6 +420,16 @@ class HomePage(QWidget):
     def showEvent(self, event) -> None:  # noqa: ANN001
         super().showEvent(event)
         self._sync_brand_layout()
+        # Patch-9 is game-breaking when missing — prompt on Home (first surface).
+        QTimer.singleShot(0, self._request_stock_patch9_prompt)
+
+    def _request_stock_patch9_prompt(self) -> None:
+        if not self._home_overlays_active():
+            return
+        win = self.window()
+        fn = getattr(win, "_maybe_prompt_stock_patch9", None)
+        if callable(fn):
+            fn()
 
     def hideEvent(self, event) -> None:  # noqa: ANN001
         super().hideEvent(event)

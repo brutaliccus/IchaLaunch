@@ -268,42 +268,110 @@ def parse_atom_commit_sha(xml_text: str) -> str | None:
     return None
 
 
-def parse_atom_release_tag(xml_text: str) -> str | None:
-    """First release tag from a GitHub releases Atom feed."""
-    text = (xml_text or "").strip()
-    if not text:
-        return None
-    try:
-        root = ET.fromstring(text)
-    except ET.ParseError:
-        return None
-    entries = root.findall("a:entry", _ATOM_NS) or root.findall("entry")
-    if not entries:
-        return None
-    entry = entries[0]
+def _atom_entry_release_tag(entry: ET.Element) -> str:
+    """Release tag from one Atom entry (link/id preferred over title)."""
+    from urllib.parse import unquote
+
     for node in (
         entry.find("a:link", _ATOM_NS),
         entry.find("link"),
         entry.find("a:id", _ATOM_NS),
         entry.find("id"),
-        entry.find("a:title", _ATOM_NS),
-        entry.find("title"),
     ):
         if node is None:
             continue
         raw = (node.get("href") or (node.text or "")).strip()
         m = _RELEASE_TAG_RE.search(raw)
-        if m:
-            try:
-                from urllib.parse import unquote
+        if not m:
+            continue
+        try:
+            return unquote(m.group(1)).strip()
+        except Exception:  # noqa: BLE001
+            return m.group(1).strip()
+    return ""
 
-                return unquote(m.group(1)).strip()
-            except Exception:  # noqa: BLE001
-                return m.group(1).strip()
-        if node.tag.endswith("title") and raw:
-            return raw.split()[0].strip()
+
+def _atom_entry_title(entry: ET.Element) -> str:
+    for node in (entry.find("a:title", _ATOM_NS), entry.find("title")):
+        if node is not None and (node.text or "").strip():
+            return (node.text or "").strip()
+    return ""
+
+
+def iter_atom_release_entries(xml_text: str) -> list[tuple[str, str]]:
+    """``(tag_name, title)`` pairs from a GitHub releases Atom feed (document order)."""
+    text = (xml_text or "").strip()
+    if not text:
+        return []
+    try:
+        root = ET.fromstring(text)
+    except ET.ParseError:
+        return []
+    entries = root.findall("a:entry", _ATOM_NS) or root.findall("entry")
+    out: list[tuple[str, str]] = []
+    for entry in entries:
+        tag = _atom_entry_release_tag(entry)
+        title = _atom_entry_title(entry)
+        if tag or title:
+            out.append((tag, title))
+    return out
+
+
+def parse_atom_release_tag(xml_text: str) -> str | None:
+    """First usable release tag from a GitHub releases Atom feed.
+
+    Skips junk side tags (e.g. SuperWoW ``Patch``) even when they appear first.
+    """
+    for tag, title in iter_atom_release_entries(xml_text):
+        if tag and is_usable_release_tag(tag):
+            return tag
+        if not tag and title:
+            # Title-only feeds: accept a semver-ish first token, not prose.
+            token = title.split()[0].strip()
+            if token and is_usable_release_tag(token) and not is_preferred_release_alias(token):
+                return token
     return None
 
+
+def parse_atom_release_display_version(
+    xml_text: str, *, prefer_tag: str | None = None
+) -> str:
+    """Semver label from Atom titles/tags (e.g. ``SuperWoW 2.2`` → ``v2.2``)."""
+    wanted = (prefer_tag or "").strip().lower()
+    for tag, title in iter_atom_release_entries(xml_text):
+        if wanted and tag.lower() != wanted:
+            continue
+        if tag and tag.lower() in _JUNK_RELEASE_TAGS:
+            continue
+        for raw in (title, tag):
+            label = extract_semver_label(raw)
+            if label:
+                return label
+        if wanted:
+            break
+    if wanted:
+        # Prefer-tag miss: still try any usable non-junk entry.
+        return parse_atom_release_display_version(xml_text, prefer_tag=None)
+    return ""
+
+
+def fetch_releases_atom_display_version(
+    owner: str,
+    repo: str,
+    *,
+    prefer_tag: str | None = None,
+    timeout: float = _FETCH_TIMEOUT_SEC,
+) -> str:
+    """Display version from ``releases.atom`` titles (no REST)."""
+    url = f"https://github.com/{owner}/{repo}/releases.atom"
+    try:
+        r = requests.get(url, headers=ATOM_UA, timeout=timeout)
+    except requests.RequestException as exc:
+        log.debug("releases atom display failed for %s: %s", url, exc)
+        return ""
+    if r.status_code != 200:
+        return ""
+    return parse_atom_release_display_version(r.text, prefer_tag=prefer_tag)
 
 def fetch_commit_atom_sha(
     owner: str,
@@ -312,11 +380,13 @@ def fetch_commit_atom_sha(
     *,
     timeout: float = _FETCH_TIMEOUT_SEC,
 ) -> str | None:
-    """Latest commit SHA from ``commits/{branch}.atom`` (not REST)."""
-    paths = []
-    if (branch or "").strip():
-        paths.append(f"commits/{branch.strip()}")
-    paths.append("commits")
+    """Latest commit SHA from ``commits/{branch}.atom`` (not REST).
+
+    When *branch* is set, only that feed is tried — never fall back to the
+    default ``commits.atom``, or a missing TOC/version pin would look resolved.
+    """
+    wanted = (branch or "").strip()
+    paths = [f"commits/{wanted}"] if wanted else ["commits"]
     for path in paths:
         url = f"https://github.com/{owner}/{repo}/{path}.atom"
         try:
@@ -354,6 +424,19 @@ def fetch_releases_atom_tag(
 # ``Patch`` is not a SuperWoW version — never treat it as latest.
 _PREFERRED_RELEASE_TAGS = frozenset({"release", "latest", "stable"})
 _JUNK_RELEASE_TAGS = frozenset({"patch", "assets", "mpq", "textures"})
+# Dotted semver in filenames / titles: SuperWoW.release.2.2.zip, "SuperWoW 2.2".
+# Allow `.` / `-` / `_` separators before the version (common in asset names).
+_SEMVER_IN_TEXT_RE = re.compile(
+    r"(?i)(?:^|[^0-9])v?(\d+(?:\.\d+){1,3})(?![0-9])"
+)
+# Labels that look like dates / HTTP stamps, not release versions.
+_TIMESTAMP_LABEL_RE = re.compile(
+    r"(?ix)^(?:"
+    r"\d{4}-\d{2}-\d{2}(?:[tT ][\d:.+-zZ]*)?"  # ISO date / datetime
+    r"|[a-z]{3},\s+\d{1,2}\s+[a-z]{3}\s+\d{4}\b"  # HTTP Last-Modified
+    r"|\d{6}_\d{4}"  # YYMMDD_HHMM style stamps
+    r")"
+)
 
 
 def version_key(tag: str) -> tuple[int, ...]:
@@ -370,6 +453,31 @@ def is_version_tag(tag: str) -> bool:
     return bool(re.search(r"\d", (tag or "").strip()))
 
 
+def is_preferred_release_alias(tag: str) -> bool:
+    """True for rolling aliases (Release/latest/stable) — usable for tracking, not UI."""
+    return (tag or "").strip().lower() in _PREFERRED_RELEASE_TAGS
+
+
+def looks_like_timestamp_label(text: str) -> bool:
+    """True for ISO dates, HTTP Last-Modified stamps, and similar non-version labels."""
+    raw = str(text or "").strip().strip('"')
+    if not raw:
+        return False
+    if _TIMESTAMP_LABEL_RE.match(raw):
+        return True
+    if re.search(r"(?i)\b(?:GMT|UTC)\b", raw) and re.search(r"\d{4}", raw):
+        return True
+    return False
+
+
+def extract_semver_label(text: str) -> str:
+    """Pull ``vX.Y[.Z…]`` from a filename or release title; empty when none found."""
+    m = _SEMVER_IN_TEXT_RE.search(str(text or ""))
+    if not m:
+        return ""
+    return f"v{m.group(1)}"
+
+
 def is_usable_release_tag(tag: str) -> bool:
     """True for semver-like tags or a main Release/latest/stable alias."""
     name = (tag or "").strip()
@@ -377,9 +485,11 @@ def is_usable_release_tag(tag: str) -> bool:
         return False
     if name.lower() in _JUNK_RELEASE_TAGS:
         return False
+    if looks_like_timestamp_label(name):
+        return False
     if is_version_tag(name):
         return True
-    return name.lower() in _PREFERRED_RELEASE_TAGS
+    return is_preferred_release_alias(name)
 
 
 def newest_version_tag(tags: dict[str, str] | list[str]) -> str:
@@ -387,10 +497,14 @@ def newest_version_tag(tags: dict[str, str] | list[str]) -> str:
     names = [n for n in names if n and not n.endswith("^{}")]
     if not names:
         return ""
-    versioned = [n for n in names if is_version_tag(n) and is_usable_release_tag(n)]
+    versioned = [
+        n
+        for n in names
+        if is_version_tag(n) and is_usable_release_tag(n) and not is_preferred_release_alias(n)
+    ]
     if versioned:
         return max(versioned, key=version_key)
-    preferred = [n for n in names if n.lower() in _PREFERRED_RELEASE_TAGS]
+    preferred = [n for n in names if is_preferred_release_alias(n)]
     if preferred:
         rank = {"release": 0, "stable": 1, "latest": 2}
         return min(preferred, key=lambda n: (rank.get(n.lower(), 9), n.lower()))

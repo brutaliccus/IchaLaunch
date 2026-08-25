@@ -91,7 +91,14 @@ def detect_superwow_issues(game: Path | None = None) -> list[SuperWoWIssue]:
             )
         else:
             try:
-                validate_pe_binary(hook, min_size=_HOOK_MIN_BYTES)
+                if not validate_pe_binary(hook, min_size=_HOOK_MIN_BYTES):
+                    log.warning(
+                        "SuperWoW PE verify skipped for locked/AV-blocked %s",
+                        _HOOK_DLL,
+                    )
+                    from ichalaunch.mods.installer import mark_mod_unverified
+
+                    mark_mod_unverified(_SUPERWOW_ID, unverified=True)
             except OSError as exc:
                 detail = str(exc.args[1] if len(exc.args) > 1 else exc)
                 issues.append(

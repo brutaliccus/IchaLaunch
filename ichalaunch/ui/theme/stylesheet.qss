@@ -456,6 +456,10 @@ QLabel#StatusUpdate {
     color: #F1C22D;
 }
 
+QLabel#StatusWarning {
+    color: #E8A54B;
+}
+
 QProgressBar#BottomProgress {
     background-color: transparent;
     border: none;

@@ -391,6 +391,56 @@ def is_lock_or_av_error(exc: BaseException) -> bool:
     return getattr(exc, "errno", None) in _POSIX_LOCK_OR_AV
 
 
+# Plain-English copy for UI — never surface raw Errno / WinError to users.
+LOCK_AV_VERIFY_TITLE = "Could not verify install"
+LOCK_AV_VERIFY_MESSAGE = (
+    "Could not verify the install (the file may be locked or blocked by antivirus). "
+    "The mod was left installed. Close the game and add an antivirus exclusion for "
+    "your WoW folder if problems persist."
+)
+LOCK_AV_APPLY_MESSAGE = (
+    "Could not apply this change (the file may be locked or blocked by antivirus). "
+    "Close the game and add an antivirus exclusion for your WoW folder if problems persist."
+)
+
+_RAW_OS_DETAIL = frozenset(
+    {
+        "invalid argument",
+        "access is denied",
+        "permission denied",
+        "the process cannot access the file because it is being used by another process",
+    }
+)
+
+
+def _looks_like_raw_os_detail(text: str) -> bool:
+    low = (text or "").strip().lower()
+    if not low:
+        return True
+    if low in _RAW_OS_DETAIL:
+        return True
+    return low.startswith(("[errno", "[winerror")) or "winerror" in low
+
+
+def user_facing_os_error(exc: BaseException, *, kept_install: bool = False) -> str:
+    """User-visible OSError text — lock/AV → plain English; never raw errno jargon.
+
+    Launcher-authored ``OSError`` detail strings (missing file, truncated PE, …)
+    are preserved even when errno happens to be 22.
+    """
+    detail = ""
+    if isinstance(exc, OSError) and len(exc.args) > 1:
+        detail = str(exc.args[1] or "").strip()
+    if is_lock_or_av_error(exc) and _looks_like_raw_os_detail(detail):
+        return LOCK_AV_VERIFY_MESSAGE if kept_install else LOCK_AV_APPLY_MESSAGE
+    if detail:
+        return detail
+    text = str(exc).strip()
+    if is_lock_or_av_error(exc):
+        return LOCK_AV_VERIFY_MESSAGE if kept_install else LOCK_AV_APPLY_MESSAGE
+    return text or "An unexpected file error occurred."
+
+
 def _norm_path_key(path: Path | str) -> str:
     return str(path).replace("/", "\\").lower()
 
@@ -1041,38 +1091,81 @@ def read_dlls_txt(game_path: Path) -> list[str]:
     return names
 
 
-def validate_pe_binary(path: Path, *, min_size: int = 1024) -> None:
-    """Reject truncated or non-PE downloads before they land in the game folder."""
+def validate_pe_binary(
+    path: Path,
+    *,
+    min_size: int = 1024,
+    retries: int = 3,
+    delay: float = 0.12,
+) -> bool:
+    """Reject truncated or non-PE binaries (MZ header + minimum size).
+
+    Returns True when the file looks like a valid PE.
+
+    Returns False when Windows Defender / sharing locks block the read after
+    brief retries (same class of errors as ``sha256_file`` → None). Callers
+    must treat False as "could not verify", not as corruption — newly written
+    injector DLLs commonly trip WinError 225 / Errno 22 right after copy.
+
+    Raises OSError for missing, truncated, or non-PE content failures.
+    """
     p = Path(path)
-    try:
-        size = p.stat().st_size
-    except OSError as exc:
-        raise OSError(
-            getattr(exc, "errno", None) or 13,
-            f"Could not verify {p.name}: {exc}",
-            str(p),
-        ) from exc
-    if size < min_size:
-        raise OSError(
-            22,
-            f"{p.name} looks truncated ({size} bytes; expected at least {min_size})",
-            str(p),
-        )
-    try:
-        with p.open("rb") as f:
-            magic = f.read(2)
-    except OSError as exc:
-        raise OSError(
-            getattr(exc, "errno", None) or 13,
-            f"Could not read {p.name} for verification: {exc}",
-            str(p),
-        ) from exc
-    if magic != b"MZ":
-        raise OSError(
-            22,
-            f"{p.name} is not a valid Windows PE file (missing MZ header)",
-            str(p),
-        )
+    if should_skip_locked_path(p):
+        _log.warning("Skipping PE verify of locked file %s", p)
+        return False
+
+    attempts = max(1, int(retries))
+    for attempt in range(attempts):
+        try:
+            size = p.stat().st_size
+        except OSError as exc:
+            if is_lock_or_av_error(exc):
+                if attempt + 1 < attempts:
+                    time.sleep(delay * (attempt + 1))
+                    continue
+                mark_path_locked(p)
+                _log.warning("Could not verify %s (lock/AV): %s", p, exc)
+                return False
+            raise OSError(
+                getattr(exc, "errno", None) or 13,
+                f"Could not verify {p.name}: {exc}",
+                str(p),
+            ) from exc
+
+        if size < min_size:
+            raise OSError(
+                22,
+                f"{p.name} looks truncated ({size} bytes; expected at least {min_size})",
+                str(p),
+            )
+
+        try:
+            with p.open("rb") as f:
+                magic = f.read(2)
+        except OSError as exc:
+            if is_lock_or_av_error(exc):
+                if attempt + 1 < attempts:
+                    time.sleep(delay * (attempt + 1))
+                    continue
+                mark_path_locked(p)
+                _log.warning(
+                    "Could not read %s for verification (lock/AV): %s", p, exc
+                )
+                return False
+            raise OSError(
+                getattr(exc, "errno", None) or 13,
+                f"Could not read {p.name} for verification: {exc}",
+                str(p),
+            ) from exc
+
+        if magic != b"MZ":
+            raise OSError(
+                22,
+                f"{p.name} is not a valid Windows PE file (missing MZ header)",
+                str(p),
+            )
+        return True
+    return False
 
 
 def write_dlls_txt(game_path: Path, dlls: list[str]) -> None:

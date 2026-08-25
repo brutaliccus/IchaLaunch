@@ -150,11 +150,11 @@ def test_dlls_txt():
         assert "new.dll" in (meta / "dlls.txt").read_text(encoding="utf-8")
         assert "old.dll" not in read_dlls_txt(game)
 
-        from ichalaunch.core.filesystem import validate_pe_binary
+        from ichalaunch.core.filesystem import clear_fs_caches, validate_pe_binary
 
         good = game / "good.dll"
         good.write_bytes(b"MZ" + b"\0" * 2048)
-        validate_pe_binary(good, min_size=1024)
+        assert validate_pe_binary(good, min_size=1024) is True
         bad = game / "bad.dll"
         bad.write_bytes(b"xx")
         try:
@@ -162,6 +162,78 @@ def test_dlls_txt():
             raise AssertionError("expected validate_pe_binary to fail")
         except OSError:
             pass
+
+        # Errno 22 alone (user log: no WinError in message) must soft-skip
+        locked = game / "unitxp_sp3.dll"
+        locked.write_bytes(b"MZ" + b"\0" * 2048)
+        clear_fs_caches()
+        original_open = Path.open
+
+        def _errno22_open(self, *args, **kwargs):
+            if self.name.lower() == "unitxp_sp3.dll":
+                raise OSError(22, "Invalid argument", str(self))
+            return original_open(self, *args, **kwargs)
+
+        Path.open = _errno22_open  # type: ignore[method-assign]
+        try:
+            assert validate_pe_binary(locked, min_size=1024, retries=2, delay=0.01) is False
+        finally:
+            Path.open = original_open  # type: ignore[method-assign]
+
+        from ichalaunch.core.filesystem import (
+            LOCK_AV_APPLY_MESSAGE,
+            LOCK_AV_VERIFY_MESSAGE,
+            user_facing_os_error,
+        )
+        from ichalaunch.mods.installer import (
+            _finish_mod_install,
+            _verify_mod_install,
+            format_mod_verify_warning,
+            mod_is_unverified,
+            split_mod_apply_results,
+        )
+
+        unitxp = {
+            "id": "unitxp",
+            "kind": "dll_bundle",
+            "name": "UnitXP",
+            "source": {"filename": "UnitXP_SP3.dll"},
+            "files": [{"destination": "UnitXP_SP3.dll"}],
+            "dlls_txt": {"add": ["UnitXP_SP3.dll"]},
+        }
+        # Matches ichalaunch.log: copy OK, verify open → EINVAL, must not raise/rollback
+        clear_fs_caches()  # drop backoff from prior validate_pe_binary soft-skip
+        Path.open = _errno22_open  # type: ignore[method-assign]
+        try:
+            soft = _verify_mod_install(game, unitxp)
+            assert soft and soft[0].lower() == "unitxp_sp3.dll", soft
+            notices = _finish_mod_install("unitxp", unitxp, unitxp["source"], soft_skipped=soft)
+            assert notices == ["~ unitxp"], notices
+            assert mod_is_unverified("unitxp")
+        finally:
+            Path.open = original_open  # type: ignore[method-assign]
+            from ichalaunch.mods.installer import mark_mod_unverified
+
+            mark_mod_unverified("unitxp", unverified=False)
+
+        assert "Errno" not in LOCK_AV_VERIFY_MESSAGE
+        assert "Errno" not in LOCK_AV_APPLY_MESSAGE
+        assert user_facing_os_error(OSError(22, "Invalid argument")) == LOCK_AV_APPLY_MESSAGE
+        assert (
+            user_facing_os_error(OSError(22, "Invalid argument"), kept_install=True)
+            == LOCK_AV_VERIFY_MESSAGE
+        )
+        title, body = format_mod_verify_warning(["unitxp"])
+        assert title == "Could not verify install"
+        assert "Errno" not in body
+        assert "antivirus" in body.lower()
+        installed, removed, warns, fails = split_mod_apply_results(
+            ["+ unitxp", "~ unitxp", "! other skipped: boom"]
+        )
+        assert installed == ["unitxp"]
+        assert warns == ["unitxp"]
+        assert fails == ["other skipped: boom"]
+        assert removed == []
     print("OK dlls.txt")
 
 
@@ -1450,6 +1522,9 @@ def test_addon_fork_version_labels():
     assert addon_version_label(entry) == "v2.1.0"
     meta = {"version": "1.2.3"}
     assert addon_version_label(entry, meta) == "v1.2.3"
+    # Timestamps / rolling aliases are not version labels.
+    assert addon_version_label(entry, {"version": "2026-07-16"}) == "v2.1.0"
+    assert addon_version_label({"pin_release": "Release"}) == ""
     print("OK addon fork version labels")
 
 
@@ -2201,9 +2276,13 @@ def test_unauth_scan_budget_queue():
 def test_git_refs_and_tip_index():
     """Upload-pack / Atom parsers and catalog tip-index lookup stay off REST."""
     from ichalaunch.addons.git_refs import (
+        extract_semver_label,
+        is_preferred_release_alias,
         is_usable_release_tag,
+        looks_like_timestamp_label,
         newest_version_tag,
         parse_atom_commit_sha,
+        parse_atom_release_display_version,
         parse_atom_release_tag,
         parse_ls_remote,
         parse_upload_pack_refs,
@@ -2250,6 +2329,13 @@ def test_git_refs_and_tip_index():
     assert is_usable_release_tag("Release")
     assert is_usable_release_tag("v2.2")
     assert not is_usable_release_tag("Patch")
+    assert is_preferred_release_alias("Release")
+    assert not is_preferred_release_alias("v2.2")
+    assert extract_semver_label("SuperWoW.release.2.2.zip") == "v2.2"
+    assert extract_semver_label("SuperWoW 2.2") == "v2.2"
+    assert looks_like_timestamp_label("2026-07-16")
+    assert looks_like_timestamp_label("Mon, 16 Jul 2026 14:03:09 GMT")
+    assert not looks_like_timestamp_label("v2.2")
 
     ls = parse_ls_remote(
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\tHEAD\n"
@@ -2274,6 +2360,19 @@ def test_git_refs_and_tip_index():
   </entry>
 </feed>"""
     assert parse_atom_release_tag(rel) == "v2.0.1"
+    sw_atom = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <title>SuperWoW mpq patch</title>
+    <link rel="alternate" href="https://github.com/balakethelock/SuperWoW/releases/tag/Patch"/>
+  </entry>
+  <entry>
+    <title>SuperWoW 2.2</title>
+    <link rel="alternate" href="https://github.com/balakethelock/SuperWoW/releases/tag/Release"/>
+  </entry>
+</feed>"""
+    assert parse_atom_release_tag(sw_atom) == "Release"
+    assert parse_atom_release_display_version(sw_atom, prefer_tag="Release") == "v2.2"
 
     index = normalize_index(
         {
@@ -2331,6 +2430,116 @@ def test_nested_catalog_forks_in_submit_duplicate_check():
         catalog,
     )
     print("OK nested catalog forks in submit duplicate check")
+
+
+def test_crash_report_opt_in_and_redaction():
+    """Crash reporter stays off by default and redacts obvious secrets."""
+    from ichalaunch.config import settings as settings_mod
+    from ichalaunch.core import crash_report as cr
+
+    prev = settings_mod.settings.get("crash_reporting_enabled", False)
+    try:
+        settings_mod.settings.set("crash_reporting_enabled", False)
+        assert cr.crash_reporting_enabled() is False
+        # Must not POST when disabled (no exception either).
+        cr.report_crash("smoke test should not send")
+        cr.report_logged_error("smoke test should not send")
+
+        sample = (
+            'github_token: ghp_abcdefghijklmnopqrstuvwxyz0123456789\n'
+            'Authorization: Bearer ghp_abcdefghijklmnopqrstuvwxyz0123456789\n'
+            '"github_token": "ghp_abcdefghijklmnopqrstuvwxyz0123456789"\n'
+            r"C:\Users\SecretUser\Games\WoW"
+            "\n"
+            "/home/secretuser/games\n"
+        )
+        redacted = cr.redact_secrets(sample)
+        assert "ghp_" not in redacted
+        assert "[REDACTED]" in redacted
+        assert "SecretUser" not in redacted
+        assert "secretuser" not in redacted
+        assert cr.crash_report_url().endswith("/crash")
+    finally:
+        settings_mod.settings.set("crash_reporting_enabled", prev)
+    print("OK crash report opt-in and redaction")
+
+
+def test_crash_reporting_opt_in_prompt_one_shot():
+    """First-launch crash-reporting prompt is one-shot; decline leaves reporting off."""
+    import json
+    import tempfile
+    from pathlib import Path
+
+    from PySide6.QtWidgets import QApplication, QWidget
+
+    from ichalaunch.config import settings as settings_mod
+    from ichalaunch.config.settings import Settings
+    from ichalaunch.core import crash_report as cr
+    from ichalaunch.ui.widgets.dialogs import (
+        DialogResult,
+        ThemedDialog,
+        crash_reporting_opt_in_dialog,
+    )
+
+    app = QApplication.instance() or QApplication([])
+    assert "crash_reporting_opt_in_prompted_v1" in settings_mod.DEFAULTS
+    assert settings_mod.DEFAULTS["crash_reporting_opt_in_prompted_v1"] is False
+    assert settings_mod.DEFAULTS["crash_reporting_enabled"] is False
+    assert "optional" in cr.CRASH_REPORTING_OPT_IN_TEXT.lower()
+    assert "Settings → Privacy" in cr.CRASH_REPORTING_OPT_IN_TEXT
+    assert "redacted" in cr.CRASH_REPORTING_OPT_IN_TEXT.lower()
+
+    with tempfile.TemporaryDirectory() as td:
+        fake = Path(td) / "settings.json"
+        orig_path = settings_mod.settings_path
+        orig_singleton = settings_mod.settings
+        settings_mod.settings_path = lambda: fake
+        try:
+            settings_mod.settings = Settings()
+            assert cr.should_prompt_crash_reporting_opt_in() is True
+            assert cr.crash_reporting_enabled() is False
+
+            cr.mark_crash_reporting_opt_in_prompted()
+            assert json.loads(fake.read_text(encoding="utf-8"))[
+                "crash_reporting_opt_in_prompted_v1"
+            ] is True
+            assert cr.should_prompt_crash_reporting_opt_in() is False
+            assert cr.crash_reporting_enabled() is False
+
+            settings_mod.settings = Settings()
+            assert settings_mod.settings.get("crash_reporting_opt_in_prompted_v1") is True
+            assert cr.should_prompt_crash_reporting_opt_in() is False
+
+            settings_mod.settings.set("crash_reporting_opt_in_prompted_v1", False)
+            settings_mod.settings.set("crash_reporting_enabled", True)
+            assert cr.should_prompt_crash_reporting_opt_in() is False
+            assert settings_mod.settings.get("crash_reporting_opt_in_prompted_v1") is True
+
+            settings_mod.settings.set("crash_reporting_opt_in_prompted_v1", False)
+            settings_mod.settings.set("crash_reporting_enabled", False)
+            cr.enable_crash_reporting_from_opt_in()
+            assert cr.crash_reporting_enabled() is True
+            assert cr.should_prompt_crash_reporting_opt_in() is False
+        finally:
+            settings_mod.settings_path = orig_path
+            settings_mod.settings = orig_singleton
+
+    root = QWidget()
+    dlg = ThemedDialog(
+        root,
+        cr.CRASH_REPORTING_OPT_IN_TITLE,
+        cr.CRASH_REPORTING_OPT_IN_TEXT,
+        buttons=[
+            ("Don't show again", DialogResult.Cancel),
+            ("Not now", DialogResult.No),
+            ("Enable", DialogResult.Yes),
+        ],
+        kind="question",
+    )
+    assert dlg.minimumWidth() >= 460
+    # Helper must exist and match the three-button contract (do not exec — blocking).
+    assert callable(crash_reporting_opt_in_dialog)
+    print("OK crash reporting opt-in prompt one-shot")
 
 
 def test_mod_remote_identity_uses_tip_index():
@@ -2795,6 +3004,62 @@ def test_git_refs_live_optional():
     tip = github_remote_tip("shagu", "pfUI", refs.default_branch)
     assert str(tip.get("sha") or "") == refs.head_sha
     print(f"OK git refs live ({refs.default_branch} {refs.head_sha[:10]})")
+
+
+def test_commit_atom_sha_no_default_fallback_for_named_ref():
+    """Named-ref Atom probes must not silently return the default commits feed."""
+    from ichalaunch.addons import git_refs as gr
+
+    calls: list[str] = []
+
+    class _Resp:
+        def __init__(self, code: int, text: str = ""):
+            self.status_code = code
+            self.text = text
+
+    def fake_get(url, headers=None, timeout=None):  # noqa: ARG001
+        calls.append(url)
+        return _Resp(404)
+
+    orig = gr.requests.get
+    try:
+        gr.requests.get = fake_get
+        assert gr.fetch_commit_atom_sha("o", "r", "1.2.3") is None
+        assert len(calls) == 1
+        assert calls[0].endswith("/commits/1.2.3.atom")
+        assert "/commits.atom" not in calls[0]
+        calls.clear()
+        assert gr.fetch_commit_atom_sha("o", "r", None) is None
+        assert len(calls) == 1
+        assert calls[0].endswith("/commits.atom")
+    finally:
+        gr.requests.get = orig
+    print("OK commit atom sha no default fallback for named ref")
+
+
+def test_preview_addon_repo_soft_fails_fake_tags():
+    """Settings preview must not abort when the pin is a TOC version, not a git tag.
+
+    Addon Settings builds ``…/releases/tag/<meta.version>``; many installed versions
+    are not real refs and used to 422 the whole README preview.
+    """
+    from ichalaunch.addons.github import cleanup_readme_cache, preview_addon_repo
+
+    # Fake pin that is not a git tag on this repo (TOC-style version).
+    url = "https://github.com/shagu/pfUI/releases/tag/9.9.9-not-a-real-tag"
+    info = preview_addon_repo(url)
+    try:
+        assert info.get("kind") == "addon"
+        assert "pfUI" in str(info.get("full_name") or "")
+        # Unresolved pin must not keep a tag page URL / tag field.
+        assert not str(info.get("tag") or "").strip()
+        assert "/releases/tag/" not in str(info.get("url") or "")
+        # Preview body should still load from the default branch.
+        assert str(info.get("readme_markdown") or info.get("description") or "").strip()
+        assert str(info.get("default_branch") or "").strip()
+    finally:
+        cleanup_readme_cache(info.get("readme_cache_dir"))
+    print("OK preview soft-fails fake tags")
 
 
 def test_github_token_not_sent_to_third_party_readme_hosts():
@@ -4147,7 +4412,22 @@ def test_mod_version_label():
     vf = get_mod("vanillafixes")
     assert mod_version_label(vf) == "v1.5.3"
     sw = get_mod("superwow")
-    assert mod_version_label(sw) == "Release"
+    # Tip latest_tag is the rolling "Release" alias; UI prefers asset/title semver.
+    assert mod_version_label(sw) == "v2.2"
+    assert mod_version_label(sw, {"version_display": "Release"}) == "v2.2"
+    assert mod_version_label(
+        sw, {"version_display": "Mon, 16 Jul 2026 14:03:09 GMT"}
+    ) == "v2.2"
+    assert (
+        mod_version_label(
+            sw,
+            {
+                "version_display": "Release",
+                "url": "https://github.com/balakethelock/SuperWoW/releases/download/Release/SuperWoW.release.2.2.zip",
+            },
+        )
+        == "v2.2"
+    )
     assert mod_version_label(get_mod("pretty_night_sky")) == ""
     assert mod_version_label(get_mod("wdb_block")) == ""
     print("OK mod version label")
@@ -4186,8 +4466,10 @@ def test_superwow_tracks_dll_release_not_patch_mpq():
     assert (picked.get("name") or "").lower().endswith(".zip")
 
     tips = load_index_file(bundled_tips_path())
-    tag = str((tips.get("repos") or {}).get("balakethelock/superwow", {}).get("latest_tag") or "")
+    sw_tip = (tips.get("repos") or {}).get("balakethelock/superwow", {})
+    tag = str(sw_tip.get("latest_tag") or "")
     assert tag == "Release"
+    assert str(sw_tip.get("display_version") or "") == "v2.2"
     print("OK superwow tracks dll release not patch mpq")
 
 
@@ -5337,6 +5619,8 @@ def _run_smoke_tests():
     test_git_refs_and_tip_index()
     test_mod_catalog_repos_in_tip_index_builder()
     test_nested_catalog_forks_in_submit_duplicate_check()
+    test_crash_report_opt_in_and_redaction()
+    test_crash_reporting_opt_in_prompt_one_shot()
     test_mod_remote_identity_uses_tip_index()
     test_addon_toc_folder_name_required()
     test_addon_toc_folder_rename()
@@ -5344,6 +5628,8 @@ def _run_smoke_tests():
     test_available_catalog_remote_refresh_and_merge()
     test_available_catalog_offline_keeps_cache()
     test_git_refs_live_optional()
+    test_commit_atom_sha_no_default_fallback_for_named_ref()
+    test_preview_addon_repo_soft_fails_fake_tags()
     test_github_token_not_sent_to_third_party_readme_hosts()
     test_github_bad_token_retries_without_auth()
     test_auto_scan_cooldown_setting()

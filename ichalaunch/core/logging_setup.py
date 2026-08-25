@@ -104,6 +104,14 @@ def write_crash_report(
     with path.open("a", encoding="utf-8") as fh:
         fh.write("\n".join(lines))
 
+    # Opt-in remote report (never blocks; no-op when setting is off).
+    try:
+        from ichalaunch.core.crash_report import report_crash
+
+        report_crash(f"{context}: {exc_type.__name__}: {exc}")
+    except Exception:  # noqa: BLE001
+        pass
+
 
 def setup_logging() -> logging.Logger:
     log_dir().mkdir(parents=True, exist_ok=True)
@@ -162,6 +170,12 @@ def install_crash_handlers() -> None:
     sys.excepthook = _excepthook
     threading.excepthook = _thread_excepthook
     _enable_faulthandler()
+    try:
+        from ichalaunch.core.crash_report import install_error_report_handler
+
+        install_error_report_handler(log)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 log = setup_logging()

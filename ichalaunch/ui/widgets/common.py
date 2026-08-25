@@ -427,21 +427,52 @@ def addon_version_label(
     """Installed or catalog version string for addon rows."""
     meta = meta if isinstance(meta, dict) else {}
     entry = entry if isinstance(entry, dict) else {}
+
+    def _format(raw: Any) -> str:
+        from ichalaunch.addons.git_refs import (
+            extract_semver_label,
+            is_preferred_release_alias,
+            is_usable_release_tag,
+            is_version_tag,
+            looks_like_timestamp_label,
+        )
+
+        text = str(raw or "").strip()
+        if not text or looks_like_timestamp_label(text) or is_preferred_release_alias(text):
+            return ""
+        extracted = extract_semver_label(text)
+        if extracted and (
+            " " in text
+            or "/" in text
+            or text.lower().endswith((".zip", ".rar", ".7z"))
+        ):
+            return extracted
+        if not is_usable_release_tag(text) and not is_version_tag(text):
+            return extracted
+        if not text.lower().startswith("v") and text[:1].isdigit():
+            return f"v{text}"
+        return text
+
     for raw in (
         meta.get("version"),
         meta.get("tag"),
         entry.get("tag"),
         entry.get("pin_release"),
     ):
-        text = str(raw or "").strip()
-        if text:
-            return text if text.lower().startswith("v") else f"v{text}"
+        label = _format(raw)
+        if label:
+            return label
     try:
-        from ichalaunch.addons.github import catalog_pin_tag
+        from ichalaunch.addons.github import catalog_pin_tag, parse_entry_owner_repo
+        from ichalaunch.addons.tip_index import lookup_display_version
 
         pin = catalog_pin_tag(entry)
-        if pin:
-            return pin if pin.lower().startswith("v") else f"v{pin}"
+        label = _format(pin)
+        if label:
+            return label
+        parsed = parse_entry_owner_repo(entry)
+        if parsed:
+            return lookup_display_version(parsed[0], parsed[1])
     except Exception:  # noqa: BLE001
         pass
     return ""

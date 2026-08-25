@@ -29,6 +29,7 @@ from ichalaunch.addons.github import (  # noqa: E402
 )
 from ichalaunch.addons.tip_index import (  # noqa: E402
     build_index,
+    enrich_repo_entry_display_version,
     repo_entry_from_refs,
     write_index_file,
 )
@@ -172,12 +173,19 @@ def main() -> int:
             failed += 1
             print(f"[{i}/{len(repos)}] FAIL {key}", file=sys.stderr)
         else:
-            entries[key] = repo_entry_from_refs(refs)
+            entries[key] = enrich_repo_entry_display_version(
+                owner, name, repo_entry_from_refs(refs)
+            )
             print(
                 f"[{i}/{len(repos)}] {key} "
                 f"{entries[key].get('sha', '')[:10]} "
                 f"{entries[key].get('default_branch', '')} "
                 f"tag={entries[key].get('latest_tag', '')}"
+                + (
+                    f" display={entries[key].get('display_version', '')}"
+                    if entries[key].get("display_version")
+                    else ""
+                )
             )
         if args.sleep and i < len(repos):
             time.sleep(max(0.0, float(args.sleep)))
