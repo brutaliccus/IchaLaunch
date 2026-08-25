@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-25T13:49:31Z",
+  "generated_at": "2026-08-25T14:46:20Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -15075,9 +15075,9 @@
     },
     "brues-code/supercleveroidmacros": {
       "default_branch": "main",
-      "sha": "5c31232b52ca2b8ec97e73b5083fd93ae8b0d708",
+      "sha": "daa7d6f2bf239fb5fb04d11eb3434a181b96cc39",
       "branches": {
-        "main": "5c31232b52ca2b8ec97e73b5083fd93ae8b0d708"
+        "main": "daa7d6f2bf239fb5fb04d11eb3434a181b96cc39"
       },
       "latest_tag": "v3.1.10"
     },
