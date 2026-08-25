@@ -14418,5 +14418,13 @@
     "source": "community",
     "folder": "pfQuest-turtle",
     "description": "A TurtleWoW DB extension for pfQuest"
+  },
+  {
+    "name": "pfQuest-turtle",
+    "repo": "https://github.com/Bennylavaa/pfQuest-turtle",
+    "category": "General",
+    "source": "community",
+    "folder": "pfQuest-turtle",
+    "description": "# pfQuest (turtle)\nThis AddOn is a [pfQuest](https://github.com/shagu/pfQuest) extension, which adds support for the [TurtleWoW](https://turtle-wow.org/) Private Server. In order to run this extension, the latest version of [pfQuest](https://github.com/shagu/pfQuest) is always required and only enUS-Gameclients are supported.\n\n*Notice: Issues and bugs like \"please add quest XYZ\" and all other content requests will be silently ignored. This is, because the data is not manually added, but depends on the Turtle-WoW team to release their database to a trusted person that can produce pfQuest-turtle builds.*\n\nIf you wish to contribute, please feel free to send a [Pull Requests](https://github.com/bennylava/pfQuest-turtle/pulls).\n\n## Install\n*The latest version of [pfQuest](https://shagu.org/pfQuest) is required for this module to work.*\n\n1. Download **[pfQuest-turtle](https://github.com/bennylava/pfQuest-turtle/archive/master.zip)**\n2. Unpack the Zip file\n3. Rename the folder \"pfQuest-turtle-master\" to \"pfQuest-turtle\"\n4. Copy \"pfQuest-turtle\" into Wow-Directory\\Interface\\AddOns\n5. Restart Wow"
   }
 ]
