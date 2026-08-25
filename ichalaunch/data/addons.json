@@ -14890,5 +14890,13 @@
     "source": "community",
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition"
+  },
+  {
+    "name": "AtlasLootTwow",
+    "repo": "https://github.com/hxlich/AtlasLootTwow",
+    "category": "General",
+    "source": "community",
+    "folder": "AtlasLootTwow",
+    "description": "AtlasLoot Turtle WoW Edition"
   }
 ]
