@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-25T09:38:25Z",
+  "generated_at": "2026-08-25T10:34:45Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -8995,9 +8995,9 @@
     },
     "uranreactor/octochatcolors": {
       "default_branch": "main",
-      "sha": "8055bdf6ec846e15d4e9ca45957d7a0612592702",
+      "sha": "96cf4926363fa32a95386b1aa8da51eed5621f72",
       "branches": {
-        "main": "8055bdf6ec846e15d4e9ca45957d7a0612592702"
+        "main": "96cf4926363fa32a95386b1aa8da51eed5621f72"
       }
     },
     "al3xc1985/turtlechatcolors": {
@@ -16991,6 +16991,144 @@
       "sha": "5e5a5ccd95ceace73d5646db758f9fc81cde5dea",
       "branches": {
         "master": "5e5a5ccd95ceace73d5646db758f9fc81cde5dea"
+      }
+    },
+    "vaniron/tourguide-turtle": {
+      "default_branch": "master",
+      "sha": "90d3837e3f1f3a97d9cd446696598b8207cc0de4",
+      "branches": {
+        "master": "90d3837e3f1f3a97d9cd446696598b8207cc0de4"
+      },
+      "latest_tag": "1.3"
+    },
+    "road-block/tourguidevanilla": {
+      "default_branch": "master",
+      "sha": "5ecb8d1dea877952438fa94f041470dbef3013cc",
+      "branches": {
+        "master": "5ecb8d1dea877952438fa94f041470dbef3013cc"
+      },
+      "latest_tag": "1.0.10-beta"
+    },
+    "angelns/tomtomvanilla": {
+      "default_branch": "master",
+      "sha": "075a6840535da89526c6469e7eb27a1863f9dba1",
+      "branches": {
+        "master": "075a6840535da89526c6469e7eb27a1863f9dba1"
+      },
+      "latest_tag": "1.0.1-beta"
+    },
+    "thefuzzy0ne/tourguidevanilla": {
+      "default_branch": "master",
+      "sha": "b4cbb51d94698e17cc4a15474331d679746a3f5e",
+      "branches": {
+        "master": "b4cbb51d94698e17cc4a15474331d679746a3f5e"
+      },
+      "latest_tag": "1.1.3-beta"
+    },
+    "zaicopx/tourguidevanilla": {
+      "default_branch": "master",
+      "sha": "e61f87fb014326b4004652d0bf6d465d24e932c6",
+      "branches": {
+        "master": "e61f87fb014326b4004652d0bf6d465d24e932c6"
+      }
+    },
+    "blueager2/tourguideturtle": {
+      "default_branch": "master",
+      "sha": "83235bec8fc1a75ea90cdd3cc6387d3991b93927",
+      "branches": {
+        "master": "83235bec8fc1a75ea90cdd3cc6387d3991b93927"
+      },
+      "latest_tag": "1.1.3-beta"
+    },
+    "chad90b/tourguidevanilla": {
+      "default_branch": "master",
+      "sha": "bc94ceaf497d6b524a2f2dced3ef1fededa1bfa1",
+      "branches": {
+        "master": "bc94ceaf497d6b524a2f2dced3ef1fededa1bfa1"
+      },
+      "latest_tag": "1.1.3-beta"
+    },
+    "00x1/tourguidevanilla": {
+      "default_branch": "master",
+      "sha": "bc94ceaf497d6b524a2f2dced3ef1fededa1bfa1",
+      "branches": {
+        "master": "bc94ceaf497d6b524a2f2dced3ef1fededa1bfa1"
+      }
+    },
+    "webbrain-one/tomtomvanilla": {
+      "default_branch": "master",
+      "sha": "075a6840535da89526c6469e7eb27a1863f9dba1",
+      "branches": {
+        "master": "075a6840535da89526c6469e7eb27a1863f9dba1"
+      },
+      "latest_tag": "1.0.1-beta"
+    },
+    "cralor/tomtomvanilla": {
+      "default_branch": "master",
+      "sha": "075a6840535da89526c6469e7eb27a1863f9dba1",
+      "branches": {
+        "master": "075a6840535da89526c6469e7eb27a1863f9dba1"
+      },
+      "latest_tag": "1.0.1-beta"
+    },
+    "road-block/tomtomvanilla": {
+      "default_branch": "master",
+      "sha": "b76ae2c9da1564ffe3218ef611ff8c315833f03f",
+      "branches": {
+        "master": "b76ae2c9da1564ffe3218ef611ff8c315833f03f"
+      },
+      "latest_tag": "1.0.1-beta"
+    },
+    "rebooting/tomtomvanilla": {
+      "default_branch": "master",
+      "sha": "075a6840535da89526c6469e7eb27a1863f9dba1",
+      "branches": {
+        "master": "075a6840535da89526c6469e7eb27a1863f9dba1"
+      }
+    },
+    "gescht/tomtom": {
+      "default_branch": "master",
+      "sha": "55085d3c5a420b659833e5afee2aba13bcce4d18",
+      "branches": {
+        "master": "55085d3c5a420b659833e5afee2aba13bcce4d18"
+      }
+    },
+    "cralor/tourguidevanilla": {
+      "default_branch": "master",
+      "sha": "bc94ceaf497d6b524a2f2dced3ef1fededa1bfa1",
+      "branches": {
+        "master": "bc94ceaf497d6b524a2f2dced3ef1fededa1bfa1"
+      },
+      "latest_tag": "1.1.3-beta"
+    },
+    "chad90b/tomtomvanilla": {
+      "default_branch": "master",
+      "sha": "075a6840535da89526c6469e7eb27a1863f9dba1",
+      "branches": {
+        "master": "075a6840535da89526c6469e7eb27a1863f9dba1"
+      },
+      "latest_tag": "1.0.1-beta"
+    },
+    "jiangxt316/tourguidevanilla": {
+      "default_branch": "master",
+      "sha": "bc94ceaf497d6b524a2f2dced3ef1fededa1bfa1",
+      "branches": {
+        "master": "bc94ceaf497d6b524a2f2dced3ef1fededa1bfa1"
+      }
+    },
+    "vempz/tourguidevanilla": {
+      "default_branch": "master",
+      "sha": "6cda6009c824ec24d652b9fd3f2c6b26c86a3eb2",
+      "branches": {
+        "master": "6cda6009c824ec24d652b9fd3f2c6b26c86a3eb2"
+      },
+      "latest_tag": "1.0.6-beta"
+    },
+    "wouatwouat/tomtom": {
+      "default_branch": "master",
+      "sha": "b87129dfe74141e77d5e0be4d4ede4cacbb6ef17",
+      "branches": {
+        "master": "b87129dfe74141e77d5e0be4d4ede4cacbb6ef17"
       }
     },
     "brndd/vanilla-tweaks": {
