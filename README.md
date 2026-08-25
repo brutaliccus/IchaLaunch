@@ -3,296 +3,83 @@
 [![Release](https://img.shields.io/github/v/release/brutaliccus/IchaLaunch?label=version)](https://github.com/brutaliccus/IchaLaunch/releases/latest)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/jeb32411u)
 
-> **Fresh install:** Use the launcher's **INSTALL** flow for a clean RavenCraft setup. Do **not** point IchaLaunch at an old TurtleWoW or Capybara client — start fresh for the best results.
+**IchaLaunch** installs a game client, manages addons and client mods, and launches the game — with a themed window for **HOME**, **ADDONS**, **CLIENT**, **SETTINGS**, and **PLAY**.
 
-**IchaLaunch v1.2.1** installs **[RavenCraft](https://ravencraft.io/)** (Turtle WoW–compatible 1.18), manages addons and client mods, and launches the game.
+> **Fresh install:** Use the launcher **INSTALL** flow for a clean client. Do **not** point IchaLaunch at an older or leftover game folder.
 
 Download **`IchaLaunch.exe`** from **[Releases](https://github.com/brutaliccus/IchaLaunch/releases/latest)**.
 
-A frameless RavenCraft-themed window: **HOME**, **ADDONS**, **CLIENT**, **SETTINGS**, and a **PLAY** bar.
+---
+
+## Features
+
+- **Install & play** — guided client install, realm setup, then **PLAY** with pre-launch checks
+- **Addons** — browse the catalog, search/filter, install with fork + version + README preview, or paste any public GitHub repo
+- **Update addons** — check and update one or all; unload without deleting from disk
+- **Suggest for catalog** — propose a public addon for the shared Available list (no GitHub login in the client)
+- **Live catalog** — Available list refreshes from the repo on a short interval; new entries appear without a new launcher build
+- **Client mods & HD patches** — performance fixes, graphics backends, hooks, HD variants, sky packs, and more; **Apply Changes** or let **PLAY** sync
+- **Settings** — game / AddOns paths, launch preferences, optional GitHub token, permissions check, reset client link
+- **Contributors** — portraits on the bottom bar
+- **Self-update** — when a newer Windows build is on Releases, update in place from the launcher
 
 ---
 
-## What's new in v1.2.0
+## Screenshots
 
-- **Linux from source** — on Linux, **PLAY** can launch the client through **umu-launcher** / Proton (optional paths in Settings). The Windows EXE is still Windows-only.
-- **Case-insensitive client paths** — `WoW.exe` / `Wow.exe` and related files resolve correctly on case-sensitive disks.
-- **Realmlist backup** — an existing `realmlist.wtf` is kept as `.bak` instead of being overwritten blindly.
-- **Self-update** — launcher self-update is offered on Windows only (no-op elsewhere).
-- **PLAY / UPDATE split** — a square update control sits left of **PLAY** (CheckButtonGlow pulse). **PLAY** stays right-aligned and is not blocked by a pending launcher update.
-- **Glue-panel buttons** — **PLAY**, **REGISTER HERE**, and the update plate use taller purple WoW glue-panel art; hover uses the Down plate (no gold box).
-- **Addons options cog** — repository settings uses the WoW `UI-OptionsButton` art.
-- **Vanilla Tweaks detect** — on-disk Vanilla Tweaks is detected more reliably so disable/remove can run.
-
----
-
-## What's new in v1.1.1
-
-- **SuperWoW troubleshooting** — detects broken or leftover SuperWoW installs (corrupt `SuperWoWhook.dll`, stale SuperAPI addon, `dlls.txt` drift) and shows a guided fix dialog after failed install/remove/sync or when you open **CLIENT** with drift on disk.
-- **SuperWoW install hardening** — PE verification after DLL install, automatic rollback from `.ichalaunch/backups/` on failure, mirrored `.ichalaunch/dlls.txt` cleanup, stricter addon removal errors.
-- **DLL mod security hint** — first time you enable a DLL-injecting client mod (SuperWoW, Nampower, VanillaHelpers, etc.), a scrollable dialog explains how to add your game folder to Windows Security exclusions (optional “Don’t show again”).
-
----
-
-## What's new in v1.1.0
-
-- **Addon update checks without a token** — scans use git ref discovery (and an optional catalog tip index) so **Check for updates** no longer asks for a personal access token. A token stays optional for fork/version browsing.
-- **Addon install picker** — catalog **Install** opens fork + version pickers with a live **README preview** before files land on disk.
-- **Archived forks** — fork lists include archived repos (sorted after active forks) so older Turtle forks stay discoverable.
-- **Fork dropdown safety** — install picker fork/version combos stay disabled until the GitHub browse fetch finishes (no half-populated lists).
-- **VanillaFixes / DXVK** — mutual exclusivity in the client mod planner; terminal logs spell out launch mode (`VanillaFixes.exe` vs direct `WoW.exe`) and on-disk VF state.
-- **PLAY pre-launch mod sync** — **PLAY** installs missing enabled mods and removes disabled ones before launch (full desired-state sync, not just `dlls.txt` tweaks).
-- **Reforged HD Patch L/T** — variant tracking with mutual exclusivity (only one HD patch letter at a time).
-- **Settings reliability** — atomic settings writes with `.tmp` + backup recovery; saved game/addons paths are preserved across load/save cycles; auto-scan cooldown slider snaps and persists correctly.
-- **Dialog layering** — themed dialogs no longer use stay-on-top, so prompts do not steal clicks from the game.
-- **Client tab** — mod cards show **author/contributor** labels; **Check Game Permissions** scans and can repair ACL/read-only issues under your game folder.
-- **Launcher self-update** — release metadata cache hardened for smoother in-app **UPDATE** checks.
-
----
-
-## Get the launcher
-
-1. Open the latest release: [github.com/brutaliccus/IchaLaunch/releases/latest](https://github.com/brutaliccus/IchaLaunch/releases/latest)
-2. Download **`IchaLaunch.exe`** (v1.2.1)
-3. Put it somewhere convenient (next to your game folder is fine — not required)
-4. Run the EXE
-
-No installer. Windows may show a SmartScreen prompt for an unsigned download — **More info** → **Run anyway** if you trust the release.
-
-## Platform support
-
-IchaLaunch ships as a **native Windows** executable for **Windows 10 or 11** (64-bit).
-
-**Linux from source** is supported: run the Python app and point Settings at **umu-launcher** / Proton to launch the Windows client. Running **`IchaLaunch.exe` under Proton/Wine is not supported** and often fails with missing DLL errors (`icuuc.dll`, `Qt6Core.dll`).
-
----
-
-## Install the RavenCraft client
+### HOME
 
 ![Home](docs/screenshots/home.png)
 
-If you already have a 1.18 client, skip INSTALL and point **SETTINGS** at the folder that contains `WoW.exe`.
+### ADDONS
 
-Otherwise tap **INSTALL** on the bottom bar:
+![Addons](docs/screenshots/addons.png)
 
-1. Pick a parent folder (prefer something simple like `D:\Games` — avoid Program Files, Desktop, Downloads, and Documents)
-2. Your browser opens **Gofile** — download **`twmoa_1181.zip`** (a VPN may be required)
-3. Leave IchaLaunch open. It watches **Downloads**, extracts into a **`RavenCraft`** folder, writes `realmlist.wtf`, then deletes the zip
-4. **PLAY** appears when the client is ready
+### CLIENT
 
-To unlink and install again, use **Reset Client Link** in **SETTINGS**.
+![Client](docs/screenshots/client.png)
 
----
-
-## Play
-
-**PLAY** runs pre-launch checks, **syncs client mods** to match your enabled list (install missing / remove disabled), then launches World of Warcraft.
-
-When VanillaFixes is installed and enabled in Settings, the launcher prefers `VanillaFixes.exe` and logs the chosen launch path in the terminal. VanillaFixes and **VanillaFixes + DXVK** cannot both be enabled — pick one stack in **CLIENT**.
-
----
-
-## Addons
-
-![Addons catalog](docs/screenshots/addons.png)
-
-- Browse the Turtle WoW wiki **catalog**, search, and filter
-- **Install** from the catalog opens the **install picker** (fork, version, README preview)
-- **Add from GitHub** — paste any public addon repo with the same preview flow
-- **Suggest for catalog** — propose a public repo for the shared Available list (HTTPS POST to a maintainer endpoint; no GitHub login or token in the client)
-- **Settings** on an installed addon — change fork/version when a GitHub token is saved
-- **Update** / **Update All** when a newer version is available
-- Uncheck an addon to **unload** it (stays on disk; the game won't load it)
-
-### Catalog & tip index (live without a new build)
-
-The Available list comes from ``ichalaunch/data/addons.json`` on GitHub. Launchers
-fetch that file on startup/periodic update checks (15‑minute TTL), cache it under
-AppData, and fall back to the bundled copy when offline. New catalog entries appear
-after the file is merged to ``master`` — no launcher rebuild required.
-
-Each entry uses the same shape the UI expects, for example:
-
-```json
-{
-  "name": "MyAddon",
-  "repo": "https://github.com/owner/MyAddon",
-  "category": "General",
-  "description": "Short blurb",
-  "source": "turtle_wiki",
-  "folder": "MyAddon"
-}
-```
-
-Optional fields: ``pin_release``, ``updates`` (``false`` to skip auto-updates),
-``forks``, ``installable``.
-
-**To add an addon to the live Available list:** edit ``ichalaunch/data/addons.json``
-(or regenerate via ``tools/parse_wiki_addons.py``), commit, and merge to ``master``.
-Clients pick it up on their next catalog refresh. The hourly tip-index Action only
-rebuilds ``addon_tips.json`` tip SHAs from the catalog; it does not rewrite
-``addons.json``.
-
-### Suggest an addon for the catalog (in-app)
-
-Users stay in the launcher — no browser GitHub login, and **no credentials** are
-sent. **ADDONS → Suggest for catalog** (also mentioned when Available search has
-no hits) opens a themed form (repo URL required, name / category / description /
-optional folder). The client POSTs JSON to the built-in Cloudflare Worker
-(``https://ichalaunch-addon-submit.ichalaunch.workers.dev`` — see
-``ichalaunch/addons/submit.py``).
-
-The Worker holds a GitHub token as a **secret**, validates the payload,
-rate-limits, and opens an Issue on ``brutaliccus/IchaLaunch``. Spam stays as
-issues until a maintainer approves.
-
-**Approve a suggestion (maintainer):**
-
-1. Review the issue (repo exists, Turtle-compatible, category fits).
-2. Label the issue **`catalog-approved`**.
-3. The Action [``.github/workflows/catalog-approve.yml``](.github/workflows/catalog-approve.yml)
-   opens a PR that adds the entry to ``ichalaunch/data/addons.json``
-   (``source: community``), **squash-merges it**, comments the merged PR link on
-   the issue, and closes the issue. Already-in-catalog skips do nothing.
-4. Clients pick up the entry on the next Available catalog refresh.
-
-**Fork network at submit time:** the Worker resolves the fork-network root
-(GitHub ``source`` / ``parent`` if the submission is a fork), lists up to **40**
-active (non-archived/disabled) forks, and opens a separate ``[catalog]`` issue
-for the root, each fork, and the submitted repo if needed. Repos already in
-``addons.json`` (primary or nested ``forks[]``) or already covered by an open
-``[catalog]`` issue are skipped. Fan-out is best-effort; the client still gets
-one success response. Approve each issue independently with ``catalog-approved``.
-
-**Maintainer setup (once):**
-
-1. Deploy the Worker (`cd tools/addon-submit-worker && wrangler deploy`)
-2. `wrangler secret put GITHUB_TOKEN` — fine-grained: **Issues: Read and write**
-   on this repo, plus ability to read public repo metadata (forks / parent)
-3. `wrangler secret put GITHUB_REPO` → `brutaliccus/IchaLaunch`
-4. Keep ``ADDON_SUBMIT_URL`` in ``ichalaunch/addons/submit.py`` pointed at the
-   live Worker URL (clients ship this hardcoded; no Settings paste)
-5. Create the GitHub label ``catalog-approved`` on this repo (one-time)
-6. Enable **Settings → Actions → General → Workflow permissions → Allow
-   GitHub Actions to create and approve pull requests** (needed so the Action
-   can open/merge PRs with ``GITHUB_TOKEN``). If branch protection later requires
-   reviews, allow ``github-actions[bot]`` to bypass or the Action's
-   ``gh pr merge --admin`` will need a token that can.
-
-Full steps and example JSON: ``tools/addon-submit-worker/README.md``.
-
-### GitHub token & addon scans
-
-**Check for updates** does not need a token. IchaLaunch reads each addon's latest commit from GitHub's git interface (and a shared catalog tip-SHA file when available), which is not the 60-request REST API budget. Client mod update checks (VanillaFixes, SuperWoW, HD patches, etc.) use the same index for release tags when the mod source is on GitHub.
-
-A token in **SETTINGS → GitHub API** is still optional and unlocks fork/version browsing plus README previews in the install picker. REST is only a fallback if git/Atom fail; that fallback is still paced at 60 requests/hour without a token.
-
-The tip index is rebuilt hourly on GitHub (addons + client mods). Launchers refresh their cached tip index and Available catalog about once per hour when checking for updates.
-
-To rebuild the bundled catalog tip index locally: ``python tools/build_addon_tips.py`` (``--limit 20`` for a short test run).
-
-![Settings — GitHub API & cooldown](docs/screenshots/settings.png)
-
----
-
-## Client mods
-
-![Client mods](docs/screenshots/client.png)
-
-The **CLIENT** tab covers engine and visual packs — VanillaFixes, DXVK, SuperWoW, Nampower, UnitXP, Reforged HD Patch variants, night sky, and similar.
-
-- Tick what you want, then **Apply Changes** (or let **PLAY** sync on launch)
-- Search across categories; **Open in Git** when a repo link exists
-- **Author** labels on mod cards
-- **DXVK GPU check** warns when Vulkan may be a poor match
-- **HD Patch L / T** — only one letter variant enabled at a time
-
----
-
-## Settings
+### SETTINGS
 
 ![Settings](docs/screenshots/settings.png)
 
-- **Game location** — folder that contains `WoW.exe`, plus **Verify**
-- **AddOns folder** — defaults to `Interface\AddOns` under the game; override if needed
-- **Launch** — VanillaFixes preference, minimize or close the launcher when the game starts
-- **Automatically Check For Updates On Startup** — launcher, addons, and client mods
-- **Auto-scan cooldown** — 15 min–24 h (default 1 h); manual checks always run
-- **GitHub API** — optional personal access token (fine-grained read-only recommended; not required for addon update badges)
-- **Check Game Permissions** — scan/repair read-only files and deny ACEs under the game tree
-- **Reset Client Link** — unlink the saved WoW folder so **PLAY** becomes **INSTALL** again
-
-Settings are written **atomically** (`.tmp` swap + backup) so a crash mid-save does not wipe your paths.
-
-### GitHub personal access token
-
-Optional — only needed for live fork/version lists and README previews. Update notifications work without one.
-
-1. Open [GitHub → Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens)
-2. Create a token:
-   - **Fine-grained (recommended):** resource owner = your user; repository access = **Public repositories**; permissions = **Contents: Read-only** and **Metadata: Read-only**
-   - **Classic:** `public_repo` works for API reads but also grants write access to public repos — prefer fine-grained read-only.
-3. Paste in **SETTINGS → GitHub API** and save
-
-The token stays on your PC and is sent only as `Authorization` to GitHub hosts (`api.github.com`, `github.com`, `*.githubusercontent.com`).
-
----
-
-## Progress and launcher updates
+Progress while checking updates:
 
 ![Home with loading bar](docs/screenshots/home-loading.png)
 
-Downloads, extracts, and update checks show a **determinate** bar on the bottom strip.
-
-When a newer IchaLaunch is on GitHub Releases, **PLAY** becomes **UPDATE** and replaces the EXE in place.
-
----
-
-## UI dialogs
+Themed dialogs:
 
 ![Themed dialog](docs/screenshots/themed_dialog.png)
 
-Frameless themed prompts (token entry, install picker, confirmations) use normal window stacking — they do **not** stay on top of the game window.
+---
+
+## Get started
+
+1. Open the latest release: [github.com/brutaliccus/IchaLaunch/releases/latest](https://github.com/brutaliccus/IchaLaunch/releases/latest)
+2. Download **`IchaLaunch.exe`**
+3. Run it (no installer). Windows SmartScreen may ask — **More info** → **Run anyway** if you trust the release
+4. **INSTALL** a fresh client, or point **SETTINGS** at a folder that already contains the game executable
+5. Use **ADDONS** / **CLIENT** as needed, then **PLAY**
+
+**Install tip:** Prefer a simple path like `D:\Games`. Avoid Program Files, Desktop, Downloads, and Documents.
+
+**Platforms:** Native **Windows 10/11** (64-bit) EXE. **Linux from source** can launch the Windows client via umu-launcher / Proton (set paths in Settings). Running the EXE under Proton/Wine is **not** supported.
 
 ---
 
 ## Troubleshooting
 
-**Launcher won't start / `ImportError: DLL load failed` / missing `icuuc.dll` or `Qt6Core.dll`**  
-Run **`IchaLaunch.exe` natively on Windows 10/11** — not under Proton/Wine. Install the latest **[Microsoft Visual C++ Redistributable (x64)](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist)** if needed.
+**Won't start / missing DLLs (`icuuc.dll`, `Qt6Core.dll`)**  
+Run **`IchaLaunch.exe` on Windows**, not under Proton/Wine. Install the latest **[VC++ Redistributable (x64)](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist)** if needed.
 
-**Windows Defender / Controlled Folder Access blocks VanillaFixes or DLL mods**  
-Allow `IchaLaunch.exe`, `VanillaFixes.exe`, and `WoW.exe`, or move the game out of a protected folder. Use **Check Game Permissions** in Settings.
+**Defender / Controlled Folder Access blocks mods**  
+Allow the launcher, launch helper, and game executable — or move the game out of a protected folder. Use **Check Game Permissions** in Settings. For hook-DLL issues, add the game folder as a Windows Security exclusion, then disable/re-enable the mod on **CLIENT** and **Apply**.
 
-### SuperWoW install issues / Windows Security
-
-This usually means Windows Security blocked or damaged `SuperWoWhook.dll` during install, or the **SuperAPI** companion addon was left behind when turning the mod off.
-
-**Fix:**
-
-1. Add your **entire WoW folder** as a Windows Security exclusion (Settings → Privacy & security → Windows Security → Virus & threat protection → Manage settings → Exclusions → Add an exclusion → Folder).
-2. In IchaLaunch **CLIENT** tab: turn **SuperWoW** off, click **Apply**, then turn it on again and **Apply** (or reinstall manually from [SuperWoW releases](https://github.com/balakethelock/SuperWoW/releases)).
-3. When SuperWoW is disabled, confirm these are gone:
-   - `SuperWoWhook.dll` in the WoW folder
-   - `Interface\AddOns\SuperAPI`
-   - `SuperWoWhook.dll` lines in `dlls.txt` and `.ichalaunch\dlls.txt` (if present)
-4. If problems persist, move the game out of Downloads/Desktop (e.g. `C:\Games\YourServer`) and use **Check Game Permissions** in Settings.
-
-IchaLaunch may show a troubleshooting dialog when it detects this drift or after a failed SuperWoW install/remove.
-
-**Manual SuperWoW install** is fine: place `SuperWoWhook.dll` from the [official release zip](https://github.com/balakethelock/SuperWoW/releases) in your WoW folder, install the [SuperAPI](https://github.com/balakethelock/SuperAPI) addon, and ensure `SuperWoWhook.dll` is listed in `dlls.txt` (Turtle-style clients). You do not need `SuperWoWlauncher.exe` when using `dlls.txt`.
-
-**Addon / update checks fail, feel stuck, or say "queued"**  
-Update badges normally use git refs, not the REST API. If a scan still says queued, a REST fallback hit GitHub's anonymous 60/hour budget — wait for the hour or add a token in Settings.
-
-**GitHub token rejected**  
-Clear or replace the token in Settings — bad tokens are retried without auth for public reads.
-
-**PLAY does nothing / "Client not found"**  
-Confirm **SETTINGS** points at the folder that contains `WoW.exe`, then **Verify**.
+**PLAY does nothing / “Client not found”**  
+Confirm **SETTINGS** points at the folder with the game executable, then **Verify**.
 
 **Gold dots on ADDONS or CLIENT**  
-Pending updates or unapplied client changes — open the tab and update / apply.
+Pending updates or unapplied changes — open the tab and update / apply.
 
 More help: **[Releases](https://github.com/brutaliccus/IchaLaunch/releases)**.
 
@@ -315,5 +102,16 @@ dist\IchaLaunch.exe --qt-smoke
 ```
 
 Output: `dist\IchaLaunch.exe`
+
+</details>
+
+<details>
+<summary>Maintainer notes (catalog & suggestions)</summary>
+
+The Available catalog is `ichalaunch/data/addons.json` on `master`. Clients fetch and cache it; merge catalog PRs and launchers pick them up on the next refresh.
+
+**Suggest for catalog** posts to the Cloudflare Worker (`ichalaunch/addons/submit.py`). Maintainer approval: label the issue `catalog-approved` → Action opens/merges a catalog PR. Worker setup: `tools/addon-submit-worker/README.md`.
+
+Optional GitHub token in Settings unlocks fork/version browsing and README previews; update badges work without one.
 
 </details>

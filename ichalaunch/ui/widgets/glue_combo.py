@@ -20,21 +20,27 @@ from ichalaunch.ui.widgets.cursors import apply_open_hand
 from ichalaunch.ui.widgets.glue_panel_button import GLUE_BTN_H, glue_chrome_pixmap
 from ichalaunch.ui.widgets.marble_bg import load_marble_pixmap, paint_marble_tiled
 
-_ARROW_UP = "Arrow-Down-Up.PNG"
-_ARROW_DOWN = "Arrow-Down-Down.PNG"
-_ARROW_UP_EXT = Path(r"F:\wow-ui-textures\Buttons\Arrow-Down-Up.PNG")
-_ARROW_DOWN_EXT = Path(r"F:\wow-ui-textures\Buttons\Arrow-Down-Down.PNG")
+_ARROW_UP = "UI-ScrollBar-ScrollDownButton-Up.PNG"
+_ARROW_DOWN = "UI-ScrollBar-ScrollDownButton-Down.PNG"
+_ARROW_UP_EXT = Path(r"F:\wow-ui-textures\Buttons") / _ARROW_UP
+_ARROW_DOWN_EXT = Path(r"F:\wow-ui-textures\Buttons") / _ARROW_DOWN
 
 _TEXT = QColor("#e6e0ee")
 _TEXT_DIM = QColor("#8a8490")
 _BORDER = QColor(124, 92, 196, 110)
-_ARROW_SIZE = 12
-_ARROW_PAD_R = 12
-# Arrow-Down PNG opaque content sits high in the 16px art (~3.5px above center);
-# scale to 12px draw size → nudge down so the chevron centers on the closed control.
-_ARROW_Y_NUDGE = 3
+# Caret art: 34×34 (~5% over prior 32×32). Idle: +2 X, +2 Y below V-center.
+# Depressed (pressed / popup open / Down art): idle + (−2 X, +3 Y).
+_ARROW_SIZE = 34
+_ARROW_PAD_R = 6
+_ARROW_X_NUDGE = 2
+_ARROW_Y_NUDGE = 2
+_ARROW_PRESS_DX = -2
+_ARROW_PRESS_DY = 3
+# Match GluePanelButton depressed label: content shifts +1px down with Down chrome.
+_PRESS_DX = 0
+_PRESS_DY = 1
 _TEXT_PAD_L = 12
-_TEXT_PAD_R = 28  # room for caret
+_TEXT_PAD_R = 46  # room for 34px caret + pad
 # Native QComboBox popup HWND is still dying after hidePopup(); re-show in that
 # window crashes inside Qt (showPopup / hidePopup / paint).
 _POPUP_REENTRY_MS = 120
@@ -137,7 +143,8 @@ class _MarbleComboView(QListView):
 class GlueComboBox(QComboBox):
     """Closed control uses Glue-Panel Up/Down art; popup uses marbled fill.
 
-    Caret: Arrow-Down-Up when idle, Arrow-Down-Down when open or mouse-pressed.
+    Caret: ScrollDownButton-Up when idle, -Down when open or mouse-pressed.
+    Height matches GluePanelButton (GLUE_BTN_H) so filters/dialogs align.
     """
 
     popupShown = Signal()
@@ -149,7 +156,12 @@ class GlueComboBox(QComboBox):
         apply_open_hand(self)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-        self.setFixedHeight(int(height))
+        # Lock to primary glue height so app QSS min-height/padding cannot shrink us.
+        h = int(height) if int(height) > 0 else GLUE_BTN_H
+        self._glue_h = h
+        self.setFixedHeight(h)
+        self.setMinimumHeight(h)
+        self.setMaximumHeight(h)
         self.setMinimumWidth(int(min_width))
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
         self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
@@ -159,6 +171,8 @@ class GlueComboBox(QComboBox):
             "  border: none;"
             "  padding: 0;"
             "  margin: 0;"
+            f"  min-height: {h}px;"
+            f"  max-height: {h}px;"
             "  color: transparent;"
             "}"
             "QComboBox#GlueComboBox::drop-down {"
@@ -195,7 +209,11 @@ class GlueComboBox(QComboBox):
             texts.append(self.currentText())
         widest = max((fm.horizontalAdvance(t) for t in texts), default=80)
         w = max(self.minimumWidth(), widest + _TEXT_PAD_L + _TEXT_PAD_R + 8)
-        return QSize(w, self.height())
+        return QSize(w, self._glue_h)
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802
+        hint = self.sizeHint()
+        return QSize(self.minimumWidth(), self._glue_h if self._glue_h else hint.height())
 
     def isPopupOpen(self) -> bool:
         # Trust the show/hide flags only. view.isVisible() is a false positive
@@ -458,7 +476,9 @@ class GlueComboBox(QComboBox):
         else:
             painter.drawPixmap(rect, pm)
 
-        # Label (shifts slightly when depressed, matching GluePanelButton).
+        # Label + caret shift with depressed chrome (same offset as GluePanelButton).
+        press_dx = _PRESS_DX if chrome_down else 0
+        press_dy = _PRESS_DY if chrome_down else 0
         text = self.currentText() or ""
         font = QFont(self.font())
         font.setFamily("Segoe UI")
@@ -467,10 +487,10 @@ class GlueComboBox(QComboBox):
         painter.setFont(font)
         color = _TEXT_DIM if not self.isEnabled() else _TEXT
         text_rect = rect.adjusted(
-            _TEXT_PAD_L,
-            1 if chrome_down else 0,
-            -_TEXT_PAD_R,
-            0,
+            _TEXT_PAD_L + press_dx,
+            press_dy,
+            -_TEXT_PAD_R + press_dx,
+            press_dy,
         )
         align = Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignHCenter
         painter.setPen(QColor(0, 0, 0, 140))
@@ -479,19 +499,17 @@ class GlueComboBox(QComboBox):
         painter.drawText(text_rect, align, text)
 
         # Arrow caret — Up when idle, Down when open/pressed.
+        # Idle: +_ARROW_X_NUDGE / V-center + _ARROW_Y_NUDGE; depressed: + press DX/DY.
         arrow = _load_arrow(
             _ARROW_DOWN if chrome_down else _ARROW_UP,
             _ARROW_DOWN_EXT if chrome_down else _ARROW_UP_EXT,
         )
         if not arrow.isNull():
             aw = _ARROW_SIZE
-            ax = rect.right() - _ARROW_PAD_R - aw
-            ay = (
-                rect.center().y()
-                - aw // 2
-                + _ARROW_Y_NUDGE
-                + (1 if chrome_down else 0)
-            )
+            caret_dx = _ARROW_PRESS_DX if chrome_down else 0
+            caret_dy = _ARROW_PRESS_DY if chrome_down else 0
+            ax = rect.right() - _ARROW_PAD_R - aw + _ARROW_X_NUDGE + caret_dx
+            ay = rect.center().y() - aw // 2 + _ARROW_Y_NUDGE + caret_dy
             painter.drawPixmap(QRect(ax, ay, aw, aw), arrow)
 
         try:

@@ -44,7 +44,7 @@ from ichalaunch.ui.widgets.dialogs import (
 )
 from ichalaunch.ui.widgets import dialogs as themed
 from ichalaunch.ui.widgets.glue_combo import GlueComboBox
-from ichalaunch.ui.widgets.glue_panel_button import GluePanelButton
+from ichalaunch.ui.widgets.glue_panel_button import GLUE_BTN_H, GluePanelButton
 from ichalaunch.ui.widgets.marble_bg import MarbleListWidget, MarblePanel
 
 PAGE_SIZE = 80
@@ -218,7 +218,9 @@ class AddonsPage(QWidget):
         action_row.addWidget(self.next_btn)
 
         # Catalog search — top of marble panel, right of Installed / category filters
-        self.search = CastingBarSearchEdit()
+        # Match GlueCombo / toolbar button height (GLUE_BTN_H) in this row.
+        self.search = CastingBarSearchEdit(minimum_height=GLUE_BTN_H)
+        self.search.setFixedHeight(GLUE_BTN_H)
         self.search.setPlaceholderText("Search catalog…")
         self._search_timer = QTimer(self)
         self._search_timer.setSingleShot(True)
@@ -226,7 +228,7 @@ class AddonsPage(QWidget):
         self._search_timer.timeout.connect(self._on_search_changed)
         self.search.textChanged.connect(self._on_search_text)
 
-        self.filter_box = GlueComboBox(min_width=160)
+        self.filter_box = GlueComboBox(min_width=160, height=GLUE_BTN_H)
         self.filter_box.blockSignals(True)
         self.filter_box.addItems(["Installed", "Available", "Update Available", "All"])
         self.filter_box.blockSignals(False)
@@ -234,7 +236,7 @@ class AddonsPage(QWidget):
         self.filter_box.popupShown.connect(self._on_combo_popup_shown)
         self.filter_box.popupHidden.connect(self._on_combo_popup_hidden)
 
-        self.cat_box = GlueComboBox(min_width=160)
+        self.cat_box = GlueComboBox(min_width=160, height=GLUE_BTN_H)
         self.cat_box.blockSignals(True)
         self.cat_box.addItem("All categories")
         self.cat_box.blockSignals(False)
@@ -389,12 +391,10 @@ class AddonsPage(QWidget):
                 if callable(is_open):
                     popup_open = bool(is_open())
                 if lock and popup_open:
+                    # Never touch enable/hide while the native popup HWND is
+                    # still tearing down (GlueCombo isPopupOpen includes that).
                     continue
                 if lock:
-                    if self._scanning or not self._lists_ready:
-                        hide = getattr(box, "hidePopup", None)
-                        if callable(hide):
-                            hide()
                     box.setEnabled(False)
                     box.setToolTip(tip)
                 else:
@@ -1024,9 +1024,18 @@ class AddonsPage(QWidget):
         self.badge_state_changed.emit()
 
     def reload_catalog(self) -> None:
-        """Reload Available entries from the current catalog snapshot."""
+        """Reload Available entries from the current catalog snapshot.
+
+        While HOME (or any non-ADDONS page) is showing, only refresh the cache
+        and mark dirty. Mutating GlueComboBox items during startup preload has
+        aborted Qt natively (WER Qt6Core.dll / 0xc0000409, no Python traceback).
+        Combo categories rebuild the next time ADDONS is shown via refresh().
+        """
         self._catalog_cache = load_catalog()
         self._available_base_ready = False
+        self.mark_dirty()
+        if not self._page_is_live():
+            return
         # Refresh category filter options when remote catalog adds new categories.
         try:
             current = self.cat_box.currentText()
@@ -1044,10 +1053,7 @@ class AddonsPage(QWidget):
                 self.cat_box.setCurrentIndex(idx)
         finally:
             self.cat_box.blockSignals(False)
-        self.mark_dirty()
-        if self._page_is_live():
-            self.refresh()
-
+        self.refresh()
     def _page(self, delta: int) -> None:
         if self._lists_frozen() or self._refreshing or self._rendering_avail:
             return

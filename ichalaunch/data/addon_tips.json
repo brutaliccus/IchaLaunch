@@ -6372,7 +6372,7 @@
       "branches": {
         "master": "60c05fa1bed338f50092ee73894ee4e3b81b5a65"
       },
-      "latest_tag": "Patch"
+      "latest_tag": "Release"
     },
     "brues-code/nampower": {
       "default_branch": "main",

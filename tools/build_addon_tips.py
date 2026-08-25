@@ -68,6 +68,13 @@ def _catalog_repos(*, include_locked: bool = False) -> list[tuple[str, str]]:
         if not parsed:
             continue
         _add_repo(seen, out, parsed.owner, parsed.repo)
+        # Nested catalog forks share tip SHAs with the primary row's picker.
+        for fork in entry.get("forks") or []:
+            if not isinstance(fork, dict):
+                continue
+            f_parsed = parse_github_url(str(fork.get("repo") or fork.get("url") or ""))
+            if f_parsed:
+                _add_repo(seen, out, f_parsed.owner, f_parsed.repo)
     return out
 
 

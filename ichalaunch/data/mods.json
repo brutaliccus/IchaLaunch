@@ -76,7 +76,7 @@
     "source": {
       "type": "github_release_latest",
       "repo": "balakethelock/SuperWoW",
-      "asset_contains": ".zip"
+      "asset_contains": "SuperWoW"
     },
     "addon_source": {
       "type": "github_zip",

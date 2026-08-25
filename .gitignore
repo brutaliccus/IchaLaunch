@@ -45,6 +45,7 @@ _wiki_addons.wikitext
 .ruff_cache/
 .coverage
 htmlcov/
+tools/.cache/
 
 test-clients/
 IchaLaunch.exe

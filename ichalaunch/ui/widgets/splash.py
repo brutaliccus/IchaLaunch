@@ -13,6 +13,7 @@ from PySide6.QtCore import (
     QTimer,
 )
 from PySide6.QtGui import (
+    QColor,
     QGuiApplication,
     QImage,
     QPainter,
@@ -23,6 +24,10 @@ from PySide6.QtWidgets import QWidget
 _ICON_PX = 200
 # 2× previous smoke (~268 → 536); window grows so breathe scale never clips it.
 _SMOKE_PX = 536
+# Mid purple VFX layer — a bit smaller than the black Worgen smoke behind it.
+_SMOKE_PURPLE_PX = 440
+# Theme dark RavenCraft purple (stylesheet pressed / ApplyReadyButton:pressed).
+_SMOKE_PURPLE = QColor(58, 36, 96)  # #3a2460
 _WINDOW_PX = 560
 # Fraction of the square side used as a soft border fade (not a radial circle).
 _EDGE_FEATHER = 0.14
@@ -77,11 +82,11 @@ def soft_edge_icon(source: QPixmap, size: int = _ICON_PX, feather: float = _EDGE
     return QPixmap.fromImage(img)
 
 
-def load_smoke_pixmap(size: int = _SMOKE_PX) -> QPixmap:
-    """Load bundled Worgen smoke texture, scaled larger than the splash icon."""
+def _scale_theme_pixmap(name: str, size: int) -> QPixmap:
+    """Load a theme PNG and scale it to *size* (KeepAspectRatio)."""
     from ichalaunch.core.paths import theme_file
 
-    path = theme_file("Worgen_Smoke_01.PNG")
+    path = theme_file(name)
     if not path.exists():
         return QPixmap()
     source = QPixmap(str(path))
@@ -93,6 +98,42 @@ def load_smoke_pixmap(size: int = _SMOKE_PX) -> QPixmap:
         Qt.AspectRatioMode.KeepAspectRatio,
         Qt.TransformationMode.SmoothTransformation,
     )
+
+
+def load_smoke_pixmap(size: int = _SMOKE_PX) -> QPixmap:
+    """Load bundled Worgen smoke texture, scaled larger than the splash icon."""
+    return _scale_theme_pixmap("Worgen_Smoke_01.PNG", size)
+
+
+def _tint_smoke_purple(src: QPixmap, tint: QColor = _SMOKE_PURPLE) -> QPixmap:
+    """Pixel-tint smoke to dark purple; wisps at half opacity (no solid fill/box).
+
+    RGB = luminance(source) × purple. Alpha is source alpha × 0.5 so wisps stay
+    half-opaque. Transparent pixels stay fully clear — never a rectangular plate.
+    """
+    if src.isNull():
+        return QPixmap()
+    img = src.toImage().convertToFormat(QImage.Format.Format_ARGB32)
+    tr, tg, tb = tint.red(), tint.green(), tint.blue()
+    for y in range(img.height()):
+        for x in range(img.width()):
+            c = img.pixelColor(x, y)
+            a = c.alpha()
+            if a == 0:
+                img.setPixelColor(x, y, QColor(0, 0, 0, 0))
+                continue
+            lum = (0.299 * c.red() + 0.587 * c.green() + 0.114 * c.blue()) / 255.0
+            img.setPixelColor(
+                x,
+                y,
+                QColor(int(tr * lum), int(tg * lum), int(tb * lum), int(a * 0.5)),
+            )
+    return QPixmap.fromImage(img)
+
+
+def load_purple_smoke_pixmap(size: int = _SMOKE_PURPLE_PX) -> QPixmap:
+    """Load T_VFX_Smoke_C, scaled smaller than black smoke, pixel-tinted dark purple."""
+    return _tint_smoke_purple(_scale_theme_pixmap("T_VFX_Smoke_C.PNG", size))
 
 
 class SplashScreen(QWidget):
@@ -113,6 +154,7 @@ class SplashScreen(QWidget):
         self.setFixedSize(_WINDOW_PX, _WINDOW_PX)
 
         self._smoke = load_smoke_pixmap()
+        self._smoke_purple = load_purple_smoke_pixmap()
         self._icon = soft_edge_icon(pixmap) if not pixmap.isNull() else QPixmap()
         self._breathe_t = 0.0
         self._scale = 1.0
@@ -170,7 +212,8 @@ class SplashScreen(QWidget):
         cx = self.width() * 0.5
         cy = self.height() * 0.5
 
-        # Smoke behind the icon (no dark fill — widget backdrop is transparent).
+        # Layer: large black smoke → smaller dark-purple smoke → icon (front).
+        # No dark fill — widget backdrop stays translucent.
         if not self._smoke.isNull():
             sw = self._smoke.width() * self._scale
             sh = self._smoke.height() * self._scale
@@ -178,6 +221,15 @@ class SplashScreen(QWidget):
                 QRectF(cx - sw * 0.5, cy - sh * 0.5, sw, sh),
                 self._smoke,
                 QRectF(self._smoke.rect()),
+            )
+
+        if not self._smoke_purple.isNull():
+            pw = self._smoke_purple.width() * self._scale
+            ph = self._smoke_purple.height() * self._scale
+            painter.drawPixmap(
+                QRectF(cx - pw * 0.5, cy - ph * 0.5, pw, ph),
+                self._smoke_purple,
+                QRectF(self._smoke_purple.rect()),
             )
 
         if self._icon.isNull():

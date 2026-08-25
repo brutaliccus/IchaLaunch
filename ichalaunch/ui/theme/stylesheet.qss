@@ -518,8 +518,10 @@ QComboBox {
     color: #e6e0ee;
     border: 1px solid rgba(150, 131, 158, 0.18);
     border-radius: 8px;
-    padding: 7px 32px 7px 10px;
-    min-height: 18px;
+    /* Match GluePanelButton / GlueComboBox (GLUE_BTN_H = 34). */
+    padding: 0 32px 0 10px;
+    min-height: 34px;
+    max-height: 34px;
     selection-background-color: #7c5cc4;
 }
 

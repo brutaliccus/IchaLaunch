@@ -55,6 +55,10 @@ DEFAULTS: dict[str, Any] = {
     "anonymous_client_id": "",
     "last_addon_update_check": None,
     "last_mod_update_check": None,
+    # True while an automatic update check is in flight (or died mid-apply).
+    # Cooldown must not skip the next launch when this is still set.
+    "addon_update_check_incomplete": False,
+    "mod_update_check_incomplete": False,
     "last_launcher_release_check": None,
     "cached_launcher_release": None,
     # Persisted unauthenticated addon update-scan queue (folders + hour budget).

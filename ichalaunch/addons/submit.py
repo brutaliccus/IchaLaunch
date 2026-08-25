@@ -204,3 +204,93 @@ def submit_catalog_suggestion(payload: dict[str, Any]) -> SubmitResult:
         status_code=r.status_code,
         issue_url=issue_url,
     )
+
+
+def _readme_excerpt_for_repo(owner: str, repo: str) -> str:
+    """Best-effort README / GitHub description text for auto-submit."""
+    try:
+        from ichalaunch.addons.github import fetch_repo_readme, github_get
+    except ImportError:
+        return ""
+
+    readme = None
+    try:
+        readme = fetch_repo_readme(owner, repo)
+    except Exception:  # noqa: BLE001
+        readme = None
+    if isinstance(readme, dict):
+        text = str(readme.get("raw_markdown") or readme.get("markdown") or "").strip()
+        if text:
+            return text
+
+    try:
+        r = github_get(f"https://api.github.com/repos/{owner}/{repo}", timeout=20)
+        data = r.json() if r.ok else {}
+        if isinstance(data, dict):
+            return str(data.get("description") or "").strip()
+    except Exception:  # noqa: BLE001
+        pass
+    return ""
+
+
+def try_auto_submit_after_git_import(
+    repo_url: str,
+    *,
+    catalog: list[dict[str, Any]] | None = None,
+    category: str = "General",
+    name: str = "",
+    folder: str = "",
+) -> SubmitResult | None:
+    """Best-effort catalog suggestion after a successful + Git Repo install.
+
+    Returns ``None`` when the repo is already in the Available catalog (no
+    POST). Never raises for expected network/API failures — callers should
+    treat submit as non-blocking relative to local install.
+    """
+    from ichalaunch.core.logging_setup import log
+
+    canon = normalize_repo_url(repo_url)
+    if not canon:
+        log.info("Auto catalog submit skipped: invalid GitHub URL")
+        return SubmitResult(ok=False, message="Invalid GitHub URL")
+
+    try:
+        if repo_in_catalog(canon, catalog):
+            log.info("Auto catalog submit skipped: already in catalog (%s)", canon)
+            return None
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Auto catalog submit: catalog check failed: %s", exc)
+
+    parsed = parse_github_url(canon)
+    if not parsed:
+        return SubmitResult(ok=False, message="Invalid GitHub URL")
+
+    description = ""
+    try:
+        description = _readme_excerpt_for_repo(parsed.owner, parsed.repo)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Auto catalog submit: README fetch failed: %s", exc)
+
+    slug = repo_slug_from_url(canon)
+    payload, err = build_submit_payload(
+        repo=canon,
+        name=(name or "").strip() or slug,
+        category=(category or "").strip() or "General",
+        description=description,
+        folder=(folder or "").strip() or slug,
+    )
+    if err or not payload:
+        log.info("Auto catalog submit skipped: %s", err or "bad payload")
+        return SubmitResult(ok=False, message=err or "Could not build suggestion")
+
+    try:
+        result = submit_catalog_suggestion(payload)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Auto catalog submit failed: %s", exc)
+        return SubmitResult(ok=False, message=str(exc) or "Submit failed")
+
+    if result.ok:
+        log.info("Auto catalog submit ok for %s", canon)
+    else:
+        log.info("Auto catalog submit failed for %s: %s", canon, result.message)
+    return result

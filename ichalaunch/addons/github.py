@@ -1011,15 +1011,16 @@ def github_latest_version_tag(owner: str, repo: str) -> str | None:
     from ichalaunch.addons.git_refs import (
         fetch_git_refs,
         fetch_releases_atom_tag,
+        is_usable_release_tag,
         newest_version_tag,
     )
     from ichalaunch.addons.tip_index import lookup_latest_tag
 
     indexed = lookup_latest_tag(owner, repo)
-    if indexed:
+    if indexed and is_usable_release_tag(indexed):
         return indexed
     atom_tag = fetch_releases_atom_tag(owner, repo)
-    if atom_tag:
+    if atom_tag and is_usable_release_tag(atom_tag):
         return atom_tag
     refs = fetch_git_refs(owner, repo)
     if refs is not None:
@@ -1039,7 +1040,7 @@ def github_latest_version_tag(owner: str, repo: str) -> str | None:
                 raise requests.HTTPError(GITHUB_TOKEN_REJECTED_MSG, response=r)
             r.raise_for_status()
             tag = str((r.json() or {}).get("tag_name") or "").strip()
-            if tag:
+            if tag and is_usable_release_tag(tag):
                 return tag
     except GitHubRateLimitError:
         raise
@@ -1048,7 +1049,7 @@ def github_latest_version_tag(owner: str, repo: str) -> str | None:
 
     try:
         tags_url = f"https://api.github.com/repos/{full}/tags"
-        r = _github_api_get(tags_url, timeout=30, params={"per_page": 1})
+        r = _github_api_get(tags_url, timeout=30, params={"per_page": 10})
         _note_rate_headers(r)
         if _looks_like_rate_limit(r):
             raise GitHubRateLimitError(RATE_LIMIT_STATUS)
@@ -1058,8 +1059,9 @@ def github_latest_version_tag(owner: str, repo: str) -> str | None:
             raise requests.HTTPError(GITHUB_TOKEN_REJECTED_MSG, response=r)
         r.raise_for_status()
         data = r.json()
-        if isinstance(data, list) and data:
-            tag = str(data[0].get("name") or "").strip()
+        if isinstance(data, list):
+            names = [str(item.get("name") or "").strip() for item in data if isinstance(item, dict)]
+            tag = newest_version_tag(names)
             if tag:
                 return tag
     except GitHubRateLimitError:
@@ -1939,7 +1941,13 @@ def recently_checked_addon_updates(cooldown_sec: int | None = None) -> bool:
 
     *cooldown_sec* defaults to the hardcoded 15-minute refresh interval.
     Manual Check Updates ignores this.
+
+    If a previous run stamped ``last_addon_update_check`` but died before the UI
+    applied results (native Qt abort, kill, etc.), ``addon_update_check_incomplete``
+    stays True and this returns False so the next launch rescans.
     """
+    if settings.get("addon_update_check_incomplete"):
+        return False
     if cooldown_sec is None:
         cooldown_sec = settings.auto_scan_cooldown_sec()
     raw = settings.get("last_addon_update_check")
@@ -1952,8 +1960,24 @@ def recently_checked_addon_updates(cooldown_sec: int | None = None) -> bool:
     return (time.time() - last) < float(cooldown_sec)
 
 
+def _begin_addon_update_check() -> None:
+    """Mark an in-flight check so a crash cannot leave a false cooldown skip."""
+    settings.set("addon_update_check_incomplete", True)
+
+
 def _mark_addon_update_check_time() -> None:
+    """Persist cooldown timestamp. Incomplete flag stays set until UI commits."""
     settings.set("last_addon_update_check", time.time())
+
+
+def commit_addon_update_check() -> None:
+    """UI thread: results applied successfully — cooldown may take effect."""
+    settings.set("addon_update_check_incomplete", False)
+
+
+def abandon_addon_update_check() -> None:
+    """UI thread: check failed or was cancelled — allow retry, keep last stamp."""
+    settings.set("addon_update_check_incomplete", False)
 
 
 def _persist_scan_queue_progress(

@@ -355,6 +355,7 @@ from ichalaunch.ui.pages.home import HomePage
 from ichalaunch.ui.pages.settings import SettingsPage
 from ichalaunch.ui.widgets.loading_bar import ThemeLoadingBar
 from ichalaunch.ui.widgets.chrome_buttons import ChromeGlyphButton
+from ichalaunch.ui.widgets.contributor_portrait import ContributorPortrait
 from ichalaunch.ui.widgets.cursors import apply_open_hand
 from ichalaunch.ui.widgets.glue_panel_button import glue_floor_chrome_pixmap
 from ichalaunch.ui.widgets.launch_button import LaunchButton, UpdateLaunchButton
@@ -1374,9 +1375,15 @@ def _safe_worker_running(worker: Worker | None) -> bool:
 
 
 def _call_when_worker_idle(worker: Worker | None, callback) -> None:
-    """Run *callback* now if *worker* is idle, else after finished_ok or failed."""
+    """Run *callback* now if *worker* is idle, else after finished_ok or failed.
+
+    The follow-up is deferred one event-loop turn so finished_ok UI slots
+    (and QThread ``finished`` / deleteLater) can settle before the next
+    auto-update step starts another worker. Stacking that work in the same
+    turn as addon-scan UI apply has coincided with silent Qt aborts.
+    """
     if not _safe_worker_running(worker):
-        callback()
+        QTimer.singleShot(0, callback)
         return
     fired = False
 
@@ -1385,7 +1392,7 @@ def _call_when_worker_idle(worker: Worker | None, callback) -> None:
         if fired:
             return
         fired = True
-        callback()
+        QTimer.singleShot(0, callback)
 
     worker.finished_ok.connect(_once)
     worker.failed.connect(_once)
@@ -1597,6 +1604,7 @@ class MainWindow(QMainWindow):
         self._play_cluster = play_cluster
 
         # Expanding slot keeps PLAY pinned to the right when the rail is hidden.
+        # Contributors and the loading bar share this slot (mutually exclusive).
         progress_slot = QWidget(bottom)
         progress_slot.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
         progress_slot.setSizePolicy(
@@ -1605,8 +1613,57 @@ class MainWindow(QMainWindow):
         slot_l = QHBoxLayout(progress_slot)
         slot_l.setContentsMargins(0, 0, 0, 0)
         slot_l.setSpacing(0)
+
+        contributors = QWidget(progress_slot)
+        contributors.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+        contributors.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
+        )
+        contrib_l = QVBoxLayout(contributors)
+        contrib_l.setContentsMargins(0, 0, 0, 0)
+        contrib_l.setSpacing(2)
+        contrib_l.setAlignment(
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+        )
+        contributors_label = QLabel("Contributors")
+        contributors_label.setObjectName("Muted")
+        contributors_label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        portraits = QHBoxLayout()
+        portraits.setContentsMargins(0, 0, 0, 0)
+        portraits.setSpacing(6)
+        portraits.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        portraits.addWidget(
+            ContributorPortrait(
+                "contributor_01.jpg",
+                border_name="CheckButtonGlow-Pink.PNG",
+                url="https://discord.com/users/1080557702339633222",
+            )
+        )
+        portraits.addWidget(
+            ContributorPortrait(
+                "contributor_02.jpg",
+                border_name=None,
+                fill_mode="circle_cutout",
+                url="https://discord.com/users/608476640271663129",
+            )
+        )
+        portraits.addWidget(
+            ContributorPortrait(
+                "contributor_03.jpg",
+                border_name="CheckButtonHilight-Blue.PNG",
+                crop_mode="cover",
+                fill_mode="outer",
+            )
+        )
+        contrib_l.addWidget(contributors_label, 0, Qt.AlignmentFlag.AlignHCenter)
+        contrib_l.addLayout(portraits)
+        self._contributors = contributors
+
+        slot_l.addWidget(contributors)
         slot_l.addWidget(self.progress)
         self._progress_slot = progress_slot
+        # Loading bar starts hidden — contributors fill the center slot.
+        self._sync_contributors_with_progress()
 
         grip = QSizeGrip(bottom)
         grip.setFixedSize(16, 16)
@@ -2163,6 +2220,11 @@ class MainWindow(QMainWindow):
 
     def eventFilter(self, obj, event):
         """Edge-resize on border; drag window from non-interactive chrome."""
+        progress = getattr(self, "progress", None)
+        if progress is not None and obj is progress:
+            et = event.type()
+            if et in (QEvent.Type.Show, QEvent.Type.Hide):
+                self._sync_contributors_with_progress()
         if obj is getattr(self, "_content_panel", None) and event.type() == QEvent.Type.Resize:
             self._position_frame_stroke()
             self._position_chrome_buttons()
@@ -2518,11 +2580,20 @@ class MainWindow(QMainWindow):
         if lay is not None and lay.layout() is not None:
             lay.layout().activate()
 
+    def _sync_contributors_with_progress(self) -> None:
+        """Hide Contributors while the loading bar occupies the center slot."""
+        contrib = getattr(self, "_contributors", None)
+        progress = getattr(self, "progress", None)
+        if contrib is None or progress is None:
+            return
+        contrib.setVisible(progress.isHidden())
+
     def _hide_progress_bar(self) -> None:
         self.progress.hide()
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
         self.progress.setFormat("%p%")
+        self._sync_contributors_with_progress()
 
     def _worker_busy(self) -> bool:
         busy = _safe_worker_running(self._worker)
@@ -2542,13 +2613,43 @@ class MainWindow(QMainWindow):
         worker.finished.connect(lambda w=worker: self._release_worker(w))
 
     def _release_worker(self, worker: Worker) -> None:
-        worker.wait()  # finished has fired; returns immediately once run() unwinds
+        """Drop tracker refs and schedule C++ QThread deletion safely."""
+        import warnings
+
+        try:
+            if _shiboken_is_valid(worker):
+                worker.wait()  # finished has fired; returns once run() unwinds
+        except RuntimeError:
+            pass
         self._live_workers.discard(worker)
-        if getattr(self, "_worker", None) is worker:
-            self._worker = None
-        # The tracking connection's closure still references the wrapper, so
-        # let Qt free the C++ thread object (and with it that connection).
-        worker.deleteLater()
+        for attr in (
+            "_worker",
+            "_update_worker",
+            "_mod_update_worker",
+            "_launcher_update_worker",
+        ):
+            if getattr(self, attr, None) is worker:
+                setattr(self, attr, None)
+        # Disconnect before deleteLater so queued cross-thread deliveries cannot
+        # land on a half-destroyed QThread (Qt aborts with no Python traceback).
+        try:
+            if _shiboken_is_valid(worker):
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", RuntimeWarning)
+                    for sig in (
+                        worker.finished_ok,
+                        worker.failed,
+                        worker.status,
+                        worker.progress_pct,
+                        worker.finished,
+                    ):
+                        try:
+                            sig.disconnect()
+                        except (RuntimeError, TypeError):
+                            pass
+                worker.deleteLater()
+        except RuntimeError:
+            pass
 
     def _format_busy_status(self, msg: str) -> str:
         """Append ``· N in queue`` when addon jobs are waiting."""
@@ -3607,7 +3708,10 @@ class MainWindow(QMainWindow):
         worker = Worker(install_from_github, url)
 
         def on_ok(result_name):
-            self.status_lbl.setText(f"Installed from GitHub: {result_name}")
+            display = result_name or "addon"
+            self.status_lbl.setText(f"Installed from GitHub: {display}")
+            # Best-effort catalog suggestion — never blocks or undoes install.
+            self._maybe_auto_submit_git_import(url, display_name=str(display))
 
         self._busy(
             "Importing from GitHub…",
@@ -3616,6 +3720,36 @@ class MainWindow(QMainWindow):
             queueable=True,
             queue_key=f"github:{url.strip().lower()}",
         )
+
+    def _maybe_auto_submit_git_import(self, url: str, *, display_name: str = "") -> None:
+        """Quietly suggest a newly imported repo for the Available catalog."""
+
+        def job():
+            from ichalaunch.addons.submit import try_auto_submit_after_git_import
+
+            return try_auto_submit_after_git_import(url)
+
+        worker = Worker(job)
+
+        def on_submit_ok(result) -> None:
+            if result is None:
+                return  # already in catalog
+            if getattr(result, "ok", False):
+                base = f"Installed from GitHub: {display_name}" if display_name else "Installed from GitHub"
+                self.status_lbl.setText(f"{base} · suggested for catalog")
+            else:
+                log.info(
+                    "Auto catalog submit after git import: %s",
+                    getattr(result, "message", result),
+                )
+
+        def on_submit_fail(msg: str) -> None:
+            log.info("Auto catalog submit after git import failed: %s", msg)
+
+        worker.finished_ok.connect(on_submit_ok)
+        worker.failed.connect(on_submit_fail)
+        self._track_worker(worker)
+        worker.start()
 
     def _custom_dll_import(self, url: str) -> None:
         if not is_installed():
@@ -3794,28 +3928,44 @@ class MainWindow(QMainWindow):
         worker = Worker(check_addon_updates, respect_cooldown=False)
 
         def done(result):
-            self._checking_addons = False
-            self._addon_check_status = ""
-            self._check_addon_pct = 100
-            if isinstance(result, AddonUpdateCheckResult):
-                updates = result.updates
-                status = result.status_message
-                if result.catalog_refreshed:
-                    self.addons.reload_catalog()
-            else:
-                updates = result or []
-                status = None
-            self.addons.set_updates(updates)
-            if not self._checking_mods:
-                if status:
-                    self.status_lbl.setText(status)
-                elif updates:
-                    self.status_lbl.setText(f"{len(updates)} addon update(s) available")
+            # Keep UI apply off the critical QThread teardown path as much as
+            # possible: never let an exception escape a queued slot (that can
+            # abort Qt), and defer catalog combo rebuilds (see reload_catalog).
+            updates: list = []
+            status = None
+            try:
+                self._checking_addons = False
+                self._addon_check_status = ""
+                self._check_addon_pct = 100
+                if isinstance(result, AddonUpdateCheckResult):
+                    updates = list(result.updates or [])
+                    status = result.status_message
+                    if result.catalog_refreshed:
+                        QTimer.singleShot(0, self.addons.reload_catalog)
                 else:
-                    self.status_lbl.setText("Addons up to date")
-            self._refresh_check_loading()
-            self._update_worker = None
-            self._refresh_nav_badges()
+                    updates = list(result or [])
+                self.addons.set_updates(updates)
+                if not self._checking_mods:
+                    if status:
+                        self.status_lbl.setText(status)
+                    elif updates:
+                        self.status_lbl.setText(
+                            f"{len(updates)} addon update(s) available"
+                        )
+                    else:
+                        self.status_lbl.setText("Addons up to date")
+                log.info(
+                    "Addon update check applied (%d update(s))",
+                    len(updates),
+                )
+            except Exception:  # noqa: BLE001
+                log.exception("Addon update-check UI apply failed")
+                self._checking_addons = False
+                self._addon_check_status = ""
+            finally:
+                self._refresh_check_loading()
+                self._update_worker = None
+                self._refresh_nav_badges()
 
         def fail(msg: str):
             self._checking_addons = False

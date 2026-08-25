@@ -1,11 +1,22 @@
 """Reusable UI widgets."""
 from __future__ import annotations
+import base64
+import hashlib
+import json
+import os
 import re
+import shutil
+import socket
+import struct
+import subprocess
+import sys
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
-from PySide6.QtCore import QObject, QPoint, QRect, QSize, Qt, QThread, QTimer, QUrl, Signal
+from urllib.request import urlopen
+from PySide6.QtCore import QObject, QPoint, QProcess, QRect, QSize, Qt, QThread, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
@@ -581,6 +592,524 @@ def open_url_in_browser(url: str) -> bool:
     if not text:
         return False
     return bool(QDesktopServices.openUrl(QUrl(text)))
+
+
+# https://discord.com/users/<id>, discordapp.com, or discord://-/users/<id>
+_DISCORD_USER_RE = re.compile(
+    r"(?:https?://(?:www\.)?discord(?:app)?\.com/users/|discord://-/users/)(\d+)",
+    re.IGNORECASE,
+)
+
+
+def discord_user_id_from_url(url: str) -> str | None:
+    """Return a Discord snowflake from a profile URL, or None if not a user link."""
+    text = (url or "").strip()
+    if not text:
+        return None
+    if text.isdigit():
+        return text
+    m = _DISCORD_USER_RE.search(text)
+    return m.group(1) if m else None
+
+
+def _protocol_registered(scheme: str) -> bool | None:
+    """True/False when we can check Windows registry; None means try anyway."""
+    scheme = (scheme or "").strip().lower()
+    if not scheme:
+        return False
+    if sys.platform != "win32":
+        return None
+    try:
+        import winreg
+    except ImportError:
+        return None
+    for root, path in (
+        (winreg.HKEY_CURRENT_USER, rf"Software\Classes\{scheme}\shell\open\command"),
+        (winreg.HKEY_CLASSES_ROOT, rf"{scheme}\shell\open\command"),
+        (winreg.HKEY_CLASSES_ROOT, scheme),
+    ):
+        try:
+            with winreg.OpenKey(root, path):
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def _discord_protocol_registered() -> bool | None:
+    """True/False when we can check Windows registry; None means try anyway."""
+    return _protocol_registered("discord")
+
+
+def _vesktop_executable() -> Path | None:
+    """Locate a Vesktop (or legacy VencordDesktop) install, if present."""
+    if sys.platform == "win32":
+        local = Path(os.environ.get("LOCALAPPDATA", ""))
+        program_files = Path(os.environ.get("PROGRAMFILES", r"C:\Program Files"))
+        program_files_x86 = Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"))
+        candidates = (
+            local / "vesktop" / "vesktop.exe",
+            local / "Programs" / "vesktop" / "vesktop.exe",
+            local / "VencordDesktop" / "VencordDesktop.exe",
+            program_files / "vesktop" / "vesktop.exe",
+            program_files / "Vesktop" / "vesktop.exe",
+            program_files_x86 / "vesktop" / "vesktop.exe",
+            program_files_x86 / "Vesktop" / "vesktop.exe",
+        )
+        for path in candidates:
+            if path.is_file():
+                return path
+        return None
+    if sys.platform == "darwin":
+        mac = Path("/Applications/Vesktop.app/Contents/MacOS/Vesktop")
+        return mac if mac.is_file() else None
+    which = shutil.which("vesktop")
+    return Path(which) if which else None
+
+
+def _process_named_running(image_name: str) -> bool:
+    """Best-effort check for a running process (Windows tasklist; else False)."""
+    if sys.platform != "win32":
+        return False
+    name = (image_name or "").strip()
+    if not name:
+        return False
+    try:
+        kwargs: dict[str, Any] = {
+            "args": ["tasklist", "/FI", f"IMAGENAME eq {name}", "/NH"],
+            "capture_output": True,
+            "text": True,
+            "timeout": 5,
+            "check": False,
+        }
+        # Avoid a flash console window when launched from the GUI.
+        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        if creationflags:
+            kwargs["creationflags"] = creationflags
+        completed = subprocess.run(**kwargs)
+        out = (completed.stdout or "") + (completed.stderr or "")
+        return name.lower() in out.lower()
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+# Local CDP port used when we cold-start Vesktop so warm clicks can open profiles
+# in the existing window (Vesktop's second-instance handler only focuses).
+_VESKTOP_CDP_PORT = 9229
+_DISCORD_IPC_CLIENT_ID = "122178054565183488"  # unused public-style id for handshake
+
+
+def _launch_app_with_url(exe: Path, url: str, *extra_args: str) -> bool:
+    """Start ``exe`` with ``url`` (and optional Chromium flags) as argv."""
+    args = [url, *[a for a in extra_args if a]]
+    try:
+        # Prefer Qt detach so the launcher is not tied to Vesktop's lifetime.
+        ok, _pid = QProcess.startDetached(str(exe), args)
+        if ok:
+            return True
+    except (TypeError, RuntimeError, OSError):
+        pass
+    try:
+        kwargs: dict[str, Any] = {"close_fds": True}
+        if sys.platform == "win32":
+            flags = 0
+            for name in ("DETACHED_PROCESS", "CREATE_NEW_PROCESS_GROUP"):
+                flags |= getattr(subprocess, name, 0)
+            if flags:
+                kwargs["creationflags"] = flags
+        subprocess.Popen([str(exe), *args], **kwargs)
+        return True
+    except OSError:
+        return False
+
+
+def _windows_open_uri(uri: str) -> bool:
+    """Open a URI via the OS shell (protocol handler), ignoring registry probes."""
+    text = (uri or "").strip()
+    if not text:
+        return False
+    if sys.platform == "win32":
+        try:
+            os.startfile(text)  # type: ignore[attr-defined]
+            return True
+        except OSError:
+            pass
+        try:
+            import ctypes
+
+            # > 32 means ShellExecute started the association successfully.
+            rc = int(ctypes.windll.shell32.ShellExecuteW(None, "open", text, None, None, 1))
+            return rc > 32
+        except (AttributeError, OSError, ValueError):
+            pass
+    return bool(QDesktopServices.openUrl(QUrl(text)))
+
+
+def _discord_ipc_paths() -> list[str]:
+    if sys.platform == "win32":
+        return [rf"\\.\pipe\discord-ipc-{i}" for i in range(10)]
+    bases: list[str] = []
+    for key in ("XDG_RUNTIME_DIR", "TMPDIR", "TMP", "TEMP"):
+        val = os.environ.get(key)
+        if val:
+            bases.append(val)
+    bases.append("/tmp")
+    paths: list[str] = []
+    for base in bases:
+        for i in range(10):
+            paths.append(str(Path(base) / f"discord-ipc-{i}"))
+    return paths
+
+
+def _discord_ipc_encode(opcode: int, payload: dict[str, Any]) -> bytes:
+    data = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    return struct.pack("<II", opcode, len(data)) + data
+
+
+def _discord_ipc_read(sock: socket.socket, timeout: float = 2.0) -> tuple[int, dict[str, Any]] | None:
+    sock.settimeout(timeout)
+    try:
+        hdr = sock.recv(8)
+        if len(hdr) < 8:
+            return None
+        opcode, length = struct.unpack("<II", hdr)
+        body = b""
+        while len(body) < length:
+            chunk = sock.recv(length - len(body))
+            if not chunk:
+                break
+            body += chunk
+        if len(body) < length:
+            return None
+        return opcode, json.loads(body.decode("utf-8"))
+    except (OSError, TimeoutError, json.JSONDecodeError):
+        return None
+
+
+def _discord_ipc_open_user(user_id: str) -> bool:
+    """Ask a running Discord/Vesktop arRPC server to open ``users/<id>``."""
+    uid = (user_id or "").strip()
+    if not uid.isdigit():
+        return False
+    payload = {
+        "cmd": "DEEP_LINK",
+        "args": {"type": "FEATURES", "params": {"path": f"users/{uid}"}},
+        "nonce": str(uuid.uuid4()),
+    }
+    for path in _discord_ipc_paths():
+        if sys.platform == "win32":
+            try:
+                pipe = open(path, "r+b", buffering=0)
+            except OSError:
+                continue
+            try:
+                pipe.write(_discord_ipc_encode(0, {"v": 1, "client_id": _DISCORD_IPC_CLIENT_ID}))
+                pipe.flush()
+                hdr = pipe.read(8)
+                if len(hdr) < 8:
+                    continue
+                _op, length = struct.unpack("<II", hdr)
+                body = pipe.read(length)
+                if len(body) < length:
+                    continue
+                pipe.write(_discord_ipc_encode(1, payload))
+                pipe.flush()
+                hdr = pipe.read(8)
+                if len(hdr) < 8:
+                    continue
+                _op, length = struct.unpack("<II", hdr)
+                body = pipe.read(length)
+                msg = json.loads(body.decode("utf-8")) if body else {}
+                return msg.get("evt") is None
+            except (OSError, json.JSONDecodeError, struct.error):
+                continue
+            finally:
+                try:
+                    pipe.close()
+                except OSError:
+                    pass
+            continue
+
+        sock: socket.socket | None = None
+        try:
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            sock.settimeout(1.0)
+            sock.connect(path)
+            sock.sendall(_discord_ipc_encode(0, {"v": 1, "client_id": _DISCORD_IPC_CLIENT_ID}))
+            if _discord_ipc_read(sock) is None:
+                continue
+            sock.sendall(_discord_ipc_encode(1, payload))
+            resp = _discord_ipc_read(sock)
+            if resp is None:
+                return False
+            _opcode, msg = resp
+            return msg.get("evt") is None
+        except OSError:
+            continue
+        finally:
+            if sock is not None:
+                try:
+                    sock.close()
+                except OSError:
+                    pass
+    return False
+
+
+def _ws_recv_frame(sock: socket.socket) -> bytes:
+    """Read one unmasked WebSocket binary/text frame (client role)."""
+    hdr = sock.recv(2)
+    if len(hdr) < 2:
+        raise OSError("short ws header")
+    b1, b2 = hdr[0], hdr[1]
+    opcode = b1 & 0x0F
+    masked = bool(b2 & 0x80)
+    length = b2 & 0x7F
+    if length == 126:
+        ext = sock.recv(2)
+        length = struct.unpack("!H", ext)[0]
+    elif length == 127:
+        ext = sock.recv(8)
+        length = struct.unpack("!Q", ext)[0]
+    mask = sock.recv(4) if masked else b""
+    data = b""
+    while len(data) < length:
+        chunk = sock.recv(length - len(data))
+        if not chunk:
+            break
+        data += chunk
+    if masked and mask:
+        data = bytes(b ^ mask[i % 4] for i, b in enumerate(data))
+    if opcode == 0x8:
+        raise OSError("ws closed")
+    if opcode == 0x9:  # ping -> pong
+        sock.sendall(bytes([0x8A, len(data)]) + data)
+        return _ws_recv_frame(sock)
+    return data
+
+
+def _ws_send_text(sock: socket.socket, text: str) -> None:
+    data = text.encode("utf-8")
+    mask = os.urandom(4)
+    header = bytearray([0x81])
+    n = len(data)
+    if n < 126:
+        header.append(0x80 | n)
+    elif n < 65536:
+        header.append(0x80 | 126)
+        header.extend(struct.pack("!H", n))
+    else:
+        header.append(0x80 | 127)
+        header.extend(struct.pack("!Q", n))
+    header.extend(mask)
+    masked = bytes(b ^ mask[i % 4] for i, b in enumerate(data))
+    sock.sendall(header + masked)
+
+
+def _cdp_connect(ws_url: str) -> socket.socket:
+    """Minimal WebSocket client handshake for Chromium CDP."""
+    parsed = urlparse(ws_url)
+    host = parsed.hostname or "127.0.0.1"
+    port = parsed.port or (443 if parsed.scheme == "wss" else 80)
+    path = parsed.path or "/"
+    if parsed.query:
+        path = f"{path}?{parsed.query}"
+    key = base64.b64encode(os.urandom(16)).decode("ascii")
+    req = (
+        f"GET {path} HTTP/1.1\r\n"
+        f"Host: {host}:{port}\r\n"
+        "Upgrade: websocket\r\n"
+        "Connection: Upgrade\r\n"
+        f"Sec-WebSocket-Key: {key}\r\n"
+        "Sec-WebSocket-Version: 13\r\n"
+        "\r\n"
+    )
+    sock = socket.create_connection((host, port), timeout=2.0)
+    sock.settimeout(3.0)
+    sock.sendall(req.encode("ascii"))
+    buf = b""
+    while b"\r\n\r\n" not in buf:
+        chunk = sock.recv(4096)
+        if not chunk:
+            sock.close()
+            raise OSError("CDP handshake closed")
+        buf += chunk
+    status_line = buf.split(b"\r\n", 1)[0].decode("ascii", "replace")
+    if "101" not in status_line:
+        sock.close()
+        raise OSError(f"CDP handshake failed: {status_line}")
+    expected = base64.b64encode(
+        hashlib.sha1((key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode("ascii")).digest()
+    ).decode("ascii")
+    if expected not in buf.decode("latin-1", "replace"):
+        # Some Chromium builds omit echoing checks under allow-origins; still proceed if 101.
+        pass
+    return sock
+
+
+def _cdp_evaluate(ws_url: str, expression: str, await_promise: bool = True) -> Any:
+    sock = _cdp_connect(ws_url)
+    try:
+        msg_id = 1
+        _ws_send_text(
+            sock,
+            json.dumps(
+                {
+                    "id": msg_id,
+                    "method": "Runtime.evaluate",
+                    "params": {
+                        "expression": expression,
+                        "returnByValue": True,
+                        "awaitPromise": await_promise,
+                    },
+                }
+            ),
+        )
+        while True:
+            raw = _ws_recv_frame(sock)
+            data = json.loads(raw.decode("utf-8"))
+            if data.get("id") != msg_id:
+                continue
+            result = (data.get("result") or {}).get("result") or {}
+            if "exceptionDetails" in (data.get("result") or {}):
+                return None
+            return result.get("value")
+    finally:
+        try:
+            sock.close()
+        except OSError:
+            pass
+
+
+def _vesktop_cdp_page_ws_urls(ports: tuple[int, ...] | None = None) -> list[str]:
+    urls: list[str] = []
+    for port in ports or (_VESKTOP_CDP_PORT, 9222, 9223):
+        try:
+            with urlopen(f"http://127.0.0.1:{port}/json", timeout=0.4) as resp:
+                tabs = json.loads(resp.read().decode("utf-8"))
+        except (OSError, TimeoutError, json.JSONDecodeError, ValueError):
+            continue
+        if not isinstance(tabs, list):
+            continue
+        for tab in tabs:
+            if not isinstance(tab, dict):
+                continue
+            if tab.get("type") != "page":
+                continue
+            ws = tab.get("webSocketDebuggerUrl")
+            if isinstance(ws, str) and ws:
+                urls.append(ws)
+    return urls
+
+
+def _vesktop_cdp_open_user(user_id: str) -> bool:
+    """Open a user profile in a running Vesktop via Chromium CDP + Vencord helpers."""
+    uid = (user_id or "").strip()
+    if not uid.isdigit():
+        return False
+    # Discord's openUserProfileModal expects an options object, not a bare id string.
+    expression = f"""(async () => {{
+  try {{
+    if (!window.Vencord) return 'no-vencord';
+    const mod = Vencord.Webpack.findByProps('openUserProfileModal');
+    if (mod && mod.openUserProfileModal) {{
+      const guildId = Vencord.Webpack.Common.SelectedGuildStore?.getGuildId?.() ?? undefined;
+      const channelId = Vencord.Webpack.Common.SelectedChannelStore?.getChannelId?.() ?? undefined;
+      mod.openUserProfileModal({{
+        userId: '{uid}',
+        guildId,
+        channelId,
+        analyticsLocation: {{ page: guildId ? 'Guild Channel' : 'DM Channel', section: 'Profile Popout' }}
+      }});
+      return 'ok-modal';
+    }}
+    const {{ FluxDispatcher, UserUtils, SelectedChannelStore }} = Vencord.Webpack.Common;
+    if (UserUtils && UserUtils.fetchUser) await UserUtils.fetchUser('{uid}');
+    FluxDispatcher.dispatch({{
+      type: 'USER_PROFILE_MODAL_OPEN',
+      userId: '{uid}',
+      channelId: SelectedChannelStore?.getChannelId?.(),
+      analyticsLocation: 'IchaLaunch'
+    }});
+    return 'ok-dispatch';
+  }} catch (e) {{
+    return 'err:' + String(e && e.message || e);
+  }}
+}})()"""
+    for ws_url in _vesktop_cdp_page_ws_urls():
+        try:
+            value = _cdp_evaluate(ws_url, expression, await_promise=True)
+        except OSError:
+            continue
+        if isinstance(value, str) and value.startswith("ok"):
+            return True
+    return False
+
+
+def open_discord_user_profile(url_or_id: str) -> bool:
+    """Open a Discord user profile in a desktop client when possible, else the browser.
+
+    Order (warm Vesktop included):
+    1. Chromium CDP ``openUserProfileModal`` when Vesktop was started with remote
+       debugging (we pass this on cold launch).
+    2. Discord IPC ``DEEP_LINK`` / arRPC when a ``discord-ipc-*`` pipe is listening.
+    3. Launch Vesktop with ``discord://-/users/<id>`` even if already running
+       (cold start navigates; warm builds at least focus the window).
+    4. OS ``discord://`` via ``os.startfile`` / ShellExecute / Qt.
+    5. HTTPS profile URL in the browser.
+    """
+    text = (url_or_id or "").strip()
+    if not text:
+        return False
+    user_id = discord_user_id_from_url(text)
+    if not user_id:
+        return open_url_in_browser(text)
+    https_url = f"https://discord.com/users/{user_id}"
+    deep_url = f"discord://-/users/{user_id}"
+
+    # Warm path that actually opens the profile modal without reloading Discord.
+    if _vesktop_cdp_open_user(user_id):
+        return True
+
+    if _discord_ipc_open_user(user_id):
+        return True
+
+    vesktop = _vesktop_executable()
+    if vesktop is not None:
+        running = _process_named_running(vesktop.name)
+        if running:
+            # Newer Vesktop still ignores second-instance argv for navigation, but
+            # launching with the deep link focuses the window; worth trying first.
+            if _launch_app_with_url(vesktop, deep_url):
+                # If CDP becomes available after focus, try once more (no-op usually).
+                if _vesktop_cdp_open_user(user_id):
+                    return True
+            if _windows_open_uri(deep_url):
+                if _vesktop_cdp_open_user(user_id):
+                    return True
+            # Fall through to browser — focus-only is worse than a working profile.
+        else:
+            # Cold start: argv discord:// is handled by loadUrl. Also enable CDP so
+            # later warm clicks can open profiles inside the existing window.
+            if _launch_app_with_url(
+                vesktop,
+                deep_url,
+                f"--remote-debugging-port={_VESKTOP_CDP_PORT}",
+                "--remote-allow-origins=*",
+            ):
+                return True
+
+    if _windows_open_uri(deep_url):
+        if _vesktop_cdp_open_user(user_id):
+            return True
+        registered = _discord_protocol_registered()
+        # Only trust bare protocol success as terminal when a handler is registered
+        # and Vesktop was not already our target (avoids silent no-ops).
+        if registered and vesktop is None:
+            return True
+
+    return open_url_in_browser(https_url)
+
+
 class FlowLayout(QLayout):
     """Simple left-to-right wrapping layout for chip rows."""
     def __init__(self, parent=None, margin: int = 0, spacing: int = 8):
@@ -651,8 +1180,8 @@ class Card(QFrame):
     def body(self) -> QVBoxLayout:
         return self._layout
 class ModCheckRow(QWidget):
-    """Compact row: [checkbox] Name [▸ desc] — status [Update] [Open in Git] [Reinstall].
-    Description stays collapsed behind the caret until expanded.
+    """Compact row: [checkbox] Name [▸ details] — status [Update] [Open in Git] [Reinstall].
+    Version and description stay collapsed behind the caret until expanded.
     Optional *contains* line (e.g. bundled companions) stays visible beneath the title.
     """
     toggled = Signal(str, bool)
@@ -668,6 +1197,7 @@ class ModCheckRow(QWidget):
         *,
         author: str | None = None,
         contains: str | None = None,
+        version: str | None = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -677,6 +1207,7 @@ class ModCheckRow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_DontCreateNativeAncestors, True)
         self.mod_id = mod_id
         self._full_desc = (description or "").replace("\n", " ").strip()
+        self._version = (version or "").strip()
         self._desc_expanded = False
         self._git_url: str | None = None
         self.setObjectName("ModCheckRow")
@@ -703,8 +1234,7 @@ class ModCheckRow(QWidget):
         self.desc_toggle.setFixedSize(18, 22)
         apply_open_hand(self.desc_toggle)
         self.desc_toggle.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.desc_toggle.setToolTip("Show description")
-        self.desc_toggle.setVisible(bool(self._full_desc))
+        self.desc_toggle.setToolTip("Show details")
         self.desc_toggle.clicked.connect(self._toggle_desc)
         self.author_lbl = QLabel("", self)
         self.author_lbl.setObjectName("Muted")
@@ -754,39 +1284,66 @@ class ModCheckRow(QWidget):
         else:
             self.contains_lbl.clear()
             self.contains_lbl.setVisible(False)
+        self.version_lbl = QLabel(self)
+        self.version_lbl.setObjectName("Muted")
+        self.version_lbl.setWordWrap(False)
+        self.version_lbl.setVisible(False)
         self.desc_lbl = QLabel(self)
         self.desc_lbl.setObjectName("Muted")
         self.desc_lbl.setWordWrap(True)
         self.desc_lbl.setVisible(False)
         outer.addLayout(row)
         outer.addWidget(self.contains_lbl)
+        outer.addWidget(self.version_lbl)
         outer.addWidget(self.desc_lbl)
+        self._apply_desc()
+    def _has_dropdown(self) -> bool:
+        return bool(self._full_desc or self._version)
     def _toggle_desc(self) -> None:
         self._desc_expanded = not self._desc_expanded
         self._apply_desc()
         self.updateGeometry()
     def _apply_desc(self) -> None:
-        if not self._full_desc:
+        if not self._has_dropdown():
+            self.version_lbl.clear()
+            self.version_lbl.setVisible(False)
             self.desc_lbl.clear()
             self.desc_lbl.setVisible(False)
             self.desc_toggle.setVisible(False)
             return
         self.desc_toggle.setVisible(True)
         if self._desc_expanded:
-            self.desc_lbl.setText(self._full_desc)
-            self.desc_lbl.setVisible(True)
+            if self._version:
+                self.version_lbl.setText(f"Version {self._version}")
+                self.version_lbl.setVisible(True)
+            else:
+                self.version_lbl.clear()
+                self.version_lbl.setVisible(False)
+            if self._full_desc:
+                self.desc_lbl.setText(self._full_desc)
+                self.desc_lbl.setVisible(True)
+            else:
+                self.desc_lbl.clear()
+                self.desc_lbl.setVisible(False)
             self.desc_toggle.setText("▾")
-            self.desc_toggle.setToolTip("Hide description")
+            self.desc_toggle.setToolTip("Hide details")
         else:
+            self.version_lbl.clear()
+            self.version_lbl.setVisible(False)
             self.desc_lbl.clear()
             self.desc_lbl.setVisible(False)
             self.desc_toggle.setText("▸")
-            self.desc_toggle.setToolTip("Show description")
+            self.desc_toggle.setToolTip("Show details")
     def _emit_open_git(self) -> None:
         self.open_git_clicked.emit(self.mod_id)
     def set_git_url(self, url: str | None) -> None:
         self._git_url = (url or "").strip() or None
         apply_open_git_visibility(self.open_git_btn, self._git_url, self, defer=True)
+
+    def set_version(self, version: str | None) -> None:
+        self._version = (version or "").strip()
+        self.version_lbl.setToolTip(f"Version {self._version}" if self._version else "")
+        self._apply_desc()
 
     def kick_git_visibility(self) -> None:
         apply_open_git_visibility(self.open_git_btn, self._git_url, self, defer=False)

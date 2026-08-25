@@ -2201,6 +2201,7 @@ def test_unauth_scan_budget_queue():
 def test_git_refs_and_tip_index():
     """Upload-pack / Atom parsers and catalog tip-index lookup stay off REST."""
     from ichalaunch.addons.git_refs import (
+        is_usable_release_tag,
         newest_version_tag,
         parse_atom_commit_sha,
         parse_atom_release_tag,
@@ -2243,6 +2244,12 @@ def test_git_refs_and_tip_index():
     assert refs.tip_sha("dev").startswith("bbbb")
     assert refs.tip_sha("v1.2.0").startswith("dddd")  # peeled
     assert newest_version_tag(refs.tags) == "v1.3.0"
+    # SuperWoW: DLL zip lives on Release; Patch is an optional MPQ, not a version.
+    assert newest_version_tag(["Patch", "Release"]) == "Release"
+    assert newest_version_tag({"Patch": "a" * 40, "Release": "b" * 40}) == "Release"
+    assert is_usable_release_tag("Release")
+    assert is_usable_release_tag("v2.2")
+    assert not is_usable_release_tag("Patch")
 
     ls = parse_ls_remote(
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\tHEAD\n"
@@ -2306,7 +2313,24 @@ def test_mod_catalog_repos_in_tip_index_builder():
     keys = {f"{o.lower()}/{n.lower()}" for o, n in merged}
     assert "hannesmann/vanillafixes" in keys
     assert "balakethelock/superwow" in keys
+    # Nested catalog forks[] are indexed alongside primary repos.
+    assert "marcelinevq/bagnon" in keys
     print("OK mod catalog repos in tip index builder")
+
+
+def test_nested_catalog_forks_in_submit_duplicate_check():
+    """Suggest / auto-submit duplicate checks include forks[].repo."""
+    from ichalaunch.addons.catalog import load_bundled_catalog
+    from ichalaunch.addons.submit import repo_in_catalog
+
+    catalog = load_bundled_catalog()
+    assert repo_in_catalog("https://github.com/MarcelineVQ/Bagnon", catalog)
+    assert repo_in_catalog("https://github.com/McPewPew/Bagnon", catalog)
+    assert not repo_in_catalog(
+        "https://github.com/definitely-not-real-xyz/nope-addon-999",
+        catalog,
+    )
+    print("OK nested catalog forks in submit duplicate check")
 
 
 def test_mod_remote_identity_uses_tip_index():
@@ -2347,6 +2371,27 @@ def test_mod_remote_identity_uses_tip_index():
             catalog_only=True,
         )
         assert missing is None
+        tips._loaded = (
+            0.0,
+            normalize_index(
+                {
+                    "generated_at": "2026-08-23T00:00:00Z",
+                    "repos": {
+                        "balakethelock/superwow": {
+                            "default_branch": "master",
+                            "sha": "b" * 40,
+                            "branches": {"master": "b" * 40},
+                            "latest_tag": "Patch",
+                        }
+                    },
+                }
+            ),
+        )
+        patch_ident = _remote_identity(
+            {"type": "github_release_latest", "repo": "balakethelock/SuperWoW"},
+            catalog_only=True,
+        )
+        assert patch_ident is None
     finally:
         tips._loaded = prev
         if prev is None:
@@ -4091,6 +4136,61 @@ def test_dll_injection_mod_detection():
     print("OK dll injection mod detection")
 
 
+def test_mod_version_label():
+    """Client rows can show a catalog/installed tag and skip junk fingerprints."""
+    from ichalaunch.mods.installer import get_mod, mod_version_label
+
+    tweaks = get_mod("vanilla_tweaks")
+    assert mod_version_label(tweaks) == "v1.6.0"
+    assert mod_version_label(tweaks, {"version_display": "v1.5.0"}) == "v1.5.0"
+    assert mod_version_label(tweaks, {"version_display": "detected"}) == "v1.6.0"
+    vf = get_mod("vanillafixes")
+    assert mod_version_label(vf) == "v1.5.3"
+    sw = get_mod("superwow")
+    assert mod_version_label(sw) == "Release"
+    assert mod_version_label(get_mod("pretty_night_sky")) == ""
+    assert mod_version_label(get_mod("wdb_block")) == ""
+    print("OK mod version label")
+
+
+def test_superwow_tracks_dll_release_not_patch_mpq():
+    """SuperWoW is SuperWoWhook.dll on the Release zip, never the Patch MPQ."""
+    from ichalaunch.addons.tip_index import load_index_file, bundled_tips_path
+    from ichalaunch.mods.installer import _asset_from_release, get_mod
+
+    mod = get_mod("superwow")
+    assert mod is not None
+    source = mod.get("source") or {}
+    assert source.get("type") == "github_release_latest"
+    needle = str(source.get("asset_contains") or "").lower()
+    assert "superwow" in needle
+    assert needle != ".zip"
+
+    patch = {
+        "tag_name": "Patch",
+        "assets": [{"name": "patch-9.MPQ", "browser_download_url": "https://example.com/patch-9.MPQ"}],
+    }
+    release = {
+        "tag_name": "Release",
+        "assets": [
+            {
+                "name": "SuperWoW.release.2.2.zip",
+                "browser_download_url": "https://example.com/SuperWoW.release.2.2.zip",
+            }
+        ],
+    }
+    assert _asset_from_release(patch, source) is None
+    picked = _asset_from_release(release, source)
+    assert picked is not None
+    assert "superwow" in (picked.get("name") or "").lower()
+    assert (picked.get("name") or "").lower().endswith(".zip")
+
+    tips = load_index_file(bundled_tips_path())
+    tag = str((tips.get("repos") or {}).get("balakethelock/superwow", {}).get("latest_tag") or "")
+    assert tag == "Release"
+    print("OK superwow tracks dll release not patch mpq")
+
+
 def test_superwow_issue_detection():
     import tempfile
 
@@ -5236,6 +5336,7 @@ def _run_smoke_tests():
     test_unauth_scan_budget_queue()
     test_git_refs_and_tip_index()
     test_mod_catalog_repos_in_tip_index_builder()
+    test_nested_catalog_forks_in_submit_duplicate_check()
     test_mod_remote_identity_uses_tip_index()
     test_addon_toc_folder_name_required()
     test_addon_toc_folder_rename()
@@ -5275,6 +5376,8 @@ def _run_smoke_tests():
     test_game_permissions_protected_path()
     test_launcher_release_cache()
     test_dll_injection_mod_detection()
+    test_mod_version_label()
+    test_superwow_tracks_dll_release_not_patch_mpq()
     test_superwow_issue_detection()
     test_themed_dialog_flags_and_close()
     test_dll_security_dialog_dont_show_again_is_themed_checkbox()

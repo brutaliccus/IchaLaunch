@@ -27,6 +27,7 @@ from ichalaunch.mods.installer import (
     get_mod,
     load_mod_catalog,
     mod_contains_caption,
+    mod_version_label,
     plan_changes,
     reconcile_exclusive_desired_mods,
     vanillafixes_dxvk_both_enabled,
@@ -324,6 +325,7 @@ class ClientPage(QWidget):
         else:
             cat = mod.get("category") or "Client Enhancements"
         contains_text = mod_contains_caption(mod)
+        version = mod_version_label(mod, settings.installed_mods.get(mid))
         row = ModCheckRow(
             mid,
             mod["name"],
@@ -331,6 +333,7 @@ class ClientPage(QWidget):
             checked=bool(settings.desired_mods.get(mid, False)),
             author=mod_author(mod),
             contains=contains_text or None,
+            version=version or None,
             parent=host_l.parentWidget() if host_l is not None else self,
         )
         row.toggled.connect(self._on_toggle)
@@ -345,6 +348,7 @@ class ClientPage(QWidget):
             "note": str(mod.get("note") or ""),
             "author": str(mod_author(mod) or ""),
             "includes": contains_text,
+            "version": version,
         }
         layout = host_l or self._cat_hosts.get(cat)
         if layout is not None:
@@ -431,6 +435,7 @@ class ClientPage(QWidget):
                         str(meta.get("note") or ""),
                         str(meta.get("author") or ""),
                         str(meta.get("includes") or ""),
+                        str(meta.get("version") or ""),
                     ]
                 ).lower()
                 hit = (not q) or q in hay
@@ -729,6 +734,11 @@ class ClientPage(QWidget):
             row.cb.blockSignals(False)
             can_ri = self._mod_can_reinstall(catalog.get(mid) or {})
             row.set_git_url(mod_git_url(catalog.get(mid) or {}))
+            version = mod_version_label(catalog.get(mid), installed_meta.get(mid))
+            row.set_version(version or None)
+            meta = self._row_meta.get(mid)
+            if meta is not None:
+                meta["version"] = version
             pending = self._pending_updates.get(mid)
             if pending:
                 detail = f"{pending.get('local', '?')} → {pending.get('remote', '?')}"

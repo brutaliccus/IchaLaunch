@@ -12,10 +12,11 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 import requests
 
+from ichalaunch.addons.git_refs import is_usable_release_tag, is_version_tag
 from ichalaunch.addons.github import (
     GitHubRateLimitError,
     fetch_repo_readme,
@@ -1448,6 +1449,72 @@ def _pick_release_asset(
     return min(candidates, key=lambda a: (len(a.get("name") or ""), a.get("name") or ""))
 
 
+def _github_json(api: str) -> Any:
+    """GET GitHub JSON; 404 → None so a side tag like SuperWoW ``Patch`` can be skipped."""
+    try:
+        r = github_get(api)
+    except requests.HTTPError as exc:
+        if exc.response is not None and exc.response.status_code == 404:
+            return None
+        raise
+    try:
+        return r.json()
+    except ValueError:
+        return None
+
+
+def _asset_from_release(release: Any, source: dict[str, Any]) -> dict[str, Any] | None:
+    if not isinstance(release, dict):
+        return None
+    assets = release.get("assets") or []
+    if not isinstance(assets, list):
+        return None
+    return _pick_release_asset(
+        assets,
+        asset_contains=source.get("asset_contains") or ".zip",
+        asset_not_contains=source.get("asset_not_contains"),
+        prefer_filename=source.get("prefer_filename"),
+    )
+
+
+def _resolve_github_release_asset(source: dict[str, Any]) -> dict[str, Any]:
+    """Pick the DLL/zip asset, walking past MPQ-only tags like SuperWoW ``Patch``."""
+    repo = source["repo"]
+    needle = source.get("asset_contains") or ".zip"
+    tag = None
+    if "/" in str(repo):
+        owner, name = str(repo).split("/", 1)
+        tag = github_latest_version_tag(owner, name)
+        if tag and not is_usable_release_tag(tag):
+            tag = None
+
+    apis: list[str] = []
+    if tag:
+        apis.append(f"https://api.github.com/repos/{repo}/releases/tags/{quote(str(tag), safe='')}")
+    apis.append(f"https://api.github.com/repos/{repo}/releases/latest")
+
+    seen: set[str] = set()
+    for api in apis:
+        if api in seen:
+            continue
+        seen.add(api)
+        asset = _asset_from_release(_github_json(api), source)
+        if asset:
+            return asset
+
+    listing = _github_json(f"https://api.github.com/repos/{repo}/releases")
+    if isinstance(listing, list):
+        for release in listing:
+            asset = _asset_from_release(release, source)
+            if asset:
+                return asset
+
+    detail = needle
+    if source.get("asset_not_contains"):
+        detail = f"{needle} (excluding {source['asset_not_contains']})"
+    raise FileNotFoundError(f"No release asset matching {detail} for {repo}")
+
+
 def _looks_like_zip(filename: str, stype: str | None = None) -> bool:
     if stype in ("raw_zip", "github_zip"):
         return True
@@ -1510,22 +1577,7 @@ def _download_source(source: dict[str, Any], work: Path, progress: ProgressCb | 
         )
         return dest
     if stype == "github_release_latest":
-        repo = source["repo"]
-        api = f"https://api.github.com/repos/{repo}/releases/latest"
-        r = github_get(api)
-        assets = r.json().get("assets") or []
-        needle = source.get("asset_contains") or ".zip"
-        asset = _pick_release_asset(
-            assets,
-            asset_contains=needle,
-            asset_not_contains=source.get("asset_not_contains"),
-            prefer_filename=source.get("prefer_filename"),
-        )
-        if not asset:
-            detail = needle
-            if source.get("asset_not_contains"):
-                detail = f"{needle} (excluding {source['asset_not_contains']})"
-            raise FileNotFoundError(f"No release asset matching {detail} for {repo}")
+        asset = _resolve_github_release_asset(source)
         filename = sanitize_filename(asset.get("name") or "release.bin")
         url = asset["browser_download_url"]
         try:
@@ -1561,6 +1613,89 @@ def _repo_from_github_url(url: str) -> str | None:
 def _tag_from_release_url(url: str) -> str | None:
     m = re.search(r"/releases/download/([^/]+)/", url)
     return m.group(1) if m else None
+
+
+_BLANK_VERSION_LABELS = frozenset(
+    {
+        "detected",
+        "catalog",
+        "remote",
+        "patch",
+        "latest",
+        "assets",
+        "mpq",
+        "textures",
+    }
+)
+
+
+def _displayable_mod_version(raw: str | None) -> str:
+    """Keep tags / short SHAs; drop fingerprints, URLs, and leftover Patch aliases."""
+    text = str(raw or "").strip().strip('"')
+    if not text or text.lower() in _BLANK_VERSION_LABELS:
+        return ""
+    if text.startswith(("http://", "https://", "W/")) or "\\" in text:
+        return ""
+    if len(text) > 40:
+        return ""
+    if re.fullmatch(r"[0-9a-f]{40}", text, re.I):
+        return text[:7]
+    if re.fullmatch(r"[0-9a-f]{7,12}", text, re.I):
+        return text[:7]
+    if is_usable_release_tag(text) or is_version_tag(text):
+        return text
+    return ""
+
+
+def _tips_repo_entry(owner: str, name: str) -> dict[str, Any]:
+    from ichalaunch.addons.git_refs import repo_cache_key
+    from ichalaunch.addons.tip_index import (
+        bundled_tips_path,
+        current_index,
+        load_index_file,
+    )
+
+    key = repo_cache_key(owner, name)
+    repos = current_index().get("repos")
+    if isinstance(repos, dict):
+        entry = repos.get(key)
+        if isinstance(entry, dict) and entry:
+            return entry
+    bundled = load_index_file(bundled_tips_path()).get("repos") or {}
+    entry = bundled.get(key)
+    return entry if isinstance(entry, dict) else {}
+
+
+def mod_version_label(
+    mod: dict[str, Any] | None,
+    installed: dict[str, Any] | None = None,
+) -> str:
+    """Grey-row version when we know a real tag, pin, or commit — empty otherwise."""
+    if installed:
+        for key in ("version_display", "tag", "sha"):
+            label = _displayable_mod_version(installed.get(key) if installed else None)
+            if label:
+                return label
+    if not mod:
+        return ""
+    source = mod.get("source") if isinstance(mod.get("source"), dict) else {}
+    if not source:
+        return ""
+    pinned = _tag_from_release_url(str(source.get("url") or ""))
+    label = _displayable_mod_version(pinned)
+    if label:
+        return label
+    repo = str(source.get("repo") or "").strip() or (_repo_from_github_url(str(source.get("url") or "")) or "")
+    if "/" not in repo:
+        return ""
+    owner, name = repo.split("/", 1)
+    entry = _tips_repo_entry(owner, name)
+    stype = str(source.get("type") or "")
+    if stype in ("github_release_latest", "github_release"):
+        return _displayable_mod_version(entry.get("latest_tag"))
+    if stype == "github_zip":
+        return _displayable_mod_version(entry.get("sha"))
+    return ""
 
 
 def _branch_from_archive_url(url: str) -> str | None:
@@ -1611,7 +1746,9 @@ def _catalog_release_tag(repo: str) -> str | None:
 
     owner, name = repo.split("/", 1)
     tag = lookup_latest_tag(owner, name)
-    return tag or None
+    if not tag or not is_usable_release_tag(tag):
+        return None
+    return tag
 
 
 def _catalog_commit_tip(owner: str, name: str, branch: str | None) -> dict[str, str] | None:

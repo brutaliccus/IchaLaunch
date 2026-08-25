@@ -350,6 +350,12 @@ def fetch_releases_atom_tag(
     return parse_atom_release_tag(r.text)
 
 
+# SuperWoW publishes the DLL zip on ``Release`` and an optional MPQ on ``Patch``.
+# ``Patch`` is not a SuperWoW version — never treat it as latest.
+_PREFERRED_RELEASE_TAGS = frozenset({"release", "latest", "stable"})
+_JUNK_RELEASE_TAGS = frozenset({"patch", "assets", "mpq", "textures"})
+
+
 def version_key(tag: str) -> tuple[int, ...]:
     """Numeric tuple for comparing git tags (``v1.2.3`` → ``(1, 2, 3)``)."""
     cleaned = (tag or "").strip().lstrip("vV")
@@ -360,10 +366,33 @@ def version_key(tag: str) -> tuple[int, ...]:
     return tuple(parts) if parts else (0,)
 
 
+def is_version_tag(tag: str) -> bool:
+    return bool(re.search(r"\d", (tag or "").strip()))
+
+
+def is_usable_release_tag(tag: str) -> bool:
+    """True for semver-like tags or a main Release/latest/stable alias."""
+    name = (tag or "").strip()
+    if not name or name.endswith("^{}"):
+        return False
+    if name.lower() in _JUNK_RELEASE_TAGS:
+        return False
+    if is_version_tag(name):
+        return True
+    return name.lower() in _PREFERRED_RELEASE_TAGS
+
+
 def newest_version_tag(tags: dict[str, str] | list[str]) -> str:
     names = list(tags.keys()) if isinstance(tags, dict) else [str(t) for t in tags]
     names = [n for n in names if n and not n.endswith("^{}")]
     if not names:
         return ""
-    versioned = [n for n in names if re.search(r"\d", n)]
-    return max(versioned or names, key=version_key)
+    versioned = [n for n in names if is_version_tag(n) and is_usable_release_tag(n)]
+    if versioned:
+        return max(versioned, key=version_key)
+    preferred = [n for n in names if n.lower() in _PREFERRED_RELEASE_TAGS]
+    if preferred:
+        rank = {"release": 0, "stable": 1, "latest": 2}
+        return min(preferred, key=lambda n: (rank.get(n.lower(), 9), n.lower()))
+    useful = [n for n in names if is_usable_release_tag(n)]
+    return useful[0] if useful else ""

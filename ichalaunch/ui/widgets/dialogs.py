@@ -84,7 +84,7 @@ def _addon_fork_version_row(
     fork_combo,
     version_combo,
 ) -> QHBoxLayout:
-    """Fork + version combos side-by-side at standard glue control width."""
+    """Fork + version combos side-by-side at standard glue control height/width."""
     row = QHBoxLayout()
     row.setSpacing(10)
     fork_lbl = QLabel("Fork")
@@ -92,9 +92,10 @@ def _addon_fork_version_row(
     ver_lbl = QLabel("Version")
     ver_lbl.setObjectName("Muted")
     for combo in (fork_combo, version_combo):
+        combo.setFixedHeight(GLUE_BTN_H)
         combo.setSizePolicy(
             combo.sizePolicy().horizontalPolicy(),
-            combo.sizePolicy().verticalPolicy(),
+            QSizePolicy.Policy.Fixed,
         )
     row.addWidget(fork_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
     row.addWidget(fork_combo, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -2264,7 +2265,8 @@ class CatalogSuggestDialog(QDialog):
         if idx >= 0:
             self.cat_box.setCurrentIndex(idx)
         cat_row.addWidget(cat_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
-        cat_row.addWidget(self.cat_box, 1)
+        cat_row.addWidget(self.cat_box, 0, Qt.AlignmentFlag.AlignVCenter)
+        cat_row.addStretch(1)
         body.addLayout(cat_row)
 
         self.browser = QTextBrowser()
