@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-25T20:33:40Z",
+  "generated_at": "2026-08-25T21:31:51Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -1526,13 +1526,6 @@
       }
     },
     "yani9o/simpleauras": {
-      "default_branch": "main",
-      "sha": "84f95b068abbf8a8347b502548efaf054ea89a9c",
-      "branches": {
-        "main": "84f95b068abbf8a8347b502548efaf054ea89a9c"
-      }
-    },
-    "dusk-92/simpleauras": {
       "default_branch": "main",
       "sha": "84f95b068abbf8a8347b502548efaf054ea89a9c",
       "branches": {
@@ -16973,9 +16966,9 @@
     },
     "brues-code/classicapi": {
       "default_branch": "master",
-      "sha": "e793f80f6b45ed49a94dc8abdc9fcac4fe6b03dd",
+      "sha": "c06bed91583956b0713c7ed10918c65d9cddc961",
       "branches": {
-        "master": "e793f80f6b45ed49a94dc8abdc9fcac4fe6b03dd"
+        "master": "c06bed91583956b0713c7ed10918c65d9cddc961"
       },
       "latest_tag": "v1.12.4"
     },
