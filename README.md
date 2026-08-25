@@ -19,7 +19,6 @@ Download **`IchaLaunch.exe`** from **[Releases](https://github.com/brutaliccus/I
 - **Live catalog** — Available list refreshes from the repo on a short interval; new entries appear without a new launcher build
 - **Client mods & HD patches** — performance fixes, graphics backends, hooks, HD variants, sky packs, and more; **Apply Changes** or let **PLAY** sync
 - **Settings** — game / AddOns paths, launch preferences, optional GitHub token, permissions check, reset client link
-- **Contributors** — portraits on the bottom bar
 - **Self-update** — when a newer Windows build is on Releases, update in place from the launcher
 
 ---
