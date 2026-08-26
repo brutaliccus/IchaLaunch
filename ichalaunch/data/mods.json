@@ -586,6 +586,7 @@
     },
     "kind": "mpq_file",
     "destination": "Data/patch-L.mpq",
+    "size_bytes": 37330631,
     "dependencies": [
       "vanilla_helpers",
       "hd_patch_a"
@@ -614,6 +615,7 @@
     },
     "kind": "mpq_file",
     "destination": "Data/patch-L.mpq",
+    "size_bytes": 53272447,
     "dependencies": [
       "vanilla_helpers",
       "hd_patch_a"
@@ -742,6 +744,7 @@
     },
     "kind": "mpq_file",
     "destination": "Data/patch-T.mpq",
+    "size_bytes": 499342621,
     "dependencies": [
       "vanilla_helpers",
       "hd_patch_a",
@@ -771,6 +774,7 @@
     },
     "kind": "mpq_file",
     "destination": "Data/patch-T.mpq",
+    "size_bytes": 541957195,
     "dependencies": [
       "vanilla_helpers",
       "hd_patch_a",

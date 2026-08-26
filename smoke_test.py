@@ -1297,6 +1297,76 @@ def test_hd_patch_lt_exclusive_planning():
     print("OK hd patch L/T exclusive planning")
 
 
+def test_hd_variant_identified_by_size_on_disk():
+    """A hand-installed patch-T/L variant is identified by its size, not guessed.
+
+    Both patch-T tiers install Data/patch-T.mpq and both patch-L bodies install
+    Data/patch-L.mpq, so filename detection matches both. When the launcher
+    installed the file its install record settles it, but a file downloaded from
+    the publisher by hand has no record and used to be attributed by fallback --
+    which lands on the standard tier even when Ultra Base is what is on disk.
+    That matters because patch-U depends on the ultra base specifically.
+    """
+    import tempfile as _tf
+
+    from ichalaunch.config import settings as settings_mod
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods import installer as I
+
+    catalog = I.mod_catalog_map()
+    sizes = {mid: (catalog[mid] or {}).get("size_bytes")
+             for mid in ("hd_patch_t", "hd_patch_t_ultra",
+                         "hd_patch_l", "hd_patch_l_less_thicc")}
+    # The catalog must carry a distinct size for each side of both pairs, or
+    # this whole mechanism silently degrades to the old guess.
+    assert all(sizes.values()), sizes
+    assert sizes["hd_patch_t"] != sizes["hd_patch_t_ultra"], sizes
+    assert sizes["hd_patch_l"] != sizes["hd_patch_l_less_thicc"], sizes
+
+    keys = ("installed_mods", "desired_mods")
+    saved = {k: settings_mod.settings.get(k) for k in keys}
+    try:
+        def winner(pair, dest, size, record):
+            a, b = pair
+            settings_mod.settings.set("installed_mods", record)
+            settings_mod.settings.set("desired_mods", {})
+            with _tf.TemporaryDirectory() as td:
+                game = Path(td)
+                (game / "Data").mkdir()
+                with open(game / "Data" / dest, "wb") as fh:
+                    fh.truncate(size)          # sparse; never writes 500 MB
+                clear_fs_caches()
+                out = I._reconcile_exclusive_variants_detected(
+                    {a: True, b: True}, game_path=game)
+            return a if out[a] else (b if out[b] else None)
+
+        T = ("hd_patch_t", "hd_patch_t_ultra")
+        L = ("hd_patch_l", "hd_patch_l_less_thicc")
+
+        # No install record at all: the bytes on disk decide.
+        assert winner(T, "patch-T.mpq", sizes["hd_patch_t_ultra"], {}) == "hd_patch_t_ultra"
+        assert winner(T, "patch-T.mpq", sizes["hd_patch_t"], {}) == "hd_patch_t"
+        assert winner(L, "patch-L.mpq", sizes["hd_patch_l_less_thicc"], {}) == "hd_patch_l_less_thicc"
+        assert winner(L, "patch-L.mpq", sizes["hd_patch_l"], {}) == "hd_patch_l"
+
+        # A record left stale by a hand swap does not outrank the file itself.
+        assert winner(T, "patch-T.mpq", sizes["hd_patch_t_ultra"],
+                      {"hd_patch_t": {}}) == "hd_patch_t_ultra"
+        assert winner(T, "patch-T.mpq", sizes["hd_patch_t"],
+                      {"hd_patch_t_ultra": {}}) == "hd_patch_t"
+
+        # A size matching neither variant must fall through to the old
+        # behaviour rather than resolving to nothing.
+        assert winner(T, "patch-T.mpq", 4096,
+                      {"hd_patch_t_ultra": {}}) == "hd_patch_t_ultra"
+        assert winner(T, "patch-T.mpq", 4096, {}) == "hd_patch_t"
+    finally:
+        for k, v in saved.items():
+            settings_mod.settings.set(k, v)
+
+    print("OK hd variant identified by size on disk")
+
+
 def test_hd_patch_exclusive_variant_swap():
     """Switching L/T MPQ siblings must plan reinstall, not a silent no-op."""
     from ichalaunch.config.settings import settings as s
@@ -8938,6 +9008,7 @@ def _run_smoke_tests():
     test_dxvk_detect_plan_clean()
     test_hd_patch_lt_exclusive_planning()
     test_hd_patch_exclusive_variant_swap()
+    test_hd_variant_identified_by_size_on_disk()
     test_hd_patch_both_desired_reconciled()
     test_backfill_installed_mods_on_detect()
     test_resolve_launch_exe()

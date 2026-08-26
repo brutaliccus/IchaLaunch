@@ -359,12 +359,63 @@ def _is_alternate_hd_variant(mod_id: str) -> bool:
     return mod_id.endswith("_less_thicc") or mod_id.endswith("_ultra")
 
 
+def _variant_on_disk_by_size(
+    a: str,
+    b: str,
+    game_path: Path,
+    catalog: dict[str, dict[str, Any]],
+) -> str | None:
+    """Which of two exclusive variants the file on disk actually is, by its size.
+
+    Variants that share a destination cannot be told apart by filename: both
+    patch-T tiers install Data/patch-T.mpq, and so do both patch-L bodies. A
+    file the launcher installed itself is identified by its install record, but
+    a hand-installed one has no record and was previously attributed by
+    guesswork -- which lands on the wrong tier for anyone who downloaded Ultra
+    Base from the publisher directly.
+
+    Their published sizes differ, so an exact length match names the variant.
+    This is checked BEFORE the install record on purpose: swapping the file by
+    hand after installing through the launcher leaves the record stale, and the
+    bytes on disk are what the game will actually load.
+
+    Returns None whenever the answer is not unambiguous -- sizes missing, sizes
+    equal, destinations different, file unreadable, or a length matching
+    neither -- so every existing tie-break path still runs.
+    """
+    mod_a, mod_b = catalog.get(a) or {}, catalog.get(b) or {}
+    size_a, size_b = mod_a.get("size_bytes"), mod_b.get("size_bytes")
+    if not size_a or not size_b or size_a == size_b:
+        return None
+    dest = mod_a.get("destination")
+    if not dest or mod_b.get("destination") != dest:
+        return None
+    found = resolve_ci(game_path, dest)
+    if found is None:
+        return None
+    try:
+        actual = found.stat().st_size
+    except OSError:
+        return None
+    if actual == size_a:
+        return a
+    if actual == size_b:
+        return b
+    return None
+
+
 def _pick_exclusive_detect_winner(
     a: str,
     b: str,
     desired: dict[str, bool],
+    *,
+    game_path: Path | None = None,
 ) -> str:
     """Pick which conflicting mod id should read as installed when both match disk."""
+    if game_path is not None:
+        by_size = _variant_on_disk_by_size(a, b, game_path, mod_catalog_map())
+        if by_size is not None:
+            return by_size
     installed = settings.installed_mods
     a_rec, b_rec = a in installed, b in installed
     if a_rec and not b_rec:
@@ -393,6 +444,8 @@ def _pick_exclusive_detect_winner(
 def _reconcile_exclusive_variants_detected(
     state: dict[str, bool],
     desired: dict[str, bool] | None = None,
+    *,
+    game_path: Path | None = None,
 ) -> dict[str, bool]:
     """Shared install artifacts can mark multiple conflict siblings as present."""
     out = dict(state)
@@ -407,7 +460,9 @@ def _reconcile_exclusive_variants_detected(
             seen.add(pair)
             if not (out.get(mid) and out.get(conf)):
                 continue
-            winner = _pick_exclusive_detect_winner(mid, conf, desired)
+            winner = _pick_exclusive_detect_winner(
+                mid, conf, desired, game_path=game_path
+            )
             loser = conf if winner == mid else mid
             out[loser] = False
     return out
@@ -1239,6 +1294,7 @@ def detect_actual_state(game_path: Path) -> dict[str, bool]:
     reconciled = _reconcile_exclusive_variants_detected(
         _reconcile_vf_dxvk_detected(state),
         desired=settings.desired_mods,
+        game_path=game_path,
     )
     _backfill_detected_installed_mods(reconciled)
     _refresh_unverified_mod_flags(game_path, reconciled)
