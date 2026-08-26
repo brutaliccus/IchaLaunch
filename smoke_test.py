@@ -8298,6 +8298,153 @@ def test_client_exe_probe_is_case_insensitive():
     print("OK client exe probe is case-insensitive")
 
 
+def test_frame_cap_from_refresh():
+    """The DXVK frame cap follows the real display, and only the real display.
+
+    Four things are load-bearing here. The arithmetic floors before subtracting,
+    because real modes are fractional and rounding 59.94 up would cap a frame
+    above what the panel can present. An undetectable display must leave the
+    file untouched rather than impose a guess. Every other line in dxvk.conf
+    survives byte for byte, since that file is shared with a bundled preset and
+    with whatever the user tuned by hand. And a commented-out example of the key
+    stays a comment.
+    """
+    from ichalaunch.game import display
+
+    # --- arithmetic --------------------------------------------------------
+    assert display.frame_cap_for(165.058, 3) == 162, display.frame_cap_for(165.058, 3)
+    assert display.frame_cap_for(165.058, 2) == 163
+    # Floors, never rounds: 59.94 is a 59 Hz mode for this purpose, not 60.
+    assert display.frame_cap_for(59.94, 3) == 56, display.frame_cap_for(59.94, 3)
+    assert display.frame_cap_for(60.0, 3) == 57
+    assert display.frame_cap_for(239.76, 3) == 236
+    # The offset is bounded, so a hand-edited setting cannot compute a lock.
+    # Reading frame_cap_offset as "the cap" rather than "frames below refresh"
+    # is the realistic mistake, and 165 must not yield 1 fps.
+    assert display.frame_cap_for(165.058, 165) == 155, display.frame_cap_for(165.058, 165)
+    assert display.frame_cap_for(144.0, 100) == 134, display.frame_cap_for(144.0, 100)
+    assert display.frame_cap_for(100.0, -5) == 100
+    # A non-numeric setting falls back to the default instead of raising: this
+    # runs after DXVK is already on disk, and an exception would revert a
+    # successful install over a typo in a config file.
+    assert display.frame_cap_for(165.058, "three") == 162
+    assert display.frame_cap_for(165.058, None) == 162
+    assert display.frame_cap_for(165.058, "2") == 163
+
+    real_detect = display.detect_refresh_hz
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            conf = Path(td) / "dxvk.conf"
+
+            # --- the happy path, and the preservation guarantee -------------
+            original = (
+                "# Turtle WoW (1.12) - DXVK 2.7.1\n"
+                "dxvk.logLevel = none\n"
+                "\n"
+                "# Uncomment to set framerate limit\n"
+                "d3d9.maxFrameRate = 1000\n"
+                "d3d9.dpiAware = False\n"
+            )
+            conf.write_text(original)
+            display.detect_refresh_hz = lambda: 165.058
+            assert display.apply_frame_cap(conf, 3) == 162
+            after = conf.read_text()
+            assert "d3d9.maxFrameRate = 162" in after, after
+            assert "1000" not in after, after
+            # The 2.7.1 marker line is what hd_dxvk detects on -- losing it
+            # would make the launcher forget which DXVK is installed.
+            assert "# Turtle WoW (1.12) - DXVK 2.7.1" in after, after
+            assert "dxvk.logLevel = none" in after
+            assert "d3d9.dpiAware = False" in after
+            assert "# Uncomment to set framerate limit" in after
+
+            # --- an undetectable display changes nothing at all -------------
+            untouched = conf.read_text()
+            display.detect_refresh_hz = lambda: None
+            assert display.apply_frame_cap(conf, 3) is None
+            assert conf.read_text() == untouched, "a None detection rewrote the file"
+
+            # --- a missing key is appended, not silently dropped ------------
+            conf.write_text("dxvk.logLevel = none\n")
+            display.detect_refresh_hz = lambda: 120.0
+            assert display.apply_frame_cap(conf, 3) == 117
+            assert "d3d9.maxFrameRate = 117" in conf.read_text()
+
+            # --- a commented example stays a comment ------------------------
+            conf.write_text("# d3d9.maxFrameRate = 60\ndxvk.logLevel = none\n")
+            display.detect_refresh_hz = lambda: 165.058
+            display.apply_frame_cap(conf, 3)
+            body = conf.read_text()
+            assert "# d3d9.maxFrameRate = 60" in body, body
+            assert "d3d9.maxFrameRate = 162" in body, body
+
+            # --- CRLF files keep CRLF; the file is never reterminated -------
+            # Path.write_text would rewrite every line to os.linesep on Windows,
+            # which breaks the promise about leaving the rest of the file alone.
+            conf.write_bytes(b"# DXVK 2.7.1\r\nd3d9.maxFrameRate = 1000\r\n"
+                             b"dxvk.logLevel = none\r\n")
+            display.detect_refresh_hz = lambda: 165.058
+            assert display.apply_frame_cap(conf, 3) == 162
+            raw = conf.read_bytes()
+            assert b"\r\n" in raw and raw.count(b"\r\n") == 3, raw
+            assert b"d3d9.maxFrameRate = 162\r\n" in raw, raw
+            assert b"# DXVK 2.7.1\r\n" in raw, raw
+
+            # An LF file stays LF -- no stray carriage returns introduced.
+            conf.write_bytes(b"# DXVK 2.7.1\nd3d9.maxFrameRate = 1000\n")
+            assert display.apply_frame_cap(conf, 3) == 162
+            raw = conf.read_bytes()
+            assert b"\r" not in raw, raw
+
+            # --- an absent file is a no-op, not a crash ---------------------
+            assert display.apply_frame_cap(Path(td) / "nope.conf", 3) is None
+
+            # --- a write failure surfaces, so install_mod can roll back ------
+            # Swallowing it would opt out of the rollback the repo already has
+            # for this exact file.
+            import builtins
+            real_open = builtins.open
+
+            def _fail_on_write(f, mode="r", *a, **kw):
+                if "w" in mode:
+                    raise OSError(28, "No space left on device")
+                return real_open(f, mode, *a, **kw)
+
+            conf.write_text("d3d9.maxFrameRate = 1000\n")
+            builtins.open = _fail_on_write
+            try:
+                raised = False
+                try:
+                    display.apply_frame_cap(conf, 3)
+                except OSError:
+                    raised = True
+                assert raised, "a failed write must not be swallowed"
+            finally:
+                builtins.open = real_open
+    finally:
+        display.detect_refresh_hz = real_detect
+
+    # --- the cap reaches BOTH install paths, not just the optional upgrade --
+    # The VanillaFixes+DXVK bundle ships its own dxvk.conf; a user who never
+    # takes the 2.7.1 upgrade must not be the only one left uncapped.
+    from ichalaunch.mods import installer as _inst
+    import inspect
+    src = inspect.getsource(_inst)
+    assert src.count("_apply_frame_cap_if_enabled(game)") >= 2, (
+        "the frame cap must be applied from every path that can leave a "
+        "dxvk.conf behind, not only the dxvk_hd branch")
+
+    # And the helper itself is inert when there is no conf to touch.
+    with tempfile.TemporaryDirectory() as td:
+        empty = Path(td)
+        _inst._apply_frame_cap_if_enabled(empty)   # must not raise
+        assert not (empty / "dxvk.conf").exists(), "helper created a conf out of nothing"
+
+    # Detection itself must never raise, whatever this machine looks like.
+    hz = display.detect_refresh_hz()
+    assert hz is None or hz > 0, hz
+    print("OK frame cap from refresh")
+
 def test_linux_proton_launch_resolution():
     """Proton discovery, pin-by-default, and command assembly.
 
@@ -8735,6 +8882,7 @@ def _run_smoke_tests():
     test_apply_desired_state_restores_dlls_txt()
     test_prepare_for_launch_syncs_dlls_txt()
     test_client_exe_probe_is_case_insensitive()
+    test_frame_cap_from_refresh()
     test_linux_proton_launch_resolution()
     test_linux_dxvk_vulkan_preflight()
     test_prepare_for_launch_clears_data_readonly()

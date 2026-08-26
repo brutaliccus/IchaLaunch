@@ -35,6 +35,11 @@ DEFAULTS: dict[str, Any] = {
     "linux_use_latest_proton": False,
     "linux_wineprefix": "",
     "addons_path": "",
+    # Frame pacing follows the display. Project Reforged's guide prescribes a
+    # cap a few frames under the refresh rate ("162-163" for a 165 Hz panel);
+    # computing it reproduces that intent on every monitor instead of one.
+    "frame_cap_from_refresh": True,
+    "frame_cap_offset": 3,
     "vanillafixes_enabled": True,
     "minimize_on_launch": False,
     "close_on_launch": False,

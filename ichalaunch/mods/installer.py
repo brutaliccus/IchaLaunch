@@ -1245,6 +1245,26 @@ def detect_actual_state(game_path: Path) -> dict[str, bool]:
     return reconciled
 
 
+def _apply_frame_cap_if_enabled(game: Path) -> None:
+    """Point d3d9.maxFrameRate at the user's display, if a dxvk.conf exists.
+
+    Called from every install path that can leave a dxvk.conf behind, not just
+    the DXVK 2.7.1 upgrade: the VanillaFixes bundle ships one too, and a user who
+    never takes the optional upgrade should not be the only one left uncapped.
+    Absent file, unreadable display, or the setting turned off all no-op.
+    """
+    if not settings.get("frame_cap_from_refresh", True):
+        return
+    from ichalaunch.game.display import apply_frame_cap
+
+    # The raw setting is passed through and coerced inside frame_cap_for.
+    # Converting here would raise on a hand-edited non-numeric value at a point
+    # where the mod's files are already written, and ValueError is caught by the
+    # install error handler -- which would revert an install that had succeeded.
+    if apply_frame_cap(game / "dxvk.conf", settings.get("frame_cap_offset", 3)) is None:
+        log.debug("Frame cap left as shipped for %s", game / "dxvk.conf")
+
+
 def _pe_artifacts_for_mod(mod: dict[str, Any]) -> list[str]:
     """Game-relative DLL/EXE paths this mod owns (for post-install / detect verify)."""
     return sorted(
@@ -2616,6 +2636,10 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                     for f in vf.parent.iterdir():
                         if f.is_file():
                             _zip_root_copy(f, game / f.name)
+                # The VanillaFixes+DXVK bundle ships its own dxvk.conf, so this
+                # path needs the cap too. Plain VanillaFixes ships none and the
+                # call is a no-op there.
+                _apply_frame_cap_if_enabled(game)
                 soft = _verify_mod_install(game, mod)
                 return _finish_mod_install(mod_id, mod, source, soft_skipped=soft)
 
@@ -2713,6 +2737,11 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                         raise FileNotFoundError(f"Bundled mod file missing: {resource.name}")
                     dest_rel = str(spec.get("destination") or resource.name)
                     _install_copy(resource, game / dest_rel, game_path=game)
+                # The bundled preset ships an uncapped d3d9.maxFrameRate, which
+                # is only right for the machine it was tuned on. Follow the
+                # user's actual display instead; a machine whose refresh cannot
+                # be read keeps the preset's value untouched.
+                _apply_frame_cap_if_enabled(game)
                 soft = _verify_mod_install(game, mod)
                 return _finish_mod_install(mod_id, mod, source, soft_skipped=soft)
 
