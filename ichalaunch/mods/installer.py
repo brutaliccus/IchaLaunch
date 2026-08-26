@@ -1272,8 +1272,9 @@ def _refresh_unverified_mod_flags(game: Path, actual: dict[str, bool]) -> None:
             continue
         outcome = "ok"
         for rel in rels:
-            dest = game / rel
-            if not dest.is_file():
+            # Comparison key, not a filename -- see _verify_mod_install.
+            dest = resolve_ci(game, rel)
+            if dest is None or not dest.is_file():
                 continue
             try:
                 if not validate_pe_binary(dest, min_size=_pe_min_bytes_for_rel(rel)):
@@ -2881,7 +2882,10 @@ def _install_backup_paths(game: Path, mod: dict[str, Any]) -> list[Path]:
         if key in seen:
             continue
         seen.add(key)
-        paths.append(game / rel)
+        # Snapshot the file as it is actually named on disk. Appending the
+        # lowercased key instead means the backup silently contains nothing for
+        # that entry, and a rollback then has nothing to restore.
+        paths.append(resolve_ci(game, rel) or (game / rel))
     return paths
 
 
@@ -2907,8 +2911,13 @@ def _verify_mod_install(game: Path, mod: dict[str, Any]) -> list[str]:
     failures: list[str] = []
     soft_skipped: list[str] = []
     for rel in _pe_artifacts_for_mod(mod):
-        dest = game / rel
-        if not dest.is_file():
+        # _mod_owned_paths lowercases for comparison, so `rel` is a comparison
+        # key and not a real filename. The artifacts genuinely written to disk
+        # are VanillaFixes.exe and VfPatcher.dll; game / "vanillafixes.exe"
+        # misses both on a case-sensitive filesystem and the install is then
+        # reported as having failed.
+        dest = resolve_ci(game, rel)
+        if dest is None or not dest.is_file():
             failures.append(f"{rel} was not installed")
             continue
         try:
@@ -2972,8 +2981,11 @@ def _revert_failed_mod_install(
         norm = _norm_rel_path(rel)
         if norm in manifest_files:
             continue
+        target = resolve_ci(game, rel)
+        if target is None:
+            continue
         try:
-            remove_path_strict(game / rel)
+            remove_path_strict(target)
         except OSError as exc:
             log.warning("Rollback cleanup skipped %s: %s", rel, exc)
 
