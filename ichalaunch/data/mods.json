@@ -3,18 +3,21 @@
     "id": "vanilla_tweaks",
     "name": "Vanilla Tweaks",
     "category": "Performance & Fixes",
-    "description": "Widescreen FoV, farclip, quickloot, 4GB LAA, nameplate range, and more. Patches WoW.exe (not a DLL).",
+    "description": "Patches WoW.exe (not a DLL). Farclip, grass, nameplates, 4GB LAA, camera skip fix, custom glues, and blue moon on by default. Widescreen FoV, sound, and quickloot are optional — use the cog to configure.",
     "detect": {
       "exe_differs_from": "WoW-OriginalBackup.exe"
     },
     "source": {
-      "type": "github_release",
-      "url": "https://github.com/brndd/vanilla-tweaks/releases/download/v1.6.0/vanilla-tweaks_v1.6.0_x86_64-pc-windows-gnu.zip"
+      "type": "github_release_latest",
+      "repo": "tubtubs/vanilla-tweaks",
+      "asset_contains": "pc-windows-gnu.zip",
+      "asset_not_contains": "sha256"
     },
     "kind": "exe_patch",
+    "has_config": true,
     "dependencies": [],
     "conflicts": [],
-    "author": "brndd"
+    "author": "tubtubs"
   },
   {
     "id": "vanillafixes",

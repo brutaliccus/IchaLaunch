@@ -1,0 +1,9 @@
+{
+  "filename": "patch-9.mpq",
+  "url": "https://github.com/brutaliccus/IchaLaunch/releases/download/stock-patch-9/patch-9.mpq",
+  "expected_size": 506642995,
+  "min_bytes": 419430400,
+  "release_tag": "stock-patch-9",
+  "temporary": true,
+  "retire": "Delete the stock-patch-9 GitHub release and this file to stop hosting official patch-9."
+}

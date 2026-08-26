@@ -421,6 +421,13 @@ QWidget#ModCheckRow[flashHighlight="true"] {
     border: 1px solid #F1C22D;
 }
 
+QLabel#UpdateAlertBadge {
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+}
+
 QLabel#ModRowName {
     color: #e6e0ee;
     font-weight: 600;
@@ -797,6 +804,76 @@ QLabel#ThemedDialogBody {
     color: #e6e0ee;
     font-size: 13px;
     line-height: 1.35;
+}
+
+QLabel#ThemedDialogSection {
+    color: #F1C22D;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+}
+
+QLabel#ThemedDialogHint {
+    color: #6e6678;
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+QSpinBox, QDoubleSpinBox {
+    background-color: rgba(120, 100, 150, 0.10);
+    color: #e6e0ee;
+    border: 1px solid rgba(150, 131, 158, 0.18);
+    border-radius: 8px;
+    padding: 4px 8px;
+    min-height: 22px;
+    selection-background-color: #7c5cc4;
+}
+
+QSpinBox:hover, QDoubleSpinBox:hover {
+    border-color: rgba(124, 92, 196, 0.55);
+}
+
+QSpinBox:focus, QDoubleSpinBox:focus {
+    border-color: #F1C22D;
+}
+
+QSpinBox:disabled, QDoubleSpinBox:disabled {
+    color: #6e6678;
+}
+
+QSpinBox::up-button, QDoubleSpinBox::up-button,
+QSpinBox::down-button, QDoubleSpinBox::down-button {
+    background: rgba(120, 100, 150, 0.18);
+    border: none;
+    width: 16px;
+}
+
+QSlider::groove:horizontal {
+    height: 4px;
+    background: rgba(150, 131, 158, 0.22);
+    border-radius: 2px;
+}
+
+QSlider::sub-page:horizontal {
+    background: #7c5cc4;
+    border-radius: 2px;
+}
+
+QSlider::handle:horizontal {
+    background: #F1C22D;
+    border: none;
+    width: 14px;
+    height: 14px;
+    margin: -5px 0;
+    border-radius: 7px;
+}
+
+QSlider::handle:horizontal:hover {
+    background: #ffd45a;
+}
+
+QSlider:disabled {
+    opacity: 0.45;
 }
 
 QPushButton#ThemedDialogPrimary {

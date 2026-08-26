@@ -1261,6 +1261,18 @@ def _vanilla_tweaks_is_ours() -> bool:
     return "vanilla_tweaks" in settings.installed_mods
 
 
+def _vanilla_tweaks_needs_catalog_repatch(mid: str, actual: dict[str, bool]) -> bool:
+    """Desired+installed Tweaks that is still brndd or has stale options."""
+    if mid != "vanilla_tweaks":
+        return False
+    if not _effective_mod_installed(mid, actual):
+        return False
+    from ichalaunch.mods.vanilla_tweaks import vanilla_tweaks_needs_repatch
+
+    meta = settings.installed_mods.get(mid) or {}
+    return vanilla_tweaks_needs_repatch(meta, settings.vanilla_tweaks_options)
+
+
 def _order_d3d9_layers(ordered: list[str]) -> list[str]:
     """Stable: base DXVK, then 2.7.1, then the cursor overlay."""
     layers = [mid for mid in ordered if mid in _D3D9_LAYER_RANK]
@@ -1683,6 +1695,7 @@ def plan_changes(desired: dict[str, bool] | None = None) -> list[dict[str, str]]
         and (
             not _effective_mod_installed(mid, actual)
             or _mpq_exclusive_variant_needs_reinstall(mid, desired, catalog)
+            or _vanilla_tweaks_needs_catalog_repatch(mid, actual)
         )
     ]
     ordered: list[str] = []
@@ -2518,6 +2531,10 @@ def _record_mod_install(
         src_url = (source or {}).get("url")
         if src_url:
             meta["source_url"] = src_url
+    if mod_id == "vanilla_tweaks":
+        from ichalaunch.mods.vanilla_tweaks import tweaks_install_stamp
+
+        meta.update(tweaks_install_stamp(settings.vanilla_tweaks_options))
     settings.set_installed_mod(mod_id, meta)
 
 
@@ -2793,9 +2810,18 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 wow = wow_exe_in(game) or (game / "WoW.exe")
                 if resolve_ci(game, _VANILLA_TWEAKS_BACKUP) is None:
                     _install_copy(wow, game / _VANILLA_TWEAKS_BACKUP, game_path=game)
-                # Run patcher; creates WoW_tweaked.exe next to WoW.exe
+                from ichalaunch.mods.vanilla_tweaks import (
+                    vanilla_tweaks_command,
+                    vanilla_tweaks_infile,
+                )
+
+                # Always patch the stock backup so option changes do not stack.
+                infile = vanilla_tweaks_infile(game, wow, _VANILLA_TWEAKS_BACKUP)
+                cmd = vanilla_tweaks_command(
+                    vt, infile, settings.vanilla_tweaks_options
+                )
                 status_only(progress, "Patching WoW.exe with Vanilla Tweaks...")
-                subprocess.run([str(vt), str(wow)], cwd=str(game), check=True)
+                subprocess.run(cmd, cwd=str(game), check=True)
                 tweaked = game / f"{wow.stem}_tweaked.exe"
                 if not tweaked.exists() and wow.stem != "WoW":
                     tweaked = game / "WoW_tweaked.exe"

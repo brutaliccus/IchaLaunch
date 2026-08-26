@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QRect
 from PySide6.QtGui import QColor, QPainter, QPixmap
-from PySide6.QtWidgets import QPushButton, QWidget
+from PySide6.QtWidgets import QLabel, QPushButton, QWidget
 
 from ichalaunch.core.paths import theme_file
 
@@ -61,6 +61,28 @@ def paint_update_alert_badge(painter: QPainter, rect: QRect) -> None:
     x = rect.right() - alert.width() - margin + 1
     y = rect.top() + (rect.height() - alert.height()) // 2
     painter.drawPixmap(x, y, alert)
+
+
+class UpdateAlertBadge(QLabel):
+    """Inline Adventure Guide alert for a single catalog / client-mod row."""
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setObjectName("UpdateAlertBadge")
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        pm = update_alert_badge_pixmap()
+        if not pm.isNull():
+            self.setPixmap(pm)
+            self.setFixedSize(pm.size())
+        else:
+            self.setFixedSize(TAB_ALERT_PX, TAB_ALERT_PX)
+            self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.setText("!")
+            self.setStyleSheet(
+                "QLabel#UpdateAlertBadge { color: #F1C22D; background: transparent; border: none; }"
+            )
+        self.setVisible(False)
+        self.setToolTip("Pending change — click Apply Changes")
 
 
 class BadgeNavButton(QPushButton):

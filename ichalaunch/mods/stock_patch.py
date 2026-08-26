@@ -2,11 +2,17 @@
 
 Turtle/RavenCraft ships ``Data/patch-9.mpq`` as a numeric stock client patch
 (~500 MB). Catalog HD letter patches must never own this file. Reacquire is a
-separate, explicit download from the share host — never started silently.
+separate, explicit download from the repo-hosted release asset — never started
+silently.
+
+Temporary host: GitHub release tag ``stock-patch-9`` (see
+``ichalaunch/data/stock_patch9.json``). To retire this feature, delete that
+release and the catalog file.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import tempfile
@@ -15,14 +21,13 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import urljoin, urlparse
 
-import requests
-
 from ichalaunch.core.filesystem import (
     ensure_data_writable,
     invalidate_dir_listing,
     resolve_ci,
 )
 from ichalaunch.core.logging_setup import log
+from ichalaunch.core.paths import data_file
 from ichalaunch.core.process import status_only
 from ichalaunch.game.launcher import detect_game
 
@@ -30,21 +35,26 @@ ProgressCb = Callable[[str], None]
 
 STOCK_PATCH9_NAME = "patch-9.mpq"
 STOCK_PATCH9_REL = Path("Data") / STOCK_PATCH9_NAME
-# Landing page lists the file; same host serves the bytes (resume-capable).
-STOCK_PATCH9_INDEX_URL = "https://share.ichasarmory.quest/"
-STOCK_PATCH9_HOST = "share.ichasarmory.quest"
-# Content-Length from the share host (2026-08-24). ~483 MiB; users call it ~500 MB.
+STOCK_PATCH9_CATALOG_NAME = "stock_patch9.json"
+# Dedicated prerelease so this ~483 MiB MPQ can be deleted without touching
+# launcher version tags. GitHub rejects 500 MB git blobs.
+STOCK_PATCH9_RELEASE_TAG = "stock-patch-9"
+STOCK_PATCH9_DOWNLOAD_URL = (
+    "https://github.com/brutaliccus/IchaLaunch/releases/download/"
+    f"{STOCK_PATCH9_RELEASE_TAG}/{STOCK_PATCH9_NAME}"
+)
+STOCK_PATCH9_REPO_PATH_PREFIX = "/brutaliccus/ichalaunch/releases/download/"
+# Content-Length of the official MPQ (2026-08-24 / local RavenCraft copy).
 STOCK_PATCH9_EXPECTED_SIZE = 506_642_995
 # Conservative floor so a stub/partial is treated as broken.
 STOCK_PATCH9_MIN_BYTES = 400 * 1024 * 1024
 STOCK_PATCH9_BANNER_TEXT = "Patch-9 is missing or incomplete."
 
-_UA = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-    )
-}
+_GITHUB_ASSET_HOSTS = (
+    "github.com",
+    "objects.githubusercontent.com",
+    "release-assets.githubusercontent.com",
+)
 
 
 @dataclass(frozen=True)
@@ -58,6 +68,27 @@ class StockPatch9Status:
     @property
     def needs_reacquire(self) -> bool:
         return self.state in ("missing", "too_small")
+
+
+def stock_patch9_catalog_path() -> Path:
+    return data_file(STOCK_PATCH9_CATALOG_NAME)
+
+
+def load_stock_patch9_catalog() -> dict[str, object]:
+    """Read the rip-out catalog. Missing/corrupt file falls back to constants."""
+    try:
+        raw = json.loads(stock_patch9_catalog_path().read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def stock_patch9_download_url() -> str:
+    """Canonical HTTPS URL. Catalog ``url`` wins when it stays on this repo."""
+    url = str(load_stock_patch9_catalog().get("url") or "").strip()
+    if url and _is_allowed_patch9_host(url):
+        return url
+    return STOCK_PATCH9_DOWNLOAD_URL
 
 
 def stock_patch9_size_floor(
@@ -136,12 +167,13 @@ def inspect_stock_patch9(
 
 
 def patch9_url_from_index_html(
-    html: str, base_url: str = STOCK_PATCH9_INDEX_URL
+    html: str, base_url: str | None = None
 ) -> str | None:
-    """Pick the landing-page href for ``patch-9.mpq`` when it stays on this host."""
+    """Pick an href for ``patch-9.mpq`` when it stays on an allowed host."""
     import re
 
     text = html or ""
+    base = base_url or stock_patch9_download_url()
     for m in re.finditer(
         r"""href=["']([^"']*patch-9\.mpq[^"']*)["']""",
         text,
@@ -155,34 +187,26 @@ def patch9_url_from_index_html(
         elif href.startswith("http"):
             url = href
         else:
-            url = urljoin(base_url or STOCK_PATCH9_INDEX_URL, href)
-        if _is_share_host(url):
+            url = urljoin(base, href)
+        if _is_allowed_patch9_host(url):
             return url
     return None
 
 
 def resolve_stock_patch9_url(*, html: str | None = None) -> str:
-    """Direct file URL on the share host. Parses the index; same-host fallback."""
-    text = html
-    if text is None:
-        try:
-            r = requests.get(STOCK_PATCH9_INDEX_URL, timeout=15, headers=_UA)
-            if r.ok:
-                text = r.text
-        except requests.RequestException as exc:
-            log.info("patch-9 index fetch failed: %s", exc)
-            text = None
-    found = patch9_url_from_index_html(text or "", STOCK_PATCH9_INDEX_URL)
+    """Direct file URL on the repo host. Optional HTML parse; catalog fallback."""
+    catalog = stock_patch9_download_url()
+    found = patch9_url_from_index_html(html or "", catalog)
     if found:
         return found
-    return urljoin(STOCK_PATCH9_INDEX_URL, STOCK_PATCH9_NAME)
+    return catalog
 
 
 def stock_patch9_source(url: str | None = None) -> dict[str, object]:
     """Catalog-shaped source so reacquire reuses ``_download_source``."""
     return {
         "type": "raw",
-        "url": url or urljoin(STOCK_PATCH9_INDEX_URL, STOCK_PATCH9_NAME),
+        "url": url or stock_patch9_download_url(),
         "filename": STOCK_PATCH9_NAME,
         "expected_size": STOCK_PATCH9_EXPECTED_SIZE,
     }
@@ -217,8 +241,8 @@ def reacquire_stock_patch9(
     dest.parent.mkdir(parents=True, exist_ok=True)
 
     url = download_url or resolve_stock_patch9_url()
-    if not _is_share_host(url):
-        url = urljoin(STOCK_PATCH9_INDEX_URL, STOCK_PATCH9_NAME)
+    if not _is_allowed_patch9_host(url):
+        url = stock_patch9_download_url()
     status_only(progress, "Reacquiring official patch-9.mpq…")
     source = stock_patch9_source(url)
     source["expected_size"] = expected
@@ -281,6 +305,18 @@ def reacquire_stock_patch9(
         return dest
 
 
-def _is_share_host(url: str) -> bool:
-    host = (urlparse(url or "").netloc or "").lower()
-    return host == STOCK_PATCH9_HOST or host.endswith("." + STOCK_PATCH9_HOST)
+def _is_allowed_patch9_host(url: str) -> bool:
+    """True for this repo's release URL or GitHub's release-asset CDN."""
+    try:
+        parts = urlparse(url or "")
+    except ValueError:
+        return False
+    if (parts.scheme or "").lower() != "https":
+        return False
+    host = (parts.hostname or "").lower().rstrip(".")
+    if host.startswith("www."):
+        host = host[4:]
+    if host == "github.com":
+        path = (parts.path or "").lower()
+        return path.startswith(STOCK_PATCH9_REPO_PATH_PREFIX)
+    return host in _GITHUB_ASSET_HOSTS

@@ -8,11 +8,15 @@ from PySide6.QtCore import Qt, QThread, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QDialog,
+    QDoubleSpinBox,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QScrollArea,
     QSizePolicy,
+    QSlider,
+    QSpinBox,
     QTextBrowser,
     QVBoxLayout,
     QWidget,
@@ -2451,6 +2455,509 @@ def addon_settings_dialog(
   if dlg.exec() != QDialog.DialogCode.Accepted:
     return None
   return dlg.result_data()
+
+
+class VanillaTweaksSettingsDialog(QDialog):
+    """tubtubs/vanilla-tweaks patch options — themed card matching other modals."""
+
+    _GIT = "https://github.com/tubtubs/vanilla-tweaks"
+
+    def __init__(self, parent: QWidget | None = None):
+        from ichalaunch.config.settings import settings
+        from ichalaunch.mods.vanilla_tweaks import (
+            SOUND_CHANNEL_CHOICES,
+            VANILLA_TWEAKS_DEFAULTS,
+            normalize_vanilla_tweaks_options,
+        )
+
+        super().__init__(parent)
+        self.setObjectName("ThemedDialog")
+        self.setWindowFlags(_themed_dialog_flags())
+        self.setModal(True)
+        self.setMinimumSize(860, 500)
+        self.resize(900, 540)
+        self._result: dict | None = None
+        self._defaults = dict(VANILLA_TWEAKS_DEFAULTS)
+        self._initial = normalize_vanilla_tweaks_options(settings.vanilla_tweaks_options)
+        self._installed = self._tweaks_are_installed()
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+
+        card = QWidget()
+        card.setObjectName("ThemedDialogCard")
+        body = QVBoxLayout(card)
+        body.setContentsMargins(22, 18, 22, 18)
+        body.setSpacing(12)
+
+        open_git = _addon_open_git_button(card, self, self._GIT)
+        title_row, _title = _addon_dialog_title_row("Vanilla Tweaks", open_git)
+        body.addLayout(title_row)
+
+        blurb = QLabel(
+            "These flags are applied by tubtubs/vanilla-tweaks when it patches "
+            "WoW.exe. Saving while Tweaks is installed re-patches from "
+            "WoW-OriginalBackup.exe so changes do not stack."
+        )
+        blurb.setObjectName("ThemedDialogBody")
+        blurb.setWordWrap(True)
+        body.addWidget(blurb)
+
+        self._checks: dict[str, ThemeCheckBox] = {}
+        self._spins: dict[str, QSpinBox | QDoubleSpinBox] = {}
+        self._sliders: dict[str, QSlider] = {}
+        self._slider_value_lbls: dict[str, QLabel] = {}
+        self._combos: dict[str, object] = {}
+        self._range_hints: dict[str, QLabel] = {}
+        self._spin_for_check: dict[str, str] = {}
+        self._slider_for_check: dict[str, str] = {}
+        self._combo_for_check: dict[str, str] = {}
+        self._extras_for_check: dict[str, tuple] = {}
+        self._check_tips: dict[str, str] = {}
+        self._superwow_locks_optional = False
+
+        cols = QHBoxLayout()
+        cols.setSpacing(22)
+        left_host = QWidget(card)
+        left = QVBoxLayout(left_host)
+        left.setContentsMargins(0, 0, 0, 0)
+        left.setSpacing(8)
+        right_host = QWidget(card)
+        right = QVBoxLayout(right_host)
+        right.setContentsMargins(0, 0, 0, 0)
+        right.setSpacing(8)
+
+        left.addWidget(self._section("Applied by default"))
+        self._add_toggle(
+            left,
+            left_host,
+            "farclip",
+            "Farclip (terrain distance)",
+            "Stock maximum is 777. After patching, set with /console farclip 1000. "
+            "The patcher allows up to 10000; values that high can crash.",
+            spin_key="farclip_value",
+            spin_kind="float",
+            decimals=0,
+            lo=100,
+            hi=10000,
+            step=100,
+        )
+        self._add_toggle(
+            left,
+            left_host,
+            "frilldistance",
+            "Grass / frill distance",
+            "Grass render distance (game default 70, launcher default 300). "
+            "Density is still /console frilldensity.",
+            spin_key="frilldistance_value",
+            spin_kind="float",
+            decimals=0,
+            lo=1,
+            hi=2000,
+            step=10,
+        )
+        self._add_toggle(
+            left,
+            left_host,
+            "nameplatedistance",
+            "Nameplate range",
+            "Nameplate distance in yards (game default 20, cap 41).",
+            slider_key="nameplatedistance_value",
+            lo=1,
+            hi=41,
+        )
+        self._add_toggle(
+            left,
+            left_host,
+            "largeaddressaware",
+            "Large Address Aware (4 GB)",
+            "Lets the 32-bit client use more than 2 GB of RAM. Leave on "
+            "unless the machine has under 3 GB.",
+        )
+        self._add_toggle(
+            left,
+            left_host,
+            "cameraskipfix",
+            "Camera skip glitch fix",
+            "Stops the camera from jumping to a random direction when rotated.",
+        )
+        self._add_toggle(
+            left,
+            left_host,
+            "customglues",
+            "Custom glues (frames / XML)",
+            "Allows custom frames and XML. On by default in V2.",
+        )
+        self._add_toggle(
+            left,
+            left_host,
+            "bluemoon",
+            "Blue moon",
+            "Shows the blue moon around 1am every other day or so. On by default in V2.",
+        )
+        left.addStretch(1)
+
+        right.addWidget(self._section("Optional (off in V2)"))
+        extra = QLabel(
+            "These are covered by SuperWoW for many players, so V2 leaves them off."
+        )
+        extra.setObjectName("ThemedDialogHint")
+        extra.setWordWrap(True)
+        right.addWidget(extra)
+        self._add_toggle(
+            right,
+            right_host,
+            "fov_patch",
+            "Widescreen FoV",
+            "Game default is 1.5708 radians. V2 suggested widescreen value is 1.925.",
+            spin_key="fov",
+            spin_kind="float",
+            decimals=4,
+            lo=0.5,
+            hi=3.0,
+            step=0.025,
+        )
+        self._add_toggle(
+            right,
+            right_host,
+            "sound_in_background",
+            "Sound in background",
+            "Keep game audio playing when the client is not focused.",
+        )
+        self._add_toggle(
+            right,
+            right_host,
+            "soundchannels_patch",
+            "Sound channel count",
+            "Persists /console SoundSoftwareChannels. Vanilla 12, TBC 32, "
+            "or modern 64. Those are the only values offered.",
+            choice_key="soundchannels",
+            choices=SOUND_CHANNEL_CHOICES,
+            choice_labels=("12 — Vanilla", "32 — TBC", "64 — Modern"),
+        )
+        self._add_toggle(
+            right,
+            right_host,
+            "quickloot",
+            "Quickloot reverse (hold Shift)",
+            "Loot automatically; hold Shift for the loot window.",
+        )
+        self._add_toggle(
+            right,
+            right_host,
+            "crossfactionresfix",
+            "Cross-faction resurrect fix",
+            "Lets you resurrect released opposite-faction players. Can apply "
+            "even when they are not in your party.",
+        )
+        self._add_toggle(
+            right,
+            right_host,
+            "maxcameradistance_patch",
+            "Camera distance limit",
+            "Stock maximum is 50. After patching, use /console CameraDistanceMax.",
+            slider_key="maxcameradistance",
+            lo=1,
+            hi=50,
+        )
+        right.addStretch(1)
+        cols.addWidget(left_host, 1)
+        cols.addWidget(right_host, 1)
+        body.addLayout(cols)
+
+        if self._installed:
+            note = QLabel("Tweaks is installed — Save will re-patch WoW.exe.")
+        else:
+            note = QLabel("Options are saved for the next Vanilla Tweaks install.")
+        note.setObjectName("ThemedDialogHint")
+        note.setWordWrap(True)
+        body.addWidget(note)
+
+        row = QHBoxLayout()
+        row.setSpacing(10)
+        defaults_btn = _dialog_glue_button("Defaults", card, primary=False)
+        defaults_btn.setToolTip("Restore tubtubs V2 defaults")
+        defaults_btn.clicked.connect(self._reset_defaults)
+        row.addWidget(defaults_btn)
+        row.addStretch(1)
+        cancel_btn = _dialog_glue_button("Cancel", card, primary=False)
+        cancel_btn.clicked.connect(self.reject)
+        save_btn = _dialog_glue_button("Save", card, primary=True)
+        save_btn.clicked.connect(self._accept_save)
+        row.addWidget(cancel_btn)
+        row.addWidget(save_btn)
+        body.addLayout(row)
+
+        root.addWidget(card)
+        self.setStyleSheet(
+            "QDialog#ThemedDialog { background: transparent; }"
+            "QWidget#ThemedDialogCard {"
+            "  background-color: #100d0c;"
+            "  border: 1px solid rgba(150, 131, 158, 0.22);"
+            "  border-top: 3px solid #F1C22D;"
+            "  border-radius: 10px;"
+            "}"
+        )
+        self._apply_options(self._initial)
+
+    @staticmethod
+    def _tweaks_are_installed() -> bool:
+        from ichalaunch.config.settings import settings
+        from ichalaunch.game.launcher import detect_game
+        from ichalaunch.mods.installer import detect_actual_state
+
+        game = detect_game()
+        if game:
+            try:
+                if detect_actual_state(game).get("vanilla_tweaks"):
+                    return True
+            except Exception:  # noqa: BLE001
+                pass
+        return bool(
+            settings.installed_mods.get("vanilla_tweaks")
+            and settings.desired_mods.get("vanilla_tweaks")
+        )
+
+    @staticmethod
+    def _section(text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setObjectName("ThemedDialogSection")
+        return lbl
+
+    def _add_toggle(
+        self,
+        form: QVBoxLayout,
+        parent: QWidget,
+        key: str,
+        label: str,
+        tip: str,
+        *,
+        spin_key: str | None = None,
+        spin_kind: str = "float",
+        decimals: int = 0,
+        lo: float = 0,
+        hi: float = 100,
+        step: float = 1,
+        slider_key: str | None = None,
+        choice_key: str | None = None,
+        choices: tuple[int, ...] = (),
+        choice_labels: tuple[str, ...] = (),
+    ) -> None:
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        cb = ThemeCheckBox(label, parent)
+        cb.setCursor(Qt.CursorShape.PointingHandCursor)
+        cb.setMinimumHeight(28)
+        cb.setToolTip(tip)
+        cb.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        row.addWidget(cb, 1)
+        self._checks[key] = cb
+        extra: list[QWidget] = []
+        value_key = slider_key or spin_key or choice_key
+        self._check_tips[key] = tip
+        if value_key:
+            hint = QLabel(
+                self._range_hint(lo, hi, decimals=decimals, choices=choices),
+                parent,
+            )
+            hint.setObjectName("ThemedDialogHint")
+            hint.setToolTip(tip)
+            row.addWidget(hint, 0, Qt.AlignmentFlag.AlignVCenter)
+            self._range_hints[value_key] = hint
+        if choice_key and choices:
+            from ichalaunch.ui.widgets.glue_combo import GlueComboBox
+
+            combo = GlueComboBox(parent, min_width=168)
+            labels = choice_labels or tuple(str(v) for v in choices)
+            for value, item_label in zip(choices, labels, strict=False):
+                combo.addItem(item_label, int(value))
+            combo.setToolTip(tip)
+            row.addWidget(combo, 0)
+            self._combos[choice_key] = combo
+            self._combo_for_check[key] = choice_key
+            extra.append(combo)
+        elif slider_key:
+            slider = QSlider(Qt.Orientation.Horizontal, parent)
+            slider.setRange(int(lo), int(hi))
+            slider.setSingleStep(1)
+            slider.setPageStep(max(1, int((hi - lo) / 10)))
+            slider.setMinimumWidth(120)
+            slider.setMaximumWidth(180)
+            slider.setFixedHeight(22)
+            slider.setToolTip(tip)
+            value_lbl = QLabel(str(int(hi)), parent)
+            value_lbl.setObjectName("ThemedDialogHint")
+            value_lbl.setFixedWidth(28)
+            value_lbl.setAlignment(
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+            )
+            slider.valueChanged.connect(lambda v, lbl=value_lbl: lbl.setText(str(v)))
+            row.addWidget(slider, 0, Qt.AlignmentFlag.AlignVCenter)
+            row.addWidget(value_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
+            self._sliders[slider_key] = slider
+            self._slider_value_lbls[slider_key] = value_lbl
+            self._slider_for_check[key] = slider_key
+            extra.extend((slider, value_lbl))
+        elif spin_key:
+            if spin_kind == "int":
+                spin: QSpinBox | QDoubleSpinBox = QSpinBox(parent)
+                spin.setRange(int(lo), int(hi))
+                spin.setSingleStep(int(step) or 1)
+            else:
+                spin = QDoubleSpinBox(parent)
+                spin.setDecimals(decimals)
+                spin.setRange(float(lo), float(hi))
+                spin.setSingleStep(float(step) or 1.0)
+            spin.setFixedWidth(104)
+            spin.setFixedHeight(GLUE_BTN_H)
+            spin.setToolTip(tip)
+            spin.setKeyboardTracking(False)
+            row.addWidget(spin, 0)
+            self._spins[spin_key] = spin
+            self._spin_for_check[key] = spin_key
+            extra.append(spin)
+        extras = tuple(extra)
+        self._extras_for_check[key] = extras
+        if extras:
+            cb.toggled.connect(lambda on, widgets=extras: self._set_enabled(widgets, on))
+        form.addLayout(row)
+
+    @staticmethod
+    def _range_hint(
+        lo: float,
+        hi: float,
+        *,
+        decimals: int = 0,
+        choices: tuple[int, ...] = (),
+    ) -> str:
+        if choices:
+            return f"({choices[0]}-{choices[-1]})"
+        if decimals > 0:
+            return f"({lo:g}-{hi:g})"
+        return f"({int(lo)}-{int(hi)})"
+
+    @staticmethod
+    def _set_enabled(widgets: tuple[QWidget, ...], enabled: bool) -> None:
+        for widget in widgets:
+            widget.setEnabled(enabled)
+
+    _SUPERWOW_OPTIONAL_TIP = (
+        "SuperWoW already covers these, so they stay off."
+    )
+
+    def _superwow_detected(self) -> bool:
+        from ichalaunch.mods.vanilla_tweaks import superwow_is_active
+
+        return superwow_is_active()
+
+    def _apply_superwow_optional_lock(self) -> None:
+        from ichalaunch.mods.vanilla_tweaks import VANILLA_TWEAKS_OPTIONAL_KEYS
+
+        locked = self._superwow_detected()
+        self._superwow_locks_optional = locked
+        for key in VANILLA_TWEAKS_OPTIONAL_KEYS:
+            cb = self._checks.get(key)
+            if cb is None:
+                continue
+            extras = self._extras_for_check.get(key, ())
+            if locked:
+                cb.blockSignals(True)
+                cb.setChecked(False)
+                cb.blockSignals(False)
+                cb.setEnabled(False)
+                cb.setToolTip(self._SUPERWOW_OPTIONAL_TIP)
+                for widget in extras:
+                    widget.setEnabled(False)
+                    widget.setToolTip(self._SUPERWOW_OPTIONAL_TIP)
+            else:
+                cb.setEnabled(True)
+                cb.setToolTip(self._check_tips.get(key) or cb.toolTip())
+                on = cb.isChecked()
+                tip = self._check_tips.get(key) or ""
+                for widget in extras:
+                    widget.setEnabled(on)
+                    if tip:
+                        widget.setToolTip(tip)
+
+    def _apply_options(self, opts: dict) -> None:
+        for key, cb in self._checks.items():
+            cb.blockSignals(True)
+            cb.setChecked(bool(opts.get(key)))
+            cb.blockSignals(False)
+        for key, spin in self._spins.items():
+            value = opts.get(key)
+            spin.blockSignals(True)
+            if isinstance(spin, QSpinBox):
+                spin.setValue(int(value))
+            else:
+                spin.setValue(float(value))
+            spin.blockSignals(False)
+        for key, combo in self._combos.items():
+            target = int(opts.get(key) or 0)
+            combo.blockSignals(True)
+            idx = combo.findData(target)
+            combo.setCurrentIndex(idx if idx >= 0 else 0)
+            combo.blockSignals(False)
+        for key, slider in self._sliders.items():
+            try:
+                parsed = int(round(float(opts.get(key) or slider.minimum())))
+            except (TypeError, ValueError):
+                parsed = slider.minimum()
+            parsed = max(slider.minimum(), min(slider.maximum(), parsed))
+            slider.blockSignals(True)
+            slider.setValue(parsed)
+            slider.blockSignals(False)
+            lbl = self._slider_value_lbls.get(key)
+            if lbl is not None:
+                lbl.setText(str(parsed))
+        for key, spin_key in self._spin_for_check.items():
+            self._spins[spin_key].setEnabled(self._checks[key].isChecked())
+        for key, slider_key in self._slider_for_check.items():
+            on = self._checks[key].isChecked()
+            self._sliders[slider_key].setEnabled(on)
+            self._slider_value_lbls[slider_key].setEnabled(on)
+        for key, choice_key in self._combo_for_check.items():
+            self._combos[choice_key].setEnabled(self._checks[key].isChecked())
+        self._apply_superwow_optional_lock()
+
+    def _reset_defaults(self) -> None:
+        self._apply_options(self._defaults)
+
+    def collect_options(self) -> dict:
+        from ichalaunch.mods.vanilla_tweaks import normalize_vanilla_tweaks_options
+
+        raw = dict(self._defaults)
+        for key, cb in self._checks.items():
+            raw[key] = cb.isChecked()
+        for key, spin in self._spins.items():
+            raw[key] = spin.value()
+        for key, slider in self._sliders.items():
+            raw[key] = slider.value()
+        for key, combo in self._combos.items():
+            data = combo.currentData()
+            raw[key] = int(data) if data is not None else raw.get(key)
+        return normalize_vanilla_tweaks_options(raw)
+
+    def _accept_save(self) -> None:
+        from ichalaunch.config.settings import settings
+        from ichalaunch.mods.vanilla_tweaks import options_equal
+
+        options = self.collect_options()
+        changed = not options_equal(options, self._initial)
+        settings.set_vanilla_tweaks_options(options)
+        self._result = {"options": options, "repatch": bool(changed and self._installed)}
+        self.accept()
+
+    def result_data(self) -> dict | None:
+        return self._result
+
+
+def vanilla_tweaks_settings_dialog(parent: QWidget | None) -> dict | None:
+    """Blocking Vanilla Tweaks options modal. None if cancelled."""
+    dlg = VanillaTweaksSettingsDialog(parent)
+    if dlg.exec() != QDialog.DialogCode.Accepted:
+        return None
+    return dlg.result_data()
 
 
 def _run(

@@ -51,6 +51,7 @@ from ichalaunch.ui.widgets.glue_panel_button import (
     open_git_icon_pixmap,
 )
 from ichalaunch.ui.widgets.theme_checkbox import ThemeCheckBox
+from ichalaunch.ui.widgets.update_alert_badge import UpdateAlertBadge
 
 _OPTIONS_COG = "UI-OptionsButton.PNG"
 _OPTIONS_COG_EXTERNAL = Path(r"F:\wow-ui-textures\Buttons") / _OPTIONS_COG
@@ -1938,6 +1939,7 @@ class ModCheckRow(QWidget):
     reinstall_clicked = Signal(str)
     open_git_clicked = Signal(str)
     open_link_clicked = Signal(str)
+    settings_clicked = Signal(str)
     def __init__(
         self,
         mod_id: str,
@@ -1948,6 +1950,7 @@ class ModCheckRow(QWidget):
         author: str | None = None,
         contains: str | None = None,
         version: str | None = None,
+        has_settings: bool = False,
         parent=None,
     ):
         super().__init__(parent)
@@ -2006,7 +2009,9 @@ class ModCheckRow(QWidget):
         self.open_git_btn = OpenGitButton(self, plate="inline")
         self.open_git_btn.setVisible(False)
         self.open_git_btn.clicked.connect(self._emit_open_git)
+        self.pending_badge = UpdateAlertBadge(self)
         name_cluster.addWidget(name_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
+        name_cluster.addWidget(self.pending_badge, 0, Qt.AlignmentFlag.AlignVCenter)
         name_cluster.addWidget(self.desc_toggle, 0, Qt.AlignmentFlag.AlignVCenter)
         if author:
             name_cluster.addWidget(self.author_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -2027,6 +2032,7 @@ class ModCheckRow(QWidget):
         self.reinstall_btn.setVisible(False)
         self.reinstall_btn.setToolTip("Re-download and overwrite installed files")
         self.reinstall_btn.clicked.connect(lambda: self.reinstall_clicked.emit(self.mod_id))
+        self.settings_btn: OptionsCogButton | None = None
         action_host = QWidget(self)
         action_host.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         action_l = QHBoxLayout(action_host)
@@ -2034,6 +2040,12 @@ class ModCheckRow(QWidget):
         action_l.setSpacing(_ADDON_ROW_ACTION_GAP)
         action_l.addWidget(self.update_btn)
         action_l.addWidget(self.reinstall_btn)
+        if has_settings:
+            btn_set = OptionsCogButton(self)
+            btn_set.setToolTip("Configure Vanilla Tweaks patches")
+            btn_set.clicked.connect(lambda: self.settings_clicked.emit(self.mod_id))
+            action_l.addWidget(btn_set)
+            self.settings_btn = btn_set
         row.addWidget(self.cb, 0)
         row.addLayout(name_cluster, 0)
         row.addStretch(1)
@@ -2130,6 +2142,11 @@ class ModCheckRow(QWidget):
             self.update_btn.setToolTip(detail or "Update available")
     def set_reinstall_visible(self, visible: bool) -> None:
         self.reinstall_btn.setVisible(visible)
+
+    def set_pending_change(self, pending: bool) -> None:
+        """Show the Adventure Guide alert on this row when Apply has work."""
+        pending = bool(pending)
+        self.pending_badge.setVisible(pending)
 
     def flash_highlight(self, ms: int = 2200) -> None:
         """Brief gold flash so the user can find a newly selected/matched row."""

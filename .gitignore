@@ -50,3 +50,7 @@ tools/.cache/
 test-clients/
 IchaLaunch.exe
 
+# Official client MPQs are hosted as a GitHub release, not git blobs.
+ichalaunch/data/*.mpq
+/data/*.mpq
+

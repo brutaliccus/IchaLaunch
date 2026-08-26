@@ -327,6 +327,11 @@ def test_vanilla_tweaks_disable_clears_pending():
 
             # Simulate a successful apply (byte-patch WoW.exe, keep stock backup).
             (game / "WoW.exe").write_bytes(patched)
+            from ichalaunch.mods.vanilla_tweaks import tweaks_install_stamp
+
+            s.set_installed_mod(
+                "vanilla_tweaks", tweaks_install_stamp(s.vanilla_tweaks_options)
+            )
             clear_fs_caches()
             assert detect_actual_state(game).get("vanilla_tweaks") is True
             assert not any(c.get("id") == "vanilla_tweaks" for c in plan_changes())
@@ -745,14 +750,18 @@ def test_stock_patch9_reacquire_detect():
     """Missing or undersized official patch-9 offers reacquire; healthy size does not."""
     from ichalaunch.mods import installer as installer_mod
     from ichalaunch.mods.stock_patch import (
+        STOCK_PATCH9_DOWNLOAD_URL,
         STOCK_PATCH9_EXPECTED_SIZE,
         STOCK_PATCH9_MIN_BYTES,
+        STOCK_PATCH9_NAME,
         classify_stock_patch9,
         inspect_stock_patch9,
+        load_stock_patch9_catalog,
         patch9_url_from_index_html,
         reacquire_stock_patch9,
         resolve_stock_patch9_url,
         should_offer_stock_patch9_reacquire,
+        stock_patch9_download_url,
         stock_patch9_size_floor,
     )
 
@@ -765,18 +774,28 @@ def test_stock_patch9_reacquire_detect():
     floor = stock_patch9_size_floor()
     assert 400 * 1024 * 1024 <= floor <= STOCK_PATCH9_EXPECTED_SIZE
 
+    catalog = load_stock_patch9_catalog()
+    assert catalog.get("filename") == STOCK_PATCH9_NAME
+    assert catalog.get("expected_size") == STOCK_PATCH9_EXPECTED_SIZE
+    assert catalog.get("url") == STOCK_PATCH9_DOWNLOAD_URL
+    assert stock_patch9_download_url() == STOCK_PATCH9_DOWNLOAD_URL
+    assert "github.com/brutaliccus/IchaLaunch/releases/download/" in STOCK_PATCH9_DOWNLOAD_URL
+
     html = (
         '<a href="patch-9.mpq">patch-9.mpq</a> 483.2 MB'
     )
-    url = patch9_url_from_index_html(html, "https://share.ichasarmory.quest/")
-    assert url == "https://share.ichasarmory.quest/patch-9.mpq"
+    url = patch9_url_from_index_html(
+        html,
+        "https://github.com/brutaliccus/IchaLaunch/releases/download/stock-patch-9/",
+    )
+    assert url == STOCK_PATCH9_DOWNLOAD_URL
     evil = patch9_url_from_index_html(
         '<a href="https://evil.example/patch-9.mpq">x</a>',
-        "https://share.ichasarmory.quest/",
+        "https://github.com/brutaliccus/IchaLaunch/releases/download/stock-patch-9/",
     )
     assert evil is None
     fallback = resolve_stock_patch9_url(html="<html>no file here</html>")
-    assert fallback == "https://share.ichasarmory.quest/patch-9.mpq"
+    assert fallback == STOCK_PATCH9_DOWNLOAD_URL
 
     orig_dl = installer_mod._download_source
     try:
@@ -803,7 +822,7 @@ def test_stock_patch9_reacquire_detect():
             assert not should_offer_stock_patch9_reacquire(ok)
 
             def fake_dl(source, work, progress=None):
-                assert "share.ichasarmory.quest" in str(source.get("url") or "")
+                assert "github.com/brutaliccus/IchaLaunch" in str(source.get("url") or "")
                 out = Path(work) / "patch-9.mpq"
                 out.write_bytes(b"MPQ" + b"N" * 500)
                 return out
@@ -822,7 +841,7 @@ def test_stock_patch9_reacquire_detect():
             try:
                 reacquire_stock_patch9(
                     game, expected_size=400, min_bytes=400,
-                    download_url="https://share.ichasarmory.quest/patch-9.mpq",
+                    download_url=STOCK_PATCH9_DOWNLOAD_URL,
                 )
                 raise AssertionError("must not clobber a healthy-sized patch-9")
             except RuntimeError as exc:
@@ -6333,9 +6352,13 @@ def test_mod_version_label():
     from ichalaunch.mods.installer import get_mod, mod_version_label
 
     tweaks = get_mod("vanilla_tweaks")
-    assert mod_version_label(tweaks) == "v1.6.0"
+    src = (tweaks or {}).get("source") or {}
+    assert src.get("repo") == "tubtubs/vanilla-tweaks"
+    # Latest tubtubs tag is the non-semver "tag" / V2 name — no catalog pin.
+    assert mod_version_label(tweaks) == ""
     assert mod_version_label(tweaks, {"version_display": "v1.5.0"}) == "v1.5.0"
-    assert mod_version_label(tweaks, {"version_display": "detected"}) == "v1.6.0"
+    assert mod_version_label(tweaks, {"version_display": "detected"}) == ""
+    assert mod_version_label(tweaks, {"version_display": "V2"}) == "V2"
     vf = get_mod("vanillafixes")
     assert mod_version_label(vf) == "v1.5.3"
     sw = get_mod("superwow")
@@ -6358,6 +6381,516 @@ def test_mod_version_label():
     assert mod_version_label(get_mod("pretty_night_sky")) == ""
     assert mod_version_label(get_mod("wdb_block")) == ""
     print("OK mod version label")
+
+
+def test_vanilla_tweaks_tubtubs_catalog_and_argv():
+    """Catalog tracks tubtubs/vanilla-tweaks; CLI flags match V2 clap names."""
+    import tempfile
+    from pathlib import Path
+
+    from ichalaunch.mods.installer import get_mod
+    from ichalaunch.mods.vanilla_tweaks import (
+        normalize_vanilla_tweaks_options,
+        snap_sound_channels,
+        vanilla_tweaks_argv,
+        vanilla_tweaks_command,
+        vanilla_tweaks_infile,
+    )
+
+    tweaks = get_mod("vanilla_tweaks")
+    assert tweaks is not None
+    src = tweaks.get("source") or {}
+    assert src.get("type") == "github_release_latest"
+    assert src.get("repo") == "tubtubs/vanilla-tweaks"
+    assert "windows" in str(src.get("asset_contains") or "").lower()
+    assert "sha256" in str(src.get("asset_not_contains") or "").lower()
+    assert tweaks.get("author") == "tubtubs"
+    assert tweaks.get("has_config") is True
+    assert "brndd" not in str(src).lower()
+    from ichalaunch.ui.widgets.common import mod_git_url
+
+    assert mod_git_url(tweaks) == "https://github.com/tubtubs/vanilla-tweaks"
+
+    argv = vanilla_tweaks_argv(None)
+    assert "--farclip" in argv
+    assert argv[argv.index("--farclip") + 1] == "777"
+    assert "--frilldistance" in argv
+    assert argv[argv.index("--frilldistance") + 1] == "300"
+    assert "--nameplatedistance" in argv
+    assert argv[argv.index("--nameplatedistance") + 1] == "41"
+    assert "--no-farclip" not in argv
+    assert "--fov-patch" not in argv
+    assert "--sound-in-background" not in argv
+    assert "--quickloot" not in argv
+    assert "--no-customgluespatch" not in argv
+    assert "--no-bluemoonpatch" not in argv
+
+    custom = normalize_vanilla_tweaks_options(
+        {
+            "farclip": False,
+            "frilldistance": False,
+            "nameplatedistance": False,
+            "largeaddressaware": False,
+            "cameraskipfix": False,
+            "customglues": False,
+            "bluemoon": False,
+            "fov_patch": True,
+            "fov": 1.925,
+            "sound_in_background": True,
+            "soundchannels_patch": True,
+            "soundchannels": 32,
+            "quickloot": True,
+            "crossfactionresfix": True,
+            "maxcameradistance_patch": True,
+            "maxcameradistance": 40,
+        }
+    )
+    argv2 = vanilla_tweaks_argv(custom)
+    for flag in (
+        "--no-farclip",
+        "--no-frilldistance",
+        "--no-nameplatedistance",
+        "--no-largeaddressaware",
+        "--no-cameraskipfix",
+        "--no-customgluespatch",
+        "--no-bluemoonpatch",
+        "--fov-patch",
+        "--sound-in-background",
+        "--soundchannels-patch",
+        "--quickloot",
+        "--crossfactionresfix",
+        "--maxcameradistance",
+    ):
+        assert flag in argv2, flag
+    assert "32" in argv2
+    assert argv2[argv2.index("--maxcameradistance") + 1] == "40"
+    assert snap_sound_channels(99) == 64
+    assert snap_sound_channels(20) == 12
+    assert snap_sound_channels(40) == 32
+    assert normalize_vanilla_tweaks_options({"soundchannels": 48})[
+        "soundchannels"
+    ] in (12, 32, 64)
+    assert normalize_vanilla_tweaks_options({"soundchannels": 48})[
+        "soundchannels"
+    ] == 32
+
+    with tempfile.TemporaryDirectory() as td:
+        game = Path(td)
+        wow = game / "WoW.exe"
+        wow.write_bytes(b"wow")
+        assert vanilla_tweaks_infile(game, wow) == wow
+        backup = game / "WoW-OriginalBackup.exe"
+        backup.write_bytes(b"stock")
+        assert vanilla_tweaks_infile(game, wow) == backup
+        cmd = vanilla_tweaks_command("vanilla-tweaks.exe", backup, None)
+        assert cmd[0] == "vanilla-tweaks.exe"
+        assert cmd[-1] == str(backup)
+        assert "--farclip" in cmd
+    print("OK vanilla tweaks tubtubs catalog and argv")
+
+
+def _hbox_widgets_containing(widget):
+    """Widgets in the QHBoxLayout that contains *widget*, left-to-right."""
+    parent = widget.parentWidget()
+    if parent is None or parent.layout() is None:
+        return []
+    layout = parent.layout()
+
+    def search(lay):
+        widgets = []
+        found = False
+        for i in range(lay.count()):
+            item = lay.itemAt(i)
+            if item is None:
+                continue
+            child = item.layout()
+            if child is not None:
+                hit, inner = search(child)
+                if hit:
+                    return True, inner
+                continue
+            w = item.widget()
+            if w is not None:
+                widgets.append(w)
+                if w is widget:
+                    found = True
+        return found, widgets
+
+    ok, widgets = search(layout)
+    return widgets if ok else []
+
+
+def _assert_tweaks_range_hint_left_of_control(dlg) -> None:
+    """Range hint sits immediately left of the spin / slider / combo."""
+    pairs = (
+        (dlg._range_hints["farclip_value"], dlg._spins["farclip_value"]),
+        (dlg._range_hints["frilldistance_value"], dlg._spins["frilldistance_value"]),
+        (dlg._range_hints["fov"], dlg._spins["fov"]),
+        (dlg._range_hints["nameplatedistance_value"], dlg._sliders["nameplatedistance_value"]),
+        (dlg._range_hints["maxcameradistance"], dlg._sliders["maxcameradistance"]),
+        (dlg._range_hints["soundchannels"], dlg._combos["soundchannels"]),
+    )
+    dlg.show()
+    from PySide6.QtWidgets import QApplication
+
+    QApplication.processEvents()
+    for hint, control in pairs:
+        row = _hbox_widgets_containing(hint)
+        assert hint in row, f"hint {hint.text()} not in row"
+        assert control in row, f"control missing from row with {hint.text()}"
+        assert row.index(hint) == row.index(control) - 1, (
+            f"{hint.text()} should sit immediately left of its control; row={[w.objectName() or type(w).__name__ for w in row]}"
+        )
+        assert hint.x() + hint.width() <= control.x() + 1, (
+            f"{hint.text()} x={hint.x()}+{hint.width()} not left of control x={control.x()}"
+        )
+    dlg.hide()
+
+
+def test_vanilla_tweaks_settings_dialog():
+    """Themed Tweaks modal exposes every V2 knob and persists options."""
+    import tempfile
+    from pathlib import Path
+
+    from PySide6.QtWidgets import QApplication, QScrollArea
+
+    from ichalaunch.config import settings as settings_mod
+    from ichalaunch.config.settings import Settings
+    from ichalaunch.mods.vanilla_tweaks import vanilla_tweaks_argv
+    from ichalaunch.ui.widgets.dialogs import VanillaTweaksSettingsDialog
+
+    app = QApplication.instance() or QApplication([])
+    del app
+    with tempfile.TemporaryDirectory() as td:
+        fake = Path(td) / "settings.json"
+        orig_path = settings_mod.settings_path
+        orig = settings_mod.settings
+        settings_mod.settings_path = lambda: fake
+        settings_mod.settings = Settings()
+        try:
+            dlg = VanillaTweaksSettingsDialog(None)
+            expected_checks = {
+                "farclip",
+                "frilldistance",
+                "nameplatedistance",
+                "largeaddressaware",
+                "cameraskipfix",
+                "customglues",
+                "bluemoon",
+                "fov_patch",
+                "sound_in_background",
+                "soundchannels_patch",
+                "quickloot",
+                "crossfactionresfix",
+                "maxcameradistance_patch",
+            }
+            assert set(dlg._checks) == expected_checks
+            assert set(dlg._spins) == {
+                "farclip_value",
+                "frilldistance_value",
+                "fov",
+            }
+            assert set(dlg._sliders) == {
+                "nameplatedistance_value",
+                "maxcameradistance",
+            }
+            assert dlg._sliders["nameplatedistance_value"].maximum() == 41
+            assert dlg._sliders["maxcameradistance"].maximum() == 50
+            assert dlg._range_hints["farclip_value"].text() == "(100-10000)"
+            assert dlg._range_hints["nameplatedistance_value"].text() == "(1-41)"
+            assert dlg._range_hints["maxcameradistance"].text() == "(1-50)"
+            assert dlg.findChildren(QScrollArea) == []
+            assert set(dlg._combos) == {"soundchannels"}
+            combo = dlg._combos["soundchannels"]
+            assert [
+                combo.itemData(i) for i in range(combo.count())
+            ] == [12, 32, 64]
+            assert combo.minimumWidth() >= 160
+            opts = dlg.collect_options()
+            assert opts["farclip"] is True
+            assert opts["farclip_value"] == 777
+            assert opts["frilldistance_value"] == 300
+            _assert_tweaks_range_hint_left_of_control(dlg)
+            assert opts["nameplatedistance_value"] == 41
+            assert opts["fov_patch"] is False
+            assert opts["bluemoon"] is True
+            assert opts["customglues"] is True
+            dlg._checks["fov_patch"].setChecked(True)
+            dlg._checks["farclip"].setChecked(False)
+            dlg._sliders["nameplatedistance_value"].setValue(30)
+            collected = dlg.collect_options()
+            argv = vanilla_tweaks_argv(collected)
+            assert "--fov-patch" in argv
+            assert "--no-farclip" in argv
+            assert "--nameplatedistance" in argv
+            assert "30" in argv
+            dlg._accept_save()
+            saved = settings_mod.settings.vanilla_tweaks_options
+            assert saved["fov_patch"] is True
+            assert saved["farclip"] is False
+            assert saved["nameplatedistance_value"] == 30
+            dlg.deleteLater()
+        finally:
+            settings_mod.settings_path = orig_path
+            settings_mod.settings = orig
+    print("OK vanilla tweaks settings dialog")
+
+
+def test_vanilla_tweaks_optional_greyed_when_superwow():
+    """Optional Tweaks column greys out when SuperWoW is desired or on disk."""
+    import tempfile
+    from pathlib import Path
+
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.config import settings as settings_mod
+    from ichalaunch.config.settings import Settings
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.vanilla_tweaks import VANILLA_TWEAKS_OPTIONAL_KEYS
+    from ichalaunch.ui.widgets.dialogs import VanillaTweaksSettingsDialog
+
+    app = QApplication.instance() or QApplication([])
+    del app
+    default_on = (
+        "farclip",
+        "frilldistance",
+        "nameplatedistance",
+        "largeaddressaware",
+        "cameraskipfix",
+        "customglues",
+        "bluemoon",
+    )
+    with tempfile.TemporaryDirectory() as td:
+        fake = Path(td) / "settings.json"
+        game = Path(td) / "game"
+        game.mkdir()
+        (game / "WoW.exe").write_bytes(b"MZ")
+        orig_path = settings_mod.settings_path
+        orig = settings_mod.settings
+        settings_mod.settings_path = lambda: fake
+        settings_mod.settings = Settings()
+        settings_mod.settings.set("game_path", str(game))
+        settings_mod.settings.set("desired_mods", {})
+        clear_fs_caches()
+        try:
+            dlg = VanillaTweaksSettingsDialog(None)
+            for key in VANILLA_TWEAKS_OPTIONAL_KEYS:
+                assert dlg._checks[key].isEnabled(), key
+            for key in default_on:
+                assert dlg._checks[key].isEnabled(), key
+            assert dlg._spins["fov"].isEnabled() is False  # checkbox off by default
+            dlg.deleteLater()
+
+            settings_mod.settings.set("desired_mods", {"superwow": True})
+            locked = VanillaTweaksSettingsDialog(None)
+            assert locked._superwow_locks_optional is True
+            for key in VANILLA_TWEAKS_OPTIONAL_KEYS:
+                assert not locked._checks[key].isEnabled(), key
+                assert "SuperWoW" in locked._checks[key].toolTip(), key
+            for key in default_on:
+                assert locked._checks[key].isEnabled(), key
+            assert not locked._spins["fov"].isEnabled()
+            assert not locked._combos["soundchannels"].isEnabled()
+            assert not locked._sliders["maxcameradistance"].isEnabled()
+            locked.deleteLater()
+
+            settings_mod.settings.set("desired_mods", {})
+            (game / "SuperWoWhook.dll").write_bytes(b"dll")
+            clear_fs_caches()
+            actual = VanillaTweaksSettingsDialog(None)
+            assert actual._superwow_locks_optional is True
+            assert not actual._checks["quickloot"].isEnabled()
+            assert "SuperWoW" in actual._checks["fov_patch"].toolTip()
+            actual.deleteLater()
+        finally:
+            settings_mod.settings_path = orig_path
+            settings_mod.settings = orig
+            clear_fs_caches()
+    print("OK vanilla tweaks optional greyed when SuperWoW")
+
+
+def test_client_pending_plan_row_badge_and_apply_pulse():
+    """Pending plan_changes badges the row and pulses Apply Changes."""
+    from pathlib import Path
+    from unittest.mock import patch
+
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.pages.client import ClientPage
+
+    app = QApplication.instance() or QApplication([])
+    del app
+    page = ClientPage()
+    row = page.rows.get("vanilla_tweaks")
+    other = next(r for mid, r in page.rows.items() if mid != "vanilla_tweaks")
+    assert row is not None
+    assert row.pending_badge.isHidden()
+    assert page.apply_btn.property("flashHighlight") in (False, "false", None)
+    assert not page._apply_pulse_timer.isActive()
+
+    fake_plan = [
+        {"action": "install", "id": "vanilla_tweaks", "detail": "Install Vanilla Tweaks"}
+    ]
+    with patch("ichalaunch.ui.pages.client.detect_game", return_value=Path("C:/fake")):
+        with patch("ichalaunch.ui.pages.client.plan_changes", return_value=fake_plan):
+            page.refresh_plan()
+    assert not row.pending_badge.isHidden()
+    assert other.pending_badge.isHidden()
+    assert bool(page.apply_btn.property("flashHighlight"))
+    assert page._apply_pulse_timer.isActive()
+    assert page.apply_btn._pulse is True
+
+    with patch("ichalaunch.ui.pages.client.detect_game", return_value=Path("C:/fake")):
+        with patch("ichalaunch.ui.pages.client.plan_changes", return_value=[]):
+            page.refresh_plan()
+    assert row.pending_badge.isHidden()
+    assert page.apply_btn.property("flashHighlight") in (False, "false")
+    assert not page._apply_pulse_timer.isActive()
+    assert page.apply_btn._pulse is False
+    page.deleteLater()
+    print("OK client pending plan row badge and apply pulse")
+
+
+def test_vanilla_tweaks_force_tubtubs_repatch():
+    """Desired+installed brndd leftover plans a catalog re-patch; tubtubs stamp does not."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import plan_changes
+    from ichalaunch.mods.vanilla_tweaks import (
+        TWEAKS_REPO,
+        options_fingerprint,
+        tweaks_install_stamp,
+        vanilla_tweaks_needs_repatch,
+    )
+
+    assert vanilla_tweaks_needs_repatch({}) is True
+    assert vanilla_tweaks_needs_repatch(
+        {"url": "https://github.com/brndd/vanilla-tweaks/releases/download/v1.6.0/x.zip"}
+    ) is True
+    stamp = tweaks_install_stamp(None)
+    assert stamp["tweaks_source"] == "tubtubs"
+    assert stamp["repo"] == TWEAKS_REPO
+    assert vanilla_tweaks_needs_repatch(stamp, None) is False
+    assert vanilla_tweaks_needs_repatch(
+        {**stamp, "options_fingerprint": "deadbeef"}, None
+    ) is True
+    assert options_fingerprint(None) == options_fingerprint({})
+
+    keys = (
+        "desired_mods",
+        "user_set_mods",
+        "installed_mods",
+        "user_mods",
+        "game_path",
+        "addons_path",
+    )
+    saved = {k: s.get(k) for k in keys}
+    stock = b"MZ" + b"\0" * 64
+    patched = b"MZ" + b"\x01" * 64
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(patched)
+            (game / "WoW-OriginalBackup.exe").write_bytes(stock)
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("desired_mods", {"vanilla_tweaks": True})
+            s.set("user_set_mods", ["vanilla_tweaks"])
+            s.set(
+                "installed_mods",
+                {
+                    "vanilla_tweaks": {
+                        "version_display": "v1.6.0",
+                        "url": (
+                            "https://github.com/brndd/vanilla-tweaks/"
+                            "releases/download/v1.6.0/vanilla-tweaks.zip"
+                        ),
+                    }
+                },
+            )
+            s.set("user_mods", [])
+            clear_fs_caches()
+            assert any(
+                c["action"] == "install" and c["id"] == "vanilla_tweaks"
+                for c in plan_changes()
+            ), plan_changes()
+
+            s.set_installed_mod(
+                "vanilla_tweaks", tweaks_install_stamp(s.vanilla_tweaks_options)
+            )
+            clear_fs_caches()
+            assert not any(c.get("id") == "vanilla_tweaks" for c in plan_changes())
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK vanilla tweaks force tubtubs re-patch")
+
+
+def test_vanilla_tweaks_enable_opens_config_once():
+    """Turning Tweaks on opens the config modal; refresh does not."""
+    from unittest.mock import patch
+
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.ui.pages.client import ClientPage
+
+    app = QApplication.instance() or QApplication([])
+    opened: list[str] = []
+
+    def _fake_dialog(parent):  # noqa: ANN001
+        opened.append("dialog")
+        return None
+
+    keys = ("desired_mods", "user_set_mods")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        s.set("desired_mods", {**s.desired_mods, "vanilla_tweaks": False})
+        page = ClientPage()
+        with patch(
+            "ichalaunch.ui.widgets.dialogs.vanilla_tweaks_settings_dialog",
+            side_effect=_fake_dialog,
+        ):
+            page._on_toggle("vanilla_tweaks", True)
+            app.processEvents()
+            assert opened == ["dialog"], opened
+            page.refresh_from_settings()
+            app.processEvents()
+            assert opened == ["dialog"], opened
+        page.deleteLater()
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+    print("OK vanilla tweaks enable opens config once")
+
+
+def test_mod_check_row_tweaks_cog():
+    """Vanilla Tweaks client row shows the options cog; other mods do not."""
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.widgets.common import ModCheckRow
+
+    app = QApplication.instance() or QApplication([])
+    del app
+    plain = ModCheckRow("dxvk", "DXVK", "desc")
+    assert plain.settings_btn is None
+    row = ModCheckRow("vanilla_tweaks", "Vanilla Tweaks", "desc", has_settings=True)
+    assert row.settings_btn is not None
+    fired: list[str] = []
+    row.settings_clicked.connect(fired.append)
+    row.settings_btn.click()
+    assert fired == ["vanilla_tweaks"]
+    row.deleteLater()
+    plain.deleteLater()
+    from ichalaunch.ui.pages.client import ClientPage
+
+    page = ClientPage()
+    tweaks_row = page.rows.get("vanilla_tweaks")
+    assert tweaks_row is not None
+    assert tweaks_row.settings_btn is not None
+    page.deleteLater()
+    print("OK ModCheckRow tweaks cog")
 
 
 def test_superwow_tracks_dll_release_not_patch_mpq():
@@ -6729,6 +7262,7 @@ def test_auto_update_sequence_is_launcher_addons_client():
 
     immediate = []
     _call_when_worker_idle(None, lambda: immediate.append("now"))
+    app.processEvents()
     assert immediate == ["now"]
 
     later = []
@@ -8568,6 +9102,54 @@ def test_client_cat_nav_update_alert_badge():
     print("OK client category nav update alert badge")
 
 
+def test_launch_settings_live_on_client_page():
+    """Launch checkboxes live on Client → Launch (before Custom), not Settings."""
+    from PySide6.QtWidgets import QApplication, QLabel
+
+    import ichalaunch.ui.pages.settings as settings_page_mod
+    from ichalaunch.ui.pages.client import CATEGORY_ORDER, LAUNCH_CATEGORY, ClientPage
+    from ichalaunch.ui.widgets.common import ModCheckRow
+    from ichalaunch.ui.widgets.launch_settings import LaunchSettingsPanel
+
+    app = QApplication.instance() or QApplication([])
+    del app
+
+    assert LAUNCH_CATEGORY == "Launch"
+    assert CATEGORY_ORDER[-2:] == [LAUNCH_CATEGORY, "Custom"], CATEGORY_ORDER
+    assert CATEGORY_ORDER[0] != LAUNCH_CATEGORY
+
+    settings_page = settings_page_mod.SettingsPage()
+    for attr in ("cb_vf", "cb_min", "cb_close", "cb_wow64", "cb_vcache", "cb_frame_cap"):
+        assert not hasattr(settings_page, attr), attr
+    titles = [
+        w.text()
+        for w in settings_page.findChildren(QLabel)
+        if w.objectName() == "CardTitle"
+    ]
+    assert "Launch" not in titles, titles
+    settings_page.deleteLater()
+
+    page = ClientPage()
+    assert isinstance(page.launch_settings, LaunchSettingsPanel)
+    assert LAUNCH_CATEGORY in page._cat_index
+    assert page._cat_index[LAUNCH_CATEGORY] == page._cat_index["Custom"] - 1
+    launch_idx = page._cat_index[LAUNCH_CATEGORY]
+    assert page.cat_btns[launch_idx].text() == "Launch"
+    host = page._cat_hosts[LAUNCH_CATEGORY]
+    widgets = []
+    for i in range(host.count()):
+        item = host.itemAt(i)
+        w = item.widget() if item is not None else None
+        if w is not None:
+            widgets.append(w)
+    assert page.launch_settings in widgets
+    assert not any(isinstance(w, ModCheckRow) for w in widgets)
+    for attr in ("cb_vf", "cb_min", "cb_close", "cb_wow64", "cb_vcache", "cb_frame_cap"):
+        assert hasattr(page.launch_settings, attr), attr
+    page.deleteLater()
+    print("OK launch settings live on client page")
+
+
 def test_chrome_buttons_clear_metal_tr():
     from ichalaunch.core.paths import theme_file
     from ichalaunch.ui import main_window as mw
@@ -8997,7 +9579,12 @@ def test_linux_wow64_settings_checkbox():
 
     app = QApplication.instance() or QApplication(_sys.argv)
     assert app is not None
-    page = settings_page_mod.SettingsPage()
+    settings_page = settings_page_mod.SettingsPage()
+    assert not hasattr(settings_page, "cb_wow64")
+
+    from ichalaunch.ui.widgets.launch_settings import LaunchSettingsPanel
+
+    page = LaunchSettingsPanel()
 
     # Constructed on every platform so refresh() needs no platform branch, but
     # only shown where the setting can do anything.
@@ -9206,10 +9793,13 @@ def test_vcache_pin_settings_checkbox():
     import ichalaunch.ui.pages.settings as settings_page_mod
     from ichalaunch.config.settings import settings
     from ichalaunch.game.cpu_topology import vcache_pin_enabled
+    from ichalaunch.ui.widgets.launch_settings import LaunchSettingsPanel
 
     app = QApplication.instance() or QApplication(_sys.argv)
     assert app is not None
-    page = settings_page_mod.SettingsPage()
+    settings_page = settings_page_mod.SettingsPage()
+    assert not hasattr(settings_page, "cb_vcache")
+    page = LaunchSettingsPanel()
     assert hasattr(page, "cb_vcache")
     assert page.cb_vcache.parent() is not None
 
@@ -9419,10 +10009,13 @@ def test_frame_cap_settings_checkbox_and_launch_apply():
     from ichalaunch.config.settings import settings
     from ichalaunch.game import display
     from ichalaunch.mods import installer as I
+    from ichalaunch.ui.widgets.launch_settings import LaunchSettingsPanel
 
     app = QApplication.instance() or QApplication(_sys.argv)
     assert app is not None
-    page = settings_page_mod.SettingsPage()
+    settings_page = settings_page_mod.SettingsPage()
+    assert not hasattr(settings_page, "cb_frame_cap")
+    page = LaunchSettingsPanel()
     assert hasattr(page, "cb_frame_cap")
     assert page.cb_frame_cap.parent() is not None
 
@@ -9860,6 +10453,13 @@ def _run_smoke_tests():
     test_launcher_release_cache()
     test_dll_injection_mod_detection()
     test_mod_version_label()
+    test_vanilla_tweaks_tubtubs_catalog_and_argv()
+    test_vanilla_tweaks_settings_dialog()
+    test_vanilla_tweaks_optional_greyed_when_superwow()
+    test_client_pending_plan_row_badge_and_apply_pulse()
+    test_vanilla_tweaks_force_tubtubs_repatch()
+    test_vanilla_tweaks_enable_opens_config_once()
+    test_mod_check_row_tweaks_cog()
     test_superwow_tracks_dll_release_not_patch_mpq()
     test_superwow_issue_detection()
     test_themed_dialog_flags_and_close()
@@ -9902,6 +10502,7 @@ def _run_smoke_tests():
     test_nav_tab_glue_floor_chrome()
     test_client_hd_graphics_display_order()
     test_client_cat_nav_update_alert_badge()
+    test_launch_settings_live_on_client_page()
     test_chrome_buttons_clear_metal_tr()
     test_play_stays_right_when_progress_hidden()
     test_wayland_window_move_and_resize_handoff()

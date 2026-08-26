@@ -64,14 +64,18 @@ from ichalaunch.ui.widgets.dialogs import (
     warning,
 )
 from ichalaunch.ui.widgets.glue_panel_button import GLUE_BTN_H, GluePanelButton
+from ichalaunch.ui.widgets.launch_settings import LaunchSettingsPanel
 from ichalaunch.ui.widgets.marble_bg import MarblePanel, MarbleScrollArea
 from ichalaunch.ui.widgets.update_alert_badge import BadgeNavButton
+
+LAUNCH_CATEGORY = "Launch"
 
 CATEGORY_ORDER = [
     "Performance & Fixes",
     "Client Enhancements",
     "HD Graphics",
     "Visual / QoL",
+    LAUNCH_CATEGORY,
     "Custom",
 ]
 
@@ -200,15 +204,25 @@ class ClientPage(QWidget):
                 cat = "Custom"
                 mod = dict(mod)
                 mod["category"] = "Custom"
+            if cat == LAUNCH_CATEGORY:
+                cat = "Client Enhancements"
             by_cat.setdefault(cat, []).append(mod)
         # Always reserve Custom so Add DLL can land there even before first custom mod.
         by_cat.setdefault("Custom", [])
+        # Launch is settings, not a catalog list — keep the tab even with no mods.
+        by_cat.setdefault(LAUNCH_CATEGORY, [])
         cats = [c for c in CATEGORY_ORDER if c in by_cat] + [
             c for c in by_cat if c not in CATEGORY_ORDER
         ]
 
         for i, cat in enumerate(cats):
-            self._add_category_page(cat, by_cat[cat], i)
+            mods = [] if cat == LAUNCH_CATEGORY else by_cat[cat]
+            self._add_category_page(cat, mods, i)
+
+        self.launch_settings = LaunchSettingsPanel(self)
+        launch_host = self._cat_hosts.get(LAUNCH_CATEGORY)
+        if launch_host is not None:
+            self._insert_row_before_stretch(launch_host, self.launch_settings)
 
         side_l.addStretch(1)
         self._side_stretch_added = True
@@ -240,6 +254,7 @@ class ClientPage(QWidget):
         self.apply_btn = GluePanelButton("Apply Changes", role="standard")
         self.apply_btn.setEnabled(False)
         self.apply_btn.setToolTip("No pending client mod changes")
+        self.apply_btn.setProperty("flashHighlight", False)
         self.apply_btn.clicked.connect(self.apply_clicked.emit)
         self._apply_pulse = False
         self._apply_pulse_timer = QTimer(self)
@@ -346,6 +361,8 @@ class ClientPage(QWidget):
             cat = "Custom"
         else:
             cat = mod.get("category") or "Client Enhancements"
+            if cat == LAUNCH_CATEGORY:
+                cat = "Client Enhancements"
         contains_text = mod_contains_caption(mod)
         version = mod_version_label(mod, settings.installed_mods.get(mid))
         row = ModCheckRow(
@@ -356,6 +373,7 @@ class ClientPage(QWidget):
             author=mod_author(mod),
             contains=contains_text or None,
             version=version or None,
+            has_settings=bool(mod.get("has_config")),
             parent=host_l.parentWidget() if host_l is not None else self,
         )
         row.toggled.connect(self._on_toggle)
@@ -363,6 +381,7 @@ class ClientPage(QWidget):
         row.reinstall_clicked.connect(self.reinstall_mod_requested.emit)
         row.open_git_clicked.connect(self.open_git_requested.emit)
         row.open_link_clicked.connect(self._open_mod_link)
+        row.settings_clicked.connect(self._open_mod_config)
         row.set_git_url(mod_git_url(mod))
         row.set_open_url(mod_open_url(mod))
         self._row_meta[mid] = {
@@ -388,6 +407,15 @@ class ClientPage(QWidget):
         if url:
             open_url_in_browser(url)
 
+    def _open_mod_config(self, mod_id: str) -> None:
+        if mod_id != "vanilla_tweaks":
+            return
+        from ichalaunch.ui.widgets.dialogs import vanilla_tweaks_settings_dialog
+
+        result = vanilla_tweaks_settings_dialog(self)
+        if result and result.get("repatch"):
+            self.reinstall_mod_requested.emit("vanilla_tweaks")
+
     def ensure_mod_row(self, mod: dict) -> None:
         """Ensure a catalog (or newly registered user) mod has a checkbox row."""
         mid = mod.get("id")
@@ -399,6 +427,8 @@ class ClientPage(QWidget):
                 cat = "Custom"
                 mod = dict(mod)
                 mod["category"] = "Custom"
+            if cat == LAUNCH_CATEGORY:
+                cat = "Client Enhancements"
             if cat not in self._cat_hosts:
                 idx = len(self.cat_btns)
                 self._add_category_page(cat, [mod], idx)
@@ -439,6 +469,8 @@ class ClientPage(QWidget):
                 cat = "Custom"
                 mod = dict(mod)
                 mod["category"] = "Custom"
+            if cat == LAUNCH_CATEGORY:
+                cat = "Client Enhancements"
             if cat not in self._cat_hosts:
                 self._add_category_page(cat, [mod], len(self.cat_btns))
             else:
@@ -570,6 +602,8 @@ class ClientPage(QWidget):
     def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
         super().showEvent(event)
         self._reveal_rows()
+        if getattr(self, "launch_settings", None) is not None:
+            self.launch_settings.refresh()
         QTimer.singleShot(0, self._maybe_prompt_vf_dxvk_conflict)
         # Patch-9 dialog is Home-first (MainWindow); Client keeps banner + fallback.
         QTimer.singleShot(0, self._maybe_prompt_stock_patch9)
@@ -691,6 +725,8 @@ class ClientPage(QWidget):
             "vanillafixes_enabled",
             bool(desired.get("vanillafixes") or desired.get("dxvk")),
         )
+        if getattr(self, "launch_settings", None) is not None:
+            self.launch_settings.refresh()
         if enabled and mod_id in ("dxvk", "hd_dxvk"):
             QTimer.singleShot(0, self._maybe_warn_dxvk_gpu)
         if enabled:
@@ -698,6 +734,8 @@ class ClientPage(QWidget):
             QTimer.singleShot(0, lambda: self._maybe_show_mpq_patch_warning(mod_id, enabled))
         if enabled and mod_id == "superwow":
             QTimer.singleShot(0, self._maybe_superwow_enable_check)
+        if enabled and mod_id == "vanilla_tweaks":
+            QTimer.singleShot(0, lambda: self._open_mod_config("vanilla_tweaks"))
         self.refresh_plan()
 
     def _confirm_disable_cascade(self, mod_id: str, cascade_ids: list[str]) -> bool:
@@ -771,6 +809,8 @@ class ClientPage(QWidget):
 
     def refresh_from_settings(self) -> None:
         self.sync_catalog_rows()
+        if getattr(self, "launch_settings", None) is not None:
+            self.launch_settings.refresh()
         game = detect_game()
         actual = detect_actual_state(game) if game else {}
         desired = reconcile_exclusive_desired_mods(
@@ -855,6 +895,26 @@ class ClientPage(QWidget):
         self._apply_pulse = not self._apply_pulse
         self.apply_btn.set_pulse(self._apply_pulse)
 
+    def _set_apply_flash_property(self, pending: bool) -> None:
+        self.apply_btn.setProperty("flashHighlight", bool(pending))
+        self.apply_btn.style().unpolish(self.apply_btn)
+        self.apply_btn.style().polish(self.apply_btn)
+        self.apply_btn.update()
+
+    def _sync_row_pending_badges(self, changes: list[dict] | None) -> None:
+        pending_ids: set[str] = set()
+        for ch in changes or []:
+            if ch.get("action") in ("error", ""):
+                continue
+            mid = str(ch.get("id") or "").strip()
+            if mid:
+                pending_ids.add(mid)
+        for mid, row in self.rows.items():
+            try:
+                row.set_pending_change(mid in pending_ids)
+            except RuntimeError:
+                continue
+
     def _set_apply_pending(self, pending: bool) -> None:
         """Highlight Apply Changes when installs/removes are pending; mute when clean."""
         pending = bool(pending)
@@ -863,11 +923,12 @@ class ClientPage(QWidget):
         if pending:
             if isinstance(self.apply_btn, GluePanelButton):
                 self.apply_btn.set_role("primary")
-                self.apply_btn.set_pulse(False)
+                self.apply_btn.set_pulse(True)
             self.apply_btn.setEnabled(True)
             self.apply_btn.setToolTip("Pending client mod changes — click to apply")
+            self._set_apply_flash_property(True)
             if not self._apply_pulse_timer.isActive():
-                self._apply_pulse = False
+                self._apply_pulse = True
                 self._apply_pulse_timer.start()
         else:
             self._apply_pulse_timer.stop()
@@ -877,6 +938,7 @@ class ClientPage(QWidget):
                 self.apply_btn.set_pulse(False)
             self.apply_btn.setEnabled(False)
             self.apply_btn.setToolTip("No pending client mod changes")
+            self._set_apply_flash_property(False)
         if changed:
             self._refresh_cat_badges()
             self.badge_state_changed.emit()
@@ -886,14 +948,17 @@ class ClientPage(QWidget):
         if not game:
             self.plan_lbl.setText("Set a game path in Settings before applying mods.")
             self._set_apply_pending(False)
+            self._sync_row_pending_badges([])
             return
         changes = plan_changes()
         if not changes:
             self.plan_lbl.setText("Desired state matches installed client.")
             self._set_apply_pending(False)
+            self._sync_row_pending_badges([])
             return
         lines = ["Pending: " + " · ".join(c["detail"] for c in changes[:8])]
         if len(changes) > 8:
             lines.append(f"…and {len(changes) - 8} more")
         self.plan_lbl.setText("\n".join(lines))
         self._set_apply_pending(True)
+        self._sync_row_pending_badges(changes)

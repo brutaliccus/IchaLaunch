@@ -184,6 +184,8 @@ DEFAULTS: dict[str, Any] = {
     "dismissed_dll_security_exclusion_hint": False,
     "dll_security_exclusion_hint_shown": False,
     "dismissed_mpq_patch_warning": False,
+    # tubtubs/vanilla-tweaks CLI options. Empty dict uses V2 defaults.
+    "vanilla_tweaks_options": {},
 }
 
 
@@ -317,6 +319,8 @@ class Settings:
         merged["user_set_mods"] = (
             [str(x) for x in usm if x] if isinstance(usm, list) else []
         )
+        vto = loaded.get("vanilla_tweaks_options")
+        merged["vanilla_tweaks_options"] = dict(vto) if isinstance(vto, dict) else {}
         # Migrate older dual startup toggles into one setting.
         if "check_updates_on_startup" not in loaded:
             addon_on = bool(loaded.get("check_addon_updates_on_startup", True))
@@ -685,6 +689,17 @@ class Settings:
     def remove_user_mod(self, mod_id: str) -> None:
         mods = [m for m in self.user_mods if m.get("id") != mod_id]
         self.set("user_mods", mods)
+
+    @property
+    def vanilla_tweaks_options(self) -> dict[str, Any]:
+        from ichalaunch.mods.vanilla_tweaks import normalize_vanilla_tweaks_options
+
+        return normalize_vanilla_tweaks_options(self._data.get("vanilla_tweaks_options"))
+
+    def set_vanilla_tweaks_options(self, options: dict[str, Any]) -> None:
+        from ichalaunch.mods.vanilla_tweaks import normalize_vanilla_tweaks_options
+
+        self.set("vanilla_tweaks_options", normalize_vanilla_tweaks_options(options))
 
     def reset_to_defaults(self) -> None:
         """Reset all persisted settings to factory defaults and save."""
