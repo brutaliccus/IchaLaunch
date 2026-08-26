@@ -14970,5 +14970,13 @@
     "source": "community",
     "folder": "ExAutoCSHS",
     "description": "# ExAutoCSHS\nAn Addon for TurtleWoW for automatically alternating Crusader/Holy strike to maintain maximum uptime on the Zeal / Holy Might buffs \nThis relies on CombatLog entries and internal timers, so even if you break rotation it'll manage to keep up with buffs.\n\nAdditionally it will use lower ranks of CS/HS depending on mana availability.\n\nUsage : Create a macro with:\n/AutoCS [openCS/openHS/openAuto] [moreCS/moreHS/moreAuto] [prioZeal] [exorcism]\n\n- openCS opens with Crusader Strike,\n- openHS opens with Holy Strike,\n- openAuto opens with CS if using a 2h weapon, HS is 1h [default setting],\n\n- moreCS will do 2 crusader strikes to ever holy strike,\n- moreHS will only do CS when Zeal needs a refresh  so close to 3 HS per CS (for maximum threat tanking),\n- moreAuto will do moreCS  with a 2h weapon , moreHS  with one handed weapon  [default setting],\n\n- prioZeal will priorize getting zeal to 3 stacks regardless of rest of settings then proceed following them [disabled by default],\n\n- exorcism will attempt to cast Exorcism if CS/HS is on CD and the target is valid [disabled by default]\n\n\nExample: \n\n/AutoCS openHS prioZeal \n\nwill open with HS, priorize building zeal until 3 stacks , then proceeds only doing CS when Zeal needs a refresh \nthis results most of the time in :\nHS-CS-CS-HS-CS-HS-HS-HS-CS-HS-HS-HS-CS-HS-HS-HS...\n----1-2-----3--starts doing 3 HS to CS \n\n/AutoCS openHS prioZeal exorcism\nwill do the same interwoven with exorcism : \nHS-Exorcism-CS-CS-HS-Exorcism-CS-HS-HS-Exorcism-HS-CS-HS-Exorcism-HS-HS-CS-Exorcism ..."
+  },
+  {
+    "name": "ExAutoCSHS",
+    "repo": "https://github.com/kninib12a/ExAutoCSHS",
+    "category": "General",
+    "source": "community",
+    "folder": "ExAutoCSHS",
+    "description": "An Addon for automatically alternating Crusader/Holy strike to maintain maximum uptime on the buffs"
   }
 ]
