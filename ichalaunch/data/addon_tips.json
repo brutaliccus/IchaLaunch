@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-26T04:40:47Z",
+  "generated_at": "2026-08-26T05:38:41Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -16416,9 +16416,9 @@
     },
     "torchlite-bit/aegis_sbr": {
       "default_branch": "main",
-      "sha": "2a0a12c0e74f9d3f56387a4623e7a5736c759095",
+      "sha": "87ba568b36ed63f03daa06ead618027daaf8c9f7",
       "branches": {
-        "main": "2a0a12c0e74f9d3f56387a4623e7a5736c759095"
+        "main": "87ba568b36ed63f03daa06ead618027daaf8c9f7"
       }
     },
     "eirikaskheim/aegis_sbr": {
