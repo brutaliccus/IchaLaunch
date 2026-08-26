@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-26T02:31:35Z",
+  "generated_at": "2026-08-26T03:56:24Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -5504,9 +5504,9 @@
     },
     "lioryx/modernspellbook": {
       "default_branch": "master",
-      "sha": "96b2985e81333a041083e0b937d05ad1cc2af192",
+      "sha": "f55e71de726acd615393a59c91c8c95565d9aeb5",
       "branches": {
-        "master": "96b2985e81333a041083e0b937d05ad1cc2af192"
+        "master": "f55e71de726acd615393a59c91c8c95565d9aeb5"
       }
     },
     "al3xc1985/modernspellbook": {
@@ -16953,6 +16953,20 @@
       },
       "latest_tag": "v0.15.2"
     },
+    "jrc13245/_lazypig": {
+      "default_branch": "master",
+      "sha": "9319eeb79bd39d7952bc09ee62e62c303c8deee6",
+      "branches": {
+        "master": "9319eeb79bd39d7952bc09ee62e62c303c8deee6"
+      }
+    },
+    "judo101/chronometer": {
+      "default_branch": "master",
+      "sha": "ddb6a1364174cec86594c5a7659b659406861d89",
+      "branches": {
+        "master": "ddb6a1364174cec86594c5a7659b659406861d89"
+      }
+    },
     "brndd/vanilla-tweaks": {
       "default_branch": "master",
       "sha": "fbbe31add71b23602d981d70f1a58520fc349b47",
@@ -17004,11 +17018,11 @@
     },
     "brues-code/classicapi": {
       "default_branch": "master",
-      "sha": "0c8468cf2fbcf43a3be67e901c7d52d8f9b12311",
+      "sha": "1170a4e63a6910bf9197c33d0627489166e33438",
       "branches": {
-        "master": "0c8468cf2fbcf43a3be67e901c7d52d8f9b12311"
+        "master": "1170a4e63a6910bf9197c33d0627489166e33438"
       },
-      "latest_tag": "v1.12.5"
+      "latest_tag": "v1.12.6"
     },
     "retrocro/turtlewow-mods": {
       "default_branch": "main",
@@ -17016,6 +17030,14 @@
       "branches": {
         "main": "aeb405ef9f207bfbd7fb63afb4ffc4e58f3589f9"
       }
+    },
+    "doitsujin/dxvk": {
+      "default_branch": "master",
+      "sha": "9cd6755b1d8416ac7d4b13542a72465d64c6b967",
+      "branches": {
+        "master": "9cd6755b1d8416ac7d4b13542a72465d64c6b967"
+      },
+      "latest_tag": "v3.0.2"
     },
     "isfir/vanillahelpers": {
       "default_branch": "master",
