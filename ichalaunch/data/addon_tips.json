@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-26T11:32:55Z",
+  "generated_at": "2026-08-26T12:48:20Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -12275,9 +12275,9 @@
     },
     "obszczymucha/roll-for-vanilla": {
       "default_branch": "master",
-      "sha": "12496d053bee196674af8e559ea015e2915f7ac8",
+      "sha": "66c87040f030d5f4635d040f6d1b0fd6a4bf9c6e",
       "branches": {
-        "master": "12496d053bee196674af8e559ea015e2915f7ac8"
+        "master": "66c87040f030d5f4635d040f6d1b0fd6a4bf9c6e"
       },
       "latest_tag": "v4.6.5"
     },
@@ -15251,9 +15251,9 @@
     },
     "akzkak/supertotem": {
       "default_branch": "main",
-      "sha": "3c44a8e5aaef1a20e41325a1ceee7c6bcf8f217f",
+      "sha": "1cae895d69190037fe121b9fc5e88081adbf18e0",
       "branches": {
-        "main": "3c44a8e5aaef1a20e41325a1ceee7c6bcf8f217f"
+        "main": "1cae895d69190037fe121b9fc5e88081adbf18e0"
       }
     },
     "bretharte89/supertotem": {
@@ -16409,9 +16409,9 @@
     },
     "torchlite-bit/aegis_sbr": {
       "default_branch": "main",
-      "sha": "8a3b5fa451ee9b57d7b08deb8a59f180c524fb71",
+      "sha": "b845046871ad4afcc96002ab09f2e72775807452",
       "branches": {
-        "main": "8a3b5fa451ee9b57d7b08deb8a59f180c524fb71"
+        "main": "b845046871ad4afcc96002ab09f2e72775807452"
       }
     },
     "eirikaskheim/aegis_sbr": {
@@ -17026,9 +17026,9 @@
     },
     "doitsujin/dxvk": {
       "default_branch": "master",
-      "sha": "9cd6755b1d8416ac7d4b13542a72465d64c6b967",
+      "sha": "d647fdf3c554ba917f88e01374602e06f664491d",
       "branches": {
-        "master": "9cd6755b1d8416ac7d4b13542a72465d64c6b967"
+        "master": "d647fdf3c554ba917f88e01374602e06f664491d"
       },
       "latest_tag": "v3.0.2"
     },
