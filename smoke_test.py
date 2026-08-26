@@ -8252,6 +8252,76 @@ def test_play_stays_right_when_progress_hidden():
     print("OK PLAY stays right-aligned when progress is hidden")
 
 
+def test_owned_paths_are_comparison_keys_not_filenames():
+    """Owned-path keys are lowercased for comparison and must not be used as
+    filenames.
+
+    _mod_owned_paths() normalises to lowercase on purpose -- its docstring says
+    so -- because it exists to answer "does this mod own that path". Four call
+    sites then joined those keys onto the game directory and touched the result.
+    On Windows and macOS that works by accident; on Linux the lookup misses and
+    the miss is read as "the file is not there".
+
+    The visible symptom was that every vanillafixes and dxvk install rolled
+    itself back: the installer writes VanillaFixes.exe and VfPatcher.dll, then
+    verified vanillafixes.exe and vfpatcher.dll and declared the install failed.
+    """
+    from ichalaunch.mods.installer import (
+        _install_backup_paths,
+        _mod_owned_paths,
+        _pe_artifacts_for_mod,
+        _verify_mod_install,
+        get_mod,
+    )
+
+    mod = get_mod("vanillafixes")
+    assert mod, "vanillafixes missing from the catalog"
+
+    # The keys really are lowercased -- this is the property the call sites
+    # were relying on being a filename.
+    owned = _mod_owned_paths(mod)
+    assert "vanillafixes.exe" in owned, owned
+    assert "VanillaFixes.exe" not in owned, owned
+    artifacts = _pe_artifacts_for_mod(mod)
+    assert "vanillafixes.exe" in artifacts, artifacts
+
+    with tempfile.TemporaryDirectory() as td:
+        game = Path(td)
+        # Written exactly as install_mod writes them: mixed case.
+        (game / "WoW.exe").write_bytes(b"MZ" + b"\0" * 4096)
+        (game / "VanillaFixes.exe").write_bytes(b"MZ" + b"\0" * 65536)
+        (game / "VfPatcher.dll").write_bytes(b"MZ" + b"\0" * 65536)
+
+        # Verification must find them. Before the fix this raised OSError(22)
+        # "vanillafixes.exe was not installed; vfpatcher.dll was not installed"
+        # and the caller rolled back an install that had in fact succeeded.
+        try:
+            _verify_mod_install(game, mod)
+        except OSError as exc:
+            raise AssertionError(
+                f"verify rejected a correctly installed mod: {exc}") from exc
+
+        # The pre-install snapshot must point at the real files. A backup that
+        # silently holds nothing is worse than no backup, because the rollback
+        # path believes it has something to restore.
+        backups = {p.name for p in _install_backup_paths(game, mod)}
+        assert "VanillaFixes.exe" in backups, backups
+        assert "VfPatcher.dll" in backups, backups
+        assert "vfpatcher.dll" not in backups, backups
+
+        # And a genuinely absent artifact must still be reported as absent --
+        # the fix must not turn the check into a no-op.
+        (game / "VfPatcher.dll").unlink()
+        raised = False
+        try:
+            _verify_mod_install(game, mod)
+        except OSError:
+            raised = True
+        assert raised, "verify must still fail when an artifact is really missing"
+
+    print("OK owned paths are comparison keys not filenames")
+
+
 def test_client_exe_probe_is_case_insensitive():
     """3.3.5-era clients ship "Wow.exe"; 1.12-era ship "WoW.exe".
 
@@ -8734,6 +8804,7 @@ def _run_smoke_tests():
     test_vanillafixes_preserves_dlls_txt()
     test_apply_desired_state_restores_dlls_txt()
     test_prepare_for_launch_syncs_dlls_txt()
+    test_owned_paths_are_comparison_keys_not_filenames()
     test_client_exe_probe_is_case_insensitive()
     test_linux_proton_launch_resolution()
     test_linux_dxvk_vulkan_preflight()
