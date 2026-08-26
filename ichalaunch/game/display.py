@@ -224,6 +224,19 @@ def frame_cap_for(refresh_hz: float, offset: int = DEFAULT_CAP_OFFSET) -> int:
 _CAP_KEY = "d3d9.maxFrameRate"
 
 
+# What an untouched install gets. Kept out of DEFAULTS so the stored value can stay
+# null until the user says otherwise -- see the note there.
+FRAME_CAP_DEFAULT_ON = True
+
+
+def frame_cap_enabled() -> bool:
+    """Whether to compute the cap from the display, resolving unset to the default."""
+    from ichalaunch.config.settings import settings
+
+    stored = settings.get("frame_cap_from_refresh", None)
+    return FRAME_CAP_DEFAULT_ON if stored is None else bool(stored)
+
+
 def apply_frame_cap(conf_path, offset: int = DEFAULT_CAP_OFFSET) -> int | None:
     """Rewrite ``d3d9.maxFrameRate`` in *conf_path* to suit the live display.
 

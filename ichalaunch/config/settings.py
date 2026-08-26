@@ -38,7 +38,13 @@ DEFAULTS: dict[str, Any] = {
     # Frame pacing follows the display. Project Reforged's guide prescribes a
     # cap a few frames under the refresh rate ("162-163" for a 165 Hz panel);
     # computing it reproduces that intent on every monitor instead of one.
-    "frame_cap_from_refresh": True,
+    # None means "nobody has expressed a preference"; display.frame_cap_enabled()
+    # resolves it against FRAME_CAP_DEFAULT_ON at read time. True/False appear here
+    # only once the user says so. save() persists this whole dict, so a literal
+    # default would be written into every settings.json on first launch and would
+    # then outrank any later change to the default -- leaving a one-line revert that
+    # silently does nothing for anyone who had already launched once.
+    "frame_cap_from_refresh": None,
     "frame_cap_offset": 3,
     "vanillafixes_enabled": True,
     "minimize_on_launch": False,

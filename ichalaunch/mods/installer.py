@@ -1253,9 +1253,10 @@ def _apply_frame_cap_if_enabled(game: Path) -> None:
     never takes the optional upgrade should not be the only one left uncapped.
     Absent file, unreadable display, or the setting turned off all no-op.
     """
-    if not settings.get("frame_cap_from_refresh", True):
+    from ichalaunch.game.display import apply_frame_cap, frame_cap_enabled
+
+    if not frame_cap_enabled():
         return
-    from ichalaunch.game.display import apply_frame_cap
 
     # The raw setting is passed through and coerced inside frame_cap_for.
     # Converting here would raise on a hand-edited non-numeric value at a point

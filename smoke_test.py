@@ -8298,6 +8298,44 @@ def test_client_exe_probe_is_case_insensitive():
     print("OK client exe probe is case-insensitive")
 
 
+def test_frame_cap_default_is_not_persisted():
+    """The default is resolvable, not stored, so it can still be reverted.
+
+    save() writes the whole DEFAULTS-merged dict, so a literal True in DEFAULTS is
+    baked into every settings.json on first launch and then outranks DEFAULTS via
+    merged.update(loaded) forever -- making a one-line revert a no-op for anyone who
+    had already run the launcher once.
+    """
+    from ichalaunch.config.settings import DEFAULTS, Settings, settings
+    import ichalaunch.game.display as disp
+
+    assert DEFAULTS["frame_cap_from_refresh"] is None
+    assert disp.FRAME_CAP_DEFAULT_ON is True
+
+    legacy = {"game_path": "", "close_on_launch": True}
+    merged, _ = Settings.__new__(Settings)._merge_loaded(legacy)
+    assert merged["frame_cap_from_refresh"] is None
+    for stored in (True, False):
+        m, _ = Settings.__new__(Settings)._merge_loaded(
+            {**legacy, "frame_cap_from_refresh": stored}
+        )
+        assert m["frame_cap_from_refresh"] is stored
+
+    prev = settings.get("frame_cap_from_refresh", None)
+    try:
+        settings.set("frame_cap_from_refresh", None)
+        assert disp.frame_cap_enabled() is True
+        disp.FRAME_CAP_DEFAULT_ON = False
+        assert disp.frame_cap_enabled() is False
+        settings.set("frame_cap_from_refresh", True)
+        assert disp.frame_cap_enabled() is True
+    finally:
+        disp.FRAME_CAP_DEFAULT_ON = True
+        settings.set("frame_cap_from_refresh", prev)
+
+    print("OK frame cap default is resolvable, not persisted")
+
+
 def test_frame_cap_from_refresh():
     """The DXVK frame cap follows the real display, and only the real display.
 
@@ -8883,6 +8921,7 @@ def _run_smoke_tests():
     test_prepare_for_launch_syncs_dlls_txt()
     test_client_exe_probe_is_case_insensitive()
     test_frame_cap_from_refresh()
+    test_frame_cap_default_is_not_persisted()
     test_linux_proton_launch_resolution()
     test_linux_dxvk_vulkan_preflight()
     test_prepare_for_launch_clears_data_readonly()
