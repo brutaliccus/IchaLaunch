@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-26T06:41:03Z",
+  "generated_at": "2026-08-26T07:46:56Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -14931,13 +14931,6 @@
       "sha": "901322dc88890a2ea10610b8228fb43c9c2a3610",
       "branches": {
         "master": "901322dc88890a2ea10610b8228fb43c9c2a3610"
-      }
-    },
-    "say-5/superapi": {
-      "default_branch": "master",
-      "sha": "9a33aaf8de71d7d07be5637dcc926fa19077f833",
-      "branches": {
-        "master": "9a33aaf8de71d7d07be5637dcc926fa19077f833"
       }
     },
     "evannnn1996/superapi": {
