@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-25T23:31:27Z",
+  "generated_at": "2026-08-26T00:59:01Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -16915,6 +16915,13 @@
         "main": "a82bc8be2a213ac5f752ba4ec929d336c075c193"
       }
     },
+    "roby-brok/pfui": {
+      "default_branch": "master",
+      "sha": "feb598191ffee80fe53d419283b0698e0c0635b4",
+      "branches": {
+        "master": "feb598191ffee80fe53d419283b0698e0c0635b4"
+      }
+    },
     "brndd/vanilla-tweaks": {
       "default_branch": "master",
       "sha": "fbbe31add71b23602d981d70f1a58520fc349b47",
@@ -16966,11 +16973,11 @@
     },
     "brues-code/classicapi": {
       "default_branch": "master",
-      "sha": "5196aab4b87f677bd34417efb51ac6e56e3dc314",
+      "sha": "0c8468cf2fbcf43a3be67e901c7d52d8f9b12311",
       "branches": {
-        "master": "5196aab4b87f677bd34417efb51ac6e56e3dc314"
+        "master": "0c8468cf2fbcf43a3be67e901c7d52d8f9b12311"
       },
-      "latest_tag": "v1.12.4"
+      "latest_tag": "v1.12.5"
     },
     "retrocro/turtlewow-mods": {
       "default_branch": "main",
