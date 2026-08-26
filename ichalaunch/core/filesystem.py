@@ -13,6 +13,7 @@ import stat
 import subprocess
 import sys
 import time
+import tarfile
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -199,6 +200,28 @@ def extract_zip(
                 if pct != last_pct or i == total_members:
                     last_pct = pct
                     _report_extract_progress(progress, done if use_bytes else i, total or 1)
+    children = [c for c in dest.iterdir()]
+    if len(children) == 1 and children[0].is_dir():
+        return children[0]
+    return dest
+
+
+def extract_tar(
+    tar_source: Path,
+    dest: Path,
+    progress: Any | None = None,
+) -> Path:
+    """Extract a ``.tar.gz`` / ``.tar`` archive into *dest*."""
+    ensure_dir(dest)
+    with tarfile.open(tar_source, "r:*") as tf:
+        members = [m for m in tf.getmembers() if m.isfile() or m.isdir()]
+        total = len(members) or 1
+        done = 0
+        _report_extract_progress(progress, 0, total)
+        for member in members:
+            tf.extract(member, dest, filter="data")
+            done += 1
+            _report_extract_progress(progress, done, total)
     children = [c for c in dest.iterdir()]
     if len(children) == 1 and children[0].is_dir():
         return children[0]

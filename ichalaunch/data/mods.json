@@ -315,10 +315,45 @@
     "conflicts": []
   },
   {
+    "id": "hd_dxvk",
+    "name": "DXVK 2.7.1",
+    "category": "HD Graphics",
+    "list_label": "Recommended",
+    "description": "Optional DXVK 2.7.1 upgrade over VanillaFixes + DXVK (Vulkan). Does not require VanillaHelpers. Installs d3d9.dll and a tuned dxvk.conf; disabling restores the VanillaFixes-bundled DXVK layer.",
+    "info_url": "https://projectreforged.github.io/vanilla/downloads/turtle/",
+    "detect": {
+      "all_files": [
+        "d3d9.dll",
+        "dxvk.conf"
+      ],
+      "config_file_contains": [
+        "dxvk.conf",
+        "DXVK 2.7.1"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://github.com/doitsujin/dxvk/releases/download/v2.7.1/dxvk-2.7.1.tar.gz",
+      "filename": "dxvk-2.7.1.tar.gz"
+    },
+    "bundled_files": [
+      {
+        "resource": "dxvk.conf",
+        "destination": "dxvk.conf"
+      }
+    ],
+    "kind": "dxvk_hd",
+    "dependencies": [
+      "dxvk"
+    ],
+    "conflicts": [],
+    "author": "doitsujin"
+  },
+  {
     "id": "vanilla_helpers",
     "name": "VanillaHelpers (required for HD)",
     "category": "HD Graphics",
-    "description": "Mandatory DLL for Project Reforged HD patches. Without it, HD MPQs will crash.",
+    "description": "Mandatory DLL for Project Reforged HD patches. Auto-enabled with HD patches — not required by DXVK or VanillaFixes.",
     "info_url": "https://projectreforged.github.io/vanilla/downloads/turtle/",
     "detect": {
       "any_files": [
@@ -402,10 +437,12 @@
     "id": "hd_patch_c",
     "name": "Reforged HD — Patch-C (Creatures)",
     "category": "HD Graphics",
-    "description": "Creatures and related assets for the classic client.",
+    "description": "Creatures and related assets. Installed as Data/patch-v.mpq (source patch-C is renamed; legacy Data/patch-C.mpq is detected).",
     "info_url": "https://projectreforged.github.io/vanilla/downloads/turtle/",
     "detect": {
       "data_mpq": [
+        "patch-v.mpq",
+        "Patch-V.mpq",
         "patch-C.mpq",
         "Patch-C.mpq"
       ]
@@ -416,7 +453,7 @@
       "filename": "patch-C.mpq"
     },
     "kind": "mpq_file",
-    "destination": "Data/patch-C.mpq",
+    "destination": "Data/patch-v.mpq",
     "dependencies": [
       "vanilla_helpers"
     ],

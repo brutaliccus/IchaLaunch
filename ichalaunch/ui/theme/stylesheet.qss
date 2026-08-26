@@ -162,9 +162,10 @@ QPushButton#UpdateButtonLead {
     border-bottom-right-radius: 0;
 }
 
-/* Row secondary actions — opaque fills (rgba disappears on translucent MainWindow). */
+/* Row secondary actions — opaque fills (rgba disappears on translucent MainWindow).
+   OpenGitButton is icon-only (custom paint + Fixed hit box); do NOT give it text-button
+   min-width/padding or the glyph sits ~40px away from the name with empty chrome. */
 QPushButton#ReinstallButton,
-QPushButton#OpenGitButton,
 QPushButton#InstallButton,
 QPushButton#RemoveButton {
     background-color: #2c2632;
@@ -177,7 +178,6 @@ QPushButton#RemoveButton {
 }
 
 QPushButton#ReinstallButton:hover,
-QPushButton#OpenGitButton:hover,
 QPushButton#InstallButton:hover,
 QPushButton#RemoveButton:hover {
     background-color: #4a2f7a;
@@ -186,7 +186,6 @@ QPushButton#RemoveButton:hover {
 }
 
 QPushButton#ReinstallButton:pressed,
-QPushButton#OpenGitButton:pressed,
 QPushButton#InstallButton:pressed,
 QPushButton#RemoveButton:pressed {
     background-color: #3a2460;
@@ -203,14 +202,15 @@ QPushButton#ReinstallButton {
     min-height: 22px;
 }
 
+/* Icon-only Open in Git / Open link — override global QPushButton padding. */
 QPushButton#OpenGitButton {
-    background-color: #2c2632;
-    color: #e6e0ee;
-    border: 1px solid #7a6e88;
-    border-radius: 8px;
-    padding: 4px 10px;
-    min-width: 88px;
-    min-height: 22px;
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+    min-height: 0;
+    color: transparent;
 }
 
 QPushButton#InstallButton,

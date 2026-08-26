@@ -82,13 +82,12 @@ _VERSIONS_LOADING_DATA = "__loading__"
 
 
 def _addon_fork_version_row(
-    parent: QWidget,
+    _parent: QWidget,
     *,
     fork_combo,
     version_combo,
-    trailing_widget: QWidget | None = None,
 ) -> QHBoxLayout:
-    """Fork + version combos; optional trailing control sits right of Version."""
+    """Fork + version combos (Open-in-Git lives on the title row, not here)."""
     row = QHBoxLayout()
     row.setSpacing(10)
     fork_lbl = QLabel("Fork")
@@ -105,8 +104,6 @@ def _addon_fork_version_row(
     row.addWidget(fork_combo, 0, Qt.AlignmentFlag.AlignVCenter)
     row.addWidget(ver_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
     row.addWidget(version_combo, 0, Qt.AlignmentFlag.AlignVCenter)
-    if trailing_widget is not None:
-        row.addWidget(trailing_widget, 0, Qt.AlignmentFlag.AlignVCenter)
     row.addStretch(1)
     return row
 
@@ -115,9 +112,10 @@ def _addon_open_git_button(
     parent: QWidget,
     owner: QWidget,
     *url_candidates: object,
-) -> GluePanelButton | None:
-    """Open in Git control placed to the right of Version (settings + install)."""
+) -> OpenGitButton | None:
+    """Inline Open-in-Git icon (~20px art / ~22px hit), same plate as AddonRow."""
     from ichalaunch.ui.widgets.common import (
+        OpenGitButton,
         apply_open_git_visibility,
         github_repo_browse_url,
     )
@@ -125,23 +123,28 @@ def _addon_open_git_button(
     url = github_repo_browse_url(*url_candidates)
     if not url:
         return None
-    btn = GluePanelButton("Open in Git", parent, width=128, height=GLUE_BTN_H)
-    btn.setToolTip("Open the repository in your browser")
+    btn = OpenGitButton(parent, plate="inline")
     btn.clicked.connect(lambda _=False, u=url: QDesktopServices.openUrl(QUrl(u)))
-    apply_open_git_visibility(btn, url, owner, defer=True)
+    apply_open_git_visibility(btn, url, owner)
     return btn
 
 
-def _kick_open_git_visibility(owner: QWidget, button: QWidget | None) -> None:
-    """Run deferred Open-in-Git probe once the dialog is on-screen."""
-    if button is None:
-        return
-    from ichalaunch.ui.widgets.common import apply_open_git_visibility
-
-    url = getattr(owner, "_git_url_deferred", None)
-    if not url:
-        return
-    apply_open_git_visibility(button, str(url), owner, defer=False)
+def _addon_dialog_title_row(
+    title: str,
+    open_git_btn: QWidget | None,
+) -> tuple[QHBoxLayout, QLabel]:
+    """Name → (optional) Open-in-Git with AddonRow spacing (~6px)."""
+    row = QHBoxLayout()
+    row.setContentsMargins(0, 0, 0, 0)
+    row.setSpacing(6)
+    title_lbl = QLabel(title)
+    title_lbl.setObjectName("ThemedDialogTitle")
+    title_lbl.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+    row.addWidget(title_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
+    if open_git_btn is not None:
+        row.addWidget(open_git_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+    row.addStretch(1)
+    return row, title_lbl
 
 
 class ThemedDialog(QDialog):
@@ -1220,6 +1223,7 @@ class AddonInstallPickerDialog(QDialog):
     self._preview_pending = True
     self._forks_fetch_done = False
     self._open_git_btn = None
+    self._title_lbl = None
 
     name = str(entry.get("name") or entry.get("folder") or "addon")
     version_text = addon_version_label(entry)
@@ -1233,9 +1237,18 @@ class AddonInstallPickerDialog(QDialog):
     body.setContentsMargins(22, 18, 22, 18)
     body.setSpacing(10)
 
-    title_lbl = QLabel(f"Install {name}")
-    title_lbl.setObjectName("ThemedDialogTitle")
-    body.addWidget(title_lbl)
+    self._open_git_btn = _addon_open_git_button(
+      card,
+      self,
+      entry.get("repo"),
+      entry.get("url"),
+      entry.get("repository"),
+    )
+    title_row, self._title_lbl = _addon_dialog_title_row(
+      f"Install {name}",
+      self._open_git_btn,
+    )
+    body.addLayout(title_row)
 
     hint = QLabel(
       "Choose fork and release, or install now with the defaults below. "
@@ -1262,23 +1275,14 @@ class AddonInstallPickerDialog(QDialog):
     self.version_combo.addItem(ver_label, pin)
     self.fork_combo.currentIndexChanged.connect(self._on_fork_changed)
     self.version_combo.currentIndexChanged.connect(self._on_version_changed)
-    self._open_git_btn = _addon_open_git_button(
-      card,
-      self,
-      entry.get("repo"),
-      entry.get("url"),
-      entry.get("repository"),
-    )
     body.addLayout(
       _addon_fork_version_row(
         card,
         fork_combo=self.fork_combo,
         version_combo=self.version_combo,
-        trailing_widget=self._open_git_btn,
       )
     )
     self._sync_browse_combos()
-
     self.status_lbl = QLabel("")
     self.status_lbl.setObjectName("Muted")
     self.status_lbl.setWordWrap(True)
@@ -1340,10 +1344,6 @@ class AddonInstallPickerDialog(QDialog):
       self.status_lbl.setText("Could not resolve a GitHub repository for this addon.")
 
     QTimer.singleShot(0, self._load_preview)
-
-  def showEvent(self, event) -> None:  # noqa: N802
-    super().showEvent(event)
-    _kick_open_git_visibility(self, self._open_git_btn)
 
   def _set_browse_combos_enabled(
     self,
@@ -1694,6 +1694,7 @@ class AddonSettingsDialog(QDialog):
     self._version_fetch_pending = False
     self._preview_pending = False
     self._open_git_btn = None
+    self._title_lbl = None
     self._reinstall_btn = None
     self._never_update_cb = None
     self._catalog_never_locked = False
@@ -1710,9 +1711,15 @@ class AddonSettingsDialog(QDialog):
     body.setContentsMargins(22, 18, 22, 18)
     body.setSpacing(10)
 
-    title_lbl = QLabel(name)
-    title_lbl.setObjectName("ThemedDialogTitle")
-    body.addWidget(title_lbl)
+    self._open_git_btn = _addon_open_git_button(
+      card,
+      self,
+      entry.get("repo"),
+      entry.get("url"),
+      entry.get("repository"),
+    )
+    title_row, self._title_lbl = _addon_dialog_title_row(name, self._open_git_btn)
+    body.addLayout(title_row)
 
     fork_text = addon_fork_label(entry)
     version_text = addon_version_label(entry, self._meta)
@@ -1747,19 +1754,11 @@ class AddonSettingsDialog(QDialog):
       self._version_combo.addItem(ver_label, pin)
       self._version_combo.currentIndexChanged.connect(self._on_version_changed)
       self._version_combo.popupShown.connect(self._lazy_fetch_versions)
-      self._open_git_btn = _addon_open_git_button(
-        card,
-        self,
-        entry.get("repo"),
-        entry.get("url"),
-        entry.get("repository"),
-      )
       body.addLayout(
         _addon_fork_version_row(
           card,
           fork_combo=self._fork_combo,
           version_combo=self._version_combo,
-          trailing_widget=self._open_git_btn,
         )
       )
       self._preview_pending = True
@@ -1773,15 +1772,6 @@ class AddonSettingsDialog(QDialog):
         static.setObjectName("Muted")
         static.setToolTip(NO_TOKEN_FORK_TIP)
         meta_row.addWidget(static, 0, Qt.AlignmentFlag.AlignVCenter)
-      self._open_git_btn = _addon_open_git_button(
-        card,
-        self,
-        entry.get("repo"),
-        entry.get("url"),
-        entry.get("repository"),
-      )
-      if self._open_git_btn is not None:
-        meta_row.addWidget(self._open_git_btn, 0, Qt.AlignmentFlag.AlignVCenter)
       meta_row.addStretch(1)
       body.addLayout(meta_row)
 
@@ -1887,10 +1877,6 @@ class AddonSettingsDialog(QDialog):
     QTimer.singleShot(0, self._load_preview)
     if self._token_ok and self._fork_combo is not None:
       QTimer.singleShot(0, self._prefetch_forks)
-
-  def showEvent(self, event) -> None:  # noqa: N802
-    super().showEvent(event)
-    _kick_open_git_visibility(self, self._open_git_btn)
 
   def _set_fork_combo_interactive(
     self,
@@ -2615,46 +2601,18 @@ class CatalogSuggestDialog(QDialog):
         catalog_entries: list | None = None,
         initial_repo: str = "",
     ):
-        from ichalaunch.ui.widgets.glue_combo import GlueComboBox
-
+        del categories  # category UI removed; suggestions default to General
         super().__init__(parent)
         self.setObjectName("ThemedDialog")
         self.setWindowFlags(_themed_dialog_flags())
         self.setModal(True)
-        self.setMinimumSize(520, 420)
-        self.resize(640, 560)
+        self.setMinimumSize(440, 220)
+        self.resize(480, 240)
         self._worker: _CatalogSubmitThread | None = None
-        self._preview_worker: _PreviewFetchThread | None = None
-        self._preview_gen = 0
-        self._cache_dir = ""
-        self._preview_info: dict | None = None
-        self._readme_for_submit = ""
         self._duplicate = False
         self._result_ok = False
         self._success_message = ""
         self._catalog_entries = catalog_entries
-
-        cats = [c for c in (categories or []) if str(c).strip()]
-        if not cats:
-            cats = [
-                "Bags",
-                "Client",
-                "Combat",
-                "Economy",
-                "General",
-                "Hardcore",
-                "Maps",
-                "Professions",
-                "PvP",
-                "Questing",
-                "Raiding",
-                "Recommended",
-                "Roleplay",
-                "SuperWoW",
-                "UI",
-            ]
-        if "General" not in cats:
-            cats = ["General", *cats]
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -2670,74 +2628,41 @@ class CatalogSuggestDialog(QDialog):
         body.addWidget(title_lbl)
 
         hint = QLabel(
-            "Propose a public GitHub addon for the shared Available list. "
-            "The README is used as the suggestion description — no typing needed. "
-            "No GitHub login or token is used."
+            "Paste a public GitHub addon URL to propose it for the shared "
+            "Available list. No GitHub login or token is used."
         )
         hint.setObjectName("ThemedDialogBody")
         hint.setWordWrap(True)
         body.addWidget(hint)
 
         self.repo_edit = QLineEdit()
-        self.repo_edit.setPlaceholderText("https://github.com/owner/repo (required)")
+        self.repo_edit.setPlaceholderText("https://github.com/owner/repo")
         self.repo_edit.setClearButtonEnabled(True)
         if initial_repo.strip():
             self.repo_edit.setText(initial_repo.strip())
-        self.repo_edit.textChanged.connect(self._on_repo_changed)
-        self.repo_edit.editingFinished.connect(self._on_repo_blur)
+        self.repo_edit.textChanged.connect(self._refresh_repo_state)
         body.addWidget(self.repo_edit)
 
-        cat_row = QHBoxLayout()
-        cat_row.setSpacing(10)
-        cat_lbl = QLabel("Category")
-        cat_lbl.setObjectName("Muted")
-        self.cat_box = GlueComboBox(card, min_width=160)
-        for c in cats:
-            self.cat_box.addItem(c)
-        idx = self.cat_box.findText("General")
-        if idx >= 0:
-            self.cat_box.setCurrentIndex(idx)
-        cat_row.addWidget(cat_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
-        cat_row.addWidget(self.cat_box, 0, Qt.AlignmentFlag.AlignVCenter)
-        cat_row.addStretch(1)
-        body.addLayout(cat_row)
-
-        self.browser = QTextBrowser()
-        self.browser.setObjectName("ThemedPreviewBrowser")
-        self.browser.setOpenExternalLinks(False)
-        self.browser.setOpenLinks(False)
-        self.browser.anchorClicked.connect(self._open_link)
-        self.browser.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        body.addWidget(self.browser, 1)
-
-        # Loud status banner above Submit (not muted subtitle).
         self.status_lbl = QLabel()
         self.status_lbl.setObjectName("SuggestStatusBanner")
         self.status_lbl.setWordWrap(True)
         self.status_lbl.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         body.addWidget(self.status_lbl)
-        self._set_status(
-            "Paste a GitHub link to load the README preview.",
-            kind="info",
-        )
+        self._set_status("Paste a GitHub repository URL.", kind="info")
 
         row = QHBoxLayout()
         row.setSpacing(10)
         row.addStretch(1)
         self.cancel_btn = _dialog_glue_button("Cancel", card, primary=False)
         self.cancel_btn.clicked.connect(self.reject)
-        self.submit_btn = _dialog_glue_button("Submit", card, primary=True)
-        self.submit_btn.setEnabled(False)
-        self.submit_btn.clicked.connect(self._on_submit)
+        self.suggest_btn = _dialog_glue_button("Suggest", card, primary=True)
+        self.suggest_btn.setEnabled(False)
+        self.suggest_btn.clicked.connect(self._on_submit)
         row.addWidget(self.cancel_btn)
-        row.addWidget(self.submit_btn)
+        row.addWidget(self.suggest_btn)
         body.addLayout(row)
 
         root.addWidget(card)
-        self._debounce = QTimer(self)
-        self._debounce.setSingleShot(True)
-        self._debounce.setInterval(450)
-        self._debounce.timeout.connect(self._refresh_repo_state)
         self.setStyleSheet(
             "QDialog#ThemedDialog { background: transparent; }"
             "QWidget#ThemedDialogCard {"
@@ -2746,22 +2671,9 @@ class CatalogSuggestDialog(QDialog):
             "  border-top: 3px solid #F1C22D;"
             "  border-radius: 10px;"
             "}"
-            "QTextBrowser#ThemedPreviewBrowser {"
-            "  background-color: #181412;"
-            "  color: #e6e0ee;"
-            "  border: 1px solid rgba(150, 131, 158, 0.22);"
-            "  border-radius: 8px;"
-            "  padding: 10px;"
-            "  selection-background-color: #4a2f7a;"
-            "  selection-color: #ffffff;"
-            "}"
         )
         if initial_repo.strip():
-            QTimer.singleShot(0, self._refresh_repo_state)
-
-    def _open_link(self, url: QUrl) -> None:
-        if url.isValid():
-            QDesktopServices.openUrl(url)
+            self._refresh_repo_state()
 
     def _set_status(self, text: str, *, kind: str = "info") -> None:
         """Loud banner status — warning gold / error red / ready green / info."""
@@ -2799,140 +2711,57 @@ class CatalogSuggestDialog(QDialog):
             "}"
         )
 
-    def _on_repo_changed(self, _text: str = "") -> None:
-        self._debounce.start()
-
-    def _on_repo_blur(self) -> None:
-        self._debounce.stop()
-        self._refresh_repo_state()
-
-    def _clear_preview(self, status: str, *, kind: str = "info") -> None:
-        from ichalaunch.addons.github import cleanup_readme_cache
-
-        self._preview_gen += 1
-        cleanup_readme_cache(self._cache_dir)
-        self._cache_dir = ""
-        self._preview_info = None
-        self._readme_for_submit = ""
-        self.browser.clear()
-        self._set_status(status, kind=kind)
-        self.submit_btn.setEnabled(False)
-
     def _check_duplicate(self, repo_text: str) -> bool:
         from ichalaunch.addons.submit import repo_in_catalog
 
         return repo_in_catalog(repo_text, self._catalog_entries)
 
-    def _refresh_repo_state(self) -> None:
-        from ichalaunch.addons.github import cleanup_readme_cache, parse_github_url
+    def _refresh_repo_state(self, _text: str = "") -> None:
+        from ichalaunch.addons.github import parse_github_url
         from ichalaunch.addons.submit import normalize_repo_url
 
         raw = self.repo_edit.text().strip()
         if not raw:
             self._duplicate = False
-            self._clear_preview(
-                "Paste a GitHub link to load the README preview.",
-                kind="info",
-            )
+            self._set_status("Paste a GitHub repository URL.", kind="info")
+            self.suggest_btn.setEnabled(False)
             return
         if not parse_github_url(raw) or not normalize_repo_url(raw):
             self._duplicate = False
-            self._clear_preview(
+            self._set_status(
                 "Enter a valid GitHub repository URL (github.com/owner/repo).",
                 kind="warning",
             )
+            self.suggest_btn.setEnabled(False)
             return
 
         if self._check_duplicate(raw):
             self._duplicate = True
-            self._clear_preview(self._DUPLICATE_MSG, kind="warning")
+            self._set_status(self._DUPLICATE_MSG, kind="warning")
+            self.suggest_btn.setEnabled(False)
             return
 
         self._duplicate = False
-        cleanup_readme_cache(self._cache_dir)
-        self._cache_dir = ""
-        self._preview_info = None
-        self._readme_for_submit = ""
-        self.submit_btn.setEnabled(False)
-        self._set_status("Loading README preview…", kind="info")
-        self.browser.clear()
-
-        self._preview_gen += 1
-        gen = self._preview_gen
-        worker = _PreviewFetchThread("addon", raw, self)
-        self._preview_worker = worker
-
-        def on_ok(info: object) -> None:
-            if gen != self._preview_gen:
-                if isinstance(info, dict):
-                    cleanup_readme_cache(info.get("readme_cache_dir"))
-                return
-            if not isinstance(info, dict):
-                self._set_status("Preview failed.", kind="error")
-                return
-            # Re-check in case catalog changed; URL is the source of truth.
-            if self._check_duplicate(raw):
-                self._duplicate = True
-                cleanup_readme_cache(info.get("readme_cache_dir"))
-                self._clear_preview(self._DUPLICATE_MSG, kind="warning")
-                return
-            self._apply_preview(info)
-
-        def on_err(msg: str) -> None:
-            if gen != self._preview_gen:
-                return
-            self._preview_info = None
-            self._readme_for_submit = ""
-            self.browser.setPlainText("(Could not load README preview.)")
-            self._set_status(msg or "Preview failed.", kind="error")
-            # Allow submit with empty description if the repo URL itself is valid.
-            self.submit_btn.setEnabled(not self._duplicate)
-
-        worker.ok.connect(on_ok)
-        worker.err.connect(on_err)
-        worker.start()
-
-    def _apply_preview(self, info: dict) -> None:
-        self._preview_info = info
-        self._cache_dir = str(info.get("readme_cache_dir") or "")
-        raw_md = str(info.get("readme_raw") or "").strip()
-        preview_md = str(info.get("readme_markdown") or "").strip()
-        gh_desc = str(info.get("description") or "").strip()
-        if gh_desc in {"(no description)", ""}:
-            gh_desc = ""
-        self._readme_for_submit = raw_md or gh_desc
-
-        base = str(info.get("readme_base_url") or "")
-        if base:
-            self.browser.document().setBaseUrl(QUrl(base))
-        if preview_md:
-            self.browser.setMarkdown(preview_md)
-            self._set_status(
-                "README preview ready — submit to suggest this addon.",
-                kind="ready",
-            )
-        elif gh_desc:
-            self.browser.setPlainText(gh_desc)
-            self._set_status(
-                "No README found — GitHub description will be used.",
-                kind="warning",
-            )
-        else:
-            self.browser.setPlainText("(No README found for this repository.)")
-            self._set_status(
-                "No README found — you can still submit (description will be empty).",
-                kind="warning",
-            )
-        self.submit_btn.setEnabled(True)
+        self._set_status("Ready to suggest.", kind="ready")
+        self.suggest_btn.setEnabled(True)
 
     def _set_busy(self, busy: bool) -> None:
         self.cancel_btn.setEnabled(not busy)
         self.repo_edit.setEnabled(not busy)
-        self.cat_box.setEnabled(not busy)
         if busy:
-            self.submit_btn.setEnabled(False)
-        else:
-            self.submit_btn.setEnabled(not self._duplicate and bool(self.repo_edit.text().strip()))
+            self.suggest_btn.setEnabled(False)
+            return
+        from ichalaunch.addons.github import parse_github_url
+        from ichalaunch.addons.submit import normalize_repo_url
+
+        raw = self.repo_edit.text().strip()
+        can_suggest = (
+            bool(raw)
+            and not self._duplicate
+            and bool(parse_github_url(raw))
+            and bool(normalize_repo_url(raw))
+        )
+        self.suggest_btn.setEnabled(can_suggest)
 
     def _on_submit(self) -> None:
         from ichalaunch.addons.submit import build_submit_payload
@@ -2941,13 +2770,13 @@ class CatalogSuggestDialog(QDialog):
         if self._check_duplicate(raw):
             self._duplicate = True
             self._set_status(self._DUPLICATE_MSG, kind="warning")
-            self.submit_btn.setEnabled(False)
+            self.suggest_btn.setEnabled(False)
             return
 
         payload, err = build_submit_payload(
             repo=raw,
-            category=self.cat_box.currentText(),
-            description=self._readme_for_submit,
+            category="General",
+            description="",
         )
         if err or payload is None:
             self._set_status(err or "Invalid suggestion.", kind="error")
@@ -2980,16 +2809,6 @@ class CatalogSuggestDialog(QDialog):
         worker.ok.connect(on_ok)
         worker.err.connect(on_err)
         worker.start()
-
-    def closeEvent(self, event) -> None:  # noqa: N802
-        from ichalaunch.addons.github import cleanup_readme_cache
-
-        self._preview_gen += 1
-        cleanup_readme_cache(self._cache_dir)
-        self._cache_dir = ""
-        if self._preview_info and self._preview_info.get("readme_cache_dir"):
-            cleanup_readme_cache(self._preview_info.get("readme_cache_dir"))
-        super().closeEvent(event)
 
     @property
     def submitted(self) -> bool:

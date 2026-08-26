@@ -124,7 +124,7 @@ def build_submit_payload(
     """Validate fields and build the JSON body. Returns ``(payload, error)``.
 
     ``name`` / ``folder`` default to the GitHub repo slug when omitted.
-    ``description`` is expected to be a README excerpt (truncated to ``_MAX_DESC``).
+    ``description`` is optional (empty for in-app Suggest); truncated to ``_MAX_DESC``.
     """
     canon = normalize_repo_url(repo)
     if not canon:

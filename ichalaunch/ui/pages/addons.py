@@ -36,8 +36,10 @@ from ichalaunch.game.launcher import resolve_addons_dir
 from ichalaunch.ui.widgets.casting_bar_search_edit import CastingBarSearchEdit
 from ichalaunch.ui.widgets.common import (
     AddonRow,
+    SpellbookPageButton,
     addon_fork_label,
     addon_version_label,
+    cancel_git_url_checks,
     is_turtle_wow_custom_addon,
     open_url_in_browser,
     status_with_stamp,
@@ -51,6 +53,13 @@ from ichalaunch.ui.widgets import dialogs as themed
 from ichalaunch.ui.widgets.glue_combo import GlueComboBox
 from ichalaunch.ui.widgets.glue_panel_button import GLUE_BTN_H, GluePanelButton
 from ichalaunch.ui.widgets.marble_bg import MarbleListWidget, MarblePanel
+
+try:
+    from shiboken6 import delete as _shiboken_delete
+except ImportError:
+
+    def _shiboken_delete(obj) -> None:  # type: ignore[misc]
+        obj.deleteLater()
 
 PAGE_SIZE = 80
 INSTALLED_ROW_H = 48
@@ -75,11 +84,22 @@ def _copied_addon_status(meta: dict | None) -> bool:
     return True
 
 
-def _hide_list_item_widgets(lw: MarbleListWidget) -> None:
-    """Hide item widgets before clear so Qt never unparents a *visible* row.
+def _detach_list_item_widgets(
+    lw: MarbleListWidget,
+    *,
+    mark_off_screen: bool = False,
+    destroy_now: bool = False,
+) -> None:
+    """Hide and detach item widgets before ``QListWidget.clear()`` or takeItem.
 
-    On Windows, setParent(None) while visible promotes the widget to a real
-    top-level HWND — that is the rapid-fire mini-window spam after refresh.
+    ``clear()`` while a visible item widget is still mounted can abort Qt on
+    Windows.  Only set ``WA_DontShowOnScreen`` when the list is off-screen
+    (full refresh or a hidden page turn) — never on revealed on-screen search
+    clears while the viewport is still visible.
+
+    ``destroy_now`` synchronously deletes detached widgets (used when the list
+  is hidden for pagination).  ``deleteLater`` on revealed rows followed by
+  immediate ``setItemWidget`` on the same viewport aborts Qt with no traceback.
     """
     try:
         count = lw.count()
@@ -91,17 +111,52 @@ def _hide_list_item_widgets(lw: MarbleListWidget) -> None:
             if it is None:
                 continue
             w = lw.itemWidget(it)
-            if w is not None:
-                w.hide()
+            if w is None:
+                continue
+            # Cancel any in-flight Open-in-Git reachability probes for this row.
+            cancel_git_url_checks(w)
+            w.hide()
+            if mark_off_screen:
                 w.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+            lw.setItemWidget(it, None)
+            if destroy_now:
+                w.setParent(None)
+                _shiboken_delete(w)
+            else:
+                w.deleteLater()
         except RuntimeError:
             continue
+
+
+def _hide_list_item_widgets(lw: MarbleListWidget) -> None:
+    """Prepare hidden off-screen list rows for ``clear()`` during full refresh."""
+    _detach_list_item_widgets(lw, mark_off_screen=True)
 
 
 def _safe_clear_list(lw: MarbleListWidget) -> None:
     _hide_list_item_widgets(lw)
     try:
         lw.clear()
+    except RuntimeError:
+        return
+
+
+def _clear_list_items_one_by_one(
+    lw: MarbleListWidget,
+    *,
+    mark_off_screen: bool = False,
+    destroy_now: bool = False,
+) -> None:
+    """Remove list rows without ``clear()`` — safer for mounted item widgets."""
+    _detach_list_item_widgets(
+        lw,
+        mark_off_screen=mark_off_screen,
+        destroy_now=destroy_now,
+    )
+    try:
+        while lw.count() > 0:
+            taken = lw.takeItem(0)
+            del taken
     except RuntimeError:
         return
 
@@ -113,6 +168,26 @@ def _mount_row(lw: MarbleListWidget, item: QListWidgetItem, row: AddonRow) -> No
     lw.setItemWidget(item, row)
     # setItemWidget may show() internally — keep the row off-screen until reveal.
     row.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+
+
+def _stow_list_item_widgets(lw: MarbleListWidget) -> None:
+    """Mark a list and its row widgets off-screen without tearing them down."""
+    try:
+        lw.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        count = lw.count()
+    except RuntimeError:
+        return
+    for i in range(count):
+        try:
+            it = lw.item(i)
+            if it is None:
+                continue
+            w = lw.itemWidget(it)
+            if w is None:
+                continue
+            w.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        except RuntimeError:
+            continue
 
 
 def _reveal_item_widgets(lw: MarbleListWidget, page: QWidget | None = None) -> None:
@@ -212,8 +287,8 @@ class AddonsPage(QWidget):
         self.list.hide()
 
         action_row = QHBoxLayout()
-        self.prev_btn = GluePanelButton("◀ Prev", self)
-        self.next_btn = GluePanelButton("Next ▶", self)
+        self.prev_btn = SpellbookPageButton("prev", self)
+        self.next_btn = SpellbookPageButton("next", self)
         self.prev_btn.clicked.connect(lambda: self._page(-1))
         self.next_btn.clicked.connect(lambda: self._page(1))
         self.page_lbl = QLabel("")
@@ -350,6 +425,7 @@ class AddonsPage(QWidget):
         self._installed_lower: set[str] = set()
         self._rendering_avail = False
         self._pending_avail_search = False
+        self._pending_page_index: int | None = None
         self._list_freeze_until = 0.0
         # True when installed_list was built with only update rows (Update Available refresh).
         self._installed_built_for_updates_only = False
@@ -362,10 +438,9 @@ class AddonsPage(QWidget):
         self._flush_timer.setSingleShot(True)
         self._flush_timer.setInterval(LIST_FREEZE_MS)
         self._flush_timer.timeout.connect(self._on_flush_timer)
-        self._git_kick_timer = QTimer(self)
-        self._git_kick_timer.setSingleShot(True)
-        self._git_kick_timer.setInterval(300)
-        self._git_kick_timer.timeout.connect(self._kick_deferred_git_checks)
+        # Last filter dropdown values that actually rebuilt / re-rendered lists.
+        self._applied_filter_mode = ""
+        self._applied_cat_filter = ""
 
         cats = sorted({e.get("category") or "General" for e in self._catalog_cache})
         self.cat_box.blockSignals(True)
@@ -378,6 +453,56 @@ class AddonsPage(QWidget):
         self._sync_filter_lock()
         # Do not refresh() here — building rows before the page is in the stack
         # (or while hidden) is the launch-time HWND spam. First paint is on show.
+
+    def _filter_selection_changed(self) -> bool:
+        """True when a dropdown selection differs from the last applied view."""
+        try:
+            mode = self.filter_box.currentText()
+            cat = self.cat_box.currentText()
+        except RuntimeError:
+            return False
+        return (
+            mode != self._applied_filter_mode
+            or cat != self._applied_cat_filter
+        )
+
+    def _note_applied_filter_selection(self) -> None:
+        try:
+            self._applied_filter_mode = self.filter_box.currentText()
+            self._applied_cat_filter = self.cat_box.currentText()
+        except RuntimeError:
+            pass
+
+    def _bind_addon_row_host(self, row: AddonRow) -> None:
+        row._addons_list_host = self  # noqa: SLF001 — git probe cancel-on-teardown
+
+    def _cancel_all_git_probes(self) -> None:
+        """Drop in-flight Open-in-Git probes for every mounted row."""
+        for lw in (self.installed_list, self.list):
+            try:
+                count = lw.count()
+            except RuntimeError:
+                continue
+            for i in range(count):
+                try:
+                    it = lw.item(i)
+                    if it is None:
+                        continue
+                    w = lw.itemWidget(it)
+                    if w is not None:
+                        cancel_git_url_checks(w)
+                except RuntimeError:
+                    continue
+
+    def closeEvent(self, event) -> None:  # noqa: ANN001, N802
+        self._cancel_all_git_probes()
+        try:
+            from ichalaunch.ui.widgets.common import drain_orphan_git_url_threads
+
+            drain_orphan_git_url_threads(wait_ms=1500)
+        except Exception:  # noqa: BLE001
+            pass
+        super().closeEvent(event)
 
     def update_check_ui_ready(self) -> bool:
         """True when Check Updates / set_updates apply is safe for the list widgets.
@@ -412,6 +537,16 @@ class AddonsPage(QWidget):
             return False
         except RuntimeError:
             return True
+
+    def _installed_list_mutation_blocked(self) -> bool:
+        """Block installed-row HWND work while the available list is tearing down."""
+        return bool(
+            self._lists_frozen()
+            or self._refreshing
+            or self._rendering_avail
+            or self._revealing
+            or self._scan_busy()
+        )
 
     def _lists_need_reveal(self) -> bool:
         """True when on-screen sections still carry WA_DontShowOnScreen."""
@@ -487,8 +622,11 @@ class AddonsPage(QWidget):
 
     def set_check_busy(self, busy: bool) -> None:
         """Toggle Check Updates lock without changing the scan/list gate."""
+        was = bool(self._check_busy)
         self._check_busy = bool(busy)
         self._sync_check_btn()
+        if was and not self._check_busy:
+            QTimer.singleShot(0, self._flush_pending_page)
 
     def set_scanning(self, busy: bool) -> None:
         """Disable filter combos while an update scan or list-rebuild worker runs.
@@ -503,7 +641,12 @@ class AddonsPage(QWidget):
         if was and not self._scanning:
             self._hide_scan_placeholder()
             if self._pending_list_work or self._pending_avail_search:
-                QTimer.singleShot(0, self._flush_list_work)
+                if self._rendering_avail:
+                    self._arm_flush_timer()
+                else:
+                    QTimer.singleShot(0, self._flush_list_work)
+            elif self._pending_page_index is not None:
+                self._arm_flush_timer()
 
     def _sync_filter_lock(self) -> None:
         """Combo stays off until first list is built, during scan/rebuild, and post-popup cooldown."""
@@ -707,19 +850,24 @@ class AddonsPage(QWidget):
 
     def _on_filter_changed(self, *_args) -> None:
         """Combo changed — never full-rebuild synchronously (popup still dying)."""
+        if not self._filter_selection_changed():
+            return
         src = self.sender()
         if src is self.cat_box:
             self._available_base_ready = False
-        self._pending_list_work.add("mode")
         if (
             self._combo_popup_open()
             or time.monotonic() < self._list_freeze_until
             or self._refreshing
             or self._rendering_avail
         ):
+            self._pending_list_work.add("mode")
             self._arm_flush_timer()
             return
         self._apply_filter_mode()
+        # Applied synchronously — do not leave "mode" queued or the next flush
+        # will clear()/rebuild visible rows again and abort Qt on Windows.
+        self._pending_list_work.discard("mode")
 
     def _on_search_text(self, *_args) -> None:
         self._search_timer.start()
@@ -747,6 +895,8 @@ class AddonsPage(QWidget):
 
     def _apply_installed_row_visibility(self) -> None:
         """In-place hide for search and Update Available — never clear() rows."""
+        if self._rendering_avail:
+            return
         try:
             mode = self.filter_box.currentText()
             q = (self.search.text() or "").lower().strip()
@@ -848,6 +998,25 @@ class AddonsPage(QWidget):
             return
         self._flush_avail_search()
 
+    def _render_available_page_safe(self, *, light: bool = False, page_turn: bool = False) -> None:
+        """Mount available rows; hide the viewport during on-screen light rebuilds."""
+        hidden_for_light = False
+        if light and not page_turn and self._page_is_live() and self._want_avail_visible:
+            try:
+                self.list.hide()
+                hidden_for_light = True
+            except RuntimeError:
+                pass
+        try:
+            self._render_available_page(light=light, page_turn=page_turn)
+        finally:
+            if hidden_for_light:
+                try:
+                    self.list.show()
+                    _reveal_item_widgets(self.list, self)
+                except RuntimeError:
+                    pass
+
     def _flush_avail_search(self) -> None:
         if not self._pending_avail_search:
             return
@@ -872,7 +1041,7 @@ class AddonsPage(QWidget):
                 self.list.setUpdatesEnabled(False)
             except RuntimeError:
                 pass
-            self._render_available_page(light=True)
+            self._render_available_page_safe(light=True)
         except RuntimeError:
             pass
         finally:
@@ -887,6 +1056,8 @@ class AddonsPage(QWidget):
 
     def _apply_filter_mode(self) -> None:
         """Switch Installed/Available without a full disk-scan rebuild when possible."""
+        if not self._filter_selection_changed():
+            return
         if (
             self._combo_popup_open()
             or time.monotonic() < self._list_freeze_until
@@ -930,7 +1101,7 @@ class AddonsPage(QWidget):
                     self.list.setUpdatesEnabled(False)
                 except RuntimeError:
                     pass
-                self._render_available_page(light=True)
+                self._render_available_page_safe(light=True)
                 try:
                     self.list.setUpdatesEnabled(True)
                 except RuntimeError:
@@ -941,6 +1112,7 @@ class AddonsPage(QWidget):
             # dropdown switch leaves every installed addon visible.
             if mode in ("Installed", "Update Available", "All"):
                 self._apply_installed_row_visibility()
+            self._note_applied_filter_selection()
         except RuntimeError:
             self.mark_dirty()
         finally:
@@ -952,12 +1124,13 @@ class AddonsPage(QWidget):
         self._flush_timer.start(LIST_FREEZE_MS)
 
     def _on_flush_timer(self) -> None:
-        if self._lists_frozen() or self._revealing or self._scan_busy():
+        if self._lists_frozen() or self._revealing or self._scan_busy() or self._rendering_avail:
             self._arm_flush_timer()
             return
         self._flush_list_work()
         self._sync_filter_lock()
         self._sync_check_btn()
+        QTimer.singleShot(0, self._flush_pending_page)
 
     def _request_list_work(self, kind: str) -> None:
         self._pending_list_work.add(kind)
@@ -968,19 +1141,24 @@ class AddonsPage(QWidget):
         if kind in ("refresh", "reveal", "mode") and self._scan_busy():
             self._arm_flush_timer()
             return
-        if self._lists_frozen() or self._refreshing or self._revealing:
+        if self._lists_frozen() or self._refreshing or self._revealing or self._rendering_avail:
             self._arm_flush_timer()
             return
         self._flush_list_work()
 
     def _flush_list_work(self) -> None:
-        if self._lists_frozen() or self._refreshing or self._revealing:
+        if (
+            self._lists_frozen()
+            or self._refreshing
+            or self._revealing
+            or self._rendering_avail
+        ):
             self._arm_flush_timer()
             return
         # During an update scan, only in-place "patch" may run. Rebuild/reveal/mode
         # stay queued until set_scanning(False) flushes — avoids open-tab races.
         if self._scan_busy():
-            if "patch" in self._pending_list_work:
+            if "patch" in self._pending_list_work and not self._rendering_avail:
                 self._pending_list_work.discard("patch")
                 try:
                     patched = False
@@ -1008,7 +1186,7 @@ class AddonsPage(QWidget):
             if "reveal" in work:
                 self._reveal_lists_if_current()
             if "patch" in work and not self._dirty and "refresh" not in work:
-                if self._revealing or (
+                if self._revealing or self._rendering_avail or (
                     self._page_is_live() and self._lists_need_reveal()
                 ):
                     self._pending_list_work.add("patch")
@@ -1027,7 +1205,12 @@ class AddonsPage(QWidget):
                 # loop — showEvent will drain it when Addons becomes current.
                 if self._pending_list_work <= {"reveal"} and not self._page_is_live():
                     return
+                if self._rendering_avail:
+                    self._arm_flush_timer()
+                    return
                 QTimer.singleShot(0, self._flush_list_work)
+            else:
+                QTimer.singleShot(0, self._flush_pending_page)
 
     def _apply_section_visibility(self, mode: str | None = None) -> None:
         """Show exactly one section for Available/Installed; both columns for All.
@@ -1057,9 +1240,12 @@ class AddonsPage(QWidget):
                 self.installed_list.setMinimumHeight(80)
                 # Side-by-side All shares width; single-column modes fill the row.
                 self.installed_list.setMaximumHeight(16777215)
+                if self._page_is_live():
+                    _reveal_item_widgets(self.installed_list, self)
             else:
                 self.installed_list.setMinimumHeight(0)
                 self.installed_list.setMaximumHeight(0)
+                _stow_list_item_widgets(self.installed_list)
         except RuntimeError:
             return
 
@@ -1079,7 +1265,7 @@ class AddonsPage(QWidget):
 
         Never called as a path to clear() — scan only uses this for in-place text.
         """
-        if self._lists_frozen() or self._refreshing or self._revealing:
+        if self._lists_frozen() or self._refreshing or self._revealing or self._rendering_avail:
             return False
         if self._page_is_live() and self._lists_need_reveal():
             return False
@@ -1186,7 +1372,6 @@ class AddonsPage(QWidget):
         self._pending_list_work.add("reveal")
         self._sync_check_btn()
         QTimer.singleShot(0, self._flush_list_work)
-        self._git_kick_timer.start(300)
 
     def _reveal_lists_if_current(self) -> None:
         if not self._page_is_live():
@@ -1222,33 +1407,6 @@ class AddonsPage(QWidget):
                 if self._pending_list_work <= {"reveal"} and not self._page_is_live():
                     return
                 QTimer.singleShot(0, self._flush_list_work)
-
-    def _kick_deferred_git_checks(self) -> None:
-        if (
-            not self._lists_ready
-            or self._lists_frozen()
-            or self._refreshing
-            or self._revealing
-            or self._scan_busy()
-        ):
-            self._git_kick_timer.start(LIST_FREEZE_MS)
-            return
-        for lw in (self.installed_list, self.list):
-            try:
-                count = lw.count()
-            except RuntimeError:
-                continue
-            for i in range(count):
-                try:
-                    it = lw.item(i)
-                    if it is None:
-                        continue
-                    row = lw.itemWidget(it)
-                    kick = getattr(row, "kick_git_visibility", None)
-                    if callable(kick):
-                        kick()
-                except RuntimeError:
-                    continue
 
     def set_never_update(self, entry: dict, enabled: bool) -> None:
         folder = entry.get("folder") or entry.get("name")
@@ -1357,28 +1515,112 @@ class AddonsPage(QWidget):
             self.cat_box.blockSignals(False)
         self.refresh()
 
-    def _page(self, delta: int) -> None:
+    def _pagination_blocked(self) -> bool:
+        """True while a page turn must wait (never clear() into a dying popup)."""
         if (
             self._lists_frozen()
             or self._refreshing
-            or self._rendering_avail
             or self._revealing
             or self._scan_busy()
+            or self._rendering_avail
         ):
+            return True
+        if self._pending_list_work.intersection({"refresh", "mode"}):
+            return True
+        return bool(self._page_is_live() and self._lists_need_reveal())
+
+    def _flush_pending_page(self) -> None:
+        if self._pending_page_index is None or self._pagination_blocked():
+            if self._pending_page_index is not None:
+                self._arm_flush_timer()
             return
+        target = self._pending_page_index
+        self._pending_page_index = None
+        self._apply_available_page_to(target)
+
+    def _page(self, delta: int) -> None:
         max_page = max(0, (len(self._filtered_available) - 1) // PAGE_SIZE)
-        self._page_index = max(0, min(max_page, self._page_index + delta))
-        self.list.setUpdatesEnabled(False)
-        self.list.hide()
+        target = max(0, min(max_page, self._page_index + delta))
+        if self._pagination_blocked():
+            self._pending_page_index = target
+            self._arm_flush_timer()
+            return
+        self._apply_available_page_to(target)
+
+    def _apply_available_page(self, delta: int) -> None:
+        max_page = max(0, (len(self._filtered_available) - 1) // PAGE_SIZE)
+        target = max(0, min(max_page, self._page_index + delta))
+        self._apply_available_page_to(target)
+
+    def _apply_available_page_to(self, page_index: int) -> None:
+        if self._pagination_blocked():
+            self._pending_page_index = page_index
+            self._arm_flush_timer()
+            return
+        if not self._want_installed_visible:
+            _stow_list_item_widgets(self.installed_list)
+        self._pending_page_index = None
+        self._page_index = page_index
+        # Cancel any leftover row probes BEFORE hide/detach/sync-delete.
+        self._cancel_all_git_probes()
+        self._rendering_avail = True
+        installed_updates_paused = False
         try:
-            self._render_available_page()
-        finally:
-            self._apply_section_visibility()
-            self.list.setUpdatesEnabled(True)
-            self._pending_list_work.add("reveal")
+            try:
+                self.prev_btn.setEnabled(False)
+                self.next_btn.setEnabled(False)
+            except RuntimeError:
+                pass
+            try:
+                self.list.setUpdatesEnabled(False)
+                if self._want_installed_visible:
+                    self.installed_list.setUpdatesEnabled(False)
+                    installed_updates_paused = True
+                if self._page_is_live() and self._want_avail_visible:
+                    self.list.hide()
+            except RuntimeError:
+                pass
+            # Hidden page turn: off-screen detach + sync destroy, then off-screen mount.
+            # The light path detaches revealed HWNDs and immediately setItemWidget again
+            # — that aborts Qt on Windows even when tests pass without full catalog HWND load.
+            self._render_available_page_safe(page_turn=True)
+        except RuntimeError:
+            self._rendering_avail = False
             self._sync_check_btn()
-            QTimer.singleShot(0, self._flush_list_work)
-            self._git_kick_timer.start(300)
+            return
+        try:
+            if self._page_is_live() and self._want_avail_visible:
+                self.list.show()
+                _reveal_item_widgets(self.list, self)
+            self.list.setUpdatesEnabled(True)
+            if installed_updates_paused:
+                self.installed_list.setUpdatesEnabled(True)
+        except RuntimeError:
+            pass
+        QTimer.singleShot(0, self._finish_page_turn)
+
+    def _finish_page_turn(self) -> None:
+        self._rendering_avail = False
+        self._sync_check_btn()
+        self._deferred_post_page_turn()
+
+    def _deferred_post_page_turn(self) -> None:
+        if self.lists_mutating():
+            self._arm_flush_timer()
+            return
+        try:
+            max_page = max(0, (len(self._filtered_available) - 1) // PAGE_SIZE)
+            total = len(self._filtered_available)
+            start = self._page_index * PAGE_SIZE
+            showing = f"{start + 1}–{min(start + PAGE_SIZE, total)}" if total else "0"
+            self.page_lbl.setText(
+                f"Page {self._page_index + 1}/{max_page + 1}  ·  {showing} of {total}"
+            )
+            self.prev_btn.setEnabled(self._page_index > 0)
+            self.next_btn.setEnabled(self._page_index < max_page)
+        except RuntimeError:
+            pass
+        self._flush_pending_page()
 
     def _install_selected(self, *_args) -> None:
         item = self.list.currentItem()
@@ -1388,10 +1630,25 @@ class AddonsPage(QWidget):
         if entry and entry.get("repo"):
             self.install_requested.emit(entry)
 
-    def _render_available_page(self, *, light: bool = False) -> None:
-        """Mount at most PAGE_SIZE available rows. Search uses light=True (no HWND dance)."""
-        if light:
-            self._clear_avail_page_light()
+    def _render_available_page(self, *, light: bool = False, page_turn: bool = False) -> None:
+        """Mount at most PAGE_SIZE available rows.
+
+        ``page_turn`` — Prev/Next with the list hidden: safe off-screen teardown/mount.
+        ``light`` — debounced search/filter refresh on a visible list (no HWND dance).
+        """
+        if page_turn:
+            self._clear_avail_page_turn()
+        elif light:
+            try:
+                list_hidden = self.list.isHidden() or self.list.testAttribute(
+                    Qt.WidgetAttribute.WA_DontShowOnScreen
+                )
+            except RuntimeError:
+                list_hidden = True
+            if list_hidden:
+                self._clear_avail_page_turn()
+            else:
+                self._clear_avail_page_light()
         else:
             _safe_clear_list(self.list)
         start = self._page_index * PAGE_SIZE
@@ -1399,6 +1656,7 @@ class AddonsPage(QWidget):
         for entry in chunk:
             try:
                 row = AddonRow(entry, status="available", parent=self.list)
+                self._bind_addon_row_host(row)
                 row.install_clicked.connect(self.install_requested.emit)
                 row.open_git_clicked.connect(self.open_git)
                 item = QListWidgetItem()
@@ -1437,23 +1695,16 @@ class AddonsPage(QWidget):
             pass
 
     def _clear_avail_page_light(self) -> None:
-        """Hide current page via setHidden, then clear — no DontShowOnScreen."""
-        try:
-            count = self.list.count()
-        except RuntimeError:
-            return
-        for i in range(count):
-            try:
-                it = self.list.item(i)
-                if it is None:
-                    continue
-                it.setHidden(True)
-            except RuntimeError:
-                continue
-        try:
-            self.list.clear()
-        except RuntimeError:
-            return
+        """Remove on-screen rows item-by-item — avoid QListWidget.clear()."""
+        _clear_list_items_one_by_one(self.list)
+
+    def _clear_avail_page_turn(self) -> None:
+        """Remove page rows while the available list is hidden for Prev/Next."""
+        _clear_list_items_one_by_one(
+            self.list,
+            mark_off_screen=True,
+            destroy_now=True,
+        )
 
     def _mount_avail_row_light(self, item: QListWidgetItem, row: AddonRow) -> None:
         """Attach a search-page row without WA_DontShowOnScreen (that flag + clear() crashes)."""
@@ -1639,6 +1890,7 @@ class AddonsPage(QWidget):
                         meta=row_meta,
                         parent=self.installed_list,
                     )
+                    self._bind_addon_row_host(row)
                     row.update_clicked.connect(self.update_requested.emit)
                     row.reinstall_clicked.connect(self.reinstall_requested.emit)
                     row.remove_clicked.connect(self.remove_requested.emit)
@@ -1679,6 +1931,7 @@ class AddonsPage(QWidget):
             self._pending_avail_search = False
             self._dirty = False
             self._lists_ready = True
+            self._note_applied_filter_selection()
 
             # Restore visibility from filter mode (lists were hidden for the rebuild).
             self._apply_section_visibility(mode)
@@ -1691,7 +1944,6 @@ class AddonsPage(QWidget):
                 self._pending_list_work.add("reveal")
                 self._sync_check_btn()
                 QTimer.singleShot(0, self._flush_list_work)
-                self._git_kick_timer.start(300)
         except RuntimeError:
             self.mark_dirty()
         finally:

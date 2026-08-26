@@ -15,6 +15,13 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+try:
+    from shiboken6 import isValid as _shiboken_is_valid
+except ImportError:
+
+    def _shiboken_is_valid(obj: object) -> bool:  # type: ignore[misc]
+        return obj is not None
 from urllib.parse import urlparse
 from urllib.request import urlopen
 from PySide6.QtCore import QObject, QPoint, QProcess, QRect, QSize, Qt, QThread, QTimer, QUrl, Signal
@@ -34,12 +41,14 @@ from PySide6.QtWidgets import (
 from ichalaunch.core.paths import theme_file
 from ichalaunch.ui.widgets.cursors import apply_open_hand
 from ichalaunch.ui.widgets.glue_panel_button import (
+    GLUE_BTN_H,
     GLUE_ROW_H,
     GLUE_ROW_MENU_W,
     GLUE_ROW_W,
     GluePanelButton,
     check_button_glow_for_plate,
     glue_row_square_chrome,
+    open_git_icon_pixmap,
 )
 from ichalaunch.ui.widgets.theme_checkbox import ThemeCheckBox
 
@@ -51,8 +60,31 @@ _OPTIONS_COG_CACHE: QPixmap | None = None
 _PASS_UP = "UI-GroupLoot-Pass-Up.PNG"
 _PASS_DOWN = "UI-GroupLoot-Pass-Down.PNG"
 _PASS_EXTERNAL = Path(r"F:\wow-ui-textures\Buttons")
-_PASS_ICON_PX = 18
+_PASS_ICON_PX = _OPTIONS_COG_PX  # match settings cog / reinstall icon size
+
+_REFRESH_BTN = "UI-RefreshButton.PNG"
+_REFRESH_EXTERNAL = Path(r"F:\wow-ui-textures\Buttons") / _REFRESH_BTN
+_REFRESH_CACHE: QPixmap | None = None
 _PASS_CACHE: dict[str, QPixmap] = {}
+# Nudge reinstall icon down so its visual bottom matches the delete/pass icon.
+# Refresh art is 1px shorter at the bottom than Pass; +1 aligns bottoms (was +3, overshot).
+_REINSTALL_ICON_Y_NUDGE = 1
+# Tight gap between adjacent addon-row icon actions (reinstall/delete/cog).
+_ADDON_ROW_ACTION_GAP = 0
+# Inline Open-in-Git beside the addon title (smaller than row action plates).
+_OPEN_GIT_INLINE_PX = 20
+_OPEN_GIT_INLINE_HIT = 22
+
+# Addons catalog Prev/Next — WoW spellbook page-turn icons (Up idle, Down pressed).
+_SPELLBOOK_NEXT_UP = "UI-SpellbookIcon-NextPage-Up.PNG"
+_SPELLBOOK_NEXT_DOWN = "UI-SpellbookIcon-NextPage-Down.PNG"
+_SPELLBOOK_PREV_UP = "UI-SpellbookIcon-PrevPage-Up.PNG"
+_SPELLBOOK_PREV_DOWN = "UI-SpellbookIcon-PrevPage-Down.PNG"
+_SPELLBOOK_EXTERNAL = Path(r"F:\wow-ui-textures\Buttons")
+_SPELLBOOK_CACHE: dict[tuple[str, bool, int], QPixmap] = {}
+# Match GluePanelButton toolbar height; square hit target for the 32² art.
+_SPELLBOOK_PAGE_H = GLUE_BTN_H
+_SPELLBOOK_ICON_PX = GLUE_BTN_H
 
 
 def _options_cog_pixmap() -> QPixmap:
@@ -156,8 +188,199 @@ def _pass_icon_pixmap(pressed: bool) -> QPixmap:
     return pm
 
 
+def _refresh_icon_pixmap() -> QPixmap:
+    """Bundled WoW UI-RefreshButton, scaled for the addons row reinstall control."""
+    global _REFRESH_CACHE
+    if _REFRESH_CACHE is not None:
+        return _REFRESH_CACHE
+    path = theme_file(_REFRESH_BTN)
+    if not path.is_file():
+        path = _REFRESH_EXTERNAL
+    pm = QPixmap()
+    if path.is_file():
+        src = QPixmap(str(path))
+        if not src.isNull():
+            pm = src.scaled(
+                _OPTIONS_COG_PX,
+                _OPTIONS_COG_PX,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+    _REFRESH_CACHE = pm
+    return pm
+
+
+class RefreshReinstallButton(QPushButton):
+    """Addons-row Reinstall control painted with UI-RefreshButton art."""
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setObjectName("RefreshReinstallButton")
+        apply_open_hand(self)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.setFixedSize(GLUE_ROW_MENU_W, GLUE_ROW_H)
+        self.setFlat(True)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+        self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+        self.setStyleSheet(
+            "QPushButton#RefreshReinstallButton {"
+            "  background: transparent;"
+            "  border: none;"
+            "  padding: 0;"
+            "  margin: 0;"
+            "  color: transparent;"
+            "}"
+        )
+        self._icon = _refresh_icon_pixmap()
+
+    def enterEvent(self, event) -> None:  # noqa: N802
+        super().enterEvent(event)
+        self.update()
+
+    def leaveEvent(self, event) -> None:  # noqa: N802
+        super().leaveEvent(event)
+        self.update()
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        del event
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        rect = self.rect()
+        icon = self._icon
+        if icon.isNull():
+            painter.setPen(Qt.GlobalColor.yellow)
+            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "↻")
+            painter.end()
+            return
+        if self.isDown():
+            painter.setOpacity(0.75)
+        elif self.underMouse():
+            painter.setOpacity(1.0)
+        else:
+            painter.setOpacity(0.92)
+        x = rect.center().x() - icon.width() // 2
+        y = (
+            rect.center().y()
+            - icon.height() // 2
+            + _REINSTALL_ICON_Y_NUDGE
+            + (1 if self.isDown() else 0)
+        )
+        painter.drawPixmap(x, y, icon)
+        painter.end()
+
+
+class OpenGitButton(QPushButton):
+    """Open in Git — row/dialog plates, or a compact inline control beside the title."""
+
+    def __init__(self, parent: QWidget | None = None, *, plate: str = "row"):
+        super().__init__(parent)
+        self.setObjectName("OpenGitButton")
+        self._plate = plate
+        if plate == "dialog":
+            self._side = GLUE_BTN_H
+            hit = GLUE_BTN_H
+        elif plate == "inline":
+            self._side = _OPEN_GIT_INLINE_PX
+            hit = _OPEN_GIT_INLINE_HIT
+        else:
+            self._side = GLUE_ROW_H
+            hit = GLUE_ROW_H
+        apply_open_hand(self)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        # Beat global QPushButton { padding: 8px 14px } and any leftover text-button
+        # min-width so the hit box stays art-sized (setFixedSize alone loses to QSS).
+        self.setStyleSheet(
+            "QPushButton#OpenGitButton {"
+            "  background: transparent;"
+            "  border: none;"
+            "  padding: 0px;"
+            "  margin: 0px;"
+            f"  min-width: {hit}px;"
+            f"  max-width: {hit}px;"
+            f"  min-height: {hit}px;"
+            f"  max-height: {hit}px;"
+            "  color: transparent;"
+            "}"
+        )
+        self.setFixedSize(hit, hit)
+        self.setFlat(True)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+        self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+        self.setToolTip("Open the repository in your browser")
+        self.setAccessibleName("Open in Git")
+
+    def enterEvent(self, event) -> None:  # noqa: N802
+        super().enterEvent(event)
+        self.update()
+
+    def leaveEvent(self, event) -> None:  # noqa: N802
+        super().leaveEvent(event)
+        self.update()
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        super().mousePressEvent(event)
+        self.update()
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802
+        super().mouseReleaseEvent(event)
+        self.update()
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        del event
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        rect = self.rect()
+        chrome_down = bool(self.isDown())
+        press_dy = _UPDATE_PRESS_DY if chrome_down else 0
+        icon = open_git_icon_pixmap(
+            pressed=chrome_down,
+            disabled=not self.isEnabled(),
+            side=self._side,
+        )
+        if icon.isNull():
+            painter.setPen(Qt.GlobalColor.yellow)
+            align = (
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+                if self._plate == "inline"
+                else Qt.AlignmentFlag.AlignCenter
+            )
+            painter.drawText(
+                rect.adjusted(0, press_dy, 0, press_dy),
+                align,
+                "Git",
+            )
+            painter.end()
+            return
+        if chrome_down:
+            painter.setOpacity(0.85)
+        elif self.underMouse():
+            painter.setOpacity(1.0)
+        else:
+            painter.setOpacity(0.94)
+        # Inline: left-align glyph so any accidental hit-box slack sits to the right
+        # of the icon (next to the name), not as empty space before it.
+        if self._plate == "inline":
+            x = 0
+        else:
+            x = rect.center().x() - icon.width() // 2
+        y = rect.center().y() - icon.height() // 2 + press_dy
+        painter.drawPixmap(x, y, icon)
+        painter.end()
+
+
+class OpenLinkButton(OpenGitButton):
+    """Square Open control — same chrome as Open in Git, for project/download pages."""
+
+    def __init__(self, parent: QWidget | None = None, *, plate: str = "row"):
+        super().__init__(parent, plate=plate)
+        self.setToolTip("Open the project page in your browser")
+        self.setAccessibleName("Open")
+
+
 class PassRemoveButton(QPushButton):
-    """Compact square Remove control: glue-panel chrome + GroupLoot Pass icon."""
+    """Compact square Remove control: GroupLoot Pass icon only (no plate chrome)."""
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
@@ -178,8 +401,6 @@ class PassRemoveButton(QPushButton):
             "  color: transparent;"
             "}"
         )
-        glue_row_square_chrome(pressed=False, side=GLUE_ROW_H)
-        glue_row_square_chrome(pressed=True, side=GLUE_ROW_H)
 
     def enterEvent(self, event) -> None:  # noqa: N802
         super().enterEvent(event)
@@ -194,25 +415,126 @@ class PassRemoveButton(QPushButton):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
         rect = self.rect()
-        chrome = glue_row_square_chrome(
-            pressed=self.isDown(),
-            disabled=not self.isEnabled(),
-            side=GLUE_ROW_H,
-        )
-        if chrome.isNull():
-            painter.setPen(Qt.GlobalColor.darkGray)
-            painter.setBrush(Qt.GlobalColor.transparent)
-            painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 4, 4)
-        else:
-            painter.drawPixmap(rect, chrome)
         icon = _pass_icon_pixmap(self.isDown())
         if icon.isNull():
             painter.setPen(Qt.GlobalColor.white)
             painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "×")
         else:
+            if self.isDown():
+                painter.setOpacity(0.75)
+            elif self.underMouse():
+                painter.setOpacity(1.0)
+            else:
+                painter.setOpacity(0.92)
             x = rect.center().x() - icon.width() // 2
             y = rect.center().y() - icon.height() // 2 + (1 if self.isDown() else 0)
             painter.drawPixmap(x, y, icon)
+        painter.end()
+
+
+def _spellbook_page_pixmap(direction: str, *, pressed: bool, side: int = _SPELLBOOK_ICON_PX) -> QPixmap:
+    """Bundled WoW spellbook Next/Prev page icons (Up idle, Down pressed)."""
+    direction = "prev" if direction == "prev" else "next"
+    key = (direction, bool(pressed), int(side))
+    hit = _SPELLBOOK_CACHE.get(key)
+    if hit is not None:
+        return hit
+    if direction == "prev":
+        name = _SPELLBOOK_PREV_DOWN if pressed else _SPELLBOOK_PREV_UP
+    else:
+        name = _SPELLBOOK_NEXT_DOWN if pressed else _SPELLBOOK_NEXT_UP
+    path = theme_file(name)
+    if not path.is_file():
+        path = _SPELLBOOK_EXTERNAL / name
+    pm = QPixmap()
+    if path.is_file():
+        src = QPixmap(str(path))
+        if not src.isNull():
+            pm = src.scaled(
+                side,
+                side,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+    _SPELLBOOK_CACHE[key] = pm
+    return pm
+
+
+class SpellbookPageButton(QPushButton):
+    """Addons catalog Prev/Next painted with UI-SpellbookIcon-*-Page Up/Down art."""
+
+    def __init__(self, direction: str, parent: QWidget | None = None):
+        super().__init__(parent)
+        self._direction = "prev" if direction == "prev" else "next"
+        self.setObjectName("SpellbookPageButton")
+        apply_open_hand(self)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.setFixedSize(_SPELLBOOK_PAGE_H, _SPELLBOOK_PAGE_H)
+        self.setFlat(True)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+        self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+        self.setStyleSheet(
+            "QPushButton#SpellbookPageButton {"
+            "  background: transparent;"
+            "  border: none;"
+            "  padding: 0;"
+            "  margin: 0;"
+            "  color: transparent;"
+            "}"
+        )
+        if self._direction == "prev":
+            self.setToolTip("Previous page")
+            self.setAccessibleName("Previous page")
+        else:
+            self.setToolTip("Next page")
+            self.setAccessibleName("Next page")
+
+    def enterEvent(self, event) -> None:  # noqa: N802
+        super().enterEvent(event)
+        self.update()
+
+    def leaveEvent(self, event) -> None:  # noqa: N802
+        super().leaveEvent(event)
+        self.update()
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        super().mousePressEvent(event)
+        self.update()
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802
+        super().mouseReleaseEvent(event)
+        self.update()
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        del event
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        rect = self.rect()
+        pressed = bool(self.isDown())
+        icon = _spellbook_page_pixmap(self._direction, pressed=pressed)
+        if icon.isNull():
+            painter.setPen(Qt.GlobalColor.yellow)
+            label = "◀" if self._direction == "prev" else "▶"
+            painter.drawText(
+                rect.adjusted(0, _UPDATE_PRESS_DY if pressed else 0, 0, 0),
+                Qt.AlignmentFlag.AlignCenter,
+                label,
+            )
+            painter.end()
+            return
+        if not self.isEnabled():
+            painter.setOpacity(0.40)
+        elif pressed:
+            painter.setOpacity(0.85)
+        elif self.underMouse():
+            painter.setOpacity(1.0)
+        else:
+            painter.setOpacity(0.94)
+        press_dy = _UPDATE_PRESS_DY if pressed else 0
+        x = rect.center().x() - icon.width() // 2
+        y = rect.center().y() - icon.height() // 2 + press_dy
+        painter.drawPixmap(x, y, icon)
         painter.end()
 
 
@@ -224,6 +546,7 @@ _UPDATE_ARROW = "UI-MicroStream-Yellow.PNG"
 _UPDATE_ARROW_EXTERNAL = Path(r"F:\wow-ui-textures\Buttons") / _UPDATE_ARROW
 _UPDATE_ARROW_PX = 18  # fits centered in a 28² plate
 _UPDATE_ARROW_CACHE: QPixmap | None = None
+_INSTALL_ARROW_CACHE: QPixmap | None = None
 _UPDATE_ARROW_Y_NUDGE = 0  # true geometric center in the square plate
 # Content nudge when chrome is depressed (same as GluePanelButton / GlueCombo).
 _UPDATE_PRESS_DY = 1
@@ -231,7 +554,7 @@ _UPDATE_PRESS_DY = 1
 
 def _row_update_arrow_pixmap() -> QPixmap:
     """Home UPDATE chevron (MicroStream flipped up), scaled for GLUE_ROW_H plates."""
-    global _UPDATE_ARROW_CACHE
+    global _UPDATE_ARROW_CACHE, _INSTALL_ARROW_CACHE
     if _UPDATE_ARROW_CACHE is not None:
         return _UPDATE_ARROW_CACHE
     path = theme_file(_UPDATE_ARROW)
@@ -249,7 +572,114 @@ def _row_update_arrow_pixmap() -> QPixmap:
                 Qt.TransformationMode.SmoothTransformation,
             )
     _UPDATE_ARROW_CACHE = pm
+    _INSTALL_ARROW_CACHE = None
     return pm
+
+
+def _row_install_arrow_pixmap() -> QPixmap:
+    """Available-row INSTALL chevron (MicroStream down) — same scale as Update."""
+    global _INSTALL_ARROW_CACHE
+    if _INSTALL_ARROW_CACHE is not None:
+        return _INSTALL_ARROW_CACHE
+    up = _row_update_arrow_pixmap()
+    if up.isNull():
+        _INSTALL_ARROW_CACHE = up
+        return up
+    _INSTALL_ARROW_CACHE = QPixmap.fromImage(up.toImage().mirrored(False, True))
+    return _INSTALL_ARROW_CACHE
+
+
+class AddonRowInstallButton(QPushButton):
+    """Square Install control matching Update plate height — arrow only, no glow."""
+
+    install_clicked = Signal()
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setObjectName("AddonRowInstallButton")
+        apply_open_hand(self)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.setFixedSize(_UPDATE_BTN_SIDE, _UPDATE_BTN_SIDE)
+        self.setFlat(True)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+        self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+        self.setStyleSheet(
+            "QPushButton#AddonRowInstallButton {"
+            "  background: transparent;"
+            "  border: none;"
+            "  padding: 0;"
+            "  margin: 0;"
+            "  color: transparent;"
+            "}"
+        )
+        self._icon = _row_install_arrow_pixmap()
+        glue_row_square_chrome(pressed=False, role="primary", side=_UPDATE_BTN_SIDE)
+        glue_row_square_chrome(pressed=True, role="primary", side=_UPDATE_BTN_SIDE)
+        self.setToolTip("Install this addon")
+        self.setAccessibleName("Install")
+        self.clicked.connect(self.install_clicked.emit)
+
+    def _arrow_icon(self) -> QPixmap:
+        return _row_install_arrow_pixmap()
+
+    def enterEvent(self, event) -> None:  # noqa: N802
+        super().enterEvent(event)
+        self.update()
+
+    def leaveEvent(self, event) -> None:  # noqa: N802
+        super().leaveEvent(event)
+        self.update()
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        super().mousePressEvent(event)
+        self.update()
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802
+        super().mouseReleaseEvent(event)
+        self.update()
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        del event
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        rect = self.rect()
+        chrome_down = bool(self.isDown())
+        pm = glue_row_square_chrome(
+            pressed=chrome_down,
+            role="primary",
+            disabled=not self.isEnabled(),
+            side=_UPDATE_BTN_SIDE,
+        )
+        if pm.isNull():
+            painter.setPen(QColor("#7a6e88"))
+            painter.setBrush(QColor("#4a2f7a"))
+            painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 6, 6)
+        else:
+            painter.drawPixmap(rect, pm)
+
+        press_dy = _UPDATE_PRESS_DY if chrome_down else 0
+        icon = self._arrow_icon()
+        if icon.isNull():
+            painter.setPen(QColor("#F1C22D"))
+            painter.drawText(
+                rect.adjusted(0, press_dy + _UPDATE_ARROW_Y_NUDGE, 0, press_dy + _UPDATE_ARROW_Y_NUDGE),
+                Qt.AlignmentFlag.AlignCenter,
+                "↓",
+            )
+        else:
+            if not self.isEnabled():
+                painter.setOpacity(0.45)
+            ax = rect.center().x() - icon.width() // 2
+            ay = (
+                rect.center().y()
+                - icon.height() // 2
+                + _UPDATE_ARROW_Y_NUDGE
+                + press_dy
+            )
+            painter.drawPixmap(ax, ay, icon)
+            painter.setOpacity(1.0)
+        painter.end()
 
 
 class AddonRowUpdateButton(QPushButton):
@@ -683,19 +1113,119 @@ class _BrowseUrlCheckThread(QThread):
 
     finished_check = Signal(str, bool)
 
-    def __init__(self, url: str, parent: QObject | None = None):
-        super().__init__(parent)
+    def __init__(self, url: str):
+        # Never parent to a row widget — sync row delete while running aborts Qt.
+        super().__init__()
         self._url = url
 
     def run(self) -> None:
         from ichalaunch.addons.github import github_url_reachable
 
+        if self.isInterruptionRequested():
+            return
         ok = False
         try:
             ok = bool(github_url_reachable(self._url))
         except Exception:  # noqa: BLE001
             ok = False
+        # Cancelled probes must not touch row widgets (may already be destroyed).
+        if self.isInterruptionRequested():
+            return
         self.finished_check.emit(self._url, ok)
+
+
+# Cancelled browse-URL probes stay here until QThread.finished. Dropping the last
+# Python ref while run() is still active aborts Qt (WER 0xC0000409, no traceback).
+_ORPHAN_GIT_URL_THREADS: list[QThread] = []
+
+
+def _reap_orphan_git_url_thread(thread: QThread) -> None:
+    """Drop an orphaned probe after its thread has actually terminated."""
+    try:
+        while thread in _ORPHAN_GIT_URL_THREADS:
+            _ORPHAN_GIT_URL_THREADS.remove(thread)
+    except ValueError:
+        pass
+    try:
+        if not _shiboken_is_valid(thread):
+            return
+        # finished has fired; wait() returns once run() has fully unwound.
+        thread.wait(1)
+        thread.deleteLater()
+    except RuntimeError:
+        return
+
+
+def drain_orphan_git_url_threads(wait_ms: int = 5000) -> None:
+    """Block briefly so cancelled probes finish (tests / shutdown)."""
+    deadline = max(0, int(wait_ms))
+    for thread in list(_ORPHAN_GIT_URL_THREADS):
+        try:
+            if not _shiboken_is_valid(thread):
+                _reap_orphan_git_url_thread(thread)
+                continue
+            if thread.isRunning():
+                thread.requestInterruption()
+                thread.wait(deadline)
+            _reap_orphan_git_url_thread(thread)
+        except RuntimeError:
+            continue
+
+
+def cancel_git_url_checks(owner: QObject, *, wait_ms: int = 0) -> None:
+    """Invalidate in-flight Open-in-Git probes before a row widget is torn down.
+
+    Disconnects UI slots and bumps the generation so late results are ignored.
+    Still-running QThreads are moved to ``_ORPHAN_GIT_URL_THREADS`` — they must
+    not be GC'd while ``run()`` executes (that aborts Qt). Optional *wait_ms*
+    blocks briefly; pagination prefers orphan+proceed over a long wait.
+    """
+    gen = int(getattr(owner, "_git_url_check_gen", 0) or 0) + 1
+    setattr(owner, "_git_url_check_gen", gen)
+    setattr(owner, "_git_url_pending", None)
+    threads: list[QThread] = list(getattr(owner, "_git_url_threads", []) or [])
+    setattr(owner, "_git_url_threads", [])
+    still_running: list[QThread] = []
+    for thread in threads:
+        try:
+            thread.finished_check.disconnect()
+        except (RuntimeError, TypeError):
+            pass
+        try:
+            if not _shiboken_is_valid(thread):
+                continue
+            if thread.isRunning():
+                thread.requestInterruption()
+                still_running.append(thread)
+            else:
+                thread.deleteLater()
+        except RuntimeError:
+            continue
+    for thread in still_running:
+        if thread not in _ORPHAN_GIT_URL_THREADS:
+            _ORPHAN_GIT_URL_THREADS.append(thread)
+            try:
+                thread.finished.connect(
+                    lambda *_args, t=thread: _reap_orphan_git_url_thread(t)
+                )
+            except (RuntimeError, TypeError):
+                pass
+        # finished may have fired between isRunning() and connect — reap now.
+        try:
+            if _shiboken_is_valid(thread) and not thread.isRunning():
+                _reap_orphan_git_url_thread(thread)
+        except RuntimeError:
+            pass
+    if wait_ms > 0:
+        for thread in still_running:
+            try:
+                if _shiboken_is_valid(thread) and thread.isRunning():
+                    thread.wait(int(wait_ms))
+                if _shiboken_is_valid(thread) and not thread.isRunning():
+                    _reap_orphan_git_url_thread(thread)
+            except RuntimeError:
+                continue
+
 
 
 def apply_open_git_visibility(
@@ -703,67 +1233,32 @@ def apply_open_git_visibility(
     url: str | None,
     owner: QObject,
     *,
-    defer: bool = False,
+    defer: bool = False,  # noqa: ARG001 — kept for call-site compatibility
 ) -> None:
-    """Show *Open in Git* only when the browse URL is live (cached or async check).
+    """Show *Open in Git* when a browse URL is known — no network probe.
 
-    Uses ``https://github.com/owner/repo`` (never a dead tag/download URL).
-    When *defer* is True (or the owner is off-screen), skip the network probe so
-    init/rebuild does not spawn a thread per row.
+    Click opens the known URL via the existing handlers. *defer* is ignored
+    (formerly gated async HEAD checks that raced with pagination).
     """
     text = (url or "").strip() or None
-    button.setVisible(False)
+    try:
+        if not _shiboken_is_valid(button):
+            return
+    except RuntimeError:
+        return
     if not text:
-        button.setToolTip("No git repository link")
-        return
-    button.setToolTip(f"Open {text}")
-    setattr(owner, "_git_url_deferred", text)
-
-    owner_w = owner if isinstance(owner, QWidget) else None
-    hidden = bool(
-        owner_w is not None
-        and (
-            owner_w.testAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
-            or not owner_w.isVisible()
-        )
-    )
-    if defer or hidden:
-        return
-
-    from ichalaunch.addons.github import github_url_reachable_cached
-
-    cached = github_url_reachable_cached(text)
-    if cached is True:
-        button.setVisible(True)
-        return
-    if cached is False:
-        return
-
-    gen = int(getattr(owner, "_git_url_check_gen", 0) or 0) + 1
-    setattr(owner, "_git_url_check_gen", gen)
-    setattr(owner, "_git_url_pending", text)
-
-    thread = _BrowseUrlCheckThread(text, owner)
-
-    def _on_done(checked_url: str, ok: bool) -> None:
-        if int(getattr(owner, "_git_url_check_gen", 0) or 0) != gen:
-            return
-        if checked_url != getattr(owner, "_git_url_pending", None):
-            return
-        # Row may have been destroyed during an update-scan list rebuild.
         try:
-            if not button or button.parent() is None:
-                return
+            button.setVisible(False)
+            button.setToolTip("No git repository link")
         except RuntimeError:
             return
-        button.setVisible(bool(ok))
-
-    thread.finished_check.connect(_on_done)
-    threads: list[QThread] = list(getattr(owner, "_git_url_threads", []) or [])
-    threads = [t for t in threads if t.isRunning()]
-    threads.append(thread)
-    setattr(owner, "_git_url_threads", threads)
-    thread.start()
+        return
+    try:
+        button.setToolTip(f"Open {text}")
+        button.setVisible(True)
+    except RuntimeError:
+        return
+    setattr(owner, "_git_url_deferred", text)
 
 
 def github_repo_browse_url(*candidates: Any) -> str | None:
@@ -797,8 +1292,14 @@ def github_repo_browse_url(*candidates: Any) -> str | None:
 
 
 def mod_git_url(mod: dict[str, Any] | None) -> str | None:
-    """Public git page for a client mod — per-item repo, else TurtleWoW-Mods hub."""
+    """Public git page for a client mod — per-item repo, else TurtleWoW-Mods hub.
+
+    HD Graphics rows intentionally omit Open-in-Git; they expose only the
+    Project Reforged ``info_url`` via :func:`mod_open_url`.
+    """
     if not mod:
+        return None
+    if str(mod.get("category") or "") == "HD Graphics":
         return None
     src = mod.get("source") if isinstance(mod.get("source"), dict) else {}
     found = github_repo_browse_url(
@@ -806,7 +1307,6 @@ def mod_git_url(mod: dict[str, Any] | None) -> str | None:
         mod.get("repo"),
         mod.get("github"),
         mod.get("url"),
-        mod.get("info_url"),
         mod.get("repository"),
         (src or {}).get("repo"),
         (src or {}).get("url"),
@@ -816,6 +1316,24 @@ def mod_git_url(mod: dict[str, Any] | None) -> str | None:
         return found
     # Catalog / ecosystem entries without a dedicated repo still link to the hub.
     return TURTLEWOW_MODS_HUB
+
+
+def mod_open_url(mod: dict[str, Any] | None) -> str | None:
+    """Non-Git project/download page when it differs from the row's git link."""
+    if not mod:
+        return None
+    info = str(mod.get("info_url") or "").strip()
+    if not info:
+        return None
+    # HD Graphics: always prefer the project page (no Open-in-Git companion).
+    if str(mod.get("category") or "") == "HD Graphics":
+        return info
+    git = mod_git_url(mod)
+    if git and info.rstrip("/").lower() == git.rstrip("/").lower():
+        return None
+    return info
+
+
 def open_url_in_browser(url: str) -> bool:
     text = (url or "").strip()
     if not text:
@@ -1409,14 +1927,17 @@ class Card(QFrame):
     def body(self) -> QVBoxLayout:
         return self._layout
 class ModCheckRow(QWidget):
-    """Compact row: [checkbox] Name [▸ details] — status [Update] [Open in Git] [Reinstall].
+    """Compact row: [checkbox] Name [▸] [created by] [Open] [Git] — status [Update] [Reinstall].
+
     Version and description stay collapsed behind the caret until expanded.
     Optional *contains* line (e.g. bundled companions) stays visible beneath the title.
+    Open-link / Open-in-Git sit immediately after the author tag (tight spacing).
     """
     toggled = Signal(str, bool)
     update_clicked = Signal(str)
     reinstall_clicked = Signal(str)
     open_git_clicked = Signal(str)
+    open_link_clicked = Signal(str)
     def __init__(
         self,
         mod_id: str,
@@ -1439,6 +1960,7 @@ class ModCheckRow(QWidget):
         self._version = (version or "").strip()
         self._desc_expanded = False
         self._git_url: str | None = None
+        self._open_url: str | None = None
         self.setObjectName("ModCheckRow")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setMinimumWidth(0)
@@ -1453,10 +1975,15 @@ class ModCheckRow(QWidget):
         self.cb.setFixedSize(22, 22)
         self.cb.setChecked(checked)
         self.cb.toggled.connect(lambda v: self.toggled.emit(self.mod_id, v))
+        # Name cluster: name → details caret → author → open/git (~6–8px visual gap).
+        name_cluster = QHBoxLayout()
+        name_cluster.setContentsMargins(0, 0, 0, 0)
+        name_cluster.setSpacing(6)
         name_lbl = QLabel(title, self)
         name_lbl.setObjectName("ModRowName")
         name_lbl.setWordWrap(False)
         name_lbl.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+        self._name_lbl = name_lbl
         self.desc_toggle = QPushButton("▸", self)
         self.desc_toggle.setObjectName("DescToggle")
         self.desc_toggle.setFlat(True)
@@ -1473,36 +2000,46 @@ class ModCheckRow(QWidget):
             self.author_lbl.setText(f"created by {author}")
         else:
             self.author_lbl.setVisible(False)
+        self.open_link_btn = OpenLinkButton(self, plate="inline")
+        self.open_link_btn.setVisible(False)
+        self.open_link_btn.clicked.connect(self._emit_open_link)
+        self.open_git_btn = OpenGitButton(self, plate="inline")
+        self.open_git_btn.setVisible(False)
+        self.open_git_btn.clicked.connect(self._emit_open_git)
+        name_cluster.addWidget(name_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
+        name_cluster.addWidget(self.desc_toggle, 0, Qt.AlignmentFlag.AlignVCenter)
+        if author:
+            name_cluster.addWidget(self.author_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
+        name_cluster.addWidget(self.open_link_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+        name_cluster.addWidget(self.open_git_btn, 0, Qt.AlignmentFlag.AlignVCenter)
         sep2 = QLabel("—", self)
         sep2.setObjectName("Muted")
         self.status_lbl = QLabel("", self)
         self.status_lbl.setObjectName("Muted")
         self.status_lbl.setWordWrap(False)
         self.status_lbl.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
-        self.update_btn = GluePanelButton(
-            "Update", self, role="primary", width=GLUE_ROW_W, height=GLUE_ROW_H
-        )
+        self.update_btn = AddonRowUpdateButton(self)
         self.update_btn.setVisible(False)
-        self.update_btn.clicked.connect(lambda: self.update_clicked.emit(self.mod_id))
-        self.open_git_btn = GluePanelButton("Open in Git", self, width=GLUE_ROW_W, height=GLUE_ROW_H)
-        self.open_git_btn.setVisible(False)
-        self.open_git_btn.setToolTip("Open the repository in your browser")
-        self.open_git_btn.clicked.connect(self._emit_open_git)
-        self.reinstall_btn = GluePanelButton("Reinstall", self, width=GLUE_ROW_W, height=GLUE_ROW_H)
+        self.update_btn.update_clicked.connect(
+            lambda: self.update_clicked.emit(self.mod_id)
+        )
+        self.reinstall_btn = RefreshReinstallButton(self)
         self.reinstall_btn.setVisible(False)
         self.reinstall_btn.setToolTip("Re-download and overwrite installed files")
         self.reinstall_btn.clicked.connect(lambda: self.reinstall_clicked.emit(self.mod_id))
+        action_host = QWidget(self)
+        action_host.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        action_l = QHBoxLayout(action_host)
+        action_l.setContentsMargins(0, 0, 0, 0)
+        action_l.setSpacing(_ADDON_ROW_ACTION_GAP)
+        action_l.addWidget(self.update_btn)
+        action_l.addWidget(self.reinstall_btn)
         row.addWidget(self.cb, 0)
-        row.addWidget(name_lbl, 0)
-        row.addWidget(self.desc_toggle, 0, Qt.AlignmentFlag.AlignVCenter)
-        if author:
-            row.addWidget(self.author_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
+        row.addLayout(name_cluster, 0)
         row.addStretch(1)
         row.addWidget(sep2, 0)
         row.addWidget(self.status_lbl, 0)
-        row.addWidget(self.update_btn, 0, Qt.AlignmentFlag.AlignVCenter)
-        row.addWidget(self.open_git_btn, 0, Qt.AlignmentFlag.AlignVCenter)
-        row.addWidget(self.reinstall_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+        row.addWidget(action_host, 0, Qt.AlignmentFlag.AlignBottom)
         self.contains_lbl = QLabel(self)
         self.contains_lbl.setObjectName("Muted")
         self.contains_lbl.setWordWrap(True)
@@ -1565,21 +2102,31 @@ class ModCheckRow(QWidget):
             self.desc_toggle.setToolTip("Show details")
     def _emit_open_git(self) -> None:
         self.open_git_clicked.emit(self.mod_id)
+
+    def _emit_open_link(self) -> None:
+        self.open_link_clicked.emit(self.mod_id)
+
     def set_git_url(self, url: str | None) -> None:
         self._git_url = (url or "").strip() or None
-        apply_open_git_visibility(self.open_git_btn, self._git_url, self, defer=True)
+        apply_open_git_visibility(self.open_git_btn, self._git_url, self)
+
+    def set_open_url(self, url: str | None) -> None:
+        self._open_url = (url or "").strip() or None
+        if self._open_url:
+            self.open_link_btn.setVisible(True)
+            self.open_link_btn.setToolTip(f"Open {self._open_url}")
+        else:
+            self.open_link_btn.setVisible(False)
+            self.open_link_btn.setToolTip("Open the project page in your browser")
 
     def set_version(self, version: str | None) -> None:
         self._version = (version or "").strip()
         self.version_lbl.setToolTip(f"Version {self._version}" if self._version else "")
         self._apply_desc()
 
-    def kick_git_visibility(self) -> None:
-        apply_open_git_visibility(self.open_git_btn, self._git_url, self, defer=False)
     def set_update_available(self, available: bool, detail: str = "") -> None:
         self.update_btn.setVisible(available)
         if available:
-            self.update_btn.setText("Update")
             self.update_btn.setToolTip(detail or "Update available")
     def set_reinstall_visible(self, visible: bool) -> None:
         self.reinstall_btn.setVisible(visible)
@@ -1634,7 +2181,7 @@ class AddonRow(QWidget):
         self._never_update = bool(never_update)
         self._update_available = status.startswith("Update")
         self._status_text = status
-        self.open_git_btn: GluePanelButton | None = None
+        self.open_git_btn: OpenGitButton | None = None
         self.settings_btn: OptionsCogButton | None = None
         self.load_cb: ThemeCheckBox | None = None
         self._loaded = bool(loaded)
@@ -1646,6 +2193,7 @@ class AddonRow(QWidget):
         layout.setSpacing(8)
         name_row = QHBoxLayout()
         name_row.setContentsMargins(0, 0, 0, 0)
+        # Small gap between name → modules caret → Open-in-Git (~6–8px visual).
         name_row.setSpacing(6)
         is_installed = (
             status in ("Installed", "Not checked", "—", "Never update")
@@ -1674,32 +2222,44 @@ class AddonRow(QWidget):
                 name_row.addWidget(badge, 0, Qt.AlignmentFlag.AlignVCenter)
         name = QLabel(entry.get("name", "?"), self)
         name.setStyleSheet("font-weight: 600; color: #F1C22D;")
+        name.setWordWrap(False)
+        name.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         name_row.addWidget(name, 0)
         self._name_lbl = name
-        self.modules_toggle = QPushButton("▸", self)
-        self.modules_toggle.setObjectName("DescToggle")
-        self.modules_toggle.setFlat(True)
-        self.modules_toggle.setFixedSize(18, 20)
-        apply_open_hand(self.modules_toggle)
-        self.modules_toggle.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.modules_toggle.setVisible(len(self._modules) > 0)
-        n_mod = len(self._modules)
-        self.modules_toggle.setToolTip(
-            f"Show {n_mod} nested module{'s' if n_mod != 1 else ''}" if n_mod else ""
-        )
-        self.modules_toggle.clicked.connect(self._toggle_modules)
-        name_row.addWidget(self.modules_toggle, 0, Qt.AlignmentFlag.AlignVCenter)
-        name_row.addStretch(1)
-        layout.addLayout(name_row, 1)
-        self.status_lbl = QLabel(status, self)
-        self._apply_status_style(status)
-        layout.addWidget(self.status_lbl)
         git_url = github_repo_browse_url(
             entry.get("repo"),
             entry.get("url"),
             entry.get("repository"),
         )
         self._git_url = git_url
+        # Cluster: [name] [modules caret?] [Open-in-Git] → stretch.
+        self.modules_toggle = QPushButton("▸", self)
+        self.modules_toggle.setObjectName("DescToggle")
+        self.modules_toggle.setFlat(True)
+        self.modules_toggle.setFixedSize(18, 20)
+        apply_open_hand(self.modules_toggle)
+        self.modules_toggle.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        n_mod = len(self._modules)
+        self.modules_toggle.setToolTip(
+            f"Show {n_mod} nested module{'s' if n_mod != 1 else ''}" if n_mod else ""
+        )
+        self.modules_toggle.clicked.connect(self._toggle_modules)
+        if n_mod > 0:
+            name_row.addWidget(self.modules_toggle, 0, Qt.AlignmentFlag.AlignVCenter)
+        else:
+            self.modules_toggle.setVisible(False)
+            self.modules_toggle.setParent(self)
+        if git_url:
+            btn_git = OpenGitButton(self, plate="inline")
+            btn_git.clicked.connect(lambda: self.open_git_clicked.emit(entry))
+            name_row.addWidget(btn_git, 0, Qt.AlignmentFlag.AlignVCenter)
+            self.open_git_btn = btn_git
+            apply_open_git_visibility(btn_git, git_url, self)
+        name_row.addStretch(1)
+        layout.addLayout(name_row, 1)
+        self.status_lbl = QLabel(status, self)
+        self._apply_status_style(status)
+        layout.addWidget(self.status_lbl)
         if is_installed:
             show_update = self._update_available and not self._never_update
             # Square glowing Update plate: centered arrow only.
@@ -1708,49 +2268,44 @@ class AddonRow(QWidget):
             self._update_btn_widget.update_clicked.connect(self._on_update_clicked)
             self._update_btn_widget.setVisible(show_update)
             layout.addWidget(self._update_btn_widget, 0, Qt.AlignmentFlag.AlignVCenter)
-            # Open in Git lives in Settings cog dialog (right of Version).
-            self.reinstall_btn: GluePanelButton | None = None
+            self.reinstall_btn: RefreshReinstallButton | None = None
+            action_host = QWidget(self)
+            action_host.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+            action_l = QHBoxLayout(action_host)
+            action_l.setContentsMargins(0, 0, 0, 0)
+            action_l.setSpacing(_ADDON_ROW_ACTION_GAP)
             if git_url or entry.get("source") == "github" or entry.get("tag"):
-                btn_ri = GluePanelButton(
-                    "Reinstall", self, width=GLUE_ROW_W, height=GLUE_ROW_H
-                )
+                btn_ri = RefreshReinstallButton(self)
                 btn_ri.setToolTip(
                     "Re-download and overwrite installed files "
                     "(also clears Never Update for this addon)"
                 )
                 btn_ri.clicked.connect(lambda: self.reinstall_clicked.emit(entry))
-                layout.addWidget(btn_ri, 0, Qt.AlignmentFlag.AlignVCenter)
+                action_l.addWidget(btn_ri)
                 self.reinstall_btn = btn_ri
             btn_r = PassRemoveButton(self)
             btn_r.setToolTip("Remove this addon")
             btn_r.clicked.connect(
                 lambda: self.remove_clicked.emit(entry.get("folder") or entry.get("name"))
             )
-            layout.addWidget(btn_r)
+            action_l.addWidget(btn_r)
             if git_url:
                 btn_set = OptionsCogButton(self)
                 btn_set.setToolTip(
                     "Repository settings — fork, version, Never update, and README"
                 )
                 btn_set.clicked.connect(lambda: self.settings_clicked.emit(entry))
-                layout.addWidget(btn_set)
+                action_l.addWidget(btn_set)
                 self.settings_btn = btn_set
+            layout.addWidget(action_host, 0, Qt.AlignmentFlag.AlignBottom)
             self._refresh_never_update_ui()
         else:
             self._update_btn_widget = None
             self._update_btn = None
             self.reinstall_btn = None
-            btn = GluePanelButton("Install", self, width=GLUE_ROW_W, height=GLUE_ROW_H)
-            btn.clicked.connect(lambda: self.install_clicked.emit(entry))
-            layout.addWidget(btn)
-            if git_url:
-                btn_git = GluePanelButton(
-                    "Open in Git", self, width=GLUE_ROW_W, height=GLUE_ROW_H
-                )
-                btn_git.clicked.connect(lambda: self.open_git_clicked.emit(entry))
-                layout.addWidget(btn_git)
-                self.open_git_btn = btn_git
-                apply_open_git_visibility(btn_git, git_url, self, defer=True)
+            btn = AddonRowInstallButton(self)
+            btn.install_clicked.connect(lambda: self.install_clicked.emit(entry))
+            layout.addWidget(btn, 0, Qt.AlignmentFlag.AlignBottom)
         root.addLayout(layout)
         self.modules_panel = QLabel(self)
         self.modules_panel.setObjectName("Muted")
@@ -1802,15 +2357,6 @@ class AddonRow(QWidget):
             self._refresh_never_update_ui()
         except RuntimeError:
             return
-
-    def kick_git_visibility(self) -> None:
-        """Run a deferred Open-in-Git probe once the row is on-screen."""
-        if self.open_git_btn is None:
-            return
-        if self.testAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen):
-            return
-        url = getattr(self, "_git_url", None) or getattr(self, "_git_url_deferred", None)
-        apply_open_git_visibility(self.open_git_btn, url, self, defer=False)
 
     def _apply_status_style(self, status: str) -> None:
         if status.startswith("Update"):

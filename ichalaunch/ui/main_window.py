@@ -147,6 +147,12 @@ _FLOOR_EXTERNAL = Path(r"F:\wow-ui-textures\FrameGeneral\UIFrameNecrolordBackgro
 # Soft floor: subtle darken vs first Necrolord preview (0.22/90 → slight nudge).
 _FLOOR_TILE_OPACITY = 0.19
 _FLOOR_WASH = QColor(24, 19, 21, 105)
+_FLOOR_LIGHTING_NAME = "Legion_DH_Lighting_02.PNG"
+_FLOOR_LIGHTING_EXTERNAL = Path(
+    r"F:\wow-ui-textures\GLUES\Models\UI_DemonHunter\Legion_DH_Lighting_02.PNG"
+)
+_FLOOR_LIGHTING_OPACITY = 0.50
+_FLOOR_LIGHTING_PIX: QPixmap | None = None
 
 # BottomBar mist FX — one row, bottom-left, tiled horizontally only.
 _MIST_BASE = QColor("#100d0c")
@@ -360,7 +366,7 @@ from ichalaunch.ui.widgets.loading_bar import ThemeLoadingBar
 from ichalaunch.ui.widgets.chrome_buttons import ChromeGlyphButton
 from ichalaunch.ui.widgets.contributor_portrait import ContributorPortrait
 from ichalaunch.ui.widgets.cursors import apply_open_hand
-from ichalaunch.ui.widgets.glue_panel_button import glue_floor_chrome_pixmap
+from ichalaunch.ui.widgets.glue_panel_button import glue_floor_chrome_pixmap, tint_pixmap_toward_color
 from ichalaunch.ui.widgets.launch_button import LaunchButton, UpdateLaunchButton
 
 
@@ -609,6 +615,40 @@ def _paint_floor_fill(
             y += th
         painter.setOpacity(1.0)
         painter.fillRect(rect, _FLOOR_WASH)
+    painter.restore()
+
+
+def _floor_lighting_pixmap() -> QPixmap:
+    """Legion DH lighting rotated 90° CW and tinted to the ContentPanel floor."""
+    global _FLOOR_LIGHTING_PIX
+    if _FLOOR_LIGHTING_PIX is not None:
+        return _FLOOR_LIGHTING_PIX
+    raw = _load_theme_texture(_FLOOR_LIGHTING_NAME, _FLOOR_LIGHTING_EXTERNAL)
+    if raw.isNull():
+        _FLOOR_LIGHTING_PIX = QPixmap()
+        return _FLOOR_LIGHTING_PIX
+    rotated = _rotate_pixmap(raw, 90.0)
+    _FLOOR_LIGHTING_PIX = tint_pixmap_toward_color(rotated, _FLOOR_BASE, lift=1.0)
+    return _FLOOR_LIGHTING_PIX
+
+
+def _paint_floor_lighting(
+    painter: QPainter,
+    rect: QRect,
+    *,
+    origin: QPoint | None = None,
+) -> None:
+    """Soft top-left lighting pass over the RavenCraft floor."""
+    pm = _floor_lighting_pixmap()
+    if pm.isNull() or rect.width() <= 0 or rect.height() <= 0:
+        return
+    ox = origin.x() if origin is not None else rect.left()
+    oy = origin.y() if origin is not None else rect.top()
+    painter.save()
+    painter.setClipRect(rect, Qt.ClipOperation.IntersectClip)
+    painter.setOpacity(_FLOOR_LIGHTING_OPACITY)
+    painter.drawPixmap(ox, oy, pm)
+    painter.setOpacity(1.0)
     painter.restore()
 
 
@@ -1143,6 +1183,11 @@ class FolderFrameStroke(QWidget):
             self._floor,
             tile_origin=tile_origin,
         )
+        _paint_floor_lighting(
+            painter,
+            under.boundingRect().toAlignedRect().adjusted(-1, -1, 1, 1),
+            origin=tile_origin,
+        )
         painter.restore()
 
         _paint_tiled_h(painter, top, self._edge_top, eh)
@@ -1262,6 +1307,7 @@ class ContentPanel(QWidget):
             )
         )
         _paint_floor_fill(painter, inner, self._floor, tile_origin=inner.topLeft())
+        _paint_floor_lighting(painter, inner, origin=inner.topLeft())
 
 
 class BottomBar(QWidget):

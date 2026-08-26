@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
 from ichalaunch.config.settings import settings
 from ichalaunch.core.filesystem import LOCK_AV_VERIFY_MESSAGE
 from ichalaunch.game.launcher import detect_game
@@ -32,6 +31,7 @@ from ichalaunch.mods.installer import (
     mod_version_label,
     plan_changes,
     reconcile_exclusive_desired_mods,
+    resolve_mod_toggle,
     vanillafixes_dxvk_both_enabled,
 )
 from ichalaunch.mods.stock_patch import (
@@ -49,6 +49,7 @@ from ichalaunch.ui.widgets.common import (
     ModCheckRow,
     mod_author,
     mod_git_url,
+    mod_open_url,
     open_url_in_browser,
     status_with_stamp,
 )
@@ -56,6 +57,7 @@ from ichalaunch.ui.widgets.cursors import apply_open_hand
 from ichalaunch.ui.widgets.dialogs import (
     DialogResult,
     choice,
+    confirm,
     dll_security_exclusion_dialog,
     github_import_dialog,
     mpq_patch_warning_dialog,
@@ -266,7 +268,7 @@ class ClientPage(QWidget):
         if self.cat_btns:
             self._show_cat(0)
         self.refresh_from_settings()
-        self._reveal_rows(kick=False)
+        self._reveal_rows()
 
     def _add_category_page(self, cat: str, mods: list[dict], index: int) -> None:
         btn = BadgeNavButton(cat)
@@ -303,12 +305,25 @@ class ClientPage(QWidget):
         host_l.setSpacing(8)
         self._cat_hosts[cat] = host_l
         self._cat_scrolls[cat] = scroll
+        # Stretch first so _add_mod_row can insert before it. Inserting with
+        # count()-1 *before* a stretch exists pushes the first mod to the bottom
+        # (hd_dxvk was stuck last in HD Graphics for that reason).
+        host_l.addStretch(1)
         for mod in mods:
             self._add_mod_row(mod, host_l)
-        host_l.addStretch(1)
         scroll.setWidget(host)
         page_l.addWidget(scroll, 1)
         self.cat_stack.addWidget(page)
+
+    @staticmethod
+    def _insert_row_before_stretch(layout: QVBoxLayout, row: QWidget) -> None:
+        """Append a row immediately before a trailing stretch spacer, if any."""
+        insert_at = layout.count()
+        if insert_at > 0:
+            last = layout.itemAt(insert_at - 1)
+            if last is not None and last.spacerItem() is not None:
+                insert_at -= 1
+        layout.insertWidget(insert_at, row)
 
     def _add_mod_row(self, mod: dict, host_l: QVBoxLayout | None = None) -> ModCheckRow:
         mid = mod["id"]
@@ -341,7 +356,9 @@ class ClientPage(QWidget):
         row.update_clicked.connect(self.update_mod_requested.emit)
         row.reinstall_clicked.connect(self.reinstall_mod_requested.emit)
         row.open_git_clicked.connect(self.open_git_requested.emit)
+        row.open_link_clicked.connect(self._open_mod_link)
         row.set_git_url(mod_git_url(mod))
+        row.set_open_url(mod_open_url(mod))
         self._row_meta[mid] = {
             "category": cat,
             "name": str(mod.get("name") or mid),
@@ -353,12 +370,17 @@ class ClientPage(QWidget):
         }
         layout = host_l or self._cat_hosts.get(cat)
         if layout is not None:
-            insert_at = max(0, layout.count() - 1)
-            layout.insertWidget(insert_at, row)
+            self._insert_row_before_stretch(layout, row)
         row.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, False)
         row.show()
         self.rows[mid] = row
         return row
+
+    def _open_mod_link(self, mod_id: str) -> None:
+        mod = get_mod(mod_id) or {}
+        url = mod_open_url(mod)
+        if url:
+            open_url_in_browser(url)
 
     def ensure_mod_row(self, mod: dict) -> None:
         """Ensure a catalog (or newly registered user) mod has a checkbox row."""
@@ -541,7 +563,7 @@ class ClientPage(QWidget):
 
     def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
         super().showEvent(event)
-        self._reveal_rows(kick=True)
+        self._reveal_rows()
         QTimer.singleShot(0, self._maybe_prompt_vf_dxvk_conflict)
         # Patch-9 dialog is Home-first (MainWindow); Client keeps banner + fallback.
         QTimer.singleShot(0, self._maybe_prompt_stock_patch9)
@@ -573,7 +595,9 @@ class ClientPage(QWidget):
         self.refresh_plan()
 
     def _maybe_warn_dxvk_gpu(self) -> None:
-        if self._dxvk_gpu_warned or not settings.desired_mods.get("dxvk"):
+        if self._dxvk_gpu_warned or not (
+            settings.desired_mods.get("dxvk") or settings.desired_mods.get("hd_dxvk")
+        ):
             return
         from ichalaunch.core.gpu_compat import assess_dxvk_gpu
 
@@ -610,17 +634,13 @@ class ClientPage(QWidget):
         if mpq_patch_warning_dialog(self):
             settings.set("dismissed_mpq_patch_warning", True)
 
-    def _reveal_rows(self, *, kick: bool = False) -> None:
+    def _reveal_rows(self) -> None:
         """Clear HWND-guard flags leftover from AddonRow and show catalog rows."""
         q = self._search_q
         for row in self.rows.values():
             row.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, False)
             if not q:
                 row.show()
-            if kick:
-                fn = getattr(row, "kick_git_visibility", None)
-                if callable(fn):
-                    fn()
         if q:
             self._apply_search()
 
@@ -630,6 +650,20 @@ class ClientPage(QWidget):
             b.setChecked(i == idx)
 
     def _on_toggle(self, mod_id: str, enabled: bool) -> None:
+        if not enabled:
+            preview = resolve_mod_toggle(mod_id, False)
+            cascade_off = [
+                mid
+                for mid, state in preview.items()
+                if mid != mod_id and state is False
+            ]
+            if cascade_off and not self._confirm_disable_cascade(mod_id, cascade_off):
+                row = self.rows.get(mod_id)
+                if row is not None:
+                    row.cb.blockSignals(True)
+                    row.cb.setChecked(True)
+                    row.cb.blockSignals(False)
+                return
         changes = apply_mod_toggle(mod_id, enabled)
         if not enabled and mod_id == "vanilla_helpers" and not changes:
             row = self.rows.get(mod_id)
@@ -651,7 +685,7 @@ class ClientPage(QWidget):
             "vanillafixes_enabled",
             bool(desired.get("vanillafixes") or desired.get("dxvk")),
         )
-        if enabled and mod_id == "dxvk":
+        if enabled and mod_id in ("dxvk", "hd_dxvk"):
             QTimer.singleShot(0, self._maybe_warn_dxvk_gpu)
         if enabled:
             QTimer.singleShot(0, lambda: self._maybe_show_dll_security_hint(mod_id, enabled))
@@ -659,6 +693,36 @@ class ClientPage(QWidget):
         if enabled and mod_id == "superwow":
             QTimer.singleShot(0, self._maybe_superwow_enable_check)
         self.refresh_plan()
+
+    def _confirm_disable_cascade(self, mod_id: str, cascade_ids: list[str]) -> bool:
+        """Ask before disabling a mod that also turns off dependents."""
+        primary = get_mod(mod_id) or {}
+        primary_name = str(primary.get("name") or mod_id)
+        lines: list[str] = []
+        for mid in cascade_ids:
+            mod = get_mod(mid) or {}
+            lines.append(f"• {mod.get('name') or mid}")
+        body = (
+            f"Disabling {primary_name} will also disable:\n\n"
+            + "\n".join(lines)
+            + "\n\nContinue?"
+        )
+        if mod_id == "dxvk":
+            body += (
+                "\n\nThis removes the DXVK layer entirely (d3d9.dll / dxvk.conf). "
+                "Tip: enable regular VanillaFixes if you want VanillaFixes "
+                "without Vulkan."
+            )
+        elif mod_id == "hd_dxvk":
+            body += (
+                "\n\nVanillaFixes + DXVK (Vulkan) stays on; "
+                "d3d9.dll and dxvk.conf revert to the VanillaFixes-bundled layer."
+            )
+        elif mod_id == "vanillafixes":
+            body += (
+                "\n\nMods that required VanillaFixes will be unchecked as well."
+            )
+        return confirm(self, "Also disable related mods?", body)
 
     def _maybe_superwow_enable_check(self) -> None:
         issues = detect_superwow_issues()
@@ -720,7 +784,9 @@ class ClientPage(QWidget):
             row.cb.setChecked(bool(desired.get(mid, False)))
             row.cb.blockSignals(False)
             can_ri = self._mod_can_reinstall(catalog.get(mid) or {})
-            row.set_git_url(mod_git_url(catalog.get(mid) or {}))
+            mod_entry = catalog.get(mid) or {}
+            row.set_git_url(mod_git_url(mod_entry))
+            row.set_open_url(mod_open_url(mod_entry))
             version = mod_version_label(catalog.get(mid), installed_meta.get(mid))
             row.set_version(version or None)
             meta = self._row_meta.get(mid)

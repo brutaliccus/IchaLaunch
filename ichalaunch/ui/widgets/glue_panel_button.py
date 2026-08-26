@@ -16,6 +16,12 @@ _UP_NAME = "Glue-Panel-Button-Up-v2.PNG"
 _DOWN_NAME = "Glue-Panel-Button-Down-v2.PNG"
 _UP_EXTERNAL = Path(r"F:\wow-ui-textures\GLUES\COMMON\Glue-Panel-Button-Up-v2.PNG")
 _DOWN_EXTERNAL = Path(r"F:\wow-ui-textures\GLUES\COMMON\Glue-Panel-Button-Down-v2.PNG")
+_BIGGER_UP_NAME = "UI-Panel-BiggerButton-Up.PNG"
+_BIGGER_DOWN_NAME = "UI-Panel-BiggerButton-Down.PNG"
+_BIGGER_UP_EXTERNAL = Path(r"F:\wow-ui-textures\Buttons\UI-Panel-BiggerButton-Up.PNG")
+_BIGGER_DOWN_EXTERNAL = Path(r"F:\wow-ui-textures\Buttons\UI-Panel-BiggerButton-Down.PNG")
+_CHROME_PANEL = "panel"
+_CHROME_BIGGER = "bigger"
 
 # Shared toolbar size so Rescan / Check Updates / Update All / + Git Repo match.
 GLUE_BTN_W = 128
@@ -58,6 +64,9 @@ _RECOLOR: dict[tuple[str, str, bool], QPixmap] = {}
 _LAUNCH: dict[tuple[bool, bool, bool, int], QPixmap] = {}
 _ROW_SQUARE: dict[tuple[bool, bool, str, int], QPixmap] = {}
 _FLOOR_CHROME: dict[tuple[bool, str], QPixmap] = {}
+_OPEN_GIT_ICON: dict[tuple[bool, bool, int], QPixmap] = {}
+_ROW_PLATE_METRICS: tuple[int, int] | None = None
+_DIALOG_PLATE_METRICS: tuple[int, int] | None = None
 
 
 def _load_image(bundled: str, external: Path) -> QImage:
@@ -129,41 +138,169 @@ def _colored_pm(bundled: str, external: Path, role: str, disabled: bool) -> QPix
     return pm
 
 
+def _chrome_sources(
+    *,
+    pressed: bool,
+    variant: str,
+) -> tuple[str, Path]:
+    if variant == _CHROME_BIGGER:
+        if pressed:
+            return _BIGGER_DOWN_NAME, _BIGGER_DOWN_EXTERNAL
+        return _BIGGER_UP_NAME, _BIGGER_UP_EXTERNAL
+    if pressed:
+        return _DOWN_NAME, _DOWN_EXTERNAL
+    return _UP_NAME, _UP_EXTERNAL
+
+
 def glue_chrome_pixmap(
     *,
     pressed: bool = False,
     role: str = "standard",
     disabled: bool = False,
+    variant: str = _CHROME_PANEL,
 ) -> QPixmap:
-    """Recolored Glue-Panel Up/Down art (red fill → purple; borders unchanged)."""
+    """Recolored Glue-Panel / BiggerButton Up/Down art (red fill → purple)."""
     if role not in ("standard", "primary", "primary_bright"):
         role = "standard"
-    name, ext = (_DOWN_NAME, _DOWN_EXTERNAL) if pressed else (_UP_NAME, _UP_EXTERNAL)
+    name, ext = _chrome_sources(pressed=pressed, variant=variant)
     return _colored_pm(name, ext, role, disabled)
+
+
+def _is_purple_fill(c: QColor) -> bool:
+    """True for recolored glue-panel / bigger-button fill (not metal border)."""
+    if c.alpha() < 16:
+        return False
+    h, s, v = c.hue(), c.saturation(), c.value()
+    if h < 0:
+        return False
+    return (240 <= h <= 295) and s >= 70 and v >= 28
+
+
+def _purple_fill_rect(pm: QPixmap) -> QRect:
+    if pm.isNull():
+        return QRect()
+    img = pm.toImage()
+    w, h = img.width(), img.height()
+    min_x, min_y, max_x, max_y = w, h, -1, -1
+    for y in range(h):
+        for x in range(w):
+            if _is_purple_fill(QColor.fromRgba(img.pixel(x, y))):
+                if x < min_x:
+                    min_x = x
+                if y < min_y:
+                    min_y = y
+                if x > max_x:
+                    max_x = x
+                if y > max_y:
+                    max_y = y
+    if max_x < min_x:
+        return QRect()
+    return QRect(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1)
+
+
+def action_plate_metrics(width: int, height: int) -> tuple[int, int]:
+    """Purple fill height and top inset for glue chrome at *width*×*height*."""
+    pm = glue_chrome_pixmap(variant=_CHROME_PANEL)
+    if pm.isNull() or width <= 0 or height <= 0:
+        return max(1, height), 0
+    scaled = pm.scaled(
+        int(width),
+        int(height),
+        Qt.AspectRatioMode.IgnoreAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
+    fill = _purple_fill_rect(scaled)
+    if fill.isValid():
+        return fill.height(), fill.y()
+    bounds = _opaque_rect(scaled.toImage())
+    if bounds.isValid():
+        return bounds.height(), bounds.y()
+    return max(1, height), 0
+
+
+def row_action_plate_metrics() -> tuple[int, int]:
+    """Match Install / row glue buttons (``GLUE_ROW_W`` × ``GLUE_ROW_H``)."""
+    global _ROW_PLATE_METRICS
+    if _ROW_PLATE_METRICS is None:
+        _ROW_PLATE_METRICS = action_plate_metrics(GLUE_ROW_W, GLUE_ROW_H)
+    return _ROW_PLATE_METRICS
+
+
+def dialog_action_plate_metrics() -> tuple[int, int]:
+    """Match dialog glue buttons (``GLUE_BTN_W`` × ``GLUE_BTN_H``)."""
+    global _DIALOG_PLATE_METRICS
+    if _DIALOG_PLATE_METRICS is None:
+        _DIALOG_PLATE_METRICS = action_plate_metrics(GLUE_BTN_W, GLUE_BTN_H)
+    return _DIALOG_PLATE_METRICS
+
+
+def open_git_icon_pixmap(
+    *,
+    pressed: bool = False,
+    disabled: bool = False,
+    side: int = GLUE_ROW_H,
+) -> QPixmap:
+    """Purple-tinted BiggerButton art cropped and scaled to fit a *side*×*side* plate."""
+    key = (bool(pressed), bool(disabled), int(side))
+    hit = _OPEN_GIT_ICON.get(key)
+    if hit is not None:
+        return hit
+    raw = glue_chrome_pixmap(
+        pressed=pressed,
+        disabled=disabled,
+        variant=_CHROME_BIGGER,
+        role="standard",
+    )
+    if raw.isNull():
+        _OPEN_GIT_ICON[key] = QPixmap()
+        return _OPEN_GIT_ICON[key]
+    target = max(1, int(side))
+    bounds = _opaque_rect(raw.toImage())
+    cropped = raw.copy(bounds) if bounds.isValid() else raw
+    if cropped.height() <= 0 or cropped.width() <= 0:
+        _OPEN_GIT_ICON[key] = QPixmap()
+        return _OPEN_GIT_ICON[key]
+    scale = target / float(max(cropped.width(), cropped.height()))
+    out_w = max(1, int(round(cropped.width() * scale)))
+    out_h = max(1, int(round(cropped.height() * scale)))
+    pm = cropped.scaled(
+        out_w,
+        out_h,
+        Qt.AspectRatioMode.KeepAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
+    _OPEN_GIT_ICON[key] = pm
+    return pm
 
 
 def _luminance(c: QColor) -> float:
     return 0.299 * c.red() + 0.587 * c.green() + 0.114 * c.blue()
 
 
-def _tint_art_toward_floor(src: QImage, target: QColor, lift: float) -> QPixmap:
-    """Pixel-filter every opaque texel toward ``target``, keeping bevel contrast.
-
-    Fill luminance (~32) maps onto the target; brighter metal stays relatively
-    lighter so the plate still reads as Glue-Panel chrome, not a flat swatch.
-    """
-    if src.isNull():
+def tint_pixmap_toward_color(
+    pm: QPixmap,
+    target: QColor,
+    *,
+    lift: float = 1.0,
+    ref_lum: float = _FLOOR_REF_LUM,
+) -> QPixmap:
+    """Tint every opaque texel in *pm* toward *target*, keeping relative contrast."""
+    if pm.isNull():
         return QPixmap()
-    out = src.copy()
+    img = pm.toImage()
+    if img.isNull():
+        return QPixmap()
+    if img.format() != QImage.Format.Format_ARGB32:
+        img = img.convertToFormat(QImage.Format.Format_ARGB32)
+    out = img.copy()
     tr, tg, tb = target.red(), target.green(), target.blue()
-    ref = _FLOOR_REF_LUM
     for y in range(out.height()):
         for x in range(out.width()):
             c = QColor.fromRgba(out.pixel(x, y))
             a = c.alpha()
             if a < 8:
                 continue
-            factor = (_luminance(c) / ref) * lift
+            factor = (_luminance(c) / ref_lum) * lift
             out.setPixel(
                 x,
                 y,
@@ -175,6 +312,18 @@ def _tint_art_toward_floor(src: QImage, target: QColor, lift: float) -> QPixmap:
                 ).rgba(),
             )
     return QPixmap.fromImage(out)
+
+
+def _tint_art_toward_floor(src: QImage, target: QColor, lift: float) -> QPixmap:
+    """Pixel-filter every opaque texel toward ``target``, keeping bevel contrast.
+
+    Fill luminance (~32) maps onto the target; brighter metal stays relatively
+    lighter so the plate still reads as Glue-Panel chrome, not a flat swatch.
+    """
+    if src.isNull():
+        return QPixmap()
+    out = src.copy()
+    return tint_pixmap_toward_color(QPixmap.fromImage(out), target, lift=lift)
 
 
 def glue_floor_chrome_pixmap(*, pressed: bool = False, shade: str = "idle") -> QPixmap:
@@ -487,10 +636,13 @@ class GluePanelButton(QPushButton):
         width: int = GLUE_BTN_W,
         height: int = GLUE_BTN_H,
         glowing: bool = False,
+        chrome_variant: str = _CHROME_PANEL,
     ):
         super().__init__(text, parent)
         assert role in ("standard", "primary")
+        assert chrome_variant in (_CHROME_PANEL, _CHROME_BIGGER)
         self._role = role
+        self._chrome_variant = chrome_variant
         self._pulse = False
         self._chrome_w = int(width)
         self._chrome_h = int(height)
@@ -526,7 +678,8 @@ class GluePanelButton(QPushButton):
             "}"
         )
         # Warm caches so first paint is snappy.
-        for name, ext in ((_UP_NAME, _UP_EXTERNAL), (_DOWN_NAME, _DOWN_EXTERNAL)):
+        for pressed in (False, True):
+            name, ext = _chrome_sources(pressed=pressed, variant=self._chrome_variant)
             _colored_pm(name, ext, "standard", False)
             _colored_pm(name, ext, "primary", False)
 
@@ -599,7 +752,10 @@ class GluePanelButton(QPushButton):
         if getattr(self, "_glowing", False) and not self._glow_pm.isNull():
             self._paint_update_glow(painter)
         rect = self._chrome_rect()
-        name, ext = (_DOWN_NAME, _DOWN_EXTERNAL) if self.isDown() else (_UP_NAME, _UP_EXTERNAL)
+        name, ext = _chrome_sources(
+            pressed=self.isDown(),
+            variant=self._chrome_variant,
+        )
         pm = _colored_pm(name, ext, self._role_key(), not self.isEnabled())
         if pm.isNull():
             self._paint_fallback(painter, rect)

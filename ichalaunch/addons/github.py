@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 
 import requests
 
-from ichalaunch.config.settings import settings
+from ichalaunch.config.settings import appdata_root, settings
 from ichalaunch.core.filesystem import (
     TOC_FOLDER_MISMATCH_MSG,
     AddonTocMismatch,
@@ -43,6 +43,9 @@ UNAUTH_API_BUDGET_PER_HOUR = 60
 UNAUTH_BUDGET_WINDOW_SEC = 60 * 60
 _SCAN_QUEUE_KEY = "addon_update_scan_queue"
 _URL_REACH_CACHE_TTL_SEC = 10 * 60
+_URL_REACH_DISK_TTL_OK_SEC = 7 * 24 * 3600
+_URL_REACH_DISK_TTL_FAIL_SEC = 24 * 3600
+_URL_REACH_DISK_PATH = appdata_root() / "git_url_reach_cache.json"
 _URL_REACH_TIMEOUT_SEC = 2.5
 
 # Updated after each GitHub API response (None if header missing).
@@ -53,6 +56,7 @@ _budget_window_start: float | None = None
 _budget_window_used: int = 0
 # url -> (monotonic_ts, reachable)
 _url_reach_cache: dict[str, tuple[float, bool]] = {}
+_url_reach_disk_loaded = False
 _token_rejected_pending: bool = False
 
 
@@ -246,12 +250,69 @@ def clear_addon_scan_queue() -> None:
         _save_scan_queue(None)
 
 
+def _normalize_url_reach_key(url: str) -> str:
+    return (url or "").strip().rstrip("/").lower()
+
+
+def _url_reach_disk_ttl(ok: bool) -> float:
+    return float(_URL_REACH_DISK_TTL_OK_SEC if ok else _URL_REACH_DISK_TTL_FAIL_SEC)
+
+
+def _load_url_reach_disk_cache() -> None:
+    global _url_reach_disk_loaded
+    if _url_reach_disk_loaded:
+        return
+    _url_reach_disk_loaded = True
+    path = _URL_REACH_DISK_PATH
+    try:
+        if not path.is_file():
+            return
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return
+    if not isinstance(raw, dict):
+        return
+    now = time.time()
+    for key, entry in raw.items():
+        if not isinstance(key, str) or not isinstance(entry, dict):
+            continue
+        ok_raw = entry.get("ok")
+        ts_raw = entry.get("ts")
+        if not isinstance(ok_raw, bool) or not isinstance(ts_raw, (int, float)):
+            continue
+        age = now - float(ts_raw)
+        if age > _url_reach_disk_ttl(ok_raw):
+            continue
+        _url_reach_cache[key] = (time.monotonic() - age, ok_raw)
+
+
+def _persist_url_reach_disk(key: str, ok: bool) -> None:
+    path = _URL_REACH_DISK_PATH
+    try:
+        existing: dict[str, Any] = {}
+        if path.is_file():
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                existing = loaded
+        existing[key] = {"ok": bool(ok), "ts": time.time()}
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(existing, indent=0, sort_keys=True), encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def clear_github_url_cache() -> None:
     """Drop in-process GitHub browse URL reachability cache."""
     from ichalaunch.addons.git_refs import clear_git_refs_cache
     from ichalaunch.addons.tip_index import clear_tip_index_cache
 
+    global _url_reach_disk_loaded
     _url_reach_cache.clear()
+    _url_reach_disk_loaded = False
+    try:
+        _URL_REACH_DISK_PATH.unlink(missing_ok=True)
+    except Exception:  # noqa: BLE001
+        pass
     clear_github_browse_cache()
     clear_git_refs_cache()
     clear_tip_index_cache()
@@ -922,24 +983,26 @@ def github_tag_page_url(owner: str, repo: str, tag: str) -> str:
 
 def github_url_reachable_cached(url: str) -> bool | None:
     """Return cached reachability or None if unknown / expired."""
-    key = (url or "").strip().rstrip("/").lower()
+    key = _normalize_url_reach_key(url)
     if not key:
         return False
+    _load_url_reach_disk_cache()
     hit = _url_reach_cache.get(key)
     if not hit:
         return None
     ts, ok = hit
-    if (time.monotonic() - ts) > _URL_REACH_CACHE_TTL_SEC:
+    ttl = _URL_REACH_CACHE_TTL_SEC if (time.monotonic() - ts) <= _URL_REACH_CACHE_TTL_SEC else _url_reach_disk_ttl(ok)
+    if (time.monotonic() - ts) > ttl:
         return None
     return ok
 
 
 def github_url_reachable(url: str, *, timeout: float = _URL_REACH_TIMEOUT_SEC) -> bool:
-    """Lightweight HEAD/GET probe for a browse URL. Results are cached briefly."""
+    """Lightweight HEAD/GET probe for a browse URL. Results are cached in memory and on disk."""
     text = (url or "").strip()
     if not text:
         return False
-    key = text.rstrip("/").lower()
+    key = _normalize_url_reach_key(text)
     cached = github_url_reachable_cached(text)
     if cached is not None:
         return cached
@@ -967,6 +1030,7 @@ def github_url_reachable(url: str, *, timeout: float = _URL_REACH_TIMEOUT_SEC) -
     except requests.RequestException:
         ok = False
     _url_reach_cache[key] = (time.monotonic(), ok)
+    _persist_url_reach_disk(key, ok)
     return ok
 
 

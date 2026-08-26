@@ -900,6 +900,203 @@ def test_hd_patch_e_includes_caption():
     assert "standalone" in wdesc
     print("OK hd patch-e includes caption")
 
+
+def test_hd_dxvk_catalog_and_patch_v():
+    """HD DXVK checkbox + Patch-C installs as patch-v.mpq."""
+    import tarfile
+    import tempfile
+    from pathlib import Path
+
+    from ichalaunch.core.filesystem import extract_tar
+    from ichalaunch.core.paths import data_file
+    from ichalaunch.mods.installer import (
+        _pick_dxvk_win32_d3d9,
+        get_mod,
+        mod_contains_caption,
+        mod_catalog_map,
+        resolve_mod_toggle,
+    )
+
+    hd = get_mod("hd_dxvk")
+    assert hd is not None
+    assert hd.get("category") == "HD Graphics"
+    assert hd.get("list_label") == "Recommended"
+    assert hd.get("kind") == "dxvk_hd"
+    assert "v2.7.1" in str((hd.get("source") or {}).get("url") or "")
+    assert "Recommended" in mod_contains_caption(hd)
+
+    catalog = mod_catalog_map()
+    hd_graphics = [m["id"] for m in catalog.values() if m.get("category") == "HD Graphics"]
+    assert hd_graphics[0] == "hd_dxvk"
+    assert hd_graphics[1] == "vanilla_helpers"
+    assert hd_graphics[2] == "hd_patch_a"
+    assert "dxvk" in (hd.get("dependencies") or [])
+    assert "vanilla_helpers" not in (hd.get("dependencies") or [])
+
+    # mods.json array order (source of Client tab row order within a category)
+    from ichalaunch.mods.installer import load_mod_catalog
+
+    json_hd = [m["id"] for m in load_mod_catalog() if m.get("category") == "HD Graphics"]
+    assert json_hd[0] == "hd_dxvk", json_hd[:5]
+    assert json_hd.index("hd_dxvk") < json_hd.index("vanilla_helpers")
+    for other in json_hd[1:]:
+        assert json_hd.index("hd_dxvk") < json_hd.index(other)
+
+    dxvk = get_mod("dxvk")
+    assert "hd_dxvk" not in (dxvk.get("conflicts") or [])
+    assert "vanilla_helpers" not in (dxvk.get("dependencies") or [])
+    vf = get_mod("vanillafixes")
+    assert "vanilla_helpers" not in (vf.get("dependencies") or [])
+
+    from ichalaunch.config.settings import settings as s
+
+    saved_dx = bool(s.desired_mods.get("dxvk"))
+    saved_vh = bool(s.desired_mods.get("vanilla_helpers"))
+    saved_hd = bool(s.desired_mods.get("hd_dxvk"))
+    try:
+        s.set_desired_mod("dxvk", False)
+        s.set_desired_mod("vanilla_helpers", False)
+        s.set_desired_mod("hd_dxvk", False)
+        hd_toggle = resolve_mod_toggle("hd_dxvk", True)
+        assert hd_toggle.get("hd_dxvk") is True
+        assert hd_toggle.get("dxvk") is True
+        # Helpers are for HD patches only — not auto-enabled by DXVK 2.7.1.
+        assert "vanilla_helpers" not in hd_toggle or hd_toggle.get("vanilla_helpers") is not True
+    finally:
+        s.set_desired_mod("dxvk", saved_dx)
+        s.set_desired_mod("vanilla_helpers", saved_vh)
+        s.set_desired_mod("hd_dxvk", saved_hd)
+
+    patch_c = get_mod("hd_patch_c")
+    assert patch_c is not None
+    assert patch_c.get("name") == "Reforged HD — Patch-C (Creatures)"
+    assert "Patch-V" not in str(patch_c.get("name") or "")
+    desc = str(patch_c.get("description") or "").lower()
+    assert "patch-v.mpq" in desc
+    assert "patch-c" in desc
+    assert patch_c.get("destination") == "Data/patch-v.mpq"
+    assert "patch-v.mpq" in (patch_c.get("detect") or {}).get("data_mpq", [])
+    assert "patch-C.mpq" in (patch_c.get("detect") or {}).get("data_mpq", [])
+    assert str((patch_c.get("source") or {}).get("url") or "").endswith("/patches/patch-C.mpq")
+    assert "Creatures" in mod_contains_caption(patch_c)
+
+    conf = data_file("dxvk.conf")
+    assert conf.is_file()
+    text = conf.read_text(encoding="utf-8")
+    assert "dxvk.logLevel = none" in text
+    assert "d3d9.dpiAware = False" in text
+    assert "DXVK 2.7.1" in text
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        arc = root / "dxvk-2.7.1.tar.gz"
+        payload = root / "payload"
+        (payload / "x64").mkdir(parents=True)
+        (payload / "x32").mkdir(parents=True)
+        (payload / "x64" / "d3d9.dll").write_bytes(b"x64")
+        (payload / "x32" / "d3d9.dll").write_bytes(b"x32")
+        with tarfile.open(arc, "w:gz") as tf:
+            tf.add(payload / "x32", arcname="dxvk-2.7.1/x32")
+            tf.add(payload / "x64", arcname="dxvk-2.7.1/x64")
+        extracted = extract_tar(arc, root / "out")
+        picked = _pick_dxvk_win32_d3d9(extracted)
+        assert picked.read_bytes() == b"x32"
+
+    print("OK hd dxvk catalog and patch-v install target")
+
+
+def test_hd_dxvk_disable_restores_vf_layer():
+    """Disabling DXVK 2.7.1 keeps VF+Vulkan and reinstalls bundled dll/conf."""
+    import tempfile
+    from pathlib import Path
+    from unittest.mock import patch
+
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods import installer as inst
+    from ichalaunch.mods.installer import detect_actual_state, resolve_mod_toggle
+
+    keys = ("desired_mods", "user_set_mods", "installed_mods", "game_path", "addons_path")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        s.set(
+            "desired_mods",
+            {
+                "dxvk": True,
+                "hd_dxvk": True,
+                "vanilla_helpers": False,
+                "hd_patch_a": False,
+            },
+        )
+        s.set("user_set_mods", [])
+        off = resolve_mod_toggle("hd_dxvk", False)
+        assert off.get("hd_dxvk") is False
+        assert "dxvk" not in off or off.get("dxvk") is not False
+        assert "vanilla_helpers" not in off
+
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            (game / "VanillaFixes.exe").write_bytes(b"MZ")
+            (game / "d3d9.dll").write_bytes(b"hd-dll")
+            (game / "dxvk.conf").write_text(
+                "# Turtle WoW (1.12) - DXVK 2.7.1\ndxvk.logLevel = none\n",
+                encoding="utf-8",
+            )
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("installed_mods", {"hd_dxvk": {"name": "DXVK 2.7.1"}, "dxvk": {"name": "DXVK"}})
+            clear_fs_caches()
+
+            actual = detect_actual_state(game)
+            assert actual.get("hd_dxvk") is True
+            assert actual.get("dxvk") is True
+
+            # VF-bundled conf has no 2.7.1 marker → hd_dxvk must not detect.
+            (game / "dxvk.conf").write_text("# VanillaFixes DXVK\ndxvk.logLevel = none\n", encoding="utf-8")
+            clear_fs_caches()
+            actual2 = detect_actual_state(game)
+            assert actual2.get("hd_dxvk") is False
+            assert actual2.get("dxvk") is True
+
+            (game / "dxvk.conf").write_text(
+                "# Turtle WoW (1.12) - DXVK 2.7.1\ndxvk.logLevel = none\n",
+                encoding="utf-8",
+            )
+            clear_fs_caches()
+            called: list[str] = []
+
+            def _fake_install(mod_id, progress=None, prefer_latest=False):
+                called.append(mod_id)
+                (game / "d3d9.dll").write_bytes(b"vf-dll")
+                (game / "dxvk.conf").write_text("# VanillaFixes DXVK restored\n", encoding="utf-8")
+                return []
+
+            with patch.object(inst, "install_mod", side_effect=_fake_install):
+                inst.remove_mod("hd_dxvk")
+            assert called == ["dxvk"]
+            assert (game / "d3d9.dll").read_bytes() == b"vf-dll"
+            assert "VanillaFixes DXVK restored" in (game / "dxvk.conf").read_text(encoding="utf-8")
+            assert "hd_dxvk" not in s.installed_mods
+
+            # Full DXVK removal when VF+Vulkan is not desired.
+            (game / "d3d9.dll").write_bytes(b"hd-dll")
+            (game / "dxvk.conf").write_text("# DXVK 2.7.1\n", encoding="utf-8")
+            s.set("desired_mods", {"dxvk": False, "hd_dxvk": False})
+            s.set("installed_mods", {"hd_dxvk": {"name": "DXVK 2.7.1"}})
+            called.clear()
+            with patch.object(inst, "install_mod", side_effect=_fake_install):
+                inst.remove_mod("hd_dxvk")
+            assert called == []
+            assert not (game / "d3d9.dll").exists()
+            assert not (game / "dxvk.conf").exists()
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK hd dxvk disable restores vf layer")
+
+
 def test_mod_author_labels():
     from ichalaunch.ui.widgets.common import mod_author
 
@@ -910,6 +1107,59 @@ def test_mod_author_labels():
     explicit = {"id": "x", "author": "Custom Author"}
     assert mod_author(explicit) == "Custom Author"
     print("OK mod author labels")
+
+
+def test_hd_graphics_project_link_only():
+    """HD Graphics rows expose Project Reforged open-link, never Open-in-Git."""
+    from ichalaunch.mods.installer import load_mod_catalog
+    from ichalaunch.ui.widgets.common import mod_git_url, mod_open_url
+
+    reforged = "https://projectreforged.github.io/vanilla/downloads/turtle/"
+    for mod in load_mod_catalog():
+        if mod.get("category") != "HD Graphics":
+            continue
+        assert mod_git_url(mod) is None, mod.get("id")
+        open_url = mod_open_url(mod)
+        assert open_url == reforged, (mod.get("id"), open_url)
+    print("OK HD graphics project link only")
+
+
+def test_dxvk_disable_cascades_dependents():
+    """Unchecking VF+Vulkan clears HD DXVK / cursor; helpers stay unless only for HD."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.mods.installer import resolve_mod_toggle
+
+    keys = ("desired_mods", "user_set_mods")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        s.set(
+            "desired_mods",
+            {
+                "dxvk": True,
+                "hd_dxvk": True,
+                "vanilla_helpers": True,
+                "dxvk_big_cursor": True,
+                "hd_patch_a": True,
+            },
+        )
+        s.set("user_set_mods", [])
+        off = resolve_mod_toggle("dxvk", False)
+        assert off.get("dxvk") is False
+        assert off.get("hd_dxvk") is False
+        assert off.get("dxvk_big_cursor") is False
+        # vanilla_helpers does not depend on dxvk; HD patches keep it.
+        assert "vanilla_helpers" not in off or off.get("vanilla_helpers") is not False
+        assert "hd_patch_a" not in off or off.get("hd_patch_a") is not False
+
+        # Enabling VF+Vulkan alone must not force VanillaHelpers.
+        s.set("desired_mods", {})
+        on_dxvk = resolve_mod_toggle("dxvk", True)
+        assert on_dxvk.get("dxvk") is True
+        assert "vanilla_helpers" not in on_dxvk or on_dxvk.get("vanilla_helpers") is not True
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+    print("OK dxvk disable cascades dependents")
 
 
 def test_vanillafixes_dxvk_reconcile():
@@ -1467,6 +1717,99 @@ def test_dxvk_switch_keeps_vanillafixes_exe():
         for k in keys:
             s.set(k, saved[k])
     print("OK dxvk switch keeps vanillafixes exe")
+
+
+def test_dxvk_disable_removes_vanillafixes_one_apply():
+    """Unchecking VF+Vulkan must clear VanillaFixes.exe in a single Apply.
+
+    Previously remove_mod(dxvk) only deleted d3d9.dll/dxvk.conf, leaving
+    VanillaFixes.exe. Rescan then re-checked VanillaFixes — a second Apply.
+    """
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.detect import sync_desired_mods_from_disk
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import (
+        apply_desired_state,
+        apply_mod_toggle,
+        detect_actual_state,
+        plan_changes,
+    )
+
+    keys = (
+        "game_path",
+        "addons_path",
+        "desired_mods",
+        "user_set_mods",
+        "installed_mods",
+        "vanillafixes_enabled",
+    )
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            (game / "VanillaFixes.exe").write_bytes(b"MZ" * 200)
+            (game / "VfPatcher.dll").write_bytes(b"MZ" * 200)
+            (game / "d3d9.dll").write_bytes(b"MZ" * 200)
+            (game / "dxvk.conf").write_text(
+                "DXVK 2.7.1\nd3d9.enlargeHardwareCursor = 2\n", encoding="utf-8"
+            )
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set(
+                "desired_mods",
+                {"dxvk": True, "hd_dxvk": True, "dxvk_big_cursor": True},
+            )
+            s.set("user_set_mods", ["dxvk", "hd_dxvk", "dxvk_big_cursor"])
+            s.set(
+                "installed_mods",
+                {"dxvk": {}, "hd_dxvk": {}, "dxvk_big_cursor": {}},
+            )
+            s.set("vanillafixes_enabled", True)
+            clear_fs_caches()
+
+            apply_mod_toggle("dxvk", False)
+            assert not s.desired_mods.get("dxvk")
+            assert not s.desired_mods.get("hd_dxvk")
+            plan = plan_changes()
+            assert any(c.get("id") == "dxvk" and c.get("action") == "remove" for c in plan)
+
+            done = apply_desired_state()
+            assert "- dxvk" in done, done
+            clear_fs_caches()
+            assert not (game / "VanillaFixes.exe").exists(), list(game.iterdir())
+            assert not (game / "d3d9.dll").exists()
+            assert not (game / "dxvk.conf").exists()
+            actual = detect_actual_state(game)
+            assert not actual.get("dxvk") and not actual.get("vanillafixes"), actual
+            assert plan_changes() == [], plan_changes()
+
+            # Rescan must not resurrect VanillaFixes as desired.
+            synced = sync_desired_mods_from_disk()
+            assert not synced.get("vanillafixes")
+            assert not synced.get("dxvk")
+            assert plan_changes() == [], plan_changes()
+
+            # Switching DXVK → regular VanillaFixes still keeps the launcher exe.
+            (game / "VanillaFixes.exe").write_bytes(b"MZ" * 200)
+            (game / "VfPatcher.dll").write_bytes(b"MZ" * 200)
+            (game / "d3d9.dll").write_bytes(b"MZ" * 200)
+            (game / "dxvk.conf").write_text("d3d9.enlargeHardwareCursor = 2\n", encoding="utf-8")
+            s.set("desired_mods", {"dxvk": True, "vanillafixes": False})
+            s.set("user_set_mods", ["dxvk"])
+            clear_fs_caches()
+            apply_mod_toggle("vanillafixes", True)
+            assert s.desired_mods.get("vanillafixes")
+            assert not s.desired_mods.get("dxvk")
+            apply_desired_state()
+            assert (game / "VanillaFixes.exe").is_file()
+            assert not (game / "d3d9.dll").exists()
+            assert not (game / "dxvk.conf").exists()
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK dxvk disable removes vanillafixes one apply")
 
 
 def test_detect_game_ravencraft_subfolder():
@@ -4212,11 +4555,11 @@ def test_addon_row_update_button_is_square():
     from ichalaunch.ui.widgets.common import (
         AddonRow,
         AddonRowUpdateButton,
-        GLUE_ROW_H,
+        RefreshReinstallButton,
         _UPDATE_BTN_SIDE,
         _row_update_arrow_pixmap,
     )
-    from ichalaunch.ui.widgets.glue_panel_button import GluePanelButton
+    from ichalaunch.ui.widgets.glue_panel_button import GLUE_ROW_H
 
     app = QApplication.instance() or QApplication([])
     assert _UPDATE_BTN_SIDE == GLUE_ROW_H
@@ -4261,9 +4604,10 @@ def test_addon_row_update_button_is_square():
     upd = row._update_btn_widget
     assert upd._chrome_h == GLUE_ROW_H
     assert upd.width() == upd.height()
-    assert isinstance(row.reinstall_btn, GluePanelButton)
+    assert isinstance(row.reinstall_btn, RefreshReinstallButton)
     ri = row.reinstall_btn
     assert ri.height() == GLUE_ROW_H
+    assert ri.width() == GLUE_ROW_H
     # Plate height matches Reinstall; widget may be taller for glow pad.
     assert upd._chrome_h == ri.height(), (
         f"Update chrome {upd._chrome_h} != Reinstall height {ri.height()}"
@@ -4273,6 +4617,180 @@ def test_addon_row_update_button_is_square():
     row.close()
     btn.close()
     print("OK addon row Update is square and matches Reinstall height")
+
+
+def test_addon_row_install_button_matches_update_plate():
+    """Available-row Install is a square arrow plate like Update, without glow."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.widgets.common import (
+        AddonRow,
+        AddonRowInstallButton,
+        AddonRowUpdateButton,
+        _row_install_arrow_pixmap,
+        _row_update_arrow_pixmap,
+    )
+    from ichalaunch.ui.widgets.glue_panel_button import GLUE_ROW_H
+
+    app = QApplication.instance() or QApplication([])
+    install = AddonRowInstallButton()
+    install.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    install.show()
+    assert install.width() == GLUE_ROW_H
+    assert install.height() == GLUE_ROW_H
+    assert install.width() == install.height()
+    down = _row_install_arrow_pixmap()
+    up = _row_update_arrow_pixmap()
+    assert not down.isNull()
+    assert not up.isNull()
+    assert down.height() == up.height()
+
+    entry = {
+        "name": "pfUI",
+        "folder": "pfUI",
+        "repo": "https://github.com/shagu/pfUI",
+        "source": "github",
+    }
+    row = AddonRow(entry, status="available")
+    row.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    row.show()
+    install_btn = row.findChild(AddonRowInstallButton)
+    assert install_btn is not None
+    update_row = AddonRow(entry, status="Update available", never_update=False)
+    assert isinstance(update_row._update_btn_widget, AddonRowUpdateButton)
+    install.close()
+    row.close()
+    print("OK addon row Install matches Update square plate without glow")
+
+
+def test_refresh_reinstall_uses_wow_art():
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.core.paths import theme_file
+    from ichalaunch.ui.widgets.common import RefreshReinstallButton, _refresh_icon_pixmap
+    from ichalaunch.ui.widgets.glue_panel_button import GLUE_ROW_H, GLUE_ROW_MENU_W
+
+    app = QApplication.instance() or QApplication([])
+    assert theme_file("UI-RefreshButton.PNG").is_file()
+    icon = _refresh_icon_pixmap()
+    assert not icon.isNull()
+    btn = RefreshReinstallButton()
+    assert btn.width() == GLUE_ROW_MENU_W
+    assert btn.height() == GLUE_ROW_H
+    print("OK addon reinstall uses UI-RefreshButton art at cog size")
+
+
+def test_addon_row_reinstall_aligns_with_delete_bottom():
+    """Reinstall refresh art bottom must match PassRemove circle bottom (±2px)."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QImage
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.widgets.common import (
+        AddonRow,
+        PassRemoveButton,
+        RefreshReinstallButton,
+        _REINSTALL_ICON_Y_NUDGE,
+        _pass_icon_pixmap,
+        _refresh_icon_pixmap,
+    )
+
+    def _opaque_bottom(pm) -> int:
+        img = pm.toImage().convertToFormat(QImage.Format.Format_ARGB32)
+        bottom = -1
+        for y in range(img.height()):
+            for x in range(img.width()):
+                if ((img.pixel(x, y) >> 24) & 0xFF) > 8:
+                    bottom = y
+                    break
+        assert bottom >= 0, "icon has no opaque pixels"
+        return bottom
+
+    app = QApplication.instance() or QApplication([])
+    entry = {
+        "name": "pfUI",
+        "folder": "pfUI",
+        "repo": "https://github.com/shagu/pfUI",
+        "repository": "shagu/pfUI",
+        "source": "github",
+        "tag": "v1.0",
+    }
+    row = AddonRow(entry, status="Installed")
+    row.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    row.resize(900, 64)
+    row.show()
+    row.adjustSize()
+
+    ri = row.reinstall_btn
+    rm = row.findChild(PassRemoveButton)
+    assert isinstance(ri, RefreshReinstallButton)
+    assert rm is not None
+    assert ri.height() == rm.height()
+
+    refresh = _refresh_icon_pixmap()
+    pass_pm = _pass_icon_pixmap(pressed=False)
+    assert not refresh.isNull() and not pass_pm.isNull()
+
+    # Same centering formula as paintEvent (idle / not pressed).
+    ri_draw_y = ri.rect().center().y() - refresh.height() // 2 + _REINSTALL_ICON_Y_NUDGE
+    rm_draw_y = rm.rect().center().y() - pass_pm.height() // 2
+    ri_art_bottom = ri.mapTo(row, ri.rect().topLeft()).y() + ri_draw_y + _opaque_bottom(refresh)
+    rm_art_bottom = rm.mapTo(row, rm.rect().topLeft()).y() + rm_draw_y + _opaque_bottom(pass_pm)
+    delta = abs(ri_art_bottom - rm_art_bottom)
+    assert delta <= 2, (
+        f"reinstall art bottom {ri_art_bottom} vs delete {rm_art_bottom} "
+        f"(delta={delta}, nudge={_REINSTALL_ICON_Y_NUDGE})"
+    )
+    row.close()
+    print("OK addon row reinstall art bottom aligns with delete circle")
+
+
+def test_spellbook_page_buttons_use_wow_art():
+    """Addons Prev/Next use spellbook page icons at GluePanelButton height."""
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.core.paths import theme_file
+    from ichalaunch.ui.widgets.common import SpellbookPageButton, _spellbook_page_pixmap
+    from ichalaunch.ui.widgets.glue_panel_button import GLUE_BTN_H
+
+    app = QApplication.instance() or QApplication([])
+    for name in (
+        "UI-SpellbookIcon-NextPage-Up.PNG",
+        "UI-SpellbookIcon-NextPage-Down.PNG",
+        "UI-SpellbookIcon-PrevPage-Up.PNG",
+        "UI-SpellbookIcon-PrevPage-Down.PNG",
+    ):
+        assert theme_file(name).is_file(), name
+    prev_up = _spellbook_page_pixmap("prev", pressed=False)
+    prev_down = _spellbook_page_pixmap("prev", pressed=True)
+    next_up = _spellbook_page_pixmap("next", pressed=False)
+    next_down = _spellbook_page_pixmap("next", pressed=True)
+    assert not prev_up.isNull() and not prev_down.isNull()
+    assert not next_up.isNull() and not next_down.isNull()
+    assert prev_up.height() == GLUE_BTN_H
+    prev = SpellbookPageButton("prev")
+    nxt = SpellbookPageButton("next")
+    assert prev.height() == GLUE_BTN_H
+    assert nxt.height() == GLUE_BTN_H
+    assert prev.width() == GLUE_BTN_H
+    assert nxt.width() == GLUE_BTN_H
+    assert prev.accessibleName() == "Previous page"
+    assert nxt.accessibleName() == "Next page"
+    print("OK addons pagination uses spellbook page icons at GLUE_BTN_H")
+
+
+def test_floor_lighting_overlay():
+    from ichalaunch.core.paths import theme_file
+    from ichalaunch.ui.main_window import _floor_lighting_pixmap
+
+    assert theme_file("Legion_DH_Lighting_02.PNG").is_file()
+    pm = _floor_lighting_pixmap()
+    assert not pm.isNull()
+    # Source is 128×512; rotated 90° CW → 512×128.
+    assert pm.width() == 512
+    assert pm.height() == 128
+    print("OK floor lighting pixmap is rotated and tinted")
 
 
 def test_addon_settings_never_update_on_save():
@@ -6109,6 +6627,829 @@ def test_addons_defers_list_build_while_scanning():
     print("OK addons defers list build while scanning")
 
 
+def test_addons_available_pagination_after_reveal():
+    """Prev/Next must not WA_DontShowOnScreen + clear() revealed rows (Qt abort)."""
+    from unittest.mock import patch
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.pages.addons import PAGE_SIZE, AddonsPage, _reveal_item_widgets
+
+    app = QApplication.instance() or QApplication([])
+    with patch("ichalaunch.addons.github.github_url_reachable_cached", return_value=True):
+        page = AddonsPage()
+        page.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        page.show()
+        page.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, False)
+        page._lists_ready = True
+        page._filtered_available = [
+            {
+                "name": f"Addon {i}",
+                "folder": f"addon{i}",
+                "repo": f"https://github.com/example/repo{i}",
+                "source": "github",
+            }
+            for i in range(PAGE_SIZE + 7)
+        ]
+        page._page_index = 0
+        page.filter_box.blockSignals(True)
+        page.filter_box.setCurrentText("Available")
+        page.filter_box.blockSignals(False)
+        page._apply_section_visibility("Available")
+        page._render_available_page(light=False)
+        _reveal_item_widgets(page.list, page)
+        first = page.list.itemWidget(page.list.item(0))
+        assert first is not None
+        assert not first.testAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
+
+        page._page(1)
+        for _ in range(20):
+            app.processEvents()
+
+        assert page._page_index == 1
+        assert page.list.count() == 7
+        row = page.list.itemWidget(page.list.item(0))
+        assert row is not None
+        assert not row.testAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
+
+        page.next_btn.clicked.emit()
+        for _ in range(4):
+            app.processEvents()
+        assert page._page_index == 1  # only 2 pages
+
+        page._page(-1)
+        for _ in range(20):
+            app.processEvents()
+        assert page._page_index == 0
+        assert page.list.count() == PAGE_SIZE
+        page._cancel_all_git_probes()
+        for _ in range(100):
+            app.processEvents()
+        page.close()
+        for _ in range(50):
+            app.processEvents()
+    print("OK addons available pagination after reveal")
+
+
+def _addons_page_fully_loaded(page) -> None:
+    """Idle addons page — no scan, flush, or reveal work in flight."""
+    from PySide6.QtCore import Qt
+
+    from ichalaunch.ui.pages.addons import _reveal_item_widgets
+
+    page._lists_ready = True
+    page._dirty = False
+    page._scanning = False
+    page._check_busy = False
+    page._refreshing = False
+    page._rendering_avail = False
+    page._revealing = False
+    page._pending_avail_search = False
+    page._pending_page_index = None
+    page._pending_list_work.clear()
+    page.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, False)
+    page.show()
+    _reveal_item_widgets(page.list, page)
+    if page._want_installed_visible:
+        _reveal_item_widgets(page.installed_list, page)
+
+
+def test_addons_all_filter_pagination_fully_loaded():
+    """All filter + Prev/Next after lists are revealed (primary user crash path)."""
+    from unittest.mock import patch
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.addons.github import load_catalog
+    from ichalaunch.ui.pages.addons import PAGE_SIZE, AddonsPage
+
+    app = QApplication.instance() or QApplication([])
+    with patch("ichalaunch.addons.github.github_url_reachable_cached", return_value=True):
+        page = AddonsPage()
+        page.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        page.show()
+
+        # Real catalog size — HWND pressure matches production pagination.
+        catalog = load_catalog()
+        page._filtered_available = [
+            e
+            for e in catalog
+            if e.get("repo") and (e.get("folder") or e.get("name"))
+        ]
+        assert len(page._filtered_available) > PAGE_SIZE
+
+        page.filter_box.blockSignals(True)
+        page.filter_box.setCurrentText("All")
+        page.filter_box.blockSignals(False)
+        page._apply_section_visibility("All")
+
+        # Installed column live beside Available (All mode).
+        page._do_refresh()
+        _addons_page_fully_loaded(page)
+        assert page.filter_box.currentText() == "All"
+        assert page.installed_list.count() > 0
+        assert page.list.count() == PAGE_SIZE
+        assert not page.lists_mutating()
+
+        for delta, expected in ((1, 1), (1, 2), (-1, 1), (-1, 0)):
+            page._page(delta)
+            for _ in range(80):
+                app.processEvents()
+            assert page._page_index == expected
+
+        page._cancel_all_git_probes()
+        for _ in range(200):
+            app.processEvents()
+        page.close()
+        for _ in range(100):
+            app.processEvents()
+    print("OK addons all-filter pagination when fully loaded")
+
+
+def test_cancel_git_url_checks_orphans_running_threads():
+    """Cancel must keep running QThreads alive — GC mid-run aborts Qt."""
+    import gc
+    import time
+    from unittest.mock import patch
+
+    from PySide6.QtCore import QObject
+    from PySide6.QtWidgets import QApplication
+
+    import ichalaunch.ui.widgets.common as common
+    from ichalaunch.ui.widgets.common import (
+        cancel_git_url_checks,
+        drain_orphan_git_url_threads,
+    )
+
+    app = QApplication.instance() or QApplication([])
+    owner = QObject()
+
+    def _slow_reachable(url: str, *, timeout: float = 2.5) -> bool:  # noqa: ARG001
+        time.sleep(0.25)
+        return True
+
+    with patch(
+        "ichalaunch.addons.github.github_url_reachable",
+        side_effect=_slow_reachable,
+    ):
+        # Manually start a probe thread (UI no longer auto-probes on mount).
+        thread = common._BrowseUrlCheckThread("https://github.com/example/orphan-probe")
+        setattr(owner, "_git_url_threads", [thread])
+        setattr(owner, "_git_url_check_gen", 1)
+        setattr(owner, "_git_url_pending", thread._url)
+        thread.start()
+        assert thread.isRunning()
+        alive = thread
+        cancel_git_url_checks(owner)
+        assert getattr(owner, "_git_url_threads", []) == []
+        assert alive in common._ORPHAN_GIT_URL_THREADS
+        # Drop every other ref and force GC — must not destroy the running QThread.
+        del thread
+        gc.collect()
+        assert common._shiboken_is_valid(alive)
+        # Still running (or just finished but not yet reaped from the orphan list).
+        assert alive.isRunning() or alive in common._ORPHAN_GIT_URL_THREADS
+        drain_orphan_git_url_threads(wait_ms=2000)
+        for _ in range(40):
+            app.processEvents()
+        assert alive not in common._ORPHAN_GIT_URL_THREADS
+    print("OK cancel git url checks orphans running threads")
+
+
+def test_addons_rapid_pagination_spawns_no_browse_url_threads():
+    """Rapid Next/Prev must not spawn Open-in-Git reachability probe threads."""
+    import gc
+    from unittest.mock import patch
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    import ichalaunch.ui.widgets.common as common
+    from ichalaunch.addons.github import clear_github_url_cache, load_catalog
+    from ichalaunch.ui.pages.addons import PAGE_SIZE, AddonsPage, _reveal_item_widgets
+    from ichalaunch.ui.widgets.common import drain_orphan_git_url_threads
+
+    app = QApplication.instance() or QApplication([])
+    clear_github_url_cache()
+    drain_orphan_git_url_threads(wait_ms=100)
+
+    started: list[object] = []
+    real_init = common._BrowseUrlCheckThread.__init__
+
+    def _track_init(self, url: str) -> None:  # noqa: ANN001
+        started.append(url)
+        real_init(self, url)
+
+    with patch.object(common._BrowseUrlCheckThread, "__init__", _track_init):
+        page = AddonsPage()
+        page.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        page.show()
+        page.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, False)
+        page._lists_ready = True
+        catalog = load_catalog()
+        page._filtered_available = [
+            e
+            for e in catalog
+            if e.get("repo") and (e.get("folder") or e.get("name"))
+        ]
+        assert len(page._filtered_available) > PAGE_SIZE * 2
+        page._page_index = 0
+        page.filter_box.blockSignals(True)
+        page.filter_box.setCurrentText("All")
+        page.filter_box.blockSignals(False)
+        page._applied_filter_mode = "All"
+        page._applied_cat_filter = page.cat_box.currentText()
+        page._want_installed_visible = True
+        page._want_avail_visible = True
+        page._apply_section_visibility("All")
+        page._render_available_page(light=False)
+        _reveal_item_widgets(page.list, page)
+
+        row = page.list.itemWidget(page.list.item(0))
+        assert row is not None and row.open_git_btn is not None
+        assert row.open_git_btn.isVisible(), "Open-in-Git visible from known repo URL"
+
+        page.next_btn.clicked.emit()
+        gc.collect()
+        for _ in range(4):
+            app.processEvents()
+        page.next_btn.clicked.emit()
+        page.next_btn.clicked.emit()
+        page.prev_btn.clicked.emit()
+        gc.collect()
+        for _ in range(20):
+            app.processEvents()
+
+        for _ in range(10):
+            page.next_btn.clicked.emit()
+            page.prev_btn.clicked.emit()
+            gc.collect()
+            for _ in range(8):
+                app.processEvents()
+
+        assert not started, f"pagination must not spawn browse-url probes, got {len(started)}"
+        assert page.list.count() > 0
+        page._cancel_all_git_probes()
+        drain_orphan_git_url_threads(wait_ms=500)
+        for _ in range(50):
+            app.processEvents()
+        page.close()
+        for _ in range(50):
+            app.processEvents()
+        assert not common._ORPHAN_GIT_URL_THREADS
+    print("OK addons rapid pagination spawns no browse-url threads")
+
+
+def test_open_in_git_visible_without_probe_and_click_opens():
+    """Open-in-Git shows for known repo URLs without probing; click opens the URL."""
+    from unittest.mock import patch
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication, QHBoxLayout, QSizePolicy
+
+    import ichalaunch.ui.widgets.common as common
+    from ichalaunch.ui.pages.addons import AddonsPage, _reveal_item_widgets
+    from ichalaunch.ui.widgets.common import AddonRow
+
+    app = QApplication.instance() or QApplication([])
+    started: list[object] = []
+    real_init = common._BrowseUrlCheckThread.__init__
+
+    def _track_init(self, url: str) -> None:  # noqa: ANN001
+        started.append(url)
+        real_init(self, url)
+
+    opened: list[str] = []
+
+    def _fake_open(url: str) -> bool:
+        opened.append(str(url))
+        return True
+
+    with patch.object(common._BrowseUrlCheckThread, "__init__", _track_init), patch(
+        "ichalaunch.ui.pages.addons.open_url_in_browser",
+        side_effect=_fake_open,
+    ):
+        # Layout order on AddonRow: name → modules caret → Open-in-Git.
+        direct = AddonRow(
+            {
+                "name": "Order Probe",
+                "folder": "orderprobe",
+                "repo": "https://github.com/example/order",
+            },
+            status="available",
+            modules=["A", "B"],
+        )
+        found_order: list[str] = []
+
+        def _scan(lay) -> None:  # noqa: ANN001
+            if lay is None:
+                return
+            if isinstance(lay, QHBoxLayout):
+                for i in range(lay.count()):
+                    item = lay.itemAt(i)
+                    if item is None:
+                        continue
+                    w = item.widget()
+                    if w is direct.modules_toggle:
+                        found_order.append("caret")
+                    elif w is direct.open_git_btn:
+                        found_order.append("git")
+                    _scan(item.layout())
+            else:
+                for i in range(lay.count()):
+                    item = lay.itemAt(i)
+                    if item is not None:
+                        _scan(item.layout())
+
+        _scan(direct.layout())
+        assert found_order == ["caret", "git"], found_order
+        assert not direct.modules_toggle.isHidden()
+        assert direct.open_git_btn is not None and not direct.open_git_btn.isHidden()
+        # Tight name cluster spacing (name → caret → git).
+        name_row = None
+        root = direct.layout()
+        assert root is not None
+        top = root.itemAt(0)
+        assert top is not None and top.layout() is not None
+        for i in range(top.layout().count()):
+            item = top.layout().itemAt(i)
+            if item is None or item.layout() is None:
+                continue
+            lay = item.layout()
+            widgets = []
+            for j in range(lay.count()):
+                w = lay.itemAt(j).widget() if lay.itemAt(j) else None
+                if w is direct._name_lbl or w is direct.modules_toggle or w is direct.open_git_btn:
+                    widgets.append(w)
+            if len(widgets) >= 2:
+                name_row = lay
+                break
+        assert name_row is not None
+        assert name_row.spacing() <= 2
+        assert direct._name_lbl.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Maximum
+        # No-modules row: caret not in the name cluster layout.
+        no_mod = AddonRow(
+            {
+                "name": "Solo",
+                "folder": "solo",
+                "repo": "https://github.com/example/solo",
+            },
+            status="available",
+        )
+        solo_order: list[str] = []
+
+        def _scan_solo(lay) -> None:  # noqa: ANN001
+            if lay is None:
+                return
+            if isinstance(lay, QHBoxLayout):
+                for i in range(lay.count()):
+                    item = lay.itemAt(i)
+                    if item is None:
+                        continue
+                    w = item.widget()
+                    if w is no_mod.modules_toggle:
+                        solo_order.append("caret")
+                    elif w is no_mod.open_git_btn:
+                        solo_order.append("git")
+                    _scan_solo(item.layout())
+            else:
+                for i in range(lay.count()):
+                    item = lay.itemAt(i)
+                    if item is not None:
+                        _scan_solo(item.layout())
+
+        _scan_solo(no_mod.layout())
+        assert solo_order == ["git"], solo_order
+        no_mod.deleteLater()
+        direct.deleteLater()
+
+        page = AddonsPage()
+        page.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        page.show()
+        page.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, False)
+        page._lists_ready = True
+        page._filtered_available = [
+            {
+                "name": "Probe Addon",
+                "folder": "probe",
+                "repo": "https://github.com/example/probe",
+                "source": "github",
+            }
+        ]
+        page.filter_box.blockSignals(True)
+        page.filter_box.setCurrentText("Available")
+        page.filter_box.blockSignals(False)
+        page._applied_filter_mode = "Available"
+        page._applied_cat_filter = page.cat_box.currentText()
+        page._apply_section_visibility("Available")
+        page._render_available_page(light=False)
+        _reveal_item_widgets(page.list, page)
+        row = page.list.itemWidget(page.list.item(0))
+        assert row is not None and row.open_git_btn is not None
+        assert row.open_git_btn.isVisible()
+        assert not started, "mount must not start browse-url probe threads"
+        assert getattr(row, "_git_url_threads", None) in (None, [])
+
+        row.open_git_btn.click()
+        for _ in range(10):
+            app.processEvents()
+        assert opened == ["https://github.com/example/probe"]
+        assert not started, "click must open URL without spawning probe threads"
+        page.close()
+        for _ in range(20):
+            app.processEvents()
+    print("OK Open-in-Git visible without probe; click opens URL")
+
+
+def test_mod_check_row_links_after_author():
+    """Client ModCheckRow: open-link / Open-in-Git sit after the created-by tag."""
+    from PySide6.QtWidgets import QApplication, QHBoxLayout
+
+    from ichalaunch.ui.widgets.common import ModCheckRow
+
+    app = QApplication.instance() or QApplication([])
+    del app
+    row = ModCheckRow(
+        "probe",
+        "Probe Mod",
+        "desc",
+        author="AuthorName",
+    )
+    row.set_open_url("https://example.com/project")
+    row.set_git_url("https://github.com/example/probe")
+    assert not row.open_link_btn.isHidden()
+    assert not row.open_git_btn.isHidden()
+
+    found: list[str] = []
+
+    def _scan(lay) -> None:  # noqa: ANN001
+        if lay is None:
+            return
+        if isinstance(lay, QHBoxLayout):
+            for i in range(lay.count()):
+                item = lay.itemAt(i)
+                if item is None:
+                    continue
+                w = item.widget()
+                if w is row.author_lbl:
+                    found.append("author")
+                elif w is row.open_link_btn:
+                    found.append("open")
+                elif w is row.open_git_btn:
+                    found.append("git")
+                elif w is row.update_btn:
+                    found.append("update")
+                elif w is row.reinstall_btn:
+                    found.append("reinstall")
+                _scan(item.layout())
+        else:
+            for i in range(lay.count()):
+                item = lay.itemAt(i)
+                if item is not None:
+                    _scan(item.layout())
+
+    _scan(row.layout())
+    assert "author" in found and "open" in found and "git" in found, found
+    assert found.index("author") < found.index("open") < found.index("git"), found
+    # Action plates stay at the end; links are not clustered with them.
+    if "update" in found:
+        assert found.index("git") < found.index("update"), found
+    if "reinstall" in found:
+        assert found.index("git") < found.index("reinstall"), found
+    row.deleteLater()
+    print("OK ModCheckRow links after author")
+
+
+def test_open_git_icon_abuts_name_geometry():
+    """Visible Open-in-Git glyph must sit a small, intentional gap from name/author text.
+
+    Target ~6–8px visual gap (layout spacing 6). Fail if cramped (0), or if the old
+    QSS-inflated hit box is back (~36px glyph offset / 88px width).
+    """
+    from pathlib import Path
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QFontMetrics
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.widgets.common import (
+        AddonRow,
+        ModCheckRow,
+        _OPEN_GIT_INLINE_HIT,
+        _OPEN_GIT_INLINE_PX,
+    )
+
+    app = QApplication.instance() or QApplication([])
+    qss_path = Path(__file__).resolve().parent / "ichalaunch" / "ui" / "theme" / "stylesheet.qss"
+    app.setStyleSheet(qss_path.read_text(encoding="utf-8"))
+
+    def _assert_gap_ok(label: str, widget_gap: int, visual_gap: int) -> None:
+        assert 4 <= visual_gap <= 12, (
+            f"{label} visual gap {visual_gap}px not in 4..12 "
+            f"(widget_gap={widget_gap}; cramped≈0 or QSS-inflated≈36)"
+        )
+        assert 4 <= widget_gap <= 12, (
+            f"{label} widget gap {widget_gap}px not in 4..12"
+        )
+
+    def _visual_icon_left(btn) -> int:
+        # Inline plate left-aligns the pixmap; fall back to centered if wider.
+        if btn.width() <= _OPEN_GIT_INLINE_PX + 2:
+            return btn.geometry().left()
+        # Prefer left edge of painted glyph (inline left-align → 0 inset).
+        return btn.geometry().left()
+
+    def _gap_name_to_git(name_lbl, git_btn, *, intervening=None) -> tuple[int, int]:
+        """Return (widget_gap, visual_gap_to_icon)."""
+        app.processEvents()
+        name_right = name_lbl.geometry().right()
+        text_right = name_lbl.geometry().left() + QFontMetrics(name_lbl.font()).horizontalAdvance(
+            name_lbl.text()
+        )
+        anchor_right = max(name_right, text_right)
+        if intervening is not None and intervening.isVisible():
+            anchor_right = max(anchor_right, intervening.geometry().right())
+        widget_gap = git_btn.geometry().left() - anchor_right
+        visual_gap = _visual_icon_left(git_btn) - anchor_right
+        return widget_gap, visual_gap
+
+    # --- AddonRow (no modules): name → git ---
+    addon = AddonRow(
+        {
+            "name": "GapProbe",
+            "folder": "gapprobe",
+            "repo": "https://github.com/example/gap",
+        },
+        status="available",
+    )
+    addon.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, False)
+    addon.show()
+    addon.resize(640, max(36, addon.sizeHint().height()))
+    app.processEvents()
+    assert addon.open_git_btn is not None
+    assert addon.open_git_btn.width() <= _OPEN_GIT_INLINE_HIT + 2, (
+        f"OpenGit hit box inflated by QSS: width={addon.open_git_btn.width()}"
+    )
+    w_gap, v_gap = _gap_name_to_git(addon._name_lbl, addon.open_git_btn)
+    print(f"AddonRow name->git widget_gap={w_gap}px visual_gap={v_gap}px btn_w={addon.open_git_btn.width()}")
+    _assert_gap_ok("AddonRow", w_gap, v_gap)
+    addon_before_note = (w_gap, v_gap)
+    addon.deleteLater()
+
+    # --- AddonRow with modules caret: caret → git ---
+    addon_m = AddonRow(
+        {
+            "name": "GapMods",
+            "folder": "gapmods",
+            "repo": "https://github.com/example/gapmods",
+        },
+        status="available",
+        modules=["A", "B"],
+    )
+    addon_m.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, False)
+    addon_m.show()
+    addon_m.resize(640, max(36, addon_m.sizeHint().height()))
+    app.processEvents()
+    assert addon_m.open_git_btn is not None
+    w_gap_m, v_gap_m = _gap_name_to_git(
+        addon_m._name_lbl,
+        addon_m.open_git_btn,
+        intervening=addon_m.modules_toggle,
+    )
+    print(
+        f"AddonRow caret->git widget_gap={w_gap_m}px visual_gap={v_gap_m}px "
+        f"btn_w={addon_m.open_git_btn.width()}"
+    )
+    _assert_gap_ok("AddonRow+modules", w_gap_m, v_gap_m)
+    addon_m.deleteLater()
+
+    # --- ModCheckRow: author → open link (same OpenGitButton chrome) ---
+    mod = ModCheckRow("gap", "ClientGap", "desc", author="AuthorName")
+    mod.set_open_url("https://example.com/project")
+    mod.set_git_url("https://github.com/example/gap")
+    mod.show()
+    mod.resize(720, max(40, mod.sizeHint().height()))
+    app.processEvents()
+    assert not mod.open_link_btn.isHidden()
+    assert mod.open_link_btn.width() <= _OPEN_GIT_INLINE_HIT + 2, (
+        f"OpenLink hit box inflated: width={mod.open_link_btn.width()}"
+    )
+    author_right = mod.author_lbl.geometry().right()
+    author_text_right = mod.author_lbl.geometry().left() + QFontMetrics(
+        mod.author_lbl.font()
+    ).horizontalAdvance(mod.author_lbl.text())
+    anchor = max(author_right, author_text_right)
+    open_w_gap = mod.open_link_btn.geometry().left() - anchor
+    open_v_gap = _visual_icon_left(mod.open_link_btn) - anchor
+    print(
+        f"ModCheckRow author->open widget_gap={open_w_gap}px visual_gap={open_v_gap}px "
+        f"btn_w={mod.open_link_btn.width()}"
+    )
+    _assert_gap_ok("ModCheckRow", open_w_gap, open_v_gap)
+    mod.deleteLater()
+    print(
+        f"OK Open-in-Git abuts name "
+        f"(AddonRow gaps widget/visual={addon_before_note[0]}/{addon_before_note[1]}px)"
+    )
+
+
+def test_addons_filter_popup_same_value_keeps_open_git_visible():
+    """Opening/closing a filter dropdown without changing selection keeps Open-in-Git."""
+    import time
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.pages.addons import AddonsPage, _reveal_item_widgets
+
+    app = QApplication.instance() or QApplication([])
+    page = AddonsPage()
+    page.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    page.show()
+    page.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, False)
+    page._lists_ready = True
+    page._filtered_available = [
+        {
+            "name": "Probe Addon",
+            "folder": "probe",
+            "repo": "https://github.com/example/probe",
+            "source": "github",
+        }
+    ]
+    page.filter_box.blockSignals(True)
+    page.filter_box.setCurrentText("Available")
+    page.filter_box.blockSignals(False)
+    page._applied_filter_mode = "Available"
+    page._applied_cat_filter = page.cat_box.currentText()
+    page._apply_section_visibility("Available")
+    page._render_available_page(light=False)
+    _reveal_item_widgets(page.list, page)
+    row = page.list.itemWidget(page.list.item(0))
+    assert row is not None and row.open_git_btn is not None
+    assert row.open_git_btn.isVisible()
+
+    # Simulate popup open/close without a committed filter change.
+    page.filter_box.popupShown.emit()
+    page.filter_box.popupHidden.emit()
+    page._list_freeze_until = time.monotonic() + 0.2
+    page._on_filter_changed()
+    for _ in range(40):
+        app.processEvents()
+
+    assert row.open_git_btn.isVisible()
+    page.close()
+    for _ in range(20):
+        app.processEvents()
+    print("OK addons filter popup same value keeps Open-in-Git visible")
+
+
+def test_addons_filter_change_cancels_git_probes():
+    """Committed filter change tears down rows and cancels leftover git probes."""
+    from unittest.mock import patch
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    import ichalaunch.ui.pages.addons as addons_page
+    from ichalaunch.ui.pages.addons import PAGE_SIZE, AddonsPage, _reveal_item_widgets
+
+    app = QApplication.instance() or QApplication([])
+
+    cancelled: list[object] = []
+    real_cancel = addons_page.cancel_git_url_checks
+
+    def _track_cancel(owner) -> None:  # noqa: ANN001
+        cancelled.append(owner)
+        real_cancel(owner)
+
+    with patch.object(addons_page, "cancel_git_url_checks", side_effect=_track_cancel):
+        page = AddonsPage()
+        page.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        page.show()
+        page.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, False)
+        page._lists_ready = True
+        page._ensure_available_base()
+        page._filtered_available = list(page._available_base[: PAGE_SIZE + 3])
+        assert len(page._filtered_available) > PAGE_SIZE
+        page.filter_box.blockSignals(True)
+        page.filter_box.setCurrentText("Available")
+        page.filter_box.blockSignals(False)
+        page._applied_filter_mode = "Available"
+        page._applied_cat_filter = "All categories"
+        page._apply_section_visibility("Available")
+        page._render_available_page(light=False)
+        _reveal_item_widgets(page.list, page)
+
+        cats = [
+            page.cat_box.itemText(i)
+            for i in range(page.cat_box.count())
+            if page.cat_box.itemText(i) != "All categories"
+        ]
+        assert cats, "need at least one real category for filter-change test"
+        page.cat_box.blockSignals(True)
+        page.cat_box.setCurrentText(cats[0])
+        page.cat_box.blockSignals(False)
+        page._on_filter_changed()
+        for _ in range(20):
+            app.processEvents()
+        assert cancelled, "filter apply must cancel git probes on torn-down rows"
+        page.close()
+        for _ in range(20):
+            app.processEvents()
+    print("OK addons filter change cancels git probes")
+
+
+def test_github_url_reach_disk_cache_roundtrip():
+    """Git browse URL reachability persists across cache reload."""
+    import json
+    import tempfile
+    from pathlib import Path
+    from unittest.mock import patch
+
+    import ichalaunch.addons.github as gh
+
+    with tempfile.TemporaryDirectory() as td:
+        cache_path = Path(td) / "git_url_reach_cache.json"
+        with patch.object(gh, "_URL_REACH_DISK_PATH", cache_path):
+            gh._url_reach_cache.clear()
+            gh._url_reach_disk_loaded = False
+            gh._url_reach_cache["https://github.com/example/stale"] = (0.0, True)
+            gh._persist_url_reach_disk("https://github.com/example/stale", True)
+            gh._url_reach_cache.clear()
+            gh._url_reach_disk_loaded = False
+            assert gh.github_url_reachable_cached("https://github.com/example/stale") is True
+            raw = json.loads(cache_path.read_text(encoding="utf-8"))
+            assert "https://github.com/example/stale" in raw
+    print("OK github url reach disk cache roundtrip")
+
+
+def test_mainwindow_addons_next_all_filter_fully_loaded():
+    """MainWindow default All filter: Next on available pagination must not abort Qt."""
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.main_window import MainWindow
+    from ichalaunch.ui.pages.addons import PAGE_SIZE
+
+    app = QApplication.instance() or QApplication([])
+    win = MainWindow()
+    win.show()
+    for _ in range(600):
+        app.processEvents()
+    win.nav_btns[1].click()
+    for _ in range(600):
+        app.processEvents()
+    page = win.addons
+    assert page.filter_box.currentText() == "All"
+    # Simulate post-startup idle: scan finished, lists revealed.
+    page.set_scanning(False)
+    page.set_check_busy(False)
+    page._pending_list_work.clear()
+    page._rendering_avail = False
+    for _ in range(200):
+        app.processEvents()
+    assert not page.lists_mutating()
+    assert len(page._filtered_available) > PAGE_SIZE
+
+    for _ in range(3):
+        page.next_btn.clicked.emit()
+        for _ in range(400):
+            app.processEvents()
+    assert page._page_index >= 1
+    assert page.list.count() > 0
+    assert page.installed_list.count() > 0
+    win.close()
+    print("OK mainwindow addons next on all filter fully loaded")
+
+
+def test_mainwindow_addons_next_available_filter():
+    """Opening Addons, switching to Available, and Next must not abort Qt."""
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.main_window import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    win = MainWindow()
+    win.show()
+    for _ in range(400):
+        app.processEvents()
+    win.nav_btns[1].click()
+    for _ in range(400):
+        app.processEvents()
+    page = win.addons
+    page.filter_box.setCurrentText("Available")
+    for _ in range(200):
+        app.processEvents()
+    page.next_btn.clicked.emit()
+    for _ in range(600):
+        app.processEvents()
+    assert page._page_index >= 1
+    assert page.list.count() > 0
+    win.close()
+    print("OK mainwindow addons next on available filter")
+
+
 def test_mainwindow_check_updates_serializes_pending_reveal():
     """Real MainWindow._check_updates must finish reveal before set_updates.
 
@@ -6306,13 +7647,19 @@ def test_options_cog_uses_wow_art():
 
 def test_addon_preview_gates_combos_and_open_git():
     """Settings/Install dialogs lock fork+version until preview settles; Open in Git is present."""
+    from pathlib import Path
+
     from PySide6.QtCore import Qt
+    from PySide6.QtGui import QFontMetrics
     from PySide6.QtWidgets import QApplication
 
     from ichalaunch.addons import github as G
     from ichalaunch.ui.widgets import dialogs as D
+    from ichalaunch.ui.widgets.common import _OPEN_GIT_INLINE_HIT
 
     app = QApplication.instance() or QApplication([])
+    qss_path = Path(__file__).resolve().parent / "ichalaunch" / "ui" / "theme" / "stylesheet.qss"
+    app.setStyleSheet(qss_path.read_text(encoding="utf-8"))
     entry = {
         "name": "pfUI",
         "folder": "pfUI",
@@ -6337,7 +7684,7 @@ def test_addon_preview_gates_combos_and_open_git():
         assert settings_dlg._fork_combo is not None
         assert settings_dlg._version_combo is not None
         assert settings_dlg._open_git_btn is not None
-        assert settings_dlg._open_git_btn.text() == "Open in Git"
+        assert settings_dlg._open_git_btn.accessibleName() == "Open in Git"
         assert settings_dlg._preview_pending is True
         assert not settings_dlg._fork_combo.isEnabled()
         assert not settings_dlg._version_combo.isEnabled()
@@ -6353,9 +7700,25 @@ def test_addon_preview_gates_combos_and_open_git():
         settings_dlg.close()
 
         install_dlg = D.AddonInstallPickerDialog(None, entry)
-        install_dlg.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        install_dlg.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, False)
+        install_dlg.show()
+        install_dlg.resize(680, 560)
+        app.processEvents()
         assert install_dlg._open_git_btn is not None
-        assert install_dlg._open_git_btn.text() == "Open in Git"
+        assert install_dlg._title_lbl is not None
+        assert install_dlg._open_git_btn.accessibleName() == "Open in Git"
+        assert install_dlg._open_git_btn.width() <= _OPEN_GIT_INLINE_HIT + 2, (
+            f"Install OpenGit hit box inflated: width={install_dlg._open_git_btn.width()}"
+        )
+        title_right = install_dlg._title_lbl.geometry().left() + QFontMetrics(
+            install_dlg._title_lbl.font()
+        ).horizontalAdvance(install_dlg._title_lbl.text())
+        title_right = max(title_right, install_dlg._title_lbl.geometry().right())
+        name_git_gap = install_dlg._open_git_btn.geometry().left() - title_right
+        assert 4 <= name_git_gap <= 12, (
+            f"Install title→OpenGit gap {name_git_gap}px not in 4..12 "
+            f"(btn should sit next to title, not fork/version row)"
+        )
         assert install_dlg._preview_pending is True
         assert not install_dlg.fork_combo.isEnabled()
         assert not install_dlg.version_combo.isEnabled()
@@ -6372,7 +7735,7 @@ def test_addon_preview_gates_combos_and_open_git():
         D._PreviewFetchThread.start = orig_preview_start  # type: ignore[method-assign]
         D._AddonBrowseFetchThread.start = orig_browse_start  # type: ignore[method-assign]
 
-    print("OK addon preview gates fork/version until ready; Open in Git beside Version")
+    print("OK addon preview gates fork/version; Open in Git inline beside title")
 
 def test_glue_combo_popup_hide_wiring_in_settings_dialogs():
     """Settings/Install use Dialog (not Qt.Popup); lazy version fetch keeps combo enabled."""
@@ -6679,7 +8042,6 @@ def test_pass_remove_uses_wow_art():
 
     from ichalaunch.core.paths import theme_file
     from ichalaunch.ui.widgets.common import PassRemoveButton, _pass_icon_pixmap
-    from ichalaunch.ui.widgets.glue_panel_button import glue_row_square_chrome
 
     app = QApplication.instance() or QApplication([])
     assert theme_file("UI-GroupLoot-Pass-Up.PNG").is_file()
@@ -6688,14 +8050,11 @@ def test_pass_remove_uses_wow_art():
     down = _pass_icon_pixmap(pressed=True)
     assert not up.isNull()
     assert not down.isNull()
-    chrome = glue_row_square_chrome(pressed=False, side=28)
-    assert not chrome.isNull()
-    assert chrome.width() == 28
-    assert chrome.height() == 28
+    assert up.width() == 20
     btn = PassRemoveButton()
     assert btn.size().width() == 28
     assert btn.size().height() == 28
-    print("OK addon remove uses GroupLoot Pass art on square glue chrome")
+    print("OK addon remove uses GroupLoot Pass art without plate chrome")
 
 
 def test_nav_tab_update_alert_badge():
@@ -6750,6 +8109,45 @@ def test_nav_tab_glue_floor_chrome():
     btn.set_badge_visible(True)
     btn.grab()
     print("OK nav tab glue floor chrome")
+
+
+def test_client_hd_graphics_display_order():
+    """Client HD Graphics rows must keep hd_dxvk first (layout order, not dict order)."""
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.pages.client import ClientPage
+    from ichalaunch.ui.widgets.common import ModCheckRow
+
+    app = QApplication.instance() or QApplication([])
+    page = ClientPage()
+    host = page._cat_hosts.get("HD Graphics")
+    assert host is not None, "HD Graphics category missing"
+
+    rendered: list[str] = []
+    for i in range(host.count()):
+        item = host.itemAt(i)
+        w = item.widget() if item is not None else None
+        if isinstance(w, ModCheckRow):
+            rendered.append(w.mod_id)
+
+    print("Client HD Graphics row order:", rendered[:5], "... total", len(rendered))
+    assert rendered, "expected HD Graphics rows"
+    assert rendered[0] == "hd_dxvk", f"DXVK must be top; got {rendered[:5]}"
+    assert rendered[1] == "vanilla_helpers", f"Vanilla Helpers must be second; got {rendered[:5]}"
+    assert rendered.index("hd_dxvk") < rendered.index("vanilla_helpers")
+    for mid in rendered[1:]:
+        assert rendered.index("hd_dxvk") < rendered.index(mid), (
+            f"hd_dxvk must precede {mid}; order={rendered}"
+        )
+    # First five must stay stable for regressions (DXVK / helpers / Reforged patches).
+    assert rendered[:5] == [
+        "hd_dxvk",
+        "vanilla_helpers",
+        "hd_patch_a",
+        "hd_patch_b",
+        "hd_patch_c",
+    ], rendered[:5]
+    print("OK client HD Graphics display order")
 
 
 def test_client_cat_nav_update_alert_badge():
@@ -7261,7 +8659,11 @@ def _run_smoke_tests():
     test_darker_nights_migration()
     test_mod_toggle_resolution()
     test_hd_patch_e_includes_caption()
+    test_hd_dxvk_catalog_and_patch_v()
+    test_hd_dxvk_disable_restores_vf_layer()
     test_mod_author_labels()
+    test_hd_graphics_project_link_only()
+    test_dxvk_disable_cascades_dependents()
     test_vanillafixes_dxvk_reconcile()
     test_dxvk_detect_plan_clean()
     test_hd_patch_lt_exclusive_planning()
@@ -7273,6 +8675,7 @@ def _run_smoke_tests():
     test_vf_dxvk_roundtrip_simulated_plan_clean()
     test_vf_dxvk_roundtrip_plan_clean()
     test_dxvk_switch_keeps_vanillafixes_exe()
+    test_dxvk_disable_removes_vanillafixes_one_apply()
     test_detect_game_ravencraft_subfolder()
     test_assess_dxvk_gpu()
     test_addon_fork_version_labels()
@@ -7322,6 +8725,7 @@ def _run_smoke_tests():
     test_reinstall_clears_never_update()
     test_row_reinstall_clears_never_update()
     test_addon_row_update_button_is_square()
+    test_addon_row_install_button_matches_update_plate()
     test_addon_settings_never_update_on_save()
     test_sanitize_filename()
     test_robust_rmtree_readonly_git_pack()
@@ -7362,14 +8766,31 @@ def _run_smoke_tests():
     test_options_cog_uses_wow_art()
     test_addon_check_updates_gates_until_list_ready()
     test_addons_defers_list_build_while_scanning()
+    test_cancel_git_url_checks_orphans_running_threads()
+    test_addons_rapid_pagination_spawns_no_browse_url_threads()
+    test_open_in_git_visible_without_probe_and_click_opens()
+    test_mod_check_row_links_after_author()
+    test_open_git_icon_abuts_name_geometry()
+    test_addons_available_pagination_after_reveal()
+    test_addons_all_filter_pagination_fully_loaded()
+    test_addons_filter_popup_same_value_keeps_open_git_visible()
+    test_addons_filter_change_cancels_git_probes()
+    test_github_url_reach_disk_cache_roundtrip()
+    test_mainwindow_addons_next_all_filter_fully_loaded()
+    test_mainwindow_addons_next_available_filter()
     test_mainwindow_check_updates_serializes_pending_reveal()
     test_addon_preview_gates_combos_and_open_git()
     test_glue_combo_popup_hide_wiring_in_settings_dialogs()
     test_addon_settings_version_prefetch_first_open()
     test_addon_settings_reinstall_enabled_when_selection_differs()
     test_pass_remove_uses_wow_art()
+    test_refresh_reinstall_uses_wow_art()
+    test_addon_row_reinstall_aligns_with_delete_bottom()
+    test_spellbook_page_buttons_use_wow_art()
+    test_floor_lighting_overlay()
     test_nav_tab_update_alert_badge()
     test_nav_tab_glue_floor_chrome()
+    test_client_hd_graphics_display_order()
     test_client_cat_nav_update_alert_badge()
     test_chrome_buttons_clear_metal_tr()
     test_play_stays_right_when_progress_hidden()

@@ -40,6 +40,7 @@ from ichalaunch.core.filesystem import (
     copy_file_tolerant,
     copy_tree,
     ensure_data_writable,
+    extract_tar,
     extract_zip,
     note_pending_toc_mismatch,
     place_install_addon_root,
@@ -319,6 +320,9 @@ _HD_PATCH_PREFIX = "hd_patch_"
 _VANILLA_HELPERS_ID = "vanilla_helpers"
 _VANILLAFIXES_ID = "vanillafixes"
 _DXVK_ID = "dxvk"
+_HD_DXVK_ID = "hd_dxvk"
+# Fingerprint in ichalaunch/data/dxvk.conf — distinguishes HD 2.7.1 from VF-bundled DXVK.
+_HD_DXVK_CONF_MARKER = "DXVK 2.7.1"
 
 def vanillafixes_dxvk_both_enabled(desired: dict[str, bool] | None = None) -> bool:
     """True when regular VanillaFixes and the DXVK bundle are both desired."""
@@ -632,6 +636,9 @@ def mod_contains_caption(mod: dict[str, Any] | None, catalog: dict[str, dict[str
     parts: list[str] = []
     mid = str(mod.get("id") or "")
     name = str(mod.get("name") or "")
+    list_label = str(mod.get("list_label") or "").strip()
+    if list_label:
+        parts.append(list_label)
     if mid.startswith(_HD_PATCH_PREFIX) and "(" in name and name.rstrip().endswith(")"):
         inner = name[name.rfind("(") + 1 : name.rfind(")")].strip()
         if inner:
@@ -1112,6 +1119,16 @@ def _dlls_txt_has(game_path: Path, names: list[str], listing: frozenset[str] | N
     return any(name_present(game_path, n, listing) for n in want)
 
 
+def _dxvk_conf_has_marker(game_path: Path, marker: str) -> bool:
+    conf = game_path / "dxvk.conf"
+    if not conf.is_file():
+        return False
+    try:
+        return marker in conf.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return False
+
+
 def _detect_mod(
     game_path: Path,
     mod: dict[str, Any],
@@ -1119,6 +1136,21 @@ def _detect_mod(
     root_names: frozenset[str] | None = None,
 ) -> bool:
     det = mod.get("detect") or {}
+    mid = mod.get("id") or ""
+    kind = mod.get("kind")
+    # HD DXVK shares d3d9.dll / dxvk.conf with VF+Vulkan — require the 2.7.1 conf marker.
+    if mid == _HD_DXVK_ID or kind == "dxvk_hd":
+        files_ok = all(
+            _game_rel_present(game_path, f, root_names)
+            for f in (det.get("all_files") or ["d3d9.dll", "dxvk.conf"])
+        )
+        if not files_ok:
+            return False
+        marker = _HD_DXVK_CONF_MARKER
+        conf_spec = det.get("config_file_contains") or []
+        if isinstance(conf_spec, (list, tuple)) and len(conf_spec) >= 2:
+            marker = str(conf_spec[1])
+        return _dxvk_conf_has_marker(game_path, marker)
     if det.get("exe_differs_from"):
         return _exe_differs_from_backup(game_path, str(det["exe_differs_from"]))
     if det.get("wdb_file"):
@@ -1485,7 +1517,13 @@ def plan_changes(desired: dict[str, bool] | None = None) -> list[dict[str, str]]
             # Data/patch-9.mpq must not schedule a Pretty Night Sky delete.
             if _mod_remove_targets_only_stock_mpq(mod):
                 continue
-            changes.append({"action": "remove", "id": mid, "detail": f"Remove {mod.get('name', mid)}"})
+            detail = f"Remove {mod.get('name', mid)}"
+            if mid == _HD_DXVK_ID and desired.get(_DXVK_ID):
+                detail = (
+                    f"Revert {mod.get('name', mid)} "
+                    "(restore VanillaFixes-bundled DXVK + dxvk.conf)"
+                )
+            changes.append({"action": "remove", "id": mid, "detail": detail})
     return changes
 
 
@@ -1674,6 +1712,18 @@ def _is_zip_artifact(artifact: Path | bytes, source: dict[str, Any] | None = Non
     if source and source.get("type") in ("raw_zip", "github_zip"):
         return True
     return artifact.suffix.lower() == ".zip"
+
+
+def _pick_dxvk_win32_d3d9(search_root: Path) -> Path:
+    """Pick the 32-bit D3D9 shim from a DXVK release tree."""
+    candidates = [p for p in search_root.rglob("d3d9.dll") if p.is_file()]
+    if not candidates:
+        raise FileNotFoundError("d3d9.dll not found in DXVK archive")
+    for folder in ("x32", "x86"):
+        for path in candidates:
+            if folder in {part.lower() for part in path.parts}:
+                return path
+    return min(candidates, key=lambda p: len(p.parts))
 
 
 def _download_source(source: dict[str, Any], work: Path, progress: ProgressCb | None) -> Path | bytes:
@@ -2640,7 +2690,31 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 status_only(progress, f"Installing {dest.name} (large file)...")
                 _install_copy(artifact, dest, game_path=game)
+                if mod_id == "hd_patch_c":
+                    for legacy in ("patch-C.mpq", "Patch-C.mpq"):
+                        legacy_path = dest.parent / legacy
+                        if legacy_path.is_file() and legacy_path != dest:
+                            safe_remove(legacy_path)
                 return _finish_mod_install(mod_id, mod, source)
+
+            if kind == "dxvk_hd":
+                assert source
+                from ichalaunch.core.paths import data_file
+
+                artifact = _download_source(source, work, progress)
+                assert isinstance(artifact, Path)
+                extracted = extract_tar(artifact, work / "extract", progress=progress)
+                dll = _pick_dxvk_win32_d3d9(extracted)
+                status_only(progress, "Installing DXVK d3d9.dll...")
+                _install_copy(dll, game / "d3d9.dll", game_path=game)
+                for spec in mod.get("bundled_files") or []:
+                    resource = data_file(str(spec.get("resource") or ""))
+                    if not resource.is_file():
+                        raise FileNotFoundError(f"Bundled mod file missing: {resource.name}")
+                    dest_rel = str(spec.get("destination") or resource.name)
+                    _install_copy(resource, game / dest_rel, game_path=game)
+                soft = _verify_mod_install(game, mod)
+                return _finish_mod_install(mod_id, mod, source, soft_skipped=soft)
 
             if kind == "config_script_memory":
                 cfg = game / "WTF" / "Config.wtf"
@@ -2754,9 +2828,13 @@ def _mod_owned_paths(mod: dict[str, Any]) -> set[str]:
         add("VanillaFixes.exe")
         add("VfPatcher.dll")
     if mid == "dxvk":
-        # DXVK bundle zip ships VanillaFixes.exe — keep it when swapping off regular VF.
+        # Same launcher binaries as regular VF; shared-path keep applies when
+        # switching DXVK → VanillaFixes so remove_mod does not delete them.
         add("VanillaFixes.exe")
         add("VfPatcher.dll")
+        add("d3d9.dll")
+        add("dxvk.conf")
+    if mid == "hd_dxvk" or mod.get("kind") == "dxvk_hd":
         add("d3d9.dll")
         add("dxvk.conf")
     return owned
@@ -2779,7 +2857,7 @@ _SUPERWOW_DLL_MIN_BYTES = 200_000
 def _mod_requires_game_closed(mod: dict[str, Any]) -> bool:
     """True when install must replace PE files that WoW/VanillaFixes typically lock."""
     kind = str(mod.get("kind") or "")
-    if kind in {"dll_file", "dll_bundle", "dxvk_cursor", "exe_patch", "zip_root"}:
+    if kind in {"dll_file", "dll_bundle", "dxvk_cursor", "dxvk_hd", "exe_patch", "zip_root"}:
         return True
     if (mod.get("dlls_txt") or {}).get("add"):
         return True
@@ -2824,7 +2902,7 @@ def _verify_mod_install(game: Path, mod: dict[str, Any]) -> list[str]:
     Covers dll_file, dll_bundle, dxvk_cursor, and zip_root (VanillaFixes / DXVK).
     """
     kind = mod.get("kind")
-    if kind not in ("dll_file", "dll_bundle", "dxvk_cursor", "zip_root"):
+    if kind not in ("dll_file", "dll_bundle", "dxvk_cursor", "dxvk_hd", "zip_root"):
         return []
     failures: list[str] = []
     soft_skipped: list[str] = []
@@ -3013,6 +3091,19 @@ def remove_mod(mod_id: str, progress: ProgressCb | None = None) -> None:
     if kind == "manual_link":
         return  # detection-only / user-managed files
 
+    if kind == "dxvk_hd":
+        # Optional 2.7.1 upgrade sits on top of VF+Vulkan. If the base DXVK
+        # bundle remains desired, reinstall it so d3d9.dll + dxvk.conf revert
+        # to the VanillaFixes-shipped layer (not the HD-tuned conf).
+        if settings.desired_mods.get(_DXVK_ID):
+            status_only(progress, "Restoring VanillaFixes DXVK (dll + conf)...")
+            install_mod(_DXVK_ID, progress=progress)
+            return
+        for name in ("d3d9.dll", "dxvk.conf"):
+            remove_owned(name)
+        raise_failures()
+        return
+
     if kind == "dxvk_cursor":
         conf = game / "dxvk.conf"
         if conf.exists():
@@ -3056,7 +3147,9 @@ def remove_mod(mod_id: str, progress: ProgressCb | None = None) -> None:
         for name in ("VanillaFixes.exe", "VfPatcher.dll"):
             remove_owned(name)
     if mod_id == "dxvk":
-        for name in ("d3d9.dll", "dxvk.conf"):
+        # Full disable must clear the VF launcher too. When switching to regular
+        # VanillaFixes, remove_owned keeps these via _paths_shared_with_enabled.
+        for name in ("d3d9.dll", "dxvk.conf", "VanillaFixes.exe", "VfPatcher.dll"):
             remove_owned(name)
     raise_failures()
 
