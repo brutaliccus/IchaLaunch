@@ -14890,5 +14890,13 @@
     "source": "community",
     "folder": "Chronometer-Turtle",
     "description": "Chronometer with modifications for Turtle WoW"
+  },
+  {
+    "name": "Chronometer-TWoW",
+    "repo": "https://github.com/MrBoxie88/Chronometer-TWoW",
+    "category": "General",
+    "source": "community",
+    "folder": "Chronometer-TWoW",
+    "description": "Updating for Turtle WoW"
   }
 ]
