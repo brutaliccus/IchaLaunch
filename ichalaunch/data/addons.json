@@ -15002,5 +15002,13 @@
     "source": "community",
     "folder": "FishingBuddy",
     "description": "# FishingBuddy\nvanilla world of warcraft addon that I've made updates to in order to fix in-game bugs"
+  },
+  {
+    "name": "AtlasQuest",
+    "repo": "https://github.com/Buzzkill54/AtlasQuest",
+    "category": "General",
+    "source": "community",
+    "folder": "AtlasQuest",
+    "description": "AtlasQuest TurtleWOW Edition"
   }
 ]
