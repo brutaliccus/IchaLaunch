@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-26T10:36:12Z",
+  "generated_at": "2026-08-26T11:32:55Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -12275,9 +12275,9 @@
     },
     "obszczymucha/roll-for-vanilla": {
       "default_branch": "master",
-      "sha": "69eadcbfe182db558db596b1c2b9c0ea1d58f6f0",
+      "sha": "12496d053bee196674af8e559ea015e2915f7ac8",
       "branches": {
-        "master": "69eadcbfe182db558db596b1c2b9c0ea1d58f6f0"
+        "master": "12496d053bee196674af8e559ea015e2915f7ac8"
       },
       "latest_tag": "v4.6.5"
     },
@@ -15251,9 +15251,9 @@
     },
     "akzkak/supertotem": {
       "default_branch": "main",
-      "sha": "b0f05d3ea69547c7267133b9ffdef320d44dac09",
+      "sha": "3c44a8e5aaef1a20e41325a1ceee7c6bcf8f217f",
       "branches": {
-        "main": "b0f05d3ea69547c7267133b9ffdef320d44dac09"
+        "main": "3c44a8e5aaef1a20e41325a1ceee7c6bcf8f217f"
       }
     },
     "bretharte89/supertotem": {
