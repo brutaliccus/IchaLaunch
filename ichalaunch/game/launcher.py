@@ -233,48 +233,121 @@ def vf_disk_hint_line(game_path: Path) -> str:
     return ", ".join(parts)
 
 
-def resolve_launch_exe(game_path: Path) -> Path:
-    use_vf = bool(settings.get("vanillafixes_enabled", True))
+VF_LAUNCH_OK = "ok"
+VF_LAUNCH_DIRECT = "direct"
+VF_LAUNCH_ASK = "ask"
+
+
+def vanillafixes_launch_wanted(desired: dict[str, bool] | None = None) -> bool:
+    """True when the Client VanillaFixes / DXVK checkbox wants VF launch.
+
+    The Client Performance & Fixes checkbox is the source of truth. DXVK also
+    boots through VanillaFixes.exe, so either desired flag counts. A stale
+    ``vanillafixes_enabled`` Launch-settings leftover is ignored.
+    """
+    d = desired if desired is not None else settings.desired_mods
+    return bool(d.get("vanillafixes") or d.get("dxvk"))
+
+
+def sync_vanillafixes_enabled_from_desired(
+    desired: dict[str, bool] | None = None,
+) -> bool:
+    """Keep the leftover ``vanillafixes_enabled`` key aligned with Client."""
+    want = vanillafixes_launch_wanted(desired)
+    if bool(settings.get("vanillafixes_enabled", True)) != want:
+        settings.set("vanillafixes_enabled", want)
+    return want
+
+
+def vanillafixes_reinstall_mod_id(desired: dict[str, bool] | None = None) -> str:
+    """Which catalog mod to reinstall when VF launch is blocked."""
+    d = desired if desired is not None else settings.desired_mods
+    return "dxvk" if d.get("dxvk") else "vanillafixes"
+
+
+def vanillafixes_launch_decision(
+    game_path: Path,
+    *,
+    desired: dict[str, bool] | None = None,
+    force_direct: bool = False,
+) -> str:
+    """How Play should treat VanillaFixes — no dialog, just the choice.
+
+    Returns:
+      ``ok`` — launch through VanillaFixes.exe
+      ``direct`` — VF genuinely off (or Launch Anyway); use WoW.exe, no prompt
+      ``ask`` — VF desired but VanillaFixes.exe cannot be used; prompt
+    """
+    if force_direct:
+        return VF_LAUNCH_DIRECT
+    if not vanillafixes_launch_wanted(desired):
+        return VF_LAUNCH_DIRECT
+    if resolve_vanilla_fixes_exe(Path(game_path)) is not None:
+        return VF_LAUNCH_OK
+    return VF_LAUNCH_ASK
+
+
+def resolve_launch_exe(game_path: Path, *, force_direct: bool = False) -> Path:
+    sync_vanillafixes_enabled_from_desired()
     # Fall back to the literal name so the caller still gets a path to report
     # in its "missing" error rather than None.
     wow = wow_exe_in(game_path) or (game_path / CLIENT_EXE_NAME)
-    vf = resolve_vanilla_fixes_exe(game_path)
-    if use_vf and vf is not None:
-        return vf
+    if force_direct:
+        return wow
+    if vanillafixes_launch_decision(game_path) == VF_LAUNCH_OK:
+        vf = resolve_vanilla_fixes_exe(game_path)
+        if vf is not None:
+            return vf
     return wow
 
 
-def launch_exe_note(game_path: Path, exe: Path) -> str | None:
+def launch_exe_note(
+    game_path: Path,
+    exe: Path,
+    *,
+    force_direct: bool = False,
+) -> str | None:
     """Human-readable reason when WoW.exe is used instead of VanillaFixes.exe."""
     if exe.name.lower() != "wow.exe":
         return None
-    use_vf = bool(settings.get("vanillafixes_enabled", True))
+    wanted = vanillafixes_launch_wanted()
     vf = resolve_vanilla_fixes_exe(game_path)
     checked = game_path / "VanillaFixes.exe"
-    if use_vf and vf is None:
+    if force_direct:
+        log.info("Launch mode fallback: WoW.exe (direct) — user chose Launch Anyway")
+        return "user chose Launch Anyway without VanillaFixes"
+    if wanted and vf is None:
         log.info(
             "Launch mode fallback: WoW.exe (direct) — VanillaFixes.exe not found "
-            "(checked=%s exists=%s vanillafixes_enabled=%s)",
+            "(checked=%s exists=%s desired_vanillafixes=%s desired_dxvk=%s)",
             checked,
             checked.exists(),
-            use_vf,
+            bool(settings.desired_mods.get("vanillafixes")),
+            bool(settings.desired_mods.get("dxvk")),
         )
         return "VanillaFixes.exe not found in game folder"
-    if not use_vf:
-        log.info("Launch mode fallback: WoW.exe (direct) — VanillaFixes disabled in Settings")
-        return "launch through VanillaFixes disabled in Settings"
+    if not wanted:
+        log.info(
+            "Launch mode fallback: WoW.exe (direct) — VanillaFixes not enabled in Client"
+        )
+        return "launch through VanillaFixes disabled in Client"
     return None
 
 
-def launch_game() -> subprocess.Popen | None:
+def launch_game(*, force_direct: bool = False) -> subprocess.Popen | None:
     game = detect_game()
     if not game:
         raise FileNotFoundError("Game not installed / path not set")
-    exe = resolve_launch_exe(game)
+    decision = vanillafixes_launch_decision(game, force_direct=force_direct)
+    if decision == VF_LAUNCH_ASK:
+        raise FileNotFoundError(
+            "VanillaFixes is enabled but VanillaFixes.exe was not found"
+        )
+    exe = resolve_launch_exe(game, force_direct=force_direct)
     log.info("Launch mode: %s", launch_mode_label_for_exe(game, exe))
     log.info("Launch exe: %s", exe.name)
     log.info("On-disk hints: %s", vf_disk_hint_line(game))
-    note = launch_exe_note(game, exe)
+    note = launch_exe_note(game, exe, force_direct=force_direct)
     if note:
         log.info("Launch note: %s", note)
     # Returned rather than discarded: on Linux the caller has to watch this

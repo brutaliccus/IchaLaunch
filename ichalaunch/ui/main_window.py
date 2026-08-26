@@ -335,12 +335,15 @@ from ichalaunch.game.client_install import (
 from ichalaunch.game.launcher import (
     GAME_DOWNLOAD_URL,
     GOFILE_FILE_NAME,
+    VF_LAUNCH_ASK,
     detect_game,
     ensure_game_path_from_launcher,
     has_wow_exe,
     is_installed,
     launch_game,
     validate_install_location,
+    vanillafixes_launch_decision,
+    vanillafixes_reinstall_mod_id,
 )
 from ichalaunch.mods.installer import (
     ModUpdateCheckResult,
@@ -3419,8 +3422,15 @@ class MainWindow(QMainWindow):
                 ):
                     self._fail_play_launch("Launch cancelled")
                     return
-            self._show_play_launch_progress("Launching game…")
-            proc = launch_game()
+            game = detect_game()
+            if game and vanillafixes_launch_decision(game) == VF_LAUNCH_ASK:
+                if not self._offer_vanillafixes_reinstall_or_anyway():
+                    return
+                self._show_play_launch_progress("Launching game…")
+                proc = launch_game(force_direct=True)
+            else:
+                self._show_play_launch_progress("Launching game…")
+                proc = launch_game()
             if proc is not None and os.name != "nt":
                 self._watch_launch(proc)
                 return
@@ -3479,6 +3489,47 @@ class MainWindow(QMainWindow):
             )
 
         QTimer.singleShot(_LAUNCH_POLL_MS, check)
+
+    def _offer_vanillafixes_reinstall_or_anyway(self) -> bool:
+        """Prompt when VF is desired but VanillaFixes.exe cannot be used.
+
+        Returns True when the caller should launch WoW.exe anyway.
+        Reinstall starts a worker that retries launch; Cancel fails Play.
+        """
+        result = themed.choice(
+            self,
+            "VanillaFixes is missing",
+            "VanillaFixes is enabled, but VanillaFixes.exe was not found "
+            "in the game folder.\n\n"
+            "Reinstall VanillaFixes, or launch WoW.exe without it?",
+            [
+                ("Launch Anyway", themed.DialogResult.No),
+                ("Reinstall", themed.DialogResult.Yes),
+            ],
+            kind="warning",
+        )
+        if result == themed.DialogResult.Yes:
+            self._reinstall_vanillafixes_then_launch()
+            return False
+        if result == themed.DialogResult.No:
+            return True
+        self._fail_play_launch("Launch cancelled")
+        return False
+
+    def _reinstall_vanillafixes_then_launch(self) -> None:
+        mod_id = vanillafixes_reinstall_mod_id()
+
+        def on_ok(_result) -> None:
+            self.client.clear_pending_update(mod_id)
+            self.status_lbl.setText(f"Reinstalled {mod_id}")
+            self._launch_prepared()
+
+        def on_fail(msg: str) -> None:
+            self._fail_play_launch(f"VanillaFixes reinstall failed: {msg[:80]}")
+
+        worker = Worker(update_mod, mod_id)
+        worker.failed.connect(on_fail)
+        self._busy(f"Reinstalling {mod_id}…", worker, on_ok=on_ok)
 
     def _offer_permission_fix(
         self,

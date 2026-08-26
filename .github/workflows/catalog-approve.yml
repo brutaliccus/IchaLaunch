@@ -4,8 +4,8 @@ name: Catalog approve → PR
 # open a PR that only adds the entry to ichalaunch/data/addons.json, then
 # squash-merge it onto master (no manual merge step).
 #
-# Fork-network catalog issues are opened at submit time by the Cloudflare
-# Worker (not here) so each repo gets its own approval issue.
+# Catalog issues are opened at submit time by the Cloudflare Worker
+# (network root + requested fork only — not every discovered fork).
 #
 # Repo setting required (once): Settings → Actions → General → Workflow permissions
 # → enable "Allow GitHub Actions to create and approve pull requests"
@@ -68,11 +68,57 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ steps.meta.outputs.repo }}
+          BRANCH: ${{ steps.meta.outputs.branch }}
         run: |
+          set -euo pipefail
+          find_open_pr() {
+            local branch="$1"
+            local url=""
+            url=$(gh pr list --repo "${GITHUB_REPOSITORY}" --state open --head "${GITHUB_REPOSITORY_OWNER}:${branch}" --json url --jq '.[0].url // empty' || echo "")
+            if [ -z "$url" ]; then
+              url=$(gh pr list --repo "${GITHUB_REPOSITORY}" --state open --limit 100 --json url,headRefName --jq --arg b "$branch" '[.[] | select(.headRefName == $b)] | .[0].url // empty' || echo "")
+            fi
+            printf '%s' "$url"
+          }
+          close_pr_if_open() {
+            local pr="$1"
+            local comment="$2"
+            if [ -z "$pr" ]; then
+              return 0
+            fi
+            local state
+            state=$(gh pr view "$pr" --json state --jq '.state' || echo "UNKNOWN")
+            if [ "$state" = "MERGED" ] || [ "$state" = "CLOSED" ]; then
+              echo "PR already ${state}: $pr"
+              return 0
+            fi
+            local i
+            for i in 1 2 3; do
+              if gh pr close "$pr" --delete-branch --comment "$comment"; then
+                return 0
+              fi
+              if gh pr close "$pr" --comment "$comment"; then
+                return 0
+              fi
+              state=$(gh pr view "$pr" --json state --jq '.state' || echo "UNKNOWN")
+              if [ "$state" = "MERGED" ] || [ "$state" = "CLOSED" ]; then
+                return 0
+              fi
+              sleep "$i"
+            done
+            echo "Failed to close PR: $pr" >&2
+            return 1
+          }
           gh issue comment "${{ github.event.issue.number }}" --body "$(cat <<EOF
           Skipped: \`${REPO}\` is already present in \`ichalaunch/data/addons.json\`. No PR opened or merged.
           EOF
           )"
+          EXISTING=$(find_open_pr "$BRANCH")
+          close_pr_if_open "$EXISTING" "Closing: entry already in catalog."
+          STATE=$(gh issue view "${{ github.event.issue.number }}" --json state --jq '.state')
+          if [ "$STATE" = "OPEN" ]; then
+            gh issue close "${{ github.event.issue.number }}" --comment "Closed: already in catalog."
+          fi
 
       - name: Ensure PR exists (refresh from latest master)
         id: pr
@@ -114,7 +160,10 @@ jobs:
           fi
           echo "skipped=false" >> "$GITHUB_OUTPUT"
 
-          EXISTING=$(gh pr list --state open --head "$BRANCH" --json url --jq '.[0].url // empty')
+          EXISTING=$(gh pr list --repo "${GITHUB_REPOSITORY}" --state open --head "${GITHUB_REPOSITORY_OWNER}:${BRANCH}" --json url --jq '.[0].url // empty')
+          if [ -z "$EXISTING" ]; then
+            EXISTING=$(gh pr list --repo "${GITHUB_REPOSITORY}" --state open --limit 100 --json url,headRefName --jq --arg b "$BRANCH" '[.[] | select(.headRefName == $b)] | .[0].url // empty')
+          fi
           if [ -n "$EXISTING" ]; then
             echo "pr_url=$EXISTING" >> "$GITHUB_OUTPUT"
             exit 0
@@ -151,14 +200,51 @@ jobs:
           REPO: ${{ steps.meta.outputs.repo }}
           BRANCH: ${{ steps.meta.outputs.branch }}
         run: |
+          set -euo pipefail
+          find_open_pr() {
+            local branch="$1"
+            local url=""
+            url=$(gh pr list --repo "${GITHUB_REPOSITORY}" --state open --head "${GITHUB_REPOSITORY_OWNER}:${branch}" --json url --jq '.[0].url // empty' || echo "")
+            if [ -z "$url" ]; then
+              url=$(gh pr list --repo "${GITHUB_REPOSITORY}" --state open --limit 100 --json url,headRefName --jq --arg b "$branch" '[.[] | select(.headRefName == $b)] | .[0].url // empty' || echo "")
+            fi
+            printf '%s' "$url"
+          }
+          close_pr_if_open() {
+            local pr="$1"
+            local comment="$2"
+            if [ -z "$pr" ]; then
+              return 0
+            fi
+            local state
+            state=$(gh pr view "$pr" --json state --jq '.state' || echo "UNKNOWN")
+            if [ "$state" = "MERGED" ] || [ "$state" = "CLOSED" ]; then
+              echo "PR already ${state}: $pr"
+              return 0
+            fi
+            local i
+            for i in 1 2 3; do
+              if gh pr close "$pr" --delete-branch --comment "$comment"; then
+                return 0
+              fi
+              if gh pr close "$pr" --comment "$comment"; then
+                return 0
+              fi
+              state=$(gh pr view "$pr" --json state --jq '.state' || echo "UNKNOWN")
+              if [ "$state" = "MERGED" ] || [ "$state" = "CLOSED" ]; then
+                return 0
+              fi
+              sleep "$i"
+            done
+            echo "Failed to close PR: $pr" >&2
+            return 1
+          }
           gh issue comment "${{ github.event.issue.number }}" --body "$(cat <<EOF
           Skipped: \`${REPO}\` is already present in \`ichalaunch/data/addons.json\`. No PR opened or merged.
           EOF
           )"
-          EXISTING=$(gh pr list --state open --head "$BRANCH" --json url --jq '.[0].url // empty')
-          if [ -n "$EXISTING" ]; then
-            gh pr close "$EXISTING" --delete-branch --comment "Closing: entry already in catalog." || true
-          fi
+          EXISTING=$(find_open_pr "$BRANCH")
+          close_pr_if_open "$EXISTING" "Closing: entry already in catalog."
           STATE=$(gh issue view "${{ github.event.issue.number }}" --json state --jq '.state')
           if [ "$STATE" = "OPEN" ]; then
             gh issue close "${{ github.event.issue.number }}" --comment "Closed: already in catalog."
@@ -201,21 +287,62 @@ jobs:
             return 0
           }
 
+          close_pr_if_open() {
+            local pr="$1"
+            local comment="$2"
+            if [ -z "$pr" ]; then
+              return 0
+            fi
+            local state
+            state=$(gh pr view "$pr" --json state --jq '.state' || echo "UNKNOWN")
+            if [ "$state" = "MERGED" ] || [ "$state" = "CLOSED" ]; then
+              echo "PR already ${state}: $pr"
+              return 0
+            fi
+            local i
+            for i in 1 2 3; do
+              if gh pr close "$pr" --delete-branch --comment "$comment"; then
+                return 0
+              fi
+              if gh pr close "$pr" --comment "$comment"; then
+                return 0
+              fi
+              state=$(gh pr view "$pr" --json state --jq '.state' || echo "UNKNOWN")
+              if [ "$state" = "MERGED" ] || [ "$state" = "CLOSED" ]; then
+                return 0
+              fi
+              sleep "$i"
+            done
+            echo "Failed to close PR: $pr" >&2
+            return 1
+          }
+
+          entry_on_master() {
+            git fetch origin master
+            git show origin/master:ichalaunch/data/addons.json > /tmp/addons-master.json
+            local out
+            out=$(python tools/catalog_approve_from_issue.py --body-file /tmp/issue-body.md --catalog /tmp/addons-master.json --dry-run)
+            echo "$out"
+            echo "$out" | python -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin).get("skipped") else 1)'
+          }
+
           MERGED=false
+          ALREADY=false
           for attempt in 1 2 3 4 5 6 7 8 9 10; do
             echo "Merge attempt ${attempt}..."
             if ! refresh_branch; then
               echo "Entry already in catalog (another run won the race)."
               MERGED=true
+              ALREADY=true
               break
             fi
-            # Wait briefly for GitHub to recompute mergeability
-            for _ in 1 2 3; do
+            # Wait for GitHub to recompute mergeability after force-push
+            for _ in 1 2 3 4 5 6 7 8; do
               MERGEABLE=$(gh pr view "$PR_URL" --json mergeable --jq '.mergeable' || echo "UNKNOWN")
               if [ "$MERGEABLE" = "MERGEABLE" ]; then
                 break
               fi
-              sleep 2
+              sleep 3
             done
             if gh pr merge "$PR_URL" --squash --delete-branch --admin; then
               MERGED=true
@@ -226,6 +353,15 @@ jobs:
           done
 
           if [ "$MERGED" != "true" ]; then
+            if entry_on_master; then
+              echo "Entry reached master during retries; closing leftover PR."
+              close_pr_if_open "$PR_URL" "Closing: entry already in catalog."
+              STATE=$(gh issue view "$ISSUE_NUMBER" --json state --jq '.state')
+              if [ "$STATE" = "OPEN" ]; then
+                gh issue close "$ISSUE_NUMBER" --comment "Closed: already in catalog."
+              fi
+              exit 0
+            fi
             gh issue comment "$ISSUE_NUMBER" --body "$(cat <<EOF
           Catalog PR is open but auto-merge failed after retries: ${PR_URL}
 
@@ -233,6 +369,10 @@ jobs:
           EOF
           )"
             exit 1
+          fi
+
+          if [ "$ALREADY" = "true" ]; then
+            close_pr_if_open "$PR_URL" "Closing: entry already in catalog."
           fi
 
           # Issue may already be closed by "Closes #" on squash, or entry was

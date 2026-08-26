@@ -8,7 +8,8 @@ only forks that are **ahead** of the network-root default branch
 ``ahead_by > 0``). Identical, behind-only, or failed compares (404/403) are
 excluded. Merges survivors under nested ``forks[]`` (``label``, ``repo``).
 
-Same diverge rule as the addon-submit Worker fan-out.
+Used to populate catalog ``forks[]`` for the launcher dropdown (not the
+issue-queue Worker, which only opens root + a requested fork).
 
   python tools/enrich_catalog_forks.py
   python tools/enrich_catalog_forks.py --limit 50

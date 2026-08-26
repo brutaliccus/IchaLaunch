@@ -101,8 +101,15 @@ def write_crash_report(
         "=" * 72,
         "",
     ]
+    body = "\n".join(lines)
+    try:
+        from ichalaunch.game.nampower_encrypt import redact_encryption_secrets
+
+        body = redact_encryption_secrets(body)
+    except Exception:  # noqa: BLE001
+        pass
     with path.open("a", encoding="utf-8") as fh:
-        fh.write("\n".join(lines))
+        fh.write(body)
 
     # Opt-in remote report (never blocks; no-op when setting is off).
     try:

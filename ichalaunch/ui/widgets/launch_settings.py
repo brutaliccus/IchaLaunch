@@ -4,14 +4,30 @@ from __future__ import annotations
 
 import sys
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 from ichalaunch.config.settings import settings
 from ichalaunch.game.cpu_topology import vcache_pin_enabled
 from ichalaunch.game.display import frame_cap_enabled
+from ichalaunch.game.nampower_encrypt import encrypt_enabled, set_encrypt_enabled
 from ichalaunch.game.proton import wow64_enabled
+from ichalaunch.ui.widgets.glue_panel_button import GLUE_BTN_H, GluePanelButton
 from ichalaunch.ui.widgets.theme_checkbox import ThemeCheckBox
+
+_ENCRYPT_HINT_WIN = (
+    "Enables Nampower's login Encrypt toggle via Windows DPAPI. "
+    "Changing or clearing the key makes previously encrypted passwords unreadable."
+)
+_ENCRYPT_HINT_LINUX = (
+    "Nampower password encryption uses Windows DPAPI and is not available on Linux."
+)
+REGEN_KEY_STATUS_OK = (
+    "New key saved. Previously encrypted passwords will not work."
+)
+_REGEN_BTN_LABEL = "Regenerate key"
+_REGEN_BTN_OK_LABEL = "Key replaced"
+_REGEN_BTN_RESTORE_MS = 2000
 
 
 class LaunchSettingsPanel(QWidget):
@@ -27,9 +43,6 @@ class LaunchSettingsPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
 
-        self.cb_vf = ThemeCheckBox("Launch through VanillaFixes.exe when available")
-        self.cb_vf.setChecked(bool(settings.get("vanillafixes_enabled", True)))
-        self.cb_vf.toggled.connect(lambda v: settings.set("vanillafixes_enabled", v))
         self.cb_min = ThemeCheckBox("Minimize launcher when game starts")
         self.cb_min.setChecked(bool(settings.get("minimize_on_launch", False)))
         self.cb_min.toggled.connect(lambda v: settings.set("minimize_on_launch", v))
@@ -82,7 +95,47 @@ class LaunchSettingsPanel(QWidget):
         self.cb_frame_cap.toggled.connect(
             lambda v: settings.set("frame_cap_from_refresh", v)
         )
-        launch_boxes = [self.cb_vf, self.cb_min, self.cb_close]
+        self.cb_nampower_encrypt = ThemeCheckBox(
+            "Encrypt saved login passwords (Nampower)"
+        )
+        self.cb_nampower_encrypt.setChecked(encrypt_enabled())
+        self.cb_nampower_encrypt.setToolTip(
+            "Sets WOW_ENCRYPTION_KEY on the game process so Nampower can "
+            "encrypt saved login passwords with Windows DPAPI. You do not "
+            "need to remember the key. Regenerating or clearing it makes "
+            "previously encrypted passwords unreadable."
+        )
+        self.cb_nampower_encrypt.toggled.connect(self._on_nampower_encrypt_toggled)
+        self.nampower_encrypt_hint = QLabel(
+            _ENCRYPT_HINT_WIN if sys.platform == "win32" else _ENCRYPT_HINT_LINUX
+        )
+        self.nampower_encrypt_hint.setObjectName("Muted")
+        self.nampower_encrypt_hint.setWordWrap(True)
+        self.nampower_encrypt_hint.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
+        )
+        self.btn_regenerate_encrypt_key = GluePanelButton(
+            _REGEN_BTN_LABEL, width=148, height=GLUE_BTN_H
+        )
+        self.btn_regenerate_encrypt_key.setToolTip(
+            "Store a new encryption key. Previously encrypted saved login "
+            "passwords will become unreadable."
+        )
+        self.btn_regenerate_encrypt_key.clicked.connect(self._on_regenerate_encrypt_key)
+        self.encrypt_key_status = QLabel("")
+        self.encrypt_key_status.setObjectName("CardTitle")
+        self.encrypt_key_status.setWordWrap(True)
+        self.encrypt_key_status.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
+        )
+        self._regen_btn_restore = QTimer(self)
+        self._regen_btn_restore.setSingleShot(True)
+        self._regen_btn_restore.setInterval(_REGEN_BTN_RESTORE_MS)
+        self._regen_btn_restore.timeout.connect(self._restore_regenerate_button)
+        if sys.platform != "win32":
+            self.cb_nampower_encrypt.setEnabled(False)
+            self.cb_nampower_encrypt.setToolTip(_ENCRYPT_HINT_LINUX)
+        launch_boxes = [self.cb_min, self.cb_close]
         # build_launch_command only consults linux_use_wow64 through the umu
         # path, and core/process.py imports that module inside its "not win32"
         # branch, so the setting cannot do anything on Windows. The widget is
@@ -90,15 +143,28 @@ class LaunchSettingsPanel(QWidget):
         # own -- it is simply never added to the card.
         if sys.platform != "win32":
             launch_boxes.append(self.cb_wow64)
-        launch_boxes.extend((self.cb_vcache, self.cb_frame_cap))
+        launch_boxes.extend((self.cb_vcache, self.cb_frame_cap, self.cb_nampower_encrypt))
         for cb in launch_boxes:
             cb.setMinimumHeight(28)
             cb.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             layout.addWidget(cb)
+        layout.addWidget(self.nampower_encrypt_hint)
+        regen_row = QHBoxLayout()
+        regen_row.setContentsMargins(0, 0, 0, 0)
+        regen_row.setSpacing(10)
+        regen_row.addWidget(
+            self.btn_regenerate_encrypt_key, 0, Qt.AlignmentFlag.AlignTop
+        )
+        regen_row.addWidget(self.encrypt_key_status, 1)
+        if sys.platform == "win32":
+            layout.addLayout(regen_row)
+        else:
+            self.btn_regenerate_encrypt_key.hide()
+            self.encrypt_key_status.hide()
+        self._sync_nampower_encrypt_controls()
 
     def refresh(self) -> None:
         for cb, key in (
-            (self.cb_vf, "vanillafixes_enabled"),
             (self.cb_min, "minimize_on_launch"),
             (self.cb_close, "close_on_launch"),
         ):
@@ -119,3 +185,51 @@ class LaunchSettingsPanel(QWidget):
         self.cb_frame_cap.blockSignals(True)
         self.cb_frame_cap.setChecked(frame_cap_enabled())
         self.cb_frame_cap.blockSignals(False)
+        self.cb_nampower_encrypt.blockSignals(True)
+        self.cb_nampower_encrypt.setChecked(encrypt_enabled())
+        self.cb_nampower_encrypt.blockSignals(False)
+        self._sync_nampower_encrypt_controls()
+
+    def _sync_nampower_encrypt_controls(self) -> None:
+        on = encrypt_enabled() and sys.platform == "win32"
+        if self._regen_btn_restore.isActive() and on:
+            self.btn_regenerate_encrypt_key.setEnabled(False)
+            return
+        self._restore_regenerate_button()
+
+    def _restore_regenerate_button(self) -> None:
+        self._regen_btn_restore.stop()
+        self.btn_regenerate_encrypt_key.setText(_REGEN_BTN_LABEL)
+        on = encrypt_enabled() and sys.platform == "win32"
+        self.btn_regenerate_encrypt_key.setEnabled(on)
+
+    def _on_nampower_encrypt_toggled(self, checked: bool) -> None:
+        set_encrypt_enabled(checked)
+        self._sync_nampower_encrypt_controls()
+
+    def _on_regenerate_encrypt_key(self) -> None:
+        from ichalaunch.game.nampower_encrypt import regenerate_encryption_key
+        from ichalaunch.ui.widgets.dialogs import confirm, error
+
+        if not confirm(
+            self,
+            "Regenerate encryption key?",
+            "A new key will be stored. Previously encrypted saved login "
+            "passwords will become unreadable.",
+        ):
+            return
+        try:
+            regenerate_encryption_key()
+        except Exception as exc:  # noqa: BLE001
+            self.encrypt_key_status.clear()
+            error(
+                self,
+                "Could not regenerate key",
+                str(exc) or "The encryption key could not be saved.",
+            )
+            return
+        self.encrypt_key_status.setText(REGEN_KEY_STATUS_OK)
+        self.encrypt_key_status.show()
+        self.btn_regenerate_encrypt_key.setText(_REGEN_BTN_OK_LABEL)
+        self.btn_regenerate_encrypt_key.setEnabled(False)
+        self._regen_btn_restore.start()

@@ -20,7 +20,11 @@ from ichalaunch.core.filesystem import (
     robust_rmtree,
 )
 from ichalaunch.core.logging_setup import log
-from ichalaunch.game.launcher import detect_game, resolve_addons_dir
+from ichalaunch.game.launcher import (
+    detect_game,
+    resolve_addons_dir,
+    sync_vanillafixes_enabled_from_desired,
+)
 from ichalaunch.mods.installer import (
     detect_actual_state,
     enforce_vanilla_helpers_for_hd_desired,
@@ -1034,11 +1038,9 @@ def sync_desired_mods_from_disk() -> dict[str, bool]:
     desired = enforce_vanilla_helpers_for_hd_desired(desired)
     desired = reconcile_exclusive_desired_mods(desired, actual=actual)
     settings.set("desired_mods", desired)
-    if "vanillafixes" in actual or "dxvk" in actual:
-        settings.set(
-            "vanillafixes_enabled",
-            bool(actual.get("vanillafixes") or actual.get("dxvk")),
-        )
+    # Launch uses desired_mods, not disk actual. Stamping vanillafixes_enabled
+    # from a missing exe used to uncheck launch while the Client box stayed on.
+    sync_vanillafixes_enabled_from_desired(desired)
     return desired
 
 

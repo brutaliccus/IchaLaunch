@@ -218,7 +218,12 @@ def redact_secrets(text: str) -> str:
     )
     # Sentence / free-text mentions of *this* machine's account name.
     out = _redact_current_username(out)
-    return out
+    try:
+        from ichalaunch.game.nampower_encrypt import redact_encryption_secrets
+
+        return redact_encryption_secrets(out)
+    except Exception:  # noqa: BLE001
+        return out
 
 
 def _should_skip_error_report(record: logging.LogRecord) -> bool:

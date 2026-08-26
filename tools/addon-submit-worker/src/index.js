@@ -2,7 +2,8 @@
  * IchaLaunch catalog suggestion + crash report Worker.
  *
  * Catalog (POST /): validates addon suggestion payloads, rate-limits, opens
- * GitHub Issues on brutaliccus/IchaLaunch for the fork network.
+ * GitHub Issues on brutaliccus/IchaLaunch for the network root plus the
+ * requested repo (never every discovered fork).
  *
  * Crash reports (POST /crash or JSON type:"crash"): validates opt-in client
  * payloads, rate-limits, and appends a comment to the sticky OS log issue
@@ -25,11 +26,6 @@ const MAX_CRASH_EXCERPT = 12000;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
 const RATE_MAX_PER_KEY = 8;
 const CRASH_RATE_MAX_PER_KEY = 4;
-const MAX_FORKS = 40;
-const FORKS_PER_PAGE = 100;
-const FORKS_MAX_PAGES = 5; // 500 listed, then score/cap to MAX_FORKS
-/** Max Compare API calls per submit (scored pool before ahead_by filter). */
-const FORKS_COMPARE_POOL = 80;
 const ADDONS_JSON_URL =
   "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/ichalaunch/data/addons.json";
 /** Sticky GitHub issues that receive crash comments (override via secrets). */
@@ -246,16 +242,6 @@ function rootFromMeta(meta) {
   return null;
 }
 
-/**
- * True when Compare API payload shows the fork head has commits the base lacks.
- * 404/403/missing payloads are treated as not-ahead (do not include unknowns).
- */
-function isForkAhead(compare) {
-  if (!compare || typeof compare !== "object") return false;
-  const ahead = Number(compare.ahead_by);
-  return Number.isFinite(ahead) && ahead > 0;
-}
-
 async function fetchRepoMeta(token, owner, name) {
   const { res, data } = await ghJson(token, `https://api.github.com/repos/${owner}/${name}`);
   if (!res.ok || !data || typeof data !== "object") {
@@ -264,94 +250,37 @@ async function fetchRepoMeta(token, owner, name) {
   return { ok: true, status: res.status, data };
 }
 
-function forkScore(item) {
-  const stars = Number(item.stargazers_count || 0);
-  const watchers = Number(item.watchers_count || item.watchers || 0);
-  const pushed = Date.parse(String(item.pushed_at || "")) || 0;
-  return { score: stars + watchers, pushed };
-}
-
 /**
- * Compare fork default branch vs network-root default branch.
- * Returns true only when ahead_by > 0; failures → false (conservative).
+ * Review queue: network root + the submitted repo if it is a different fork.
+ * Does not enumerate or enqueue the rest of the fork network.
  */
-async function forkAheadOfRoot(token, rootOwner, rootName, baseBranch, forkOwner, forkBranch) {
-  const base = encodeURIComponent(baseBranch);
-  // Keep owner:branch colon unescaped (same as enrich_catalog_forks.py).
-  const head = `${encodeURIComponent(forkOwner)}:${encodeURIComponent(forkBranch)}`;
-  const url = `https://api.github.com/repos/${rootOwner}/${rootName}/compare/${base}...${head}`;
-  const { res, data } = await ghJson(token, url);
-  if (!res.ok || !data || typeof data !== "object") return false;
-  return isForkAhead(data);
-}
-
-/**
- * Non-archived forks of root that are ahead of the root default branch
- * (ahead_by > 0 via Compare API). Ranked by stars/activity, capped at MAX_FORKS.
- * Matches tools/enrich_catalog_forks.py selection rules.
- */
-async function listActiveForks(token, owner, name, rootUrl, rootDefaultBranch) {
-  const candidates = [];
-  const rootLower = rootUrl.toLowerCase();
-  const baseBranch = String(rootDefaultBranch || "main").trim() || "main";
-
-  for (let page = 1; page <= FORKS_MAX_PAGES; page++) {
-    const url =
-      `https://api.github.com/repos/${owner}/${name}/forks` +
-      `?per_page=${FORKS_PER_PAGE}&sort=stargazers&page=${page}`;
-    const { res, data } = await ghJson(token, url);
-    if (res.status === 404 || res.status === 451) break;
-    if (!res.ok || !Array.isArray(data)) break;
-    if (data.length === 0) break;
-
-    for (const item of data) {
-      if (!item || typeof item !== "object") continue;
-      if (item.archived || item.disabled) continue;
-      const html = normalizeRepo(String(item.html_url || ""));
-      if (!html || html.toLowerCase() === rootLower) continue;
-      const full = String(item.full_name || "").trim();
-      const parts = ownerRepo(html);
-      if (!parts) continue;
-      const { score, pushed } = forkScore(item);
-      candidates.push({
-        owner: parts.owner,
-        name: parts.name,
-        url: html,
-        full_name: full || `${parts.owner}/${parts.name}`,
-        description: String(item.description || "").trim().slice(0, MAX_DESC),
-        default_branch: String(item.default_branch || "").trim() || baseBranch,
-        score,
-        pushed,
-      });
-    }
-    if (data.length < FORKS_PER_PAGE) break;
-  }
-
-  candidates.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    if (b.pushed !== a.pushed) return b.pushed - a.pushed;
-    return String(a.full_name).localeCompare(String(b.full_name));
+function reviewQueueNodes(root, submitted) {
+  const nodes = new Map();
+  const add = (node, flags) => {
+    const url = normalizeRepo(node.url);
+    if (!url) return;
+    const key = url.toLowerCase();
+    const prev = nodes.get(key);
+    nodes.set(key, {
+      url,
+      owner: node.owner,
+      name: node.name,
+      full_name: node.full_name || `${node.owner}/${node.name}`,
+      description: String(node.description || "").trim().slice(0, MAX_DESC),
+      isSubmitted: Boolean(prev?.isSubmitted || flags.isSubmitted),
+      isRoot: Boolean(prev?.isRoot || flags.isRoot),
+    });
+  };
+  const rootUrl = String(root.url || "").toLowerCase();
+  const submittedUrl = String(submitted.url || "").toLowerCase();
+  add(root, {
+    isRoot: true,
+    isSubmitted: Boolean(rootUrl) && rootUrl === submittedUrl,
   });
-
-  const pool = candidates.slice(0, FORKS_COMPARE_POOL);
-  const ahead = [];
-  for (const c of pool) {
-    if (ahead.length >= MAX_FORKS) break;
-    try {
-      const differs = await forkAheadOfRoot(
-        token,
-        owner,
-        name,
-        baseBranch,
-        c.owner,
-        c.default_branch || baseBranch
-      );
-      if (differs) ahead.push(c);
-    } catch (err) {
-      console.log(`fork-fanout: compare failed for ${c.full_name}: ${err}`);
-    }
+  if (submittedUrl && submittedUrl !== rootUrl) {
+    add(submitted, { isRoot: false, isSubmitted: true });
   }
-  return ahead;
+  return [...nodes.values()];
 }
 
 async function loadCatalogRepoSet() {
@@ -449,7 +378,7 @@ async function createOneIssue(token, githubRepo, payload, titleName, extraNote) 
 }
 
 /**
- * Build fork-network candidate list and open catalog issues.
+ * Open catalog issues for the network root plus the requested repo only.
  * Returns the primary (submitted) issue result for the HTTP response.
  */
 async function submitWithForkFanout(env, payload) {
@@ -481,44 +410,11 @@ async function submitWithForkFanout(env, payload) {
     if (resolved) root = resolved;
   } else {
     console.log(
-      `fork-fanout: repo meta failed for ${submitted.owner}/${submitted.name} HTTP ${meta.status}; treating as root`
+      `review-queue: repo meta failed for ${submitted.owner}/${submitted.name} HTTP ${meta.status}; treating as root`
     );
   }
 
-  let forks = [];
-  try {
-    forks = await listActiveForks(
-      token,
-      root.owner,
-      root.name,
-      root.url,
-      root.default_branch || "main"
-    );
-  } catch (err) {
-    console.log(`fork-fanout: list forks failed: ${err}`);
-    forks = [];
-  }
-
-  /** @type {Map<string, { url: string, owner: string, name: string, full_name: string, description: string, isSubmitted: boolean, isRoot: boolean }>} */
-  const network = new Map();
-
-  const addNode = (node, flags) => {
-    const url = normalizeRepo(node.url);
-    if (!url) return;
-    const key = url.toLowerCase();
-    const prev = network.get(key);
-    network.set(key, {
-      url,
-      owner: node.owner,
-      name: node.name,
-      full_name: node.full_name || `${node.owner}/${node.name}`,
-      description: String(node.description || "").trim().slice(0, MAX_DESC),
-      isSubmitted: Boolean(prev?.isSubmitted || flags.isSubmitted),
-      isRoot: Boolean(prev?.isRoot || flags.isRoot),
-    });
-  };
-
-  addNode(
+  const networkNodes = reviewQueueNodes(
     {
       owner: root.owner,
       name: root.name,
@@ -526,26 +422,13 @@ async function submitWithForkFanout(env, payload) {
       full_name: `${root.owner}/${root.name}`,
       description: root.description,
     },
-    { isRoot: true, isSubmitted: root.url.toLowerCase() === payload.repo.toLowerCase() }
-  );
-
-  for (const f of forks) {
-    addNode(f, {
-      isRoot: false,
-      isSubmitted: f.url.toLowerCase() === payload.repo.toLowerCase(),
-    });
-  }
-
-  // Always include the originally submitted repo.
-  addNode(
     {
       owner: submitted.owner,
       name: submitted.name,
       url: payload.repo,
       full_name: `${submitted.owner}/${submitted.name}`,
       description: payload.description || "",
-    },
-    { isSubmitted: true, isRoot: payload.repo.toLowerCase() === root.url.toLowerCase() }
+    }
   );
 
   const [inCatalog, openSuggested] = await Promise.all([
@@ -553,14 +436,14 @@ async function submitWithForkFanout(env, payload) {
     loadOpenSuggestionRepos(token, githubRepo),
   ]);
 
-  const candidates = [...network.values()].filter((n) => {
+  const candidates = networkNodes.filter((n) => {
     const key = n.url.toLowerCase();
     if (inCatalog.has(key)) {
-      console.log(`fork-fanout: skip already in catalog ${n.url}`);
+      console.log(`review-queue: skip already in catalog ${n.url}`);
       return false;
     }
     if (openSuggested.has(key)) {
-      console.log(`fork-fanout: skip open suggestion ${n.url}`);
+      console.log(`review-queue: skip open suggestion ${n.url}`);
       return false;
     }
     return true;
@@ -571,10 +454,10 @@ async function submitWithForkFanout(env, payload) {
       ok: true,
       status: 200,
       message:
-        "That repo (and its active fork network) is already in the catalog or has open catalog requests.",
+        "That repo is already in the catalog or has an open catalog request.",
       issue_url: null,
       opened: 0,
-      skipped: network.size,
+      skipped: networkNodes.length,
     };
   }
 
@@ -589,13 +472,13 @@ async function submitWithForkFanout(env, payload) {
     const bits = [
       `_Fork network root: [${root.owner}/${root.name}](${root.url})._`,
     ];
-    if (!node.isSubmitted) {
+    if (!node.isSubmitted && node.isRoot) {
       bits.push(
-        `_Opened automatically with a suggestion for [${payload.repo}](${payload.repo})._`
+        `_Opened for the main/canonical repo alongside a request for [${payload.repo}](${payload.repo})._`
       );
-    } else if (network.size > 1) {
+    } else if (networkNodes.length > 1 && node.isSubmitted && !node.isRoot) {
       bits.push(
-        `_Submit also opened catalog requests for other active forks of this network (best-effort)._`
+        `_Requested fork. A separate catalog request is opened for the main/canonical repo when it is not already listed._`
       );
     }
     return bits.join(" ");
@@ -616,7 +499,7 @@ async function submitWithForkFanout(env, payload) {
           category: payload.category,
           description: node.description || "",
           folder: node.name,
-          launcher_version: payload.launcher_version || "fork-fanout",
+          launcher_version: payload.launcher_version || "review-queue",
           client_id: "(none)",
         };
 
@@ -634,7 +517,7 @@ async function submitWithForkFanout(env, payload) {
         networkNote(node)
       );
       if (!result.ok) {
-        console.log(`fork-fanout: create failed ${node.url}: ${result.message}`);
+        console.log(`review-queue: create failed ${node.url}: ${result.message}`);
         failures.push({ repo: node.url, error: result.message });
         if (isPrimary) primaryFail = result;
         continue;
@@ -647,7 +530,7 @@ async function submitWithForkFanout(env, payload) {
         primaryResult = result;
       }
     } catch (err) {
-      console.log(`fork-fanout: create exception ${node.url}: ${err}`);
+      console.log(`review-queue: create exception ${node.url}: ${err}`);
       failures.push({ repo: node.url, error: String(err) });
       if (isPrimary) {
         primaryFail = { ok: false, status: 502, message: String(err) };
@@ -672,7 +555,7 @@ async function submitWithForkFanout(env, payload) {
     status: 200,
     message:
       opened > 1
-        ? `Suggestion submitted (${opened} catalog issues opened for this fork network). Maintainers will review them.`
+        ? `Suggestion submitted (${opened} catalog issues opened for the main repo and requested fork). Maintainers will review them.`
         : "Suggestion submitted. Maintainers will review it.",
     issue_url: primaryResult?.issue_url || null,
     opened,
@@ -942,8 +825,8 @@ export default {
         ok: true,
         service: "ichalaunch-addon-submit",
         message: "POST / for catalog suggestions; POST /crash appends to the OS crash-log issue.",
-        fork_fanout: true,
-        max_forks: MAX_FORKS,
+        fork_fanout: false,
+        review_queue: "root_plus_requested",
         crash_reports: true,
         crash_mode: "issue_comment",
         crash_logs: { windows: DEFAULT_CRASH_ISSUE_WINDOWS, linux: DEFAULT_CRASH_ISSUE_LINUX },

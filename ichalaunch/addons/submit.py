@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import uuid
 from dataclasses import dataclass
 from typing import Any
@@ -26,6 +27,9 @@ _MAX_NAME = 120
 _MAX_DESC = 4000
 _MAX_FOLDER = 80
 _MAX_CATEGORY = 64
+
+# Session-only dedupe for uncatalogued-fork auto-suggest (Save / Reinstall / Install).
+_session_suggested_repos: set[str] = set()
 
 
 @dataclass(frozen=True)
@@ -111,6 +115,143 @@ def repo_in_catalog(
             if f_repo and f_repo.lower() == want_l:
                 return True
     return False
+
+
+def review_queue_targets(*, submitted: str, root: str | None = None) -> list[str]:
+    """Canonical review items: network root, plus the requested repo if different.
+
+    The Cloudflare Worker opens issues for this set only — never every active fork.
+    """
+    sub = normalize_repo_url(submitted)
+    if not sub:
+        return []
+    root_n = normalize_repo_url(root or "") or sub
+    out = [root_n]
+    if sub.lower() != root_n.lower():
+        out.append(sub)
+    return out
+
+
+def fork_repo_url(fork: Any) -> str | None:
+    """Canonical GitHub repo URL from a fork combo payload or raw URL."""
+    if isinstance(fork, str):
+        return normalize_repo_url(fork)
+    if not isinstance(fork, dict):
+        return None
+    for key in ("repo", "url"):
+        raw = str(fork.get(key) or "").strip()
+        if raw:
+            canon = normalize_repo_url(raw)
+            if canon:
+                return canon
+    owner = str(fork.get("owner") or "").strip()
+    name = str(fork.get("repo_name") or "").strip()
+    if owner and name and "/" not in owner and "/" not in name:
+        return normalize_repo_url(f"https://github.com/{owner}/{name}")
+    repo_field = str(fork.get("repository") or "").strip()
+    if repo_field.count("/") == 1:
+        return normalize_repo_url(f"https://github.com/{repo_field}")
+    return None
+
+
+def clear_fork_suggest_session() -> None:
+    """Reset in-process uncatalogued-fork suggest dedupe (tests)."""
+    _session_suggested_repos.clear()
+
+
+def should_queue_selected_fork(
+    repo_url: str,
+    catalog: list[dict[str, Any]] | None = None,
+) -> bool:
+    """True when this repo is a GitHub URL not already catalogued or queued."""
+    canon = normalize_repo_url(repo_url)
+    if not canon:
+        return False
+    if canon.lower() in _session_suggested_repos:
+        return False
+    try:
+        return not repo_in_catalog(canon, catalog)
+    except Exception:  # noqa: BLE001
+        # If the catalog cannot be read, still allow a one-shot suggest.
+        return True
+
+
+def mark_fork_suggest_sent(repo_url: str) -> None:
+    canon = normalize_repo_url(repo_url)
+    if canon:
+        _session_suggested_repos.add(canon.lower())
+
+
+def try_auto_submit_selected_fork(
+    repo_url: str,
+    *,
+    catalog: list[dict[str, Any]] | None = None,
+    category: str = "General",
+    name: str = "",
+    folder: str = "",
+) -> SubmitResult | None:
+    """Suggest a fork the user actually chose (Save / Reinstall / Install).
+
+    Returns ``None`` when the repo is already in the catalog or was already
+    queued this session. Same anonymous HTTPS path as catalog Suggest.
+    """
+    canon = normalize_repo_url(repo_url)
+    if not canon:
+        return SubmitResult(ok=False, message="Invalid GitHub URL")
+    if not should_queue_selected_fork(canon, catalog):
+        return None
+    mark_fork_suggest_sent(canon)
+    return try_auto_submit_after_git_import(
+        canon,
+        catalog=catalog,
+        category=category,
+        name=name,
+        folder=folder,
+    )
+
+
+def queue_selected_fork_if_uncatalogued(
+    fork: Any,
+    *,
+    catalog: list[dict[str, Any]] | None = None,
+    category: str = "General",
+    name: str = "",
+    folder: str = "",
+    background: bool = True,
+) -> bool:
+    """Fire-and-forget catalog suggest for an uncatalogued selected fork.
+
+    Returns True if a submit was started (or ran inline when ``background`` is
+    False). Does not POST for catalogued forks or session duplicates.
+    """
+    from ichalaunch.core.logging_setup import log
+
+    canon = fork_repo_url(fork)
+    if not canon or not should_queue_selected_fork(canon, catalog):
+        return False
+    mark_fork_suggest_sent(canon)
+
+    def _run() -> None:
+        try:
+            try_auto_submit_after_git_import(
+                canon,
+                catalog=catalog,
+                category=category,
+                name=name,
+                folder=folder,
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Uncatalogued-fork catalog submit failed: %s", exc)
+
+    if background:
+        threading.Thread(
+            target=_run,
+            name="catalog-fork-suggest",
+            daemon=True,
+        ).start()
+        return True
+    _run()
+    return True
 
 
 def build_submit_payload(

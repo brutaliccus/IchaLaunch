@@ -1611,10 +1611,22 @@ class AddonInstallPickerDialog(QDialog):
     cleanup_readme_cache(self._cache_dir)
     self._cache_dir = ""
 
+  def _queue_selected_fork_review(self) -> None:
+    from ichalaunch.addons.submit import queue_selected_fork_if_uncatalogued
+
+    fork = self._current_fork_data()
+    queue_selected_fork_if_uncatalogued(
+      fork,
+      name=str(self._entry.get("name") or ""),
+      folder=str(self._entry.get("folder") or ""),
+      category=str(self._entry.get("category") or "General"),
+    )
+
   def _accept_install(self) -> None:
     out = self._build_result_entry()
     if not out:
       return
+    self._queue_selected_fork_review()
     self._result = out
     self.accept()
 
@@ -2396,7 +2408,19 @@ class AddonSettingsDialog(QDialog):
         out["never_update"] = bool(self._never_update_cb.isChecked())
     return out
 
+  def _queue_selected_fork_review(self) -> None:
+    from ichalaunch.addons.submit import queue_selected_fork_if_uncatalogued
+
+    fork = self._current_fork_data()
+    queue_selected_fork_if_uncatalogued(
+      fork,
+      name=str(self._entry.get("name") or ""),
+      folder=str(self._entry.get("folder") or ""),
+      category=str(self._entry.get("category") or "General"),
+    )
+
   def _accept_save(self) -> None:
+    self._queue_selected_fork_review()
     self._result = self._build_result_entry()
     self.accept()
 
@@ -2407,6 +2431,7 @@ class AddonSettingsDialog(QDialog):
       return
     if not self._selection_differs_from_install():
       return
+    self._queue_selected_fork_review()
     out = self._build_result_entry()
     orig_folder = str(self._entry.get("folder") or self._entry.get("name") or "").strip()
     if orig_folder:

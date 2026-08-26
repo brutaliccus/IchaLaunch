@@ -136,6 +136,11 @@ DEFAULTS: dict[str, Any] = {
     "vanillafixes_enabled": True,
     "minimize_on_launch": False,
     "close_on_launch": False,
+    # Nampower login Encrypt toggle. The launcher owns WOW_ENCRYPTION_KEY
+    # (Windows DPAPI). Off by default; the key is generated on first enable
+    # and kept if the user turns the feature off so re-enabling still works.
+    "nampower_encrypt_passwords": False,
+    "wow_encryption_key": "",
     # Unified: covers both addon and client-mod quiet checks on launch.
     "check_updates_on_startup": True,
     # Legacy keys kept for migration from older settings.json files.

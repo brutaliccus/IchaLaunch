@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -442,6 +443,15 @@ def file_in_use_hint(*paths: Path | str) -> str:
 # plain files only, and treat WinError 5/32/225 as skip + backoff.
 
 
+def child_launch_env(base: dict[str, str] | None = None) -> dict[str, str]:
+    """Environment for the game child: inherit, then apply launcher-owned vars."""
+    from ichalaunch.game.nampower_encrypt import apply_wow_encryption_env
+
+    env = dict(os.environ if base is None else base)
+    apply_wow_encryption_env(env)
+    return env
+
+
 def launch_exe(path: Path, cwd: Path | None = None) -> subprocess.Popen:
     if not path.exists():
         raise FileNotFoundError(str(path))
@@ -459,7 +469,8 @@ def launch_exe(path: Path, cwd: Path | None = None) -> subprocess.Popen:
     # creation. No-op on every other CPU.
     from ichalaunch.game.cpu_topology import launch_affinity, vcache_pin_enabled
 
+    env = child_launch_env()
     if not vcache_pin_enabled():
-        return subprocess.Popen([str(path)], cwd=str(workdir), shell=False)
+        return subprocess.Popen([str(path)], cwd=str(workdir), env=env, shell=False)
     with launch_affinity():
-        return subprocess.Popen([str(path)], cwd=str(workdir), shell=False)
+        return subprocess.Popen([str(path)], cwd=str(workdir), env=env, shell=False)

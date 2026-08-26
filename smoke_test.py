@@ -1782,9 +1782,10 @@ def test_backfill_installed_mods_on_detect():
 
 def test_resolve_launch_exe():
     from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
     from ichalaunch.game.launcher import launch_exe_note, resolve_launch_exe
 
-    keys = ("game_path", "vanillafixes_enabled")
+    keys = ("game_path", "vanillafixes_enabled", "desired_mods")
     saved = {k: s.get(k) for k in keys}
     try:
         with tempfile.TemporaryDirectory() as td:
@@ -1793,22 +1794,89 @@ def test_resolve_launch_exe():
             vf = game / "VanillaFixes.exe"
             wow.write_bytes(b"MZ")
             s.set("game_path", str(game))
+            s.set("desired_mods", {"vanillafixes": True, "dxvk": False})
             s.set("vanillafixes_enabled", True)
+            clear_fs_caches()
 
             assert resolve_launch_exe(game) == wow
             assert launch_exe_note(game, wow) == "VanillaFixes.exe not found in game folder"
 
             vf.write_bytes(b"MZ")
+            clear_fs_caches()
             assert resolve_launch_exe(game) == vf
             assert launch_exe_note(game, vf) is None
 
+            # Stale Launch-settings flag must not override the Client checkbox.
+            s.set("vanillafixes_enabled", False)
+            assert resolve_launch_exe(game) == vf
+            assert launch_exe_note(game, vf) is None
+
+            s.set("desired_mods", {"vanillafixes": False, "dxvk": False})
             s.set("vanillafixes_enabled", False)
             assert resolve_launch_exe(game) == wow
-            assert launch_exe_note(game, wow) == "launch through VanillaFixes disabled in Settings"
+            assert launch_exe_note(game, wow) == (
+                "launch through VanillaFixes disabled in Client"
+            )
+
+            assert resolve_launch_exe(game, force_direct=True) == wow
+            assert launch_exe_note(game, wow, force_direct=True) == (
+                "user chose Launch Anyway without VanillaFixes"
+            )
     finally:
         for k, v in saved.items():
             s.set(k, v)
+        clear_fs_caches()
     print("OK resolve_launch_exe")
+
+
+def test_vanillafixes_launch_decision():
+    """Client desired_mods is the VF launch authority; missing exe asks, off does not."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.game.launcher import (
+        VF_LAUNCH_ASK,
+        VF_LAUNCH_DIRECT,
+        VF_LAUNCH_OK,
+        vanillafixes_launch_decision,
+        vanillafixes_reinstall_mod_id,
+    )
+
+    keys = ("game_path", "vanillafixes_enabled", "desired_mods")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            s.set("game_path", str(game))
+            clear_fs_caches()
+
+            s.set("desired_mods", {"vanillafixes": True, "dxvk": False})
+            s.set("vanillafixes_enabled", False)
+            assert vanillafixes_launch_decision(game) == VF_LAUNCH_ASK
+            assert vanillafixes_reinstall_mod_id() == "vanillafixes"
+
+            (game / "VanillaFixes.exe").write_bytes(b"MZ")
+            clear_fs_caches()
+            assert vanillafixes_launch_decision(game) == VF_LAUNCH_OK
+
+            s.set("desired_mods", {"vanillafixes": False, "dxvk": False})
+            s.set("vanillafixes_enabled", True)
+            assert vanillafixes_launch_decision(game) == VF_LAUNCH_DIRECT
+
+            s.set("desired_mods", {"vanillafixes": False, "dxvk": True})
+            s.set("vanillafixes_enabled", False)
+            assert vanillafixes_launch_decision(game) == VF_LAUNCH_OK
+            assert vanillafixes_reinstall_mod_id() == "dxvk"
+
+            (game / "VanillaFixes.exe").unlink()
+            clear_fs_caches()
+            assert vanillafixes_launch_decision(game) == VF_LAUNCH_ASK
+            assert vanillafixes_launch_decision(game, force_direct=True) == VF_LAUNCH_DIRECT
+    finally:
+        for k, v in saved.items():
+            s.set(k, v)
+        clear_fs_caches()
+    print("OK vanillafixes launch decision")
 
 
 def test_vf_mode_labels():
@@ -3108,6 +3176,214 @@ def test_nested_catalog_forks_in_submit_duplicate_check():
     print("OK nested catalog forks in submit duplicate check")
 
 
+def test_review_queue_only_root_and_requested_fork():
+    """Issue queue is the network root plus one requested fork — not every active fork."""
+    from ichalaunch.addons.submit import (
+        clear_fork_suggest_session,
+        review_queue_targets,
+        should_queue_selected_fork,
+        try_auto_submit_selected_fork,
+        submit_catalog_suggestion,
+        SubmitResult,
+    )
+
+    root = "https://github.com/shagu/pfUI"
+    requested = "https://github.com/alice/pfUI-fork"
+    assert review_queue_targets(submitted=root, root=root) == [root]
+    assert review_queue_targets(submitted=requested, root=root) == [root, requested]
+    assert review_queue_targets(submitted=requested, root=None) == [requested]
+    assert review_queue_targets(
+        submitted="https://github.com/alice/pfUI-fork.git",
+        root="https://github.com/shagu/pfUI/",
+    ) == [root, requested]
+
+    catalog = [
+        {
+            "name": "pfUI",
+            "repo": "https://github.com/shagu/pfUI",
+            "forks": [{"repo": "https://github.com/me0wg4ming/pfUI"}],
+        }
+    ]
+    clear_fork_suggest_session()
+    assert not should_queue_selected_fork(root, catalog)
+    assert not should_queue_selected_fork("https://github.com/me0wg4ming/pfUI", catalog)
+    assert should_queue_selected_fork(requested, catalog)
+
+    posted: list[dict] = []
+    orig = submit_catalog_suggestion
+
+    def fake_submit(payload):
+        posted.append(payload)
+        return SubmitResult(ok=True, message="ok", status_code=200, issue_url="https://example.test/1")
+
+    import ichalaunch.addons.submit as submit_mod
+
+    orig_readme = submit_mod._readme_excerpt_for_repo
+    submit_mod.submit_catalog_suggestion = fake_submit  # type: ignore[assignment]
+    submit_mod._readme_excerpt_for_repo = lambda *_a, **_k: ""  # type: ignore[assignment]
+    try:
+        skipped = try_auto_submit_selected_fork(root, catalog=catalog)
+        assert skipped is None
+        assert posted == []
+
+        result = try_auto_submit_selected_fork(
+            requested,
+            catalog=catalog,
+            category="General",
+            name="pfUI",
+            folder="pfUI",
+        )
+        assert result is not None and result.ok
+        assert posted and posted[0]["repo"] == requested
+
+        posted.clear()
+        again = try_auto_submit_selected_fork(requested, catalog=catalog)
+        assert again is None
+        assert posted == []
+    finally:
+        submit_mod.submit_catalog_suggestion = orig  # type: ignore[assignment]
+        submit_mod._readme_excerpt_for_repo = orig_readme  # type: ignore[assignment]
+        clear_fork_suggest_session()
+
+    worker_src = (ROOT / "tools" / "addon-submit-worker" / "src" / "index.js").read_text(
+        encoding="utf-8"
+    )
+    assert "function reviewQueueNodes" in worker_src
+    assert "listActiveForks(" not in worker_src
+    assert 'review_queue: "root_plus_requested"' in worker_src
+
+    workflow = (ROOT / ".github" / "workflows" / "catalog-approve.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "close_pr_if_open" in workflow
+    assert "${GITHUB_REPOSITORY_OWNER}:${BRANCH}" in workflow
+    assert "gh pr close" in workflow
+    assert "|| true" not in workflow.split("gh pr close")[1][:200]
+
+    print("OK review queue is root + requested fork only")
+
+
+def test_addon_settings_uncatalogued_fork_triggers_submit():
+    """Save / reinstall / install of an uncatalogued fork queues review; catalogued does not."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.addons import github as G
+    from ichalaunch.addons import submit as submit_mod
+    from ichalaunch.ui.widgets import dialogs as D
+
+    app = QApplication.instance() or QApplication([])
+    queued: list[object] = []
+
+    def spy_queue(fork, **kwargs):
+        queued.append(fork)
+        return True
+
+    orig_queue = submit_mod.queue_selected_fork_if_uncatalogued
+    prev_token = G.has_github_token
+    orig_preview_start = D._PreviewFetchThread.start
+    orig_browse_start = D._AddonBrowseFetchThread.start
+
+    def _noop_start(self):  # noqa: ANN001
+        return None
+
+    entry = {
+        "name": "pfUI",
+        "folder": "pfUI",
+        "repo": "https://github.com/shagu/pfUI",
+        "repository": "shagu/pfUI",
+        "category": "General",
+    }
+    meta = {"tag": "5.4.4", "source": "github", "loaded": True}
+    uncatalogued = {
+        "label": "alice/NopeAddon",
+        "repo": "https://github.com/alice/NopeAddon",
+        "owner": "alice",
+        "repo_name": "NopeAddon",
+    }
+
+    try:
+        submit_mod.queue_selected_fork_if_uncatalogued = spy_queue  # type: ignore[assignment]
+        G.has_github_token = lambda: True  # type: ignore[assignment]
+        D._PreviewFetchThread.start = _noop_start  # type: ignore[method-assign]
+        D._AddonBrowseFetchThread.start = _noop_start  # type: ignore[method-assign]
+
+        dlg = D.AddonSettingsDialog(None, entry, meta=meta)
+        dlg.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        assert dlg._fork_combo is not None
+        dlg._fork_combo.blockSignals(True)
+        dlg._fork_combo.addItem("alice/NopeAddon", uncatalogued)
+        dlg._fork_combo.setCurrentIndex(dlg._fork_combo.count() - 1)
+        dlg._fork_combo.blockSignals(False)
+        dlg._accept_save()
+        assert queued, "uncatalogued fork Save must call submit helper"
+        last = queued[-1]
+        assert isinstance(last, dict)
+        assert "alice/NopeAddon" in str(last.get("repo") or "")
+
+        queued.clear()
+        dlg._fork_combo.blockSignals(True)
+        dlg._fork_combo.setCurrentIndex(0)
+        dlg._fork_combo.blockSignals(False)
+        # Real helper: catalogued primary must not start a submit.
+        submit_mod.queue_selected_fork_if_uncatalogued = orig_queue  # type: ignore[assignment]
+        posted: list[dict] = []
+        orig_submit = submit_mod.submit_catalog_suggestion
+
+        def fake_submit(payload):
+            posted.append(payload)
+            return submit_mod.SubmitResult(ok=True, message="ok")
+
+        submit_mod.clear_fork_suggest_session()
+        orig_readme = submit_mod._readme_excerpt_for_repo
+        submit_mod._readme_excerpt_for_repo = lambda *_a, **_k: ""  # type: ignore[assignment]
+        submit_mod.submit_catalog_suggestion = fake_submit  # type: ignore[assignment]
+        started = submit_mod.queue_selected_fork_if_uncatalogued(
+            dlg._current_fork_data(),
+            catalog=[{"name": "pfUI", "repo": "https://github.com/shagu/pfUI"}],
+            category="General",
+        )
+        assert started is False
+        assert posted == []
+
+        started = submit_mod.queue_selected_fork_if_uncatalogued(
+            uncatalogued,
+            catalog=[{"name": "pfUI", "repo": "https://github.com/shagu/pfUI"}],
+            category="General",
+            name="pfUI",
+            folder="pfUI",
+            background=False,
+        )
+        assert started is True
+        assert posted and posted[0]["repo"] == "https://github.com/alice/NopeAddon"
+        submit_mod.submit_catalog_suggestion = orig_submit  # type: ignore[assignment]
+        submit_mod._readme_excerpt_for_repo = orig_readme  # type: ignore[assignment]
+        dlg.close()
+
+        queued.clear()
+        submit_mod.queue_selected_fork_if_uncatalogued = spy_queue  # type: ignore[assignment]
+        install = D.AddonInstallPickerDialog(None, entry)
+        install.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        install.fork_combo.blockSignals(True)
+        install.fork_combo.addItem("alice/NopeAddon", uncatalogued)
+        install.fork_combo.setCurrentIndex(install.fork_combo.count() - 1)
+        install.fork_combo.blockSignals(False)
+        install._accept_install()
+        assert queued, "uncatalogued fork Install must call submit helper"
+        last = queued[-1]
+        assert isinstance(last, dict)
+        assert "alice/NopeAddon" in str(last.get("repo") or "")
+        install.close()
+    finally:
+        submit_mod.queue_selected_fork_if_uncatalogued = orig_queue  # type: ignore[assignment]
+        submit_mod.clear_fork_suggest_session()
+        G.has_github_token = prev_token
+        D._PreviewFetchThread.start = orig_preview_start  # type: ignore[method-assign]
+        D._AddonBrowseFetchThread.start = orig_browse_start  # type: ignore[method-assign]
+
+    print("OK uncatalogued fork selection queues catalog submit")
+
+
 def test_fork_ahead_compare_helper():
     """enrich_catalog_forks keeps only Compare ahead_by > 0 (mocked)."""
     from tools.enrich_catalog_forks import (
@@ -3221,6 +3497,8 @@ def test_crash_report_opt_in_and_redaction():
             'github_token: ghp_abcdefghijklmnopqrstuvwxyz0123456789\n'
             'Authorization: Bearer ghp_abcdefghijklmnopqrstuvwxyz0123456789\n'
             '"github_token": "ghp_abcdefghijklmnopqrstuvwxyz0123456789"\n'
+            '"wow_encryption_key": "super-secret-nampower-key-value"\n'
+            "WOW_ENCRYPTION_KEY=super-secret-nampower-key-value\n"
             r"C:\Users\SecretUser\Games\WoW"
             "\n"
             "/home/secretuser/games\n"
@@ -3228,6 +3506,7 @@ def test_crash_report_opt_in_and_redaction():
         redacted = cr.redact_secrets(sample)
         assert "ghp_" not in redacted
         assert "[REDACTED]" in redacted
+        assert "super-secret-nampower-key-value" not in redacted
         assert "SecretUser" not in redacted
         assert "secretuser" not in redacted
         assert cr.crash_report_url().endswith("/crash")
@@ -9119,8 +9398,16 @@ def test_launch_settings_live_on_client_page():
     assert CATEGORY_ORDER[0] != LAUNCH_CATEGORY
 
     settings_page = settings_page_mod.SettingsPage()
-    for attr in ("cb_vf", "cb_min", "cb_close", "cb_wow64", "cb_vcache", "cb_frame_cap"):
+    for attr in (
+        "cb_min",
+        "cb_close",
+        "cb_wow64",
+        "cb_vcache",
+        "cb_frame_cap",
+        "cb_nampower_encrypt",
+    ):
         assert not hasattr(settings_page, attr), attr
+    assert not hasattr(settings_page, "cb_vf")
     titles = [
         w.text()
         for w in settings_page.findChildren(QLabel)
@@ -9144,8 +9431,16 @@ def test_launch_settings_live_on_client_page():
             widgets.append(w)
     assert page.launch_settings in widgets
     assert not any(isinstance(w, ModCheckRow) for w in widgets)
-    for attr in ("cb_vf", "cb_min", "cb_close", "cb_wow64", "cb_vcache", "cb_frame_cap"):
+    for attr in (
+        "cb_min",
+        "cb_close",
+        "cb_wow64",
+        "cb_vcache",
+        "cb_frame_cap",
+        "cb_nampower_encrypt",
+    ):
         assert hasattr(page.launch_settings, attr), attr
+    assert not hasattr(page.launch_settings, "cb_vf")
     page.deleteLater()
     print("OK launch settings live on client page")
 
@@ -10052,6 +10347,170 @@ def test_frame_cap_settings_checkbox_and_launch_apply():
     print("OK frame cap settings checkbox and launch apply")
 
 
+def test_nampower_password_encryption_key_and_launch_env():
+    """Default off; enable generates a key; child env gets it only when on."""
+    import inspect
+
+    from ichalaunch.config.settings import DEFAULTS, settings
+    from ichalaunch.core import process
+    from ichalaunch.game import nampower_encrypt as NE
+    from ichalaunch.game import proton
+
+    assert DEFAULTS["nampower_encrypt_passwords"] is False
+    assert DEFAULTS["wow_encryption_key"] == ""
+    assert "child_launch_env" in inspect.getsource(process.launch_exe)
+    assert "apply_wow_encryption_env" in inspect.getsource(proton.build_launch_command)
+
+    prev_on = settings.get(NE.SETTING_ENABLED, False)
+    prev_key = settings.get(NE.SETTING_KEY, "")
+    try:
+        settings.set(NE.SETTING_ENABLED, False)
+        settings.set(NE.SETTING_KEY, "")
+        assert NE.encrypt_enabled() is False
+        env_off = process.child_launch_env(
+            {"PATH": "/bin", NE.WOW_ENCRYPTION_ENV: "from-parent"}
+        )
+        assert NE.WOW_ENCRYPTION_ENV not in env_off
+
+        NE.set_encrypt_enabled(True)
+        assert NE.encrypt_enabled() is True
+        key1 = NE.stored_key()
+        assert len(key1) >= 24, key1
+        env_on = process.child_launch_env({"PATH": "/bin"})
+        assert env_on[NE.WOW_ENCRYPTION_ENV] == key1
+
+        NE.set_encrypt_enabled(True)
+        assert NE.stored_key() == key1
+
+        key2 = NE.regenerate_encryption_key()
+        assert key2 != key1
+        assert NE.stored_key() == key2
+        env_new = process.child_launch_env({})
+        assert env_new[NE.WOW_ENCRYPTION_ENV] == key2
+
+        NE.set_encrypt_enabled(False)
+        env_off2 = process.child_launch_env({NE.WOW_ENCRYPTION_ENV: "stale"})
+        assert NE.WOW_ENCRYPTION_ENV not in env_off2
+        assert NE.stored_key() == key2
+
+        leaked = (
+            f'WOW_ENCRYPTION_KEY={key2}\n'
+            f'"wow_encryption_key": "{key2}"\n'
+        )
+        redacted = NE.redact_encryption_secrets(leaked)
+        assert key2 not in redacted
+        assert "[REDACTED]" in redacted
+    finally:
+        settings.set(NE.SETTING_ENABLED, prev_on)
+        settings.set(NE.SETTING_KEY, prev_key or "")
+    print("OK nampower password encryption key and launch env")
+
+
+def test_nampower_encrypt_settings_checkbox():
+    """Encrypt checkbox lives on Client → Launch; Settings does not host it."""
+    import sys as _sys
+
+    from PySide6.QtWidgets import QApplication
+
+    import ichalaunch.ui.pages.settings as settings_page_mod
+    from ichalaunch.config.settings import settings
+    from ichalaunch.game.nampower_encrypt import SETTING_ENABLED, encrypt_enabled
+    from ichalaunch.ui.widgets.launch_settings import LaunchSettingsPanel
+
+    app = QApplication.instance() or QApplication(_sys.argv)
+    assert app is not None
+    settings_page = settings_page_mod.SettingsPage()
+    assert not hasattr(settings_page, "cb_nampower_encrypt")
+    page = LaunchSettingsPanel()
+    assert hasattr(page, "cb_nampower_encrypt")
+    assert page.cb_nampower_encrypt.parent() is not None
+    assert page.nampower_encrypt_hint.parent() is not None
+    if _sys.platform == "win32":
+        assert page.cb_nampower_encrypt.isEnabled()
+        assert page.btn_regenerate_encrypt_key.parent() is not None
+    else:
+        assert not page.cb_nampower_encrypt.isEnabled()
+        assert page.btn_regenerate_encrypt_key.isHidden()
+
+    prev_on = settings.get(SETTING_ENABLED, False)
+    try:
+        settings.set(SETTING_ENABLED, False)
+        page.refresh()
+        assert not page.cb_nampower_encrypt.isChecked()
+        assert not page.btn_regenerate_encrypt_key.isEnabled()
+
+        settings.set(SETTING_ENABLED, True)
+        page.refresh()
+        assert page.cb_nampower_encrypt.isChecked() is encrypt_enabled()
+        if _sys.platform == "win32":
+            assert page.btn_regenerate_encrypt_key.isEnabled()
+        else:
+            assert not page.btn_regenerate_encrypt_key.isEnabled()
+    finally:
+        settings.set(SETTING_ENABLED, prev_on)
+        page.deleteLater()
+        settings_page.deleteLater()
+    print("OK nampower encrypt settings checkbox")
+
+
+def test_nampower_encrypt_regenerate_feedback():
+    """Regenerate rotates the stored key and sets inline success text."""
+    from unittest.mock import patch
+
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.config.settings import settings
+    from ichalaunch.game.nampower_encrypt import (
+        SETTING_ENABLED,
+        SETTING_KEY,
+        stored_key,
+    )
+    from ichalaunch.ui.widgets.launch_settings import (
+        REGEN_KEY_STATUS_OK,
+        LaunchSettingsPanel,
+    )
+
+    app = QApplication.instance() or QApplication(sys.argv)
+    assert app is not None
+    page = LaunchSettingsPanel()
+    prev_on = settings.get(SETTING_ENABLED, False)
+    prev_key = settings.get(SETTING_KEY, "")
+    old_key = "old-key-for-rotate-test-xxxx"
+    try:
+        settings.set(SETTING_ENABLED, True)
+        settings.set(SETTING_KEY, old_key)
+        page.refresh()
+        assert page.encrypt_key_status.text() == ""
+
+        with patch("ichalaunch.ui.widgets.dialogs.confirm", return_value=True):
+            page._on_regenerate_encrypt_key()
+        new_key = stored_key()
+        assert new_key != old_key
+        assert len(new_key) >= 24
+        assert page.encrypt_key_status.text() == REGEN_KEY_STATUS_OK
+        assert page.btn_regenerate_encrypt_key.text() == "Key replaced"
+
+        settings.set(SETTING_KEY, old_key)
+        page.encrypt_key_status.clear()
+        with (
+            patch("ichalaunch.ui.widgets.dialogs.confirm", return_value=True),
+            patch(
+                "ichalaunch.game.nampower_encrypt.regenerate_encryption_key",
+                side_effect=OSError("disk full"),
+            ),
+            patch("ichalaunch.ui.widgets.dialogs.error") as err,
+        ):
+            page._on_regenerate_encrypt_key()
+        err.assert_called_once()
+        assert stored_key() == old_key
+        assert page.encrypt_key_status.text() == ""
+    finally:
+        settings.set(SETTING_ENABLED, prev_on)
+        settings.set(SETTING_KEY, prev_key or "")
+        page.deleteLater()
+    print("OK nampower encrypt regenerate feedback")
+
+
 def test_linux_dxvk_vulkan_preflight():
     """DXVK suitability on Linux turns on 32-bit Vulkan, not on the GPU name.
 
@@ -10363,6 +10822,7 @@ def _run_smoke_tests():
     test_hd_patch_both_desired_reconciled()
     test_backfill_installed_mods_on_detect()
     test_resolve_launch_exe()
+    test_vanillafixes_launch_decision()
     test_vf_mode_labels()
     test_vf_dxvk_roundtrip_simulated_plan_clean()
     test_vf_dxvk_roundtrip_plan_clean()
@@ -10388,6 +10848,8 @@ def _run_smoke_tests():
     test_git_refs_and_tip_index()
     test_mod_catalog_repos_in_tip_index_builder()
     test_nested_catalog_forks_in_submit_duplicate_check()
+    test_review_queue_only_root_and_requested_fork()
+    test_addon_settings_uncatalogued_fork_triggers_submit()
     test_fork_ahead_compare_helper()
     test_crash_report_opt_in_and_redaction()
     test_crash_report_skips_rate_limit_errors()
@@ -10438,6 +10900,9 @@ def _run_smoke_tests():
     test_frame_cap_from_refresh()
     test_frame_cap_default_is_not_persisted()
     test_frame_cap_settings_checkbox_and_launch_apply()
+    test_nampower_password_encryption_key_and_launch_env()
+    test_nampower_encrypt_settings_checkbox()
+    test_nampower_encrypt_regenerate_feedback()
     test_linux_dxvk_vulkan_preflight()
     test_prepare_for_launch_clears_data_readonly()
     test_plan_missing_installs_dxvk()

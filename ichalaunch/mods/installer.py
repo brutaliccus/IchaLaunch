@@ -80,6 +80,7 @@ from ichalaunch.game.launcher import (
     detect_vf_disk_mode,
     ensure_addons_dir,
     resolve_addons_dir,
+    sync_vanillafixes_enabled_from_desired,
     vf_mode_display,
     wow_exe_in,
 )
@@ -568,11 +569,7 @@ def _persist_reconciled_desired_mods(
     reconciled = reconcile_exclusive_desired_mods(desired, actual=actual)
     if reconciled != dict(settings.desired_mods):
         settings.set("desired_mods", reconciled)
-        if reconciled.get(_VANILLAFIXES_ID) or reconciled.get(_DXVK_ID):
-            settings.set(
-                "vanillafixes_enabled",
-                bool(reconciled.get(_VANILLAFIXES_ID) or reconciled.get(_DXVK_ID)),
-            )
+        sync_vanillafixes_enabled_from_desired(reconciled)
     return reconciled
 
 
@@ -605,10 +602,7 @@ def apply_vanillafixes_dxvk_choice(keep: str) -> dict[str, bool]:
         if bool(settings.desired_mods.get(mid)) != want:
             changes[mid] = want
         settings.set_desired_mod(mid, want)
-    settings.set(
-        "vanillafixes_enabled",
-        bool(desired.get(_VANILLAFIXES_ID) or desired.get(_DXVK_ID)),
-    )
+    sync_vanillafixes_enabled_from_desired(desired)
     return changes
 
 
@@ -782,6 +776,10 @@ def apply_mod_toggle(mod_id: str, enabled: bool) -> dict[str, bool]:
     changes = resolve_mod_toggle(mod_id, enabled)
     for mid, state in changes.items():
         settings.set_desired_mod(mid, state)
+    if mod_id in (_VANILLAFIXES_ID, _DXVK_ID) or any(
+        mid in (_VANILLAFIXES_ID, _DXVK_ID) for mid in changes
+    ):
+        sync_vanillafixes_enabled_from_desired()
     return changes
 
 

@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 )
 from ichalaunch.config.settings import settings
 from ichalaunch.core.filesystem import LOCK_AV_VERIFY_MESSAGE
-from ichalaunch.game.launcher import detect_game
+from ichalaunch.game.launcher import detect_game, sync_vanillafixes_enabled_from_desired
 from ichalaunch.mods.client_mod_hints import (
     is_dll_injection_mod,
     should_show_mpq_patch_warning,
@@ -721,10 +721,7 @@ class ClientPage(QWidget):
             row.cb.setChecked(state)
             row.cb.blockSignals(False)
         desired = settings.desired_mods
-        settings.set(
-            "vanillafixes_enabled",
-            bool(desired.get("vanillafixes") or desired.get("dxvk")),
-        )
+        sync_vanillafixes_enabled_from_desired(desired)
         if getattr(self, "launch_settings", None) is not None:
             self.launch_settings.refresh()
         if enabled and mod_id in ("dxvk", "hd_dxvk"):
@@ -818,11 +815,7 @@ class ClientPage(QWidget):
         )
         if desired != settings.desired_mods:
             settings.set("desired_mods", desired)
-            if desired.get("vanillafixes") or desired.get("dxvk"):
-                settings.set(
-                    "vanillafixes_enabled",
-                    bool(desired.get("vanillafixes") or desired.get("dxvk")),
-                )
+        sync_vanillafixes_enabled_from_desired(desired)
         installed_meta = settings.installed_mods
         catalog = {m["id"]: m for m in load_mod_catalog()}
         for mid, row in self.rows.items():

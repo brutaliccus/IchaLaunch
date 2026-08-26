@@ -267,6 +267,10 @@ def build_launch_command(exe: Path, cwd: Path) -> tuple[list[str], dict[str, str
         # loader ran costs a round trip to find out.
         log.info("Launch mode: default (new WoW64 turned off in Settings)")
 
+    from ichalaunch.game.nampower_encrypt import apply_wow_encryption_env
+
+    apply_wow_encryption_env(env)
+
     cmd = [str(umu), str(exe)]
     from ichalaunch.game.cpu_topology import vcache_pin_enabled
 
