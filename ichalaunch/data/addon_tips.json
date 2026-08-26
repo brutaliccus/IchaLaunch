@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-26T07:46:56Z",
+  "generated_at": "2026-08-26T08:44:57Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -12275,9 +12275,9 @@
     },
     "obszczymucha/roll-for-vanilla": {
       "default_branch": "master",
-      "sha": "672afba3d9c417a14d9dafa6a92f1d6e83b5c63f",
+      "sha": "69eadcbfe182db558db596b1c2b9c0ea1d58f6f0",
       "branches": {
-        "master": "672afba3d9c417a14d9dafa6a92f1d6e83b5c63f"
+        "master": "69eadcbfe182db558db596b1c2b9c0ea1d58f6f0"
       },
       "latest_tag": "v4.6.5"
     },
@@ -16409,9 +16409,9 @@
     },
     "torchlite-bit/aegis_sbr": {
       "default_branch": "main",
-      "sha": "87ba568b36ed63f03daa06ead618027daaf8c9f7",
+      "sha": "8a3b5fa451ee9b57d7b08deb8a59f180c524fb71",
       "branches": {
-        "main": "87ba568b36ed63f03daa06ead618027daaf8c9f7"
+        "main": "8a3b5fa451ee9b57d7b08deb8a59f180c524fb71"
       }
     },
     "eirikaskheim/aegis_sbr": {
