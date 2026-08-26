@@ -4,6 +4,12 @@ The browseable Available list is authored in ``ichalaunch/data/addons.json``.
 That file is published on GitHub; launchers prefer a fresh remote copy, then an
 appdata cache, then the bundled copy shipped with the build.
 
+Latest-release download counts are written onto that published file by the
+hourly tokened catalog job (``tools/enrich_catalog_downloads.py``). Clients
+read those fields from the same list GET — they do not call GitHub per addon.
+Stamped fields persist in the appdata catalog cache so offline / 15-min TTL
+keeps working.
+
 Update tip SHAs still live in ``addon_tips.json`` (see ``tip_index``). Both are
 refreshed on the same periodic update-check cadence.
 """
@@ -170,6 +176,7 @@ def refresh_catalog(*, force: bool = False) -> list[dict[str, Any]]:
 
     remote = fetch_remote_catalog()
     if remote is not None:
+        _apply_published_release_downloads(remote)
         try:
             write_catalog_file(catalog_cache_path(), remote)
         except OSError as exc:
@@ -178,10 +185,16 @@ def refresh_catalog(*, force: bool = False) -> list[dict[str, Any]]:
 
     cached = load_catalog_file(catalog_cache_path())
     if catalog_entry_count(cached) > 0:
+        _apply_published_release_downloads(cached)
+        try:
+            write_catalog_file(catalog_cache_path(), cached)
+        except OSError as exc:
+            log.debug("Could not rewrite addon catalog cache: %s", exc)
         return _remember(cached, "cache")
 
     bundled = load_bundled_catalog()
     if catalog_entry_count(bundled) > 0:
+        _apply_published_release_downloads(bundled)
         return _remember(bundled, "bundled")
 
     return _remember(empty_catalog(), "empty")
@@ -197,11 +210,23 @@ def load_catalog() -> list[dict[str, Any]]:
         return _loaded[1]
     cached = load_catalog_file(catalog_cache_path())
     if catalog_entry_count(cached) > 0:
+        _apply_published_release_downloads(cached)
         return _remember(cached, "cache")
     bundled = load_bundled_catalog()
     if catalog_entry_count(bundled) > 0:
+        _apply_published_release_downloads(bundled)
         return _remember(bundled, "bundled")
     return empty_catalog()
+
+
+def _apply_published_release_downloads(entries: list[dict[str, Any]]) -> None:
+    """Keep master-list download fields; never fan out to GitHub."""
+    try:
+        from ichalaunch.addons.release_downloads import apply_published_download_stamps
+
+        apply_published_download_stamps(entries)
+    except Exception as exc:  # noqa: BLE001
+        log.debug("Addon release-download stamps skipped: %s", exc)
 
 
 def clear_catalog_cache() -> None:

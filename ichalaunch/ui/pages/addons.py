@@ -23,6 +23,7 @@ from ichalaunch.addons.github import (
     group_catalog_fork_families,
     load_catalog,
 )
+from ichalaunch.addons.release_downloads import popularity_sort_key
 from ichalaunch.addons.loadstate import addon_disk_path, addon_is_loaded, set_addon_loaded
 from ichalaunch.config.settings import settings
 from ichalaunch.core.detect import (
@@ -40,7 +41,6 @@ from ichalaunch.ui.widgets.common import (
     addon_fork_label,
     addon_version_label,
     cancel_git_url_checks,
-    is_turtle_wow_custom_addon,
     open_url_in_browser,
     status_with_stamp,
 )
@@ -713,7 +713,7 @@ class AddonsPage(QWidget):
         )
 
     def open_preview(self, entry: dict) -> None:
-        from ichalaunch.ui.widgets.common import github_repo_browse_url
+        from ichalaunch.ui.widgets.common import git_repo_browse_url
 
         folder = entry.get("folder") or entry.get("name")
         git_origin = None
@@ -721,7 +721,7 @@ class AddonsPage(QWidget):
             disk = addon_disk_path(str(folder))
             if disk is not None:
                 git_origin = read_git_origin_url(disk)
-        url = github_repo_browse_url(
+        url = git_repo_browse_url(
             git_origin,
             entry.get("repo"),
             entry.get("url"),
@@ -976,13 +976,8 @@ class AddonsPage(QWidget):
             if cat_filter and cat_filter != "All categories" and cat != cat_filter:
                 continue
             base.append(entry)
-        # TW-custom (raven badge) first, then others — alphabetical within each group.
-        base.sort(
-            key=lambda e: (
-                0 if is_turtle_wow_custom_addon(e) else 1,
-                str(e.get("name") or e.get("folder") or "").lower(),
-            )
-        )
+        # Latest-release downloads high → low; unknown last; name tie-break.
+        base.sort(key=popularity_sort_key)
         self._available_base = base
         self._available_base_ready = True
 
@@ -1425,7 +1420,7 @@ class AddonsPage(QWidget):
         self.badge_state_changed.emit()
 
     def open_git(self, entry: dict) -> None:
-        from ichalaunch.ui.widgets.common import github_repo_browse_url
+        from ichalaunch.ui.widgets.common import git_repo_browse_url
 
         folder = entry.get("folder") or entry.get("name")
         git_origin = None
@@ -1434,7 +1429,7 @@ class AddonsPage(QWidget):
             if disk is not None:
                 git_origin = read_git_origin_url(disk)
         # Local .git origin wins over catalog/entry repo fields.
-        url = github_repo_browse_url(
+        url = git_repo_browse_url(
             git_origin,
             entry.get("repo"),
             entry.get("url"),

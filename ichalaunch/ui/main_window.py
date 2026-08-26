@@ -4052,7 +4052,24 @@ class MainWindow(QMainWindow):
             tag = str(entry.get("tag") or meta.get("tag") or "").strip()
             repo = str(meta.get("repository") or entry.get("repository") or "").strip()
             url = meta.get("url") or entry.get("repo") or entry.get("url") or ""
-        if tag and "/" in repo:
+        from ichalaunch.addons.gitlab import (
+            gitlab_browse_url,
+            gitlab_tag_page_url,
+            parse_gitlab_url,
+        )
+
+        gl = parse_gitlab_url(str(url or ""))
+        source = str(meta.get("source") or "").strip().lower()
+        if gl or source == "gitlab":
+            owner = gl.owner if gl else ""
+            name = gl.repo if gl else ""
+            if (not owner or not name) and "/" in repo:
+                owner, name = repo.split("/", 1)
+            if tag and owner and name:
+                url = gitlab_tag_page_url(owner, name, tag)
+            elif owner and name:
+                url = gitlab_browse_url(owner, name)
+        elif tag and "/" in repo:
             from ichalaunch.addons.github import github_tag_page_url
 
             owner, name = repo.split("/", 1)
@@ -4060,7 +4077,7 @@ class MainWindow(QMainWindow):
         elif not url and repo:
             url = f"https://github.com/{repo}"
         if not url:
-            themed.warning(self, "Cannot reinstall", f"No GitHub URL for {folder}.")
+            themed.warning(self, "Cannot reinstall", f"No GitHub or GitLab URL for {folder}.")
             return
 
         def on_ok(_result):

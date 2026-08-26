@@ -11,6 +11,7 @@ import requests
 
 from ichalaunch import __version__
 from ichalaunch.addons.github import parse_github_url
+from ichalaunch.addons.gitlab import parse_gitlab_url
 from ichalaunch.config.settings import settings
 
 # Built-in Cloudflare Worker for ADDONS → Suggest for catalog (not user-configurable).
@@ -135,12 +136,18 @@ def review_queue_targets(*, submitted: str, root: str | None = None) -> list[str
 def fork_repo_url(fork: Any) -> str | None:
     """Canonical GitHub repo URL from a fork combo payload or raw URL."""
     if isinstance(fork, str):
+        if parse_gitlab_url(fork):
+            return None
         return normalize_repo_url(fork)
     if not isinstance(fork, dict):
+        return None
+    if str(fork.get("host") or "").strip().lower() == "gitlab":
         return None
     for key in ("repo", "url"):
         raw = str(fork.get(key) or "").strip()
         if raw:
+            if parse_gitlab_url(raw):
+                return None
             canon = normalize_repo_url(raw)
             if canon:
                 return canon

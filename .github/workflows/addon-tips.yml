@@ -1,9 +1,11 @@
 name: Refresh catalog tips
 
-# Hourly tip-SHA rebuild. The Available-addon catalog is ichalaunch/data/addons.json
-# on this branch (clients fetch it on periodic refresh). This job only refreshes
-# addon_tips.json tip SHAs from that catalog + mods.json — it must not overwrite
-# or strip catalog entries in addons.json.
+# Hourly tip-SHA rebuild + latest-release download counts on the published
+# Available catalog (ichalaunch/data/addons.json). Clients fetch that one file
+# on periodic refresh and read stamped release_downloads* fields — they must
+# not fan out GitHub /releases/latest. This job uses GITHUB_TOKEN (GraphQL
+# batches). It must not strip catalog entries; download-count failures keep
+# last known values on that addon.
 
 on:
   workflow_dispatch:
@@ -25,8 +27,12 @@ jobs:
         run: pip install requests
       - name: Build tip index
         run: python tools/build_addon_tips.py --sleep 0.08
+      - name: Stamp release download counts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python tools/enrich_catalog_downloads.py
       - name: Commit index
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore: refresh addon tip SHA index"
-          file_pattern: ichalaunch/data/addon_tips.json
+          commit_message: "chore: refresh addon tip SHA index and release downloads"
+          file_pattern: ichalaunch/data/addon_tips.json ichalaunch/data/addons.json

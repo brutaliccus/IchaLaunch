@@ -39,6 +39,12 @@ QLabel#Muted {
     color: #9990ab;
 }
 
+QLabel#AddonDownloadCountLabel {
+    color: #C4A35A;
+    font-size: 11px;
+    font-weight: 600;
+}
+
 QFrame#Card, QFrame.Card {
     background-color: #181315;
     border: 1px solid rgba(124, 92, 196, 0.28);

@@ -25,7 +25,7 @@ except ImportError:
 from urllib.parse import urlparse
 from urllib.request import urlopen
 from PySide6.QtCore import QObject, QPoint, QProcess, QRect, QSize, Qt, QThread, QTimer, QUrl, Signal
-from PySide6.QtGui import QColor, QDesktopServices, QImage, QPainter, QPixmap
+from PySide6.QtGui import QColor, QDesktopServices, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -369,6 +369,76 @@ class OpenGitButton(QPushButton):
         y = rect.center().y() - icon.height() // 2 + press_dy
         painter.drawPixmap(x, y, icon)
         painter.end()
+
+
+class _DownloadGlyph(QWidget):
+    """Small downward-arrow tray used next to the addon download count."""
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setFixedSize(12, 12)
+        self._muted = False
+
+    def set_muted(self, muted: bool) -> None:
+        self._muted = bool(muted)
+        self.update()
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        del event
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        color = QColor("#6e6678" if self._muted else "#C4A35A")
+        painter.setPen(QPen(color, 1.4))
+        painter.setBrush(color)
+        w, h = self.width(), self.height()
+        # Shaft
+        painter.drawLine(w // 2, 1, w // 2, h - 5)
+        # Arrow head
+        painter.drawPolygon(
+            [
+                QPoint(2, h - 6),
+                QPoint(w - 2, h - 6),
+                QPoint(w // 2, h - 2),
+            ]
+        )
+        painter.end()
+
+
+class AddonDownloadCount(QWidget):
+    """Download glyph + latest-release count to the right of Open-in-Git."""
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setObjectName("AddonDownloadCount")
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(3)
+        self._icon = _DownloadGlyph(self)
+        self._label = QLabel("—", self)
+        self._label.setObjectName("AddonDownloadCountLabel")
+        self._label.setStyleSheet("color: #C4A35A; font-size: 11px; font-weight: 600;")
+        layout.addWidget(self._icon, 0, Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(self._label, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+        self.hide()
+
+    def apply_entry(self, entry: dict[str, Any] | None) -> None:
+        from ichalaunch.addons.release_downloads import (
+            download_badge_text,
+            download_badge_tooltip,
+        )
+
+        text = download_badge_text(entry)
+        if not text:
+            self.hide()
+            return
+        muted = text == "—"
+        self._icon.set_muted(muted)
+        self._label.setText(text)
+        color = "#6e6678" if muted else "#C4A35A"
+        self._label.setStyleSheet(f"color: {color}; font-size: 11px; font-weight: 600;")
+        self.setToolTip(download_badge_tooltip(entry))
+        self.show()
 
 
 class OpenLinkButton(OpenGitButton):
@@ -1016,19 +1086,24 @@ def addon_fork_label(entry: dict[str, Any] | None) -> str:
         entry.get("url"),
         entry.get("repository"),
     ):
-        url = github_repo_browse_url(raw)
+        url = git_repo_browse_url(raw)
         if not url:
             continue
         try:
             from ichalaunch.addons.github import parse_github_url
+            from ichalaunch.addons.gitlab import parse_gitlab_url
 
+            gl = parse_gitlab_url(url)
+            if gl:
+                base = f"{gl.owner}/{gl.repo}"
+                break
             parsed = parse_github_url(url)
             if parsed:
                 base = f"{parsed.owner}/{parsed.repo}"
                 break
         except Exception:  # noqa: BLE001
             pass
-        tail = url.replace("https://github.com/", "").strip("/")
+        tail = url.replace("https://github.com/", "").replace("https://gitlab.com/", "").strip("/")
         if tail:
             base = tail.split("/")[0:2] and "/".join(tail.split("/")[0:2]) or tail
             break
@@ -1260,6 +1335,29 @@ def apply_open_git_visibility(
     except RuntimeError:
         return
     setattr(owner, "_git_url_deferred", text)
+
+
+def git_repo_browse_url(*candidates: Any) -> str | None:
+    """Best-effort GitHub or GitLab.com browse URL from catalog/meta fields.
+
+    GitLab URLs stay on gitlab.com — they are never rewritten as GitHub.
+    Bare ``owner/repo`` tokens still resolve as GitHub (existing convention).
+    """
+    from ichalaunch.addons.gitlab import gitlab_browse_url, parse_gitlab_url
+
+    for raw in candidates:
+        if not raw:
+            continue
+        text = str(raw).strip()
+        if not text:
+            continue
+        try:
+            gl = parse_gitlab_url(text)
+        except Exception:  # noqa: BLE001
+            gl = None
+        if gl:
+            return gitlab_browse_url(gl.owner, gl.repo)
+    return github_repo_browse_url(*candidates)
 
 
 def github_repo_browse_url(*candidates: Any) -> str | None:
@@ -2199,6 +2297,7 @@ class AddonRow(QWidget):
         self._update_available = status.startswith("Update")
         self._status_text = status
         self.open_git_btn: OpenGitButton | None = None
+        self.download_count: AddonDownloadCount | None = None
         self.settings_btn: OptionsCogButton | None = None
         self.load_cb: ThemeCheckBox | None = None
         self._loaded = bool(loaded)
@@ -2243,7 +2342,7 @@ class AddonRow(QWidget):
         name.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         name_row.addWidget(name, 0)
         self._name_lbl = name
-        git_url = github_repo_browse_url(
+        git_url = git_repo_browse_url(
             entry.get("repo"),
             entry.get("url"),
             entry.get("repository"),
@@ -2272,6 +2371,9 @@ class AddonRow(QWidget):
             name_row.addWidget(btn_git, 0, Qt.AlignmentFlag.AlignVCenter)
             self.open_git_btn = btn_git
             apply_open_git_visibility(btn_git, git_url, self)
+        self.download_count = AddonDownloadCount(self)
+        self.download_count.apply_entry(entry)
+        name_row.addWidget(self.download_count, 0, Qt.AlignmentFlag.AlignVCenter)
         name_row.addStretch(1)
         layout.addLayout(name_row, 1)
         self.status_lbl = QLabel(status, self)
@@ -2363,6 +2465,14 @@ class AddonRow(QWidget):
             btn.setVisible(show_update)
         elif self._update_btn is not None:
             self._update_btn.setVisible(show_update)
+
+    def refresh_download_count(self, entry: dict[str, Any] | None = None) -> None:
+        """Update the latest-release download badge after a catalog/fork change."""
+        if self.download_count is None:
+            return
+        if entry is not None:
+            self.entry = entry
+        self.download_count.apply_entry(self.entry)
 
     def apply_status(self, status: str, *, never_update: bool | None = None) -> None:
         """Patch labels/buttons in place (no recreate — avoids HWND flashes)."""

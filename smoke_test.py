@@ -48,7 +48,115 @@ def test_github_parse():
     )
     assert dl is not None and dl.tag == "1.5.16"
     assert parse_github_url("not-a-url") is None
+    assert parse_github_url("https://gitlab.com/aead/aBindings") is None
     print("OK github parse")
+
+
+def test_gitlab_parse_and_install_url():
+    from ichalaunch.addons.github import (
+        addon_install_url_for_choice,
+        fork_entry_from_repo_url,
+        parse_entry_owner_repo,
+        parse_github_url,
+    )
+    from ichalaunch.addons.gitlab import (
+        gitlab_archive_url,
+        gitlab_browse_url,
+        parse_gitlab_url,
+    )
+    from ichalaunch.addons.release_downloads import addon_release_repo, parse_repo_full_name
+    from ichalaunch.addons.submit import fork_repo_url, normalize_repo_url
+    from ichalaunch.ui.widgets.common import addon_fork_label, git_repo_browse_url
+
+    parsed = parse_gitlab_url("https://gitlab.com/aead/aBindings")
+    assert parsed is not None
+    assert parsed.owner == "aead"
+    assert parsed.repo == "aBindings"
+    assert parsed.tag is None
+    assert parse_gitlab_url("https://gitlab.com/aead/aBindings.git") == (
+        "aead",
+        "aBindings",
+        None,
+    )
+    tagged = parse_gitlab_url("https://gitlab.com/aead/aBindings/-/tags/1.2.3")
+    assert tagged is not None and tagged.tag == "1.2.3"
+    assert parse_gitlab_url("https://www.gitlab.com/aead/aBindings/") is not None
+    assert parse_gitlab_url("not-a-url") is None
+    assert parse_gitlab_url("https://github.com/shagu/ShaguTweaks") is None
+    assert parse_gitlab_url("https://gitlab.com/explore/projects") is None
+    assert parse_gitlab_url("https://gitlab.com/aead") is None
+    assert parse_gitlab_url("https://gitlab.com.evil.example/aead/aBindings") is None
+
+    assert parse_github_url("https://gitlab.com/aead/aBindings") is None
+    assert parse_github_url("https://github.com/shagu/ShaguTweaks") is not None
+
+    archive = gitlab_archive_url("aead", "aBindings")
+    assert archive == (
+        "https://gitlab.com/api/v4/projects/aead%2FaBindings/repository/archive.zip"
+    )
+    assert "github.com" not in archive
+    assert "api.github.com" not in archive
+    tip_ref = gitlab_archive_url("aead", "aBindings", "master")
+    assert tip_ref.endswith("archive.zip?sha=master")
+    assert "aead%2FaBindings" in tip_ref
+
+    fe = fork_entry_from_repo_url("https://gitlab.com/aead/aBindings")
+    assert fe.get("host") == "gitlab"
+    assert fe.get("owner") == "aead"
+    assert fe.get("repo_name") == "aBindings"
+    assert fe.get("repo") == "https://gitlab.com/aead/aBindings"
+    latest = addon_install_url_for_choice(fe, None)
+    assert latest == "https://gitlab.com/aead/aBindings"
+    tagged_url = addon_install_url_for_choice(fe, "1.2.3")
+    assert tagged_url == "https://gitlab.com/aead/aBindings/-/tags/1.2.3"
+    assert "github.com" not in tagged_url
+
+    entry = {
+        "name": "aBindings",
+        "repo": "https://gitlab.com/aead/aBindings",
+        "folder": "aBindings",
+    }
+    assert parse_entry_owner_repo(entry) is None
+    assert git_repo_browse_url(entry["repo"]) == gitlab_browse_url("aead", "aBindings")
+    assert addon_fork_label(entry) == "aead/aBindings"
+    assert parse_repo_full_name(entry["repo"]) == ""
+    assert addon_release_repo(entry) == ""
+    assert normalize_repo_url(entry["repo"]) is None
+    assert fork_repo_url(fe) is None
+    print("OK gitlab parse and install url")
+
+
+def test_gitlab_preview_does_not_use_github_api():
+    from ichalaunch.addons import github as G
+    from ichalaunch.addons import gitlab as GL
+
+    github_calls: list[str] = []
+    orig_gh = G._github_api_get
+    orig_preview = GL.preview_gitlab_repo
+
+    def _no_github(url, *a, **k):
+        github_calls.append(str(url))
+        raise AssertionError(f"GitHub API must not be used for GitLab URLs: {url}")
+
+    def _fake_preview(url):
+        return {"kind": "addon", "host": "gitlab", "url": url, "full_name": "aead/aBindings"}
+
+    try:
+        G._github_api_get = _no_github
+        GL.preview_gitlab_repo = _fake_preview
+        info = G.preview_addon_repo("https://gitlab.com/aead/aBindings")
+        assert info.get("host") == "gitlab"
+        assert info.get("url") == "https://gitlab.com/aead/aBindings"
+        assert github_calls == []
+        try:
+            G.preview_addon_repo("not-a-repo")
+            raise AssertionError("expected ValueError")
+        except ValueError as exc:
+            assert "GitHub or GitLab" in str(exc)
+    finally:
+        G._github_api_get = orig_gh
+        GL.preview_gitlab_repo = orig_preview
+    print("OK gitlab preview skips GitHub API")
 
 
 def test_protected():
@@ -4503,43 +4611,56 @@ def test_available_catalog_remote_refresh_and_merge():
     prev = cat._loaded
     orig_fetch = cat.fetch_remote_catalog
     orig_cache_path = cat.catalog_cache_path
+    from ichalaunch.addons import release_downloads as rd
+    from ichalaunch.addons.release_downloads import (
+        clear_release_downloads_cache,
+        live_download_fetch_disabled,
+    )
+
+    orig_dl_path = rd.downloads_cache_path
     try:
         with tempfile.TemporaryDirectory() as tmp:
             cache_file = Path(tmp) / "addons_catalog.json"
+            dl_cache = Path(tmp) / "addon_release_downloads.json"
             cat.catalog_cache_path = lambda: cache_file
+            rd.downloads_cache_path = lambda: dl_cache
+            clear_release_downloads_cache()
             cat.clear_catalog_cache()
 
             def fake_fetch(url=None):
                 return list(remote)
 
             cat.fetch_remote_catalog = fake_fetch
-            entries = cat.refresh_catalog(force=True)
-            assert len(entries) == 2
-            assert {e["folder"] for e in entries} == {"Shared", "NewOne"}
-            assert cat.current_catalog_source() == "remote"
-            assert cat.load_catalog()[0]["folder"] in {"Shared", "NewOne"}
-            assert cache_file.is_file()
+            with live_download_fetch_disabled():
+                entries = cat.refresh_catalog(force=True)
+                assert len(entries) == 2
+                assert {e["folder"] for e in entries} == {"Shared", "NewOne"}
+                assert cat.current_catalog_source() == "remote"
+                assert cat.load_catalog()[0]["folder"] in {"Shared", "NewOne"}
+                assert cache_file.is_file()
 
-            # Failed remote within TTL keeps the in-memory remote snapshot
-            cat.fetch_remote_catalog = lambda url=None: None
-            again = cat.refresh_catalog(force=False)
-            assert again == entries
+                # Failed remote within TTL keeps the in-memory remote snapshot
+                cat.fetch_remote_catalog = lambda url=None: None
+                again = cat.refresh_catalog(force=False)
+                assert again == entries
 
-            # Force after failure: use appdata cache written earlier
-            cat.clear_catalog_cache()
-            from_cache = cat.refresh_catalog(force=True)
-            assert len(from_cache) == 2
-            assert cat.current_catalog_source() == "cache"
+                # Force after failure: use appdata cache written earlier
+                cat.clear_catalog_cache()
+                from_cache = cat.refresh_catalog(force=True)
+                assert len(from_cache) == 2
+                assert cat.current_catalog_source() == "cache"
 
-            # No cache file → bundled fallback
-            cache_file.unlink()
-            cat.clear_catalog_cache()
-            fallback = cat.refresh_catalog(force=True)
-            assert cat.catalog_entry_count(fallback) >= 500
-            assert cat.current_catalog_source() == "bundled"
+                # No cache file → bundled fallback
+                cache_file.unlink()
+                cat.clear_catalog_cache()
+                fallback = cat.refresh_catalog(force=True)
+                assert cat.catalog_entry_count(fallback) >= 500
+                assert cat.current_catalog_source() == "bundled"
     finally:
         cat.fetch_remote_catalog = orig_fetch
         cat.catalog_cache_path = orig_cache_path
+        rd.downloads_cache_path = orig_dl_path
+        clear_release_downloads_cache()
         cat._loaded = prev
         if prev is None:
             cat.clear_catalog_cache()
@@ -4566,24 +4687,554 @@ def test_available_catalog_offline_keeps_cache():
     prev = cat._loaded
     orig_fetch = cat.fetch_remote_catalog
     orig_cache_path = cat.catalog_cache_path
+    from ichalaunch.addons import release_downloads as rd
+    from ichalaunch.addons.release_downloads import (
+        clear_release_downloads_cache,
+        live_download_fetch_disabled,
+    )
+
+    orig_dl_path = rd.downloads_cache_path
     try:
         with tempfile.TemporaryDirectory() as tmp:
             cache_file = Path(tmp) / "addons_catalog.json"
+            dl_cache = Path(tmp) / "addon_release_downloads.json"
             cat.write_catalog_file(cache_file, cached_entries)
             cat.catalog_cache_path = lambda: cache_file
+            rd.downloads_cache_path = lambda: dl_cache
+            clear_release_downloads_cache()
             cat.clear_catalog_cache()
             cat.fetch_remote_catalog = lambda url=None: None
-            entries = cat.refresh_catalog(force=True)
+            with live_download_fetch_disabled():
+                entries = cat.refresh_catalog(force=True)
             assert len(entries) == 1
             assert entries[0]["folder"] == "CachedAddon"
             assert cat.current_catalog_source() == "cache"
     finally:
         cat.fetch_remote_catalog = orig_fetch
         cat.catalog_cache_path = orig_cache_path
+        rd.downloads_cache_path = orig_dl_path
+        clear_release_downloads_cache()
         cat._loaded = prev
         if prev is None:
             cat.clear_catalog_cache()
     print("OK available catalog offline keeps cache")
+
+
+def test_release_download_count_parse():
+    from ichalaunch.addons.release_downloads import parse_latest_release_download_count
+
+    assert parse_latest_release_download_count(None) is None
+    assert parse_latest_release_download_count("nope") is None
+    assert parse_latest_release_download_count({"message": "Not Found"}) is None
+    assert parse_latest_release_download_count({"tag_name": "v1.0", "assets": []}) == 0
+    assert parse_latest_release_download_count({"id": 9, "tag_name": "v1"}) == 0
+    payload = {
+        "tag_name": "v2.0",
+        "assets": [
+            {"name": "a.zip", "download_count": 100},
+            {"name": "b.zip", "download_count": 23},
+            {"name": "skip"},
+            {"name": "bad", "download_count": "x"},
+        ],
+    }
+    assert parse_latest_release_download_count(payload) == 123
+    print("OK release download count parse")
+
+
+def test_release_download_count_format():
+    from ichalaunch.addons.release_downloads import format_download_count
+
+    assert format_download_count(None) == "—"
+    assert format_download_count(-1) == "—"
+    assert format_download_count(0) == "0"
+    assert format_download_count(42) == "42"
+    assert format_download_count(999) == "999"
+    assert format_download_count(1000) == "1k"
+    assert format_download_count(1200) == "1.2k"
+    assert format_download_count(12_000) == "12k"
+    assert format_download_count(120_000) == "120k"
+    assert format_download_count(1_200_000) == "1.2M"
+    print("OK release download count format")
+
+
+def test_release_download_fetch_queue_prefers_missing_then_oldest():
+    from ichalaunch.addons.release_downloads import repos_needing_fetch
+
+    cache = {
+        "version": 1,
+        "repos": {
+            "a/one": {"state": "ok", "count": 1, "fetched_at": 100},
+            "b/two": {"state": "ok", "count": 2, "fetched_at": 10},
+        },
+    }
+    repos = ["a/one", "b/two", "c/new"]
+    assert repos_needing_fetch(repos, cache, now=10_000) == ["c/new", "b/two", "a/one"]
+    print("OK release download fetch queue prefers missing then oldest")
+
+
+def test_release_download_sort_order():
+    from ichalaunch.addons.release_downloads import sort_addons_by_popularity
+
+    rows = [
+        {"name": "Zebra", "release_downloads": 10, "release_downloads_state": "ok"},
+        {"name": "Alpha", "release_downloads": 10, "release_downloads_state": "ok"},
+        {"name": "Hot", "release_downloads": 5000, "release_downloads_state": "ok"},
+        {"name": "NoneRel", "release_downloads_state": "none"},
+        {"name": "Unknown"},
+        {"name": "Zero", "release_downloads": 0, "release_downloads_state": "ok"},
+    ]
+    names = [e["name"] for e in sort_addons_by_popularity(rows)]
+    assert names == ["Hot", "Alpha", "Zebra", "NoneRel", "Zero", "Unknown"]
+    print("OK release download sort order")
+
+
+def test_release_download_fork_vs_main_repo():
+    from ichalaunch.addons.release_downloads import (
+        addon_release_repo,
+        catalog_main_repos,
+        download_badge_text,
+        download_badge_tooltip,
+        stamp_entry_release_downloads,
+    )
+
+    main = {
+        "name": "Bagnon",
+        "repo": "https://github.com/McPewPew/Bagnon",
+        "forks": [{"label": "MarcelineVQ", "repo": "https://github.com/MarcelineVQ/Bagnon"}],
+    }
+    assert addon_release_repo(main) == "McPewPew/Bagnon"
+    assert catalog_main_repos([main]) == ["McPewPew/Bagnon"]
+
+    forked = dict(main)
+    forked["selected_repo"] = "https://github.com/MarcelineVQ/Bagnon"
+    assert addon_release_repo(forked) == "MarcelineVQ/Bagnon"
+    # Hourly job still fetches the catalog main, never the selected fork.
+    assert catalog_main_repos([forked]) == ["McPewPew/Bagnon"]
+
+    cache = {
+        "version": 1,
+        "repos": {
+            "mcpewpew/bagnon": {"state": "ok", "count": 9000, "fetched_at": 1},
+            "marcelinevq/bagnon": {"state": "none", "fetched_at": 1},
+        },
+    }
+    stamp_entry_release_downloads(main, cache)
+    assert main["release_downloads"] == 9000
+    assert main["release_downloads_repo"] == "McPewPew/Bagnon"
+
+    stamp_entry_release_downloads(forked, cache)
+    assert forked.get("release_downloads") is None
+    assert forked["release_downloads_state"] == "none"
+    assert forked["release_downloads_repo"] == "MarcelineVQ/Bagnon"
+    assert download_badge_text(forked) == "—"
+    tip = download_badge_tooltip(forked)
+    assert "MarcelineVQ/Bagnon" in tip
+    assert "not taken from upstream" in tip
+    print("OK release download fork vs main repo")
+
+
+def test_apply_published_fork_does_not_inherit_main_count():
+    """Selected fork must not display the master-list (upstream) count."""
+    from ichalaunch.addons.release_downloads import (
+        apply_published_download_stamps,
+        download_badge_text,
+        download_badge_tooltip,
+        popularity_sort_key,
+        sort_addons_by_popularity,
+    )
+
+    entry = {
+        "name": "Bagnon",
+        "repo": "https://github.com/McPewPew/Bagnon",
+        "selected_repo": "https://github.com/MarcelineVQ/Bagnon",
+        "release_downloads": 9000,
+        "release_downloads_state": "ok",
+        "release_downloads_repo": "McPewPew/Bagnon",
+    }
+    assert download_badge_text(entry) == "—"
+    assert entry["release_downloads"] == 9000
+    tip = download_badge_tooltip(entry)
+    assert "MarcelineVQ/Bagnon" in tip
+    assert "not taken from upstream" in tip
+
+    apply_published_download_stamps([entry])
+    assert entry.get("release_downloads") is None
+    assert entry["release_downloads_state"] == "none"
+    assert entry["release_downloads_repo"] == "MarcelineVQ/Bagnon"
+    assert download_badge_text(entry) == "—"
+
+    rows = [
+        {
+            "name": "Hot",
+            "release_downloads": 5000,
+            "release_downloads_state": "ok",
+        },
+        {
+            "name": "Quiet",
+            "release_downloads_state": "none",
+            "release_downloads": 0,
+        },
+        {"name": "Unknown"},
+    ]
+    assert [e["name"] for e in sort_addons_by_popularity(rows)] == [
+        "Hot",
+        "Quiet",
+        "Unknown",
+    ]
+    assert popularity_sort_key(rows[0])[0] == 0
+    print("OK apply published fork does not inherit main count")
+
+
+def test_release_download_missing_release_handling():
+    from ichalaunch.addons.release_downloads import (
+        download_badge_text,
+        refresh_release_downloads,
+        stamp_entry_release_downloads,
+    )
+
+    entry = {
+        "name": "GitOnly",
+        "folder": "GitOnly",
+        "repo": "https://github.com/example/GitOnly",
+    }
+    cache = {
+        "version": 1,
+        "repos": {
+            "example/gitonly": {"state": "none", "fetched_at": 1},
+        },
+    }
+    stamp_entry_release_downloads(entry, cache)
+    assert entry["release_downloads_state"] == "none"
+    assert "release_downloads" not in entry
+    assert download_badge_text(entry) == "—"
+
+    other = {
+        "name": "StillUnknown",
+        "repo": "https://github.com/example/Missing",
+        "release_downloads": 50,
+        "release_downloads_state": "ok",
+        "release_downloads_repo": "other/Upstream",
+    }
+    stamp_entry_release_downloads(other, {"version": 1, "repos": {}})
+    assert "release_downloads" not in other
+    assert download_badge_text(other) == ""
+
+    fetched = {
+        "name": "LiveNone",
+        "repo": "https://github.com/example/LiveNone",
+    }
+
+    def fake_fetch(owner, repo):
+        if repo == "LiveNone":
+            return None
+        return {
+            "tag_name": "v1",
+            "assets": [{"download_count": 1500}],
+        }
+
+    popular = {
+        "name": "LiveOk",
+        "repo": "https://github.com/example/LiveOk",
+    }
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "dl.json"
+        refresh_release_downloads(
+            [fetched, popular],
+            live=True,
+            cache_path=path,
+            fetch_latest=fake_fetch,
+        )
+        assert fetched["release_downloads_state"] == "none"
+        assert download_badge_text(fetched) == "—"
+        assert popular["release_downloads"] == 1500
+        assert download_badge_text(popular) == "1.5k"
+    print("OK release download missing release handling")
+
+
+def test_release_download_catalog_refresh_stamps_cache():
+    """Client catalog GET uses published counts; local cache / GitHub are not used."""
+    from ichalaunch.addons import catalog as cat
+    from ichalaunch.addons import release_downloads as rd
+    from ichalaunch.addons.release_downloads import (
+        clear_release_downloads_cache,
+        write_downloads_cache,
+    )
+
+    remote = [
+        {
+            "name": "Popular",
+            "folder": "Popular",
+            "repo": "https://github.com/pop/Popular",
+            "category": "General",
+            "release_downloads": 4242,
+            "release_downloads_state": "ok",
+            "release_downloads_repo": "pop/Popular",
+            "release_downloads_at": "2026-08-26T00:00:00Z",
+        },
+        {
+            "name": "Quiet",
+            "folder": "Quiet",
+            "repo": "https://github.com/q/Quiet",
+            "category": "General",
+            "release_downloads": 0,
+            "release_downloads_state": "none",
+            "release_downloads_repo": "q/Quiet",
+        },
+    ]
+    prev = cat._loaded
+    orig_fetch = cat.fetch_remote_catalog
+    orig_cache_path = cat.catalog_cache_path
+    orig_dl_path = rd.downloads_cache_path
+    orig_refresh = rd.refresh_release_downloads
+    orig_graphql = rd._fetch_latest_via_graphql
+    orig_rest = rd._fetch_latest_via_rest
+    github_calls: list[str] = []
+
+    def _no_refresh(*_a, **_k):
+        github_calls.append("refresh")
+        raise AssertionError("client must not fan out release downloads")
+
+    def _no_graphql(*_a, **_k):
+        github_calls.append("graphql")
+        raise AssertionError("client must not call GitHub GraphQL")
+
+    def _no_rest(*_a, **_k):
+        github_calls.append("rest")
+        raise AssertionError("client must not call GitHub REST")
+
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_file = Path(tmp) / "addons_catalog.json"
+            dl_cache = Path(tmp) / "addon_release_downloads.json"
+            write_downloads_cache(
+                {
+                    "version": 1,
+                    "repos": {
+                        "pop/popular": {
+                            "state": "ok",
+                            "count": 99_999,
+                            "fetched_at": time.time(),
+                        },
+                    },
+                },
+                dl_cache,
+            )
+            cat.catalog_cache_path = lambda: cache_file
+            rd.downloads_cache_path = lambda: dl_cache
+            rd.refresh_release_downloads = _no_refresh
+            rd._fetch_latest_via_graphql = _no_graphql
+            rd._fetch_latest_via_rest = _no_rest
+            cat.clear_catalog_cache()
+            cat.fetch_remote_catalog = lambda url=None: [dict(row) for row in remote]
+            entries = cat.refresh_catalog(force=True)
+            by_name = {e["name"]: e for e in entries}
+            assert github_calls == []
+            assert by_name["Popular"]["release_downloads"] == 4242
+            assert by_name["Popular"]["release_downloads_state"] == "ok"
+            assert by_name["Quiet"]["release_downloads_state"] == "none"
+            assert by_name["Quiet"]["release_downloads"] == 0
+            cached = json.loads(cache_file.read_text(encoding="utf-8"))
+            cached_by = {e["name"]: e for e in cached}
+            assert cached_by["Popular"]["release_downloads"] == 4242
+    finally:
+        cat.fetch_remote_catalog = orig_fetch
+        cat.catalog_cache_path = orig_cache_path
+        rd.downloads_cache_path = orig_dl_path
+        rd.refresh_release_downloads = orig_refresh
+        rd._fetch_latest_via_graphql = orig_graphql
+        rd._fetch_latest_via_rest = orig_rest
+        clear_release_downloads_cache()
+        cat._loaded = prev
+        if prev is None:
+            cat.clear_catalog_cache()
+    print("OK release download catalog refresh uses published counts")
+
+
+def test_enrich_catalog_downloads_stamps_and_keeps_last():
+    """Hourly stamp script (mocked GitHub): fill counts, none/0, keep last on error."""
+    from tools.enrich_catalog_downloads import enrich_catalog_file
+
+    catalog = [
+        {
+            "name": "Keep",
+            "folder": "Keep",
+            "repo": "https://github.com/o/Keep",
+            "release_downloads": 99,
+            "release_downloads_state": "ok",
+            "release_downloads_repo": "o/Keep",
+            "release_downloads_at": "2026-01-01T00:00:00Z",
+        },
+        {
+            "name": "NoneRel",
+            "folder": "NoneRel",
+            "repo": "https://github.com/o/NoneRel",
+        },
+        {
+            "name": "Hot",
+            "folder": "Hot",
+            "repo": "https://github.com/o/Hot",
+        },
+        {
+            "name": "SkipFork",
+            "folder": "SkipFork",
+            "repo": "https://github.com/o/SkipFork",
+            "forks": [{"label": "f", "repo": "https://github.com/f/SkipFork"}],
+            "selected_repo": "https://github.com/f/SkipFork",
+        },
+    ]
+    fetched: list[str] = []
+
+    def fake_fetch(owner, repo):
+        fetched.append(f"{owner}/{repo}")
+        if repo == "Keep":
+            raise RuntimeError("transient")
+        if repo == "NoneRel":
+            return None
+        if repo == "Hot":
+            return {"tag_name": "v1", "id": 1, "assets": [{"download_count": 12}]}
+        if repo == "SkipFork":
+            return {"tag_name": "v1", "id": 1, "assets": [{"download_count": 3}]}
+        raise AssertionError(repo)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "addons.json"
+        path.write_text(json.dumps(catalog, indent=2) + "\n", encoding="utf-8")
+        rc = enrich_catalog_file(path, fetch_latest=fake_fetch, token="unused")
+        assert rc == 0
+        out = json.loads(path.read_text(encoding="utf-8"))
+
+    assert "f/SkipFork" not in fetched
+    assert fetched == ["o/Keep", "o/NoneRel", "o/Hot", "o/SkipFork"]
+    by_name = {e["name"]: e for e in out}
+    assert by_name["Keep"]["release_downloads"] == 99
+    assert by_name["Keep"]["release_downloads_at"] == "2026-01-01T00:00:00Z"
+    assert by_name["NoneRel"]["release_downloads_state"] == "none"
+    assert by_name["NoneRel"]["release_downloads"] == 0
+    assert by_name["Hot"]["release_downloads"] == 12
+    assert by_name["Hot"]["release_downloads_state"] == "ok"
+    assert by_name["Hot"]["release_downloads_repo"] == "o/Hot"
+    assert by_name["Hot"].get("release_downloads_at")
+    assert by_name["SkipFork"]["release_downloads"] == 3
+    print("OK enrich catalog downloads stamps and keeps last")
+
+
+def test_enrich_catalog_downloads_graphql_batches():
+    """Tokened hourly enrich uses GraphQL batches; failed batches keep last known."""
+    from ichalaunch.addons import release_downloads as rd
+
+    entries = [
+        {
+            "name": f"A{i}",
+            "folder": f"A{i}",
+            "repo": f"https://github.com/o/A{i}",
+            "release_downloads": 7,
+            "release_downloads_state": "ok",
+            "release_downloads_repo": f"o/A{i}",
+        }
+        for i in range(3)
+    ]
+    calls: list[tuple] = []
+
+    def fake_gql(names, token=""):
+        calls.append((list(names), token))
+        return {
+            names[0]: {"tag_name": "v1", "id": 1, "assets": [{"download_count": 4}]},
+            names[1]: None,
+            names[2]: {"tag_name": "v2", "id": 2, "assets": [{"download_count": 8}]},
+        }
+
+    orig = rd._fetch_latest_via_graphql
+    orig_rest = rd._fetch_latest_via_rest
+    rest_calls: list[str] = []
+
+    def no_rest(*_a, **_k):
+        rest_calls.append("rest")
+        raise AssertionError("GraphQL succeeded; REST fallback must not run")
+
+    try:
+        rd._fetch_latest_via_graphql = fake_gql
+        rd._fetch_latest_via_rest = no_rest
+        rd.enrich_catalog_download_fields(entries, token="t0k")
+    finally:
+        rd._fetch_latest_via_graphql = orig
+        rd._fetch_latest_via_rest = orig_rest
+
+    assert rest_calls == []
+    assert calls == [(["o/A0", "o/A1", "o/A2"], "t0k")]
+    assert entries[0]["release_downloads"] == 4
+    assert entries[1]["release_downloads_state"] == "none"
+    assert entries[1]["release_downloads"] == 0
+    assert entries[2]["release_downloads"] == 8
+
+    kept = [
+        {
+            "name": "Old",
+            "folder": "Old",
+            "repo": "https://github.com/o/Old",
+            "release_downloads": 55,
+            "release_downloads_state": "ok",
+            "release_downloads_repo": "o/Old",
+        }
+    ]
+
+    def gql_unusable(_names, token=""):
+        return None
+
+    def rest_boom(owner, repo, token=""):
+        raise RuntimeError("rest down")
+
+    rd._fetch_latest_via_graphql = gql_unusable
+    rd._fetch_latest_via_rest = rest_boom
+    try:
+        rd.enrich_catalog_download_fields(kept, token="t0k")
+    finally:
+        rd._fetch_latest_via_graphql = orig
+        rd._fetch_latest_via_rest = orig_rest
+    assert kept[0]["release_downloads"] == 55
+    print("OK enrich catalog downloads graphql batches")
+
+
+def test_addon_row_download_count_after_git():
+    """Master-list row shows download glyph+count immediately right of Open-in-Git."""
+    from PySide6.QtWidgets import QApplication, QHBoxLayout
+
+    from ichalaunch.ui.widgets.common import AddonRow
+
+    app = QApplication.instance() or QApplication([])
+    row = AddonRow(
+        {
+            "name": "Pop",
+            "folder": "Pop",
+            "repo": "https://github.com/a/Pop",
+            "release_downloads": 1500,
+            "release_downloads_state": "ok",
+            "release_downloads_repo": "a/Pop",
+        },
+        status="available",
+    )
+    assert row.open_git_btn is not None
+    assert row.download_count is not None
+    assert not row.download_count.isHidden()
+    assert row.download_count._label.text() == "1.5k"
+    found: list[str] = []
+    root = row.layout()
+    assert root is not None
+    top = root.itemAt(0)
+    assert top is not None and isinstance(top.layout(), QHBoxLayout)
+    for i in range(top.layout().count()):
+        item = top.layout().itemAt(i)
+        if item is None or item.layout() is None:
+            continue
+        lay = item.layout()
+        for j in range(lay.count()):
+            w = lay.itemAt(j).widget() if lay.itemAt(j) else None
+            if w is row.open_git_btn:
+                found.append("git")
+            elif w is row.download_count:
+                found.append("downloads")
+    assert found == ["git", "downloads"], found
+    row.deleteLater()
+    print("OK addon row download count after git")
 
 
 def test_git_refs_live_optional():
@@ -8164,7 +8815,7 @@ def test_open_in_git_visible_without_probe_and_click_opens():
         assert found_order == ["caret", "git"], found_order
         assert not direct.modules_toggle.isHidden()
         assert direct.open_git_btn is not None and not direct.open_git_btn.isHidden()
-        # Tight name cluster spacing (name → caret → git).
+        # Name cluster: name → caret → git → downloads (~6px visual gap).
         name_row = None
         root = direct.layout()
         assert root is not None
@@ -8184,7 +8835,7 @@ def test_open_in_git_visible_without_probe_and_click_opens():
                 name_row = lay
                 break
         assert name_row is not None
-        assert name_row.spacing() <= 2
+        assert name_row.spacing() == 6
         assert direct._name_lbl.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Maximum
         # No-modules row: caret not in the name cluster layout.
         no_mod = AddonRow(
@@ -10790,6 +11441,8 @@ def main():
 def _run_smoke_tests():
     test_catalogs()
     test_github_parse()
+    test_gitlab_parse_and_install_url()
+    test_gitlab_preview_does_not_use_github_api()
     test_protected()
     test_dlls_txt()
     test_detect_state()
@@ -10864,6 +11517,17 @@ def _run_smoke_tests():
     test_update_to_tip_clears_stored_version_pin()
     test_available_catalog_remote_refresh_and_merge()
     test_available_catalog_offline_keeps_cache()
+    test_release_download_count_parse()
+    test_release_download_count_format()
+    test_release_download_fetch_queue_prefers_missing_then_oldest()
+    test_release_download_sort_order()
+    test_release_download_fork_vs_main_repo()
+    test_apply_published_fork_does_not_inherit_main_count()
+    test_release_download_missing_release_handling()
+    test_release_download_catalog_refresh_stamps_cache()
+    test_enrich_catalog_downloads_stamps_and_keeps_last()
+    test_enrich_catalog_downloads_graphql_batches()
+    test_addon_row_download_count_after_git()
     test_git_refs_live_optional()
     test_commit_atom_sha_no_default_fallback_for_named_ref()
     test_preview_addon_repo_soft_fails_fake_tags()

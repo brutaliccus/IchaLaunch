@@ -112,6 +112,7 @@ class AddonInstallResult:
     tag: str | None = None
     origin_url: str = ""
     recorded: bool = True
+    source: str = "github"
 
     def __str__(self) -> str:
         return self.display
@@ -343,6 +344,30 @@ def fork_entry_from_repo_url(url: str, label: str | None = None) -> dict[str, An
     text = str(url or "").strip()
     if not text:
         return {}
+    from ichalaunch.addons.gitlab import (
+        gitlab_browse_url,
+        gitlab_tag_page_url,
+        parse_gitlab_url,
+    )
+
+    gl = parse_gitlab_url(text)
+    if gl:
+        browse = (
+            gitlab_tag_page_url(gl.owner, gl.repo, gl.tag)
+            if gl.tag
+            else gitlab_browse_url(gl.owner, gl.repo)
+        )
+        lbl = (label or "").strip() or f"{gl.owner}/{gl.repo}"
+        fe: dict[str, Any] = {
+            "label": lbl,
+            "repo": browse,
+            "owner": gl.owner,
+            "repo_name": gl.repo,
+            "host": "gitlab",
+        }
+        if gl.tag:
+            fe["pin_release"] = gl.tag
+        return fe
     if text.count("/") == 1 and "://" not in text and " " not in text:
         text = f"https://github.com/{text}"
     parsed = parse_github_url(text)
@@ -547,9 +572,18 @@ def parse_entry_owner_repo(
     entry: dict[str, Any] | None,
     meta: dict[str, Any] | None = None,
 ) -> tuple[str, str] | None:
-    """Resolve GitHub owner/repo from catalog or installed addon fields."""
+    """Resolve GitHub owner/repo from catalog or installed addon fields.
+
+    GitLab URLs are never treated as GitHub owner/repo (that would 404 or
+    install the wrong project). Use ``parse_entry_gitlab`` for those rows.
+    """
+    from ichalaunch.addons.gitlab import parse_gitlab_url
+
     entry = entry if isinstance(entry, dict) else {}
     meta = meta if isinstance(meta, dict) else {}
+    github: tuple[str, str] | None = None
+    bare: tuple[str, str] | None = None
+    gitlab_seen = False
     for raw in (
         entry.get("repo"),
         entry.get("url"),
@@ -560,15 +594,24 @@ def parse_entry_owner_repo(
         text = str(raw or "").strip()
         if not text:
             continue
+        if parse_gitlab_url(text):
+            gitlab_seen = True
+            continue
+        parsed = parse_github_url(text)
+        if parsed:
+            if github is None:
+                github = (parsed.owner, parsed.repo)
+            continue
         if text.count("/") == 1 and "://" not in text and " " not in text:
             owner, name = text.split("/", 1)
             owner, name = owner.strip(), name.strip()
-            if owner and name:
-                return owner, name
-        parsed = parse_github_url(text)
-        if parsed:
-            return parsed.owner, parsed.repo
-    return None
+            if owner and name and bare is None:
+                bare = (owner, name)
+    if github:
+        return github
+    if gitlab_seen:
+        return None
+    return bare
 
 
 def get_cached_repo_forks(owner: str, repo: str) -> list[dict[str, Any]] | None:
@@ -775,15 +818,48 @@ def addon_install_url_for_choice(
     tag: str | None = None,
 ) -> str:
     """Build the install URL from fork + optional version tag."""
+    from ichalaunch.addons.gitlab import (
+        gitlab_browse_url,
+        gitlab_tag_page_url,
+        parse_gitlab_url,
+    )
+
     fork_data = fork_data if isinstance(fork_data, dict) else {}
     raw = str(fork_data.get("repo") or "").strip()
+    chosen = str(tag or "").strip() or str(fork_data.get("pin_release") or "").strip()
+    gl = parse_gitlab_url(raw)
+    if gl:
+        if chosen:
+            return gitlab_tag_page_url(gl.owner, gl.repo, chosen)
+        return gitlab_browse_url(gl.owner, gl.repo)
     parsed = parse_github_url(raw)
     if not parsed:
         return raw
-    chosen = str(tag or "").strip() or str(fork_data.get("pin_release") or "").strip()
     if chosen:
         return github_tag_page_url(parsed.owner, parsed.repo, chosen)
     return github_browse_url(parsed.owner, parsed.repo)
+
+
+def fork_git_host(fork_data: dict[str, Any] | None) -> str:
+    """``gitlab`` or ``github`` for a fork-picker row."""
+    from ichalaunch.addons.gitlab import parse_gitlab_url
+
+    fork_data = fork_data if isinstance(fork_data, dict) else {}
+    host = str(fork_data.get("host") or "").strip().lower()
+    if host in {"gitlab", "github"}:
+        return host
+    raw = str(fork_data.get("repo") or fork_data.get("url") or "")
+    if parse_gitlab_url(raw):
+        return "gitlab"
+    return "github"
+
+
+def addon_browse_url(owner: str, repo: str, *, host: str = "github") -> str:
+    if (host or "").strip().lower() == "gitlab":
+        from ichalaunch.addons.gitlab import gitlab_browse_url
+
+        return gitlab_browse_url(owner, repo)
+    return github_browse_url(owner, repo)
 
 
 def has_pending_addon_scan_queue() -> bool:
@@ -1129,6 +1205,8 @@ def should_report_addon_update(
 
 def catalog_pin_tag(entry: dict[str, Any] | None) -> str:
     """Pinned GitHub release tag from catalog ``pin_release`` or a tagged repo URL."""
+    from ichalaunch.addons.gitlab import parse_gitlab_url
+
     if not entry:
         return ""
     pin = str(entry.get("pin_release") or "").strip()
@@ -1137,6 +1215,9 @@ def catalog_pin_tag(entry: dict[str, Any] | None) -> str:
     parsed = parse_github_url(str(entry.get("repo") or entry.get("url") or ""))
     if parsed and parsed.tag:
         return str(parsed.tag).strip()
+    gl = parse_gitlab_url(str(entry.get("repo") or entry.get("url") or ""))
+    if gl and gl.tag:
+        return str(gl.tag).strip()
     return ""
 
 
@@ -1210,11 +1291,15 @@ def _catalog_pin_for_install(owner: str, repo: str, folder_name: str | None) -> 
             if pin:
                 return pin
     owner_l, repo_l = owner.lower(), repo.lower()
+    from ichalaunch.addons.gitlab import parse_gitlab_url
+
     for entry in load_catalog():
-        other = parse_github_url(str(entry.get("repo") or entry.get("url") or ""))
-        if not other:
-            continue
-        if other.owner.lower() == owner_l and other.repo.lower() == repo_l:
+        raw = str(entry.get("repo") or entry.get("url") or "")
+        other = parse_github_url(raw)
+        if other and other.owner.lower() == owner_l and other.repo.lower() == repo_l:
+            return catalog_pin_tag(entry)
+        gl = parse_gitlab_url(raw)
+        if gl and gl.owner.lower() == owner_l and gl.repo.lower() == repo_l:
             return catalog_pin_tag(entry)
     return ""
 
@@ -1654,11 +1739,15 @@ def preview_addon_repo(url: str) -> dict[str, Any]:
     but is not a git ref (``/commits/{tag}`` → 422). Those pins must not abort the
     preview — fall back to the default-branch tip and README instead.
     """
+    from ichalaunch.addons.gitlab import parse_gitlab_url, preview_gitlab_repo
+
+    if parse_gitlab_url(url):
+        return preview_gitlab_repo(url)
     parsed = parse_github_url(url)
     if not parsed:
         raise ValueError(
-            "Not a valid GitHub repository URL. "
-            "Example: https://github.com/owner/repo or …/releases/tag/1.2.3"
+            "Not a valid GitHub or GitLab repository URL. "
+            "Example: https://github.com/owner/repo or https://gitlab.com/owner/repo"
         )
     owner, repo, tag = parsed.owner, parsed.repo, parsed.tag
     full = f"{owner}/{repo}"
@@ -1812,6 +1901,7 @@ def _addon_install_meta(
     commit_date: str = "",
     match_kind: str = "exact",
     tag: str | None = None,
+    source: str = "github",
 ) -> dict[str, Any]:
     """Build metadata for a successful install/update, preserving installed_at."""
     from ichalaunch.core.detect import merge_addon_meta, resolve_catalog_entry
@@ -1822,7 +1912,7 @@ def _addon_install_meta(
         "repository": f"{owner}/{repo}",
         "branch": branch,
         "installed_commit": sha,
-        "source": "github",
+        "source": (source or "github").strip() or "github",
         "url": url,
         "updated_at": today,
         "installed_at": prev.get("installed_at") or today,
@@ -1887,6 +1977,7 @@ def _record_pack_install(
     commit_date: str,
     preferred_primary: str | None = None,
     tag: str | None = None,
+    source: str = "github",
 ) -> str:
     """Write settings for a multi-folder (or single) GitHub install as one managed pack."""
     from ichalaunch.core.detect import pick_pack_primary
@@ -1924,6 +2015,7 @@ def _record_pack_install(
             commit_date=commit_date,
             match_kind=kind,
             tag=tag,
+            source=source,
         )
         if len(installed) > 1:
             if name == primary:
@@ -1995,6 +2087,7 @@ def finalize_install_after_toc_renames(
         commit_date=result.commit_date,
         preferred_primary=result.preferred_primary,
         tag=result.tag,
+        source=result.source or "github",
     )
     result.installed = names
     result.display = display
@@ -2010,9 +2103,21 @@ def install_from_github(
     *,
     allow_stored_tag: bool = True,
 ) -> AddonInstallResult:
+    from ichalaunch.addons.gitlab import parse_gitlab_url
+
+    if parse_gitlab_url(url):
+        return _install_from_gitlab(
+            url,
+            folder_name=folder_name,
+            progress=progress,
+            allow_stored_tag=allow_stored_tag,
+        )
     parsed = parse_github_url(url)
     if not parsed:
-        raise ValueError("Not a valid GitHub repository URL")
+        raise ValueError(
+            "Not a valid GitHub or GitLab repository URL. "
+            "Example: https://github.com/owner/repo or https://gitlab.com/owner/repo"
+        )
     owner, repo, tag = parsed.owner, parsed.repo, parsed.tag
     # Prefer tag stored on a prior install when reinstall URL was stripped to repo root.
     # Settings "Latest" reinstall passes allow_stored_tag=False so a pin is not reused.
@@ -2141,15 +2246,162 @@ def install_from_github(
         result.recorded = True
         return result
 
+
+def _install_from_gitlab(
+    url: str,
+    folder_name: str | None = None,
+    progress: ProgressCb | None = None,
+    *,
+    allow_stored_tag: bool = True,
+) -> AddonInstallResult:
+    from ichalaunch.addons.gitlab import (
+        gitlab_archive_url,
+        gitlab_browse_url,
+        gitlab_latest_commit,
+        gitlab_tag_page_url,
+        parse_gitlab_url,
+    )
+
+    parsed = parse_gitlab_url(url)
+    if not parsed:
+        raise ValueError("Not a valid GitLab repository URL")
+    owner, repo, tag = parsed.owner, parsed.repo, parsed.tag
+    if not tag and allow_stored_tag:
+        if folder_name:
+            prev = settings.installed_addons.get(folder_name) or {}
+            tag = str(prev.get("tag") or "").strip() or None
+        if not tag:
+            tag = _catalog_pin_for_install(owner, repo, folder_name) or None
+    game = detect_game()
+    if not game:
+        raise FileNotFoundError("Game path not set")
+
+    status_only(progress, "Fetching repository info...")
+    if tag:
+        meta = gitlab_latest_commit(owner, repo, ref=tag)
+        branch = str(meta.get("branch") or tag)
+        commit_date = meta.get("date") or ""
+        zip_url = gitlab_archive_url(owner, repo, tag)
+        store_url = gitlab_tag_page_url(owner, repo, tag)
+        label = f"{owner}/{repo}@{tag}"
+    else:
+        meta = gitlab_latest_commit(owner, repo)
+        branch = str(meta.get("branch") or "main") or "main"
+        commit_date = meta.get("date") or ""
+        zip_url = gitlab_archive_url(owner, repo, branch)
+        store_url = gitlab_browse_url(owner, repo)
+        label = f"{owner}/{repo}@{branch}"
+
+    sha = str(meta.get("sha") or "").strip()
+    with tempfile.TemporaryDirectory(prefix="icha_addon_") as tmp:
+        work = Path(tmp)
+        status_only(progress, f"Downloading {label}...")
+        data = download_bytes(zip_url, progress=download_bytes_cb(progress))
+        extracted = extract_zip(data, work / "extract", progress=progress)
+        pairs = resolve_install_addon_roots(extracted)
+        if not pairs:
+            if any(extracted.rglob("*.toc")):
+                raise FileNotFoundError(TOC_FOLDER_MISMATCH_MSG)
+            raise FileNotFoundError("No .toc files found in repository")
+
+        addons_dir = ensure_addons_dir()
+        installed: list[str] = []
+        pending: list[AddonTocMismatch] = []
+        for root, dest_name in pairs:
+            placed, mismatch = place_install_addon_root(root, addons_dir, dest_name)
+            if placed:
+                installed.append(placed)
+            elif mismatch is not None:
+                pending.append(mismatch)
+                note_pending_toc_mismatch(mismatch)
+
+        if not installed and not pending:
+            raise FileNotFoundError(TOC_FOLDER_MISMATCH_MSG)
+
+        preferred = None
+        named = [*installed, *(m.toc_stem for m in pending if m.toc_stem)]
+        if folder_name:
+            preferred = normalize_addon_name(folder_name, tag=tag)
+        elif any(normalize_addon_name(n, tag=tag).lower() == repo.lower() for n in named):
+            preferred = next(
+                n for n in named if normalize_addon_name(n, tag=tag).lower() == repo.lower()
+            )
+
+        from ichalaunch.core.detect import write_git_origin
+
+        origin_url = gitlab_browse_url(owner, repo)
+        origin_targets = list(installed)
+        origin_targets.extend(m.current_name for m in pending)
+        for name in origin_targets:
+            dest = addons_dir / name
+            if not dest.is_dir():
+                continue
+            try:
+                write_git_origin(dest, origin_url)
+            except (OSError, ValueError) as exc:
+                log.warning("Could not write .git origin for %s: %s", name, exc)
+
+        result = AddonInstallResult(
+            display="",
+            installed=installed,
+            mismatches=pending,
+            owner=owner,
+            repo=repo,
+            branch=branch,
+            sha=sha,
+            url=store_url,
+            commit_date=commit_date,
+            preferred_primary=preferred,
+            tag=tag,
+            origin_url=origin_url,
+            recorded=False,
+            source="gitlab",
+        )
+        if pending:
+            if installed:
+                result.display = _record_pack_install(
+                    installed=installed,
+                    owner=owner,
+                    repo=repo,
+                    branch=branch,
+                    sha=sha,
+                    url=store_url,
+                    commit_date=commit_date,
+                    preferred_primary=preferred,
+                    tag=tag,
+                    source="gitlab",
+                )
+                result.recorded = True
+            else:
+                result.display = pending[0].current_name
+            return result
+
+        result.display = _record_pack_install(
+            installed=installed,
+            owner=owner,
+            repo=repo,
+            branch=branch,
+            sha=sha,
+            url=store_url,
+            commit_date=commit_date,
+            preferred_primary=preferred,
+            tag=tag,
+            source="gitlab",
+        )
+        result.recorded = True
+        return result
+
 GIT_REPAIR_STATUS = "Adding missing git folder structure..."
 
 
 def _addon_has_repo(meta: dict[str, Any]) -> bool:
+    from ichalaunch.addons.gitlab import parse_gitlab_url
+
     repo = meta.get("repository")
     if isinstance(repo, str) and "/" in repo.strip():
         return True
     url = meta.get("url") or ""
-    return bool(parse_github_url(str(url)))
+    return bool(parse_github_url(str(url))) or bool(parse_gitlab_url(str(url)))
 
 
 def _addon_git_exists(addon_dir: Path) -> bool:
@@ -2174,17 +2426,24 @@ def _known_repo_url_for_repair(
     installed: dict[str, Any],
 ) -> str:
     """Resolve a GitHub browse URL from settings, pack parent, or catalog."""
+    from ichalaunch.addons.gitlab import gitlab_browse_url, parse_gitlab_url
     from ichalaunch.core.detect import resolve_catalog_entry
 
     url = str(meta.get("url") or "").strip()
+    gl = parse_gitlab_url(url)
+    if gl:
+        return gitlab_browse_url(gl.owner, gl.repo)
     parsed = parse_github_url(url)
     if parsed:
         return github_browse_url(parsed.owner, parsed.repo)
+    source = str(meta.get("source") or "").strip().lower()
     repo = str(meta.get("repository") or "").strip()
     if "/" in repo:
         owner, name = repo.split("/", 1)
         owner, name = owner.strip(), name.strip()
         if owner and name:
+            if source == "gitlab":
+                return gitlab_browse_url(owner, name)
             return github_browse_url(owner, name)
     managed_by = str(meta.get("managed_by") or "").strip()
     if managed_by and managed_by in installed:
@@ -2194,6 +2453,9 @@ def _known_repo_url_for_repair(
     cat, _kind = resolve_catalog_entry(folder)
     if cat:
         raw = str(cat.get("repo") or cat.get("url") or "").strip()
+        gl = parse_gitlab_url(raw)
+        if gl:
+            return gitlab_browse_url(gl.owner, gl.repo)
         parsed = parse_github_url(raw)
         if parsed:
             return github_browse_url(parsed.owner, parsed.repo)
@@ -2417,6 +2679,15 @@ def check_addon_updates(
         meta = overlay_git_origin(folder, meta)
         if not _addon_has_repo(meta):
             continue
+        from ichalaunch.addons.gitlab import parse_gitlab_url
+
+        # GitLab installs are not in the GitHub tip index — do not treat
+        # owner/repo as GitHub (wrong project / 404).
+        if (
+            str(meta.get("source") or "").strip().lower() == "gitlab"
+            or parse_gitlab_url(str(meta.get("url") or ""))
+        ):
+            continue
         repo = meta.get("repository")
         if not repo or "/" not in str(repo):
             parsed = parse_github_url(str(meta.get("url") or ""))
@@ -2576,7 +2847,22 @@ def update_addon(folder: str, progress: ProgressCb | None = None) -> None:
     tag = ""
     if kind == "exact" and catalog_locks_updates(cat):
         tag = catalog_pin_tag(cat)
+    from ichalaunch.addons.gitlab import gitlab_browse_url, gitlab_tag_page_url, parse_gitlab_url
+
+    url = str(meta.get("url") or "").strip()
+    source = str(meta.get("source") or "").strip().lower()
+    gl = parse_gitlab_url(url)
     repo = str(meta.get("repository") or "").strip()
+    if gl or source == "gitlab":
+        owner = gl.owner if gl else ""
+        name = gl.repo if gl else ""
+        if (not owner or not name) and "/" in repo:
+            owner, name = repo.split("/", 1)
+        if tag and owner and name:
+            url = gitlab_tag_page_url(owner, name, tag)
+        elif owner and name:
+            url = gitlab_browse_url(owner, name)
+        return install_from_github(url, folder_name=folder, progress=progress)
     if tag and "/" in repo:
         owner, name = repo.split("/", 1)
         url = github_tag_page_url(owner, name, tag)
@@ -2585,7 +2871,6 @@ def update_addon(folder: str, progress: ProgressCb | None = None) -> None:
         owner, name = repo.split("/", 1)
         url = github_browse_url(owner, name)
     else:
-        url = str(meta.get("url") or "").strip()
         parsed = parse_github_url(url)
         if parsed:
             url = github_browse_url(parsed.owner, parsed.repo)

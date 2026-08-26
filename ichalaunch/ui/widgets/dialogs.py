@@ -121,10 +121,10 @@ def _addon_open_git_button(
     from ichalaunch.ui.widgets.common import (
         OpenGitButton,
         apply_open_git_visibility,
-        github_repo_browse_url,
+        git_repo_browse_url,
     )
 
-    url = github_repo_browse_url(*url_candidates)
+    url = git_repo_browse_url(*url_candidates)
     if not url:
         return None
     btn = OpenGitButton(parent, plate="inline")
@@ -655,13 +655,22 @@ class GitHubImportDialog(QDialog):
 
     def _start_fetch(self) -> None:
         from ichalaunch.addons.github import cleanup_readme_cache, parse_github_url
+        from ichalaunch.addons.gitlab import parse_gitlab_url
 
         raw = self.url_edit.text().strip()
         if not raw:
-            self._reset_preview("Paste a GitHub link to load the preview.")
+            self._reset_preview("Paste a GitHub or GitLab link to load the preview.")
             return
-        if not parse_github_url(raw):
-            self._reset_preview("Enter a valid GitHub repository URL (github.com/owner/repo).")
+        if self._kind != "dll" and parse_gitlab_url(raw):
+            pass
+        elif not parse_github_url(raw):
+            if self._kind == "dll":
+                self._reset_preview("Enter a valid GitHub repository URL (github.com/owner/repo).")
+            else:
+                self._reset_preview(
+                    "Enter a valid GitHub or GitLab repository URL "
+                    "(github.com/owner/repo or gitlab.com/owner/repo)."
+                )
             return
 
         cleanup_readme_cache(self._cache_dir)
@@ -1177,13 +1186,29 @@ class _AddonBrowseFetchThread(QThread):
   ok = Signal(object, object)
   err = Signal(str)
 
-  def __init__(self, owner: str, repo: str, parent: QWidget | None = None):
+  def __init__(
+    self,
+    owner: str,
+    repo: str,
+    parent: QWidget | None = None,
+    *,
+    host: str = "github",
+  ):
     super().__init__(parent)
     self._owner = owner
     self._repo = repo
+    self._host = (host or "github").strip().lower() or "github"
 
   def run(self) -> None:
     try:
+      if self._host == "gitlab":
+        from ichalaunch.addons.github import fork_entry_from_repo_url
+        from ichalaunch.addons.gitlab import gitlab_browse_url, list_gitlab_repo_tags
+
+        forks = [fork_entry_from_repo_url(gitlab_browse_url(self._owner, self._repo))]
+        versions = list_gitlab_repo_tags(self._owner, self._repo)
+        self.ok.emit(forks, versions)
+        return
       from ichalaunch.addons.github import list_repo_forks, list_repo_versions
 
       forks = list_repo_forks(self._owner, self._repo)
@@ -1204,6 +1229,7 @@ class AddonInstallPickerDialog(QDialog):
       catalog_pin_tag,
       parse_entry_owner_repo,
     )
+    from ichalaunch.addons.gitlab import parse_entry_gitlab
     from ichalaunch.ui.widgets.common import addon_fork_label, addon_version_label, fork_combo_label
     from ichalaunch.ui.widgets.glue_combo import GlueComboBox
 
@@ -1329,9 +1355,21 @@ class AddonInstallPickerDialog(QDialog):
     )
 
     pair = parse_entry_owner_repo(entry)
+    gl = parse_entry_gitlab(entry)
     can_install = bool(self._preview_url())
     self.install_btn.setEnabled(can_install)
-    if pair:
+    if gl:
+      self._browse_owner, self._browse_repo = gl.owner, gl.repo
+      self._browse_fetch_gen += 1
+      fetch_gen = self._browse_fetch_gen
+      self._worker = _AddonBrowseFetchThread(gl.owner, gl.repo, self, host="gitlab")
+      self._worker.ok.connect(
+        lambda forks, versions, g=fetch_gen: self._on_fetch_ok(forks, versions, g)
+      )
+      self._worker.err.connect(lambda msg, g=fetch_gen: self._on_fetch_err(msg, g))
+      self._worker.start()
+      self.status_lbl.setText("Loading versions from GitLab…")
+    elif pair:
       owner, repo = pair
       self._browse_owner, self._browse_repo = owner, repo
       self._browse_fetch_gen += 1
@@ -1345,7 +1383,7 @@ class AddonInstallPickerDialog(QDialog):
       self.status_lbl.setText("Loading forks and versions from GitHub…")
     else:
       self._forks_fetch_done = True
-      self.status_lbl.setText("Could not resolve a GitHub repository for this addon.")
+      self.status_lbl.setText("Could not resolve a GitHub or GitLab repository for this addon.")
 
     QTimer.singleShot(0, self._load_preview)
 
@@ -1391,8 +1429,8 @@ class AddonInstallPickerDialog(QDialog):
     return str(self.version_combo.currentData() or "").strip()
 
   def _preview_url(self) -> str:
-    from ichalaunch.addons.github import addon_install_url_for_choice, github_browse_url
-    from ichalaunch.ui.widgets.common import github_repo_browse_url
+    from ichalaunch.addons.github import addon_browse_url, addon_install_url_for_choice, fork_git_host
+    from ichalaunch.ui.widgets.common import git_repo_browse_url
 
     fork = self._current_fork_data()
     tag = self._version_tag()
@@ -1402,8 +1440,8 @@ class AddonInstallPickerDialog(QDialog):
     owner = str(fork.get("owner") or self._browse_owner or "").strip()
     repo = str(fork.get("repo_name") or self._browse_repo or "").strip()
     if owner and repo:
-      return github_browse_url(owner, repo)
-    return github_repo_browse_url(
+      return addon_browse_url(owner, repo, host=fork_git_host(fork))
+    return git_repo_browse_url(
       self._entry.get("repo"),
       self._entry.get("url"),
       self._entry.get("repository"),
@@ -1682,6 +1720,7 @@ class AddonSettingsDialog(QDialog):
       has_github_token,
       parse_entry_owner_repo,
     )
+    from ichalaunch.addons.gitlab import parse_entry_gitlab
     from ichalaunch.ui.widgets.common import (
       addon_fork_label,
       fork_combo_label,
@@ -1716,6 +1755,7 @@ class AddonSettingsDialog(QDialog):
     self._catalog_never_locked = False
     self._baseline_repo = ""
     self._baseline_tag = ""
+    self._git_host = "github"
 
     name = str(entry.get("name") or entry.get("folder") or "addon")
     root = QVBoxLayout(self)
@@ -1877,8 +1917,14 @@ class AddonSettingsDialog(QDialog):
 
     self._browse_owner = ""
     self._browse_repo = ""
+    self._git_host = "github"
+    gl = parse_entry_gitlab(entry, self._meta)
     pair = parse_entry_owner_repo(entry, self._meta)
-    if pair:
+    if gl:
+      self._browse_owner, self._browse_repo = gl.owner, gl.repo
+      self._baseline_repo = f"{gl.owner}/{gl.repo}".lower()
+      self._git_host = "gitlab"
+    elif pair:
       self._browse_owner, self._browse_repo = pair
       self._baseline_repo = f"{pair[0]}/{pair[1]}".lower()
     self._baseline_tag = str(
@@ -1969,7 +2015,11 @@ class AddonSettingsDialog(QDialog):
     if not raw:
       return ""
     from ichalaunch.addons.github import parse_github_url
+    from ichalaunch.addons.gitlab import parse_gitlab_url
 
+    gl = parse_gitlab_url(raw)
+    if gl:
+      return f"{gl.owner}/{gl.repo}".lower()
     parsed = parse_github_url(raw)
     if parsed:
       return f"{parsed.owner}/{parsed.repo}".lower()
@@ -2014,8 +2064,8 @@ class AddonSettingsDialog(QDialog):
     QDesktopServices.openUrl(url)
 
   def _preview_url(self) -> str:
-    from ichalaunch.addons.github import addon_install_url_for_choice, github_browse_url
-    from ichalaunch.ui.widgets.common import github_repo_browse_url
+    from ichalaunch.addons.github import addon_browse_url, addon_install_url_for_choice, fork_git_host
+    from ichalaunch.ui.widgets.common import git_repo_browse_url
 
     fork = self._current_fork_data()
     tag = ""
@@ -2027,11 +2077,12 @@ class AddonSettingsDialog(QDialog):
     owner = str(fork.get("owner") or self._browse_owner or "").strip()
     repo = str(fork.get("repo_name") or self._browse_repo or "").strip()
     if owner and repo:
-      return github_browse_url(owner, repo)
-    return github_repo_browse_url(
+      return addon_browse_url(owner, repo, host=fork_git_host(fork) or self._git_host)
+    return git_repo_browse_url(
       self._entry.get("repo"),
       self._entry.get("url"),
       self._entry.get("repository"),
+      self._meta.get("url"),
     ) or ""
 
   def _load_preview(self) -> None:
@@ -2039,7 +2090,7 @@ class AddonSettingsDialog(QDialog):
 
     url = self._preview_url()
     if not url:
-      self.status_lbl.setText("No GitHub repository URL for preview.")
+      self.status_lbl.setText("No GitHub or GitLab repository URL for preview.")
       self.browser.clear()
       self._preview_pending = False
       self._sync_combo_interactivity()
@@ -2126,8 +2177,13 @@ class AddonSettingsDialog(QDialog):
     self._browse_fetch_gen += 1
     fetch_gen = self._browse_fetch_gen
     self._sync_combo_interactivity()
-    self.status_lbl.setText("Loading forks from GitHub…")
-    self._browse_worker = _AddonBrowseFetchThread(owner, repo, self)
+    self.status_lbl.setText(
+      "Loading versions from GitLab…" if self._git_host == "gitlab"
+      else "Loading forks from GitHub…"
+    )
+    self._browse_worker = _AddonBrowseFetchThread(
+      owner, repo, self, host=self._git_host
+    )
     self._browse_worker.ok.connect(
       lambda forks, versions, g=fetch_gen: self._on_forks_fetched(forks, versions, g)
     )
@@ -2193,8 +2249,13 @@ class AddonSettingsDialog(QDialog):
     fetch_gen = self._browse_fetch_gen
     # Do not disable/hide while the dropdown is open — that desynced GlueCombo.
     if show_status:
-      self.status_lbl.setText("Loading versions from GitHub…")
-    self._browse_worker = _AddonBrowseFetchThread(owner, repo, self)
+      self.status_lbl.setText(
+        "Loading versions from GitLab…" if self._git_host == "gitlab"
+        else "Loading versions from GitHub…"
+      )
+    self._browse_worker = _AddonBrowseFetchThread(
+      owner, repo, self, host=self._git_host
+    )
     self._browse_worker.ok.connect(
       lambda forks, versions, g=fetch_gen: self._on_versions_fetched(forks, versions, g)
     )
