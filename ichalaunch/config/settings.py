@@ -34,6 +34,19 @@ DEFAULTS: dict[str, Any] = {
     "linux_proton_path": "",
     "linux_use_latest_proton": False,
     "linux_wineprefix": "",
+    # New WoW64: on where the Proton build can honour it, off everywhere else
+    # without the user having to know which is which. build_launch_command
+    # probes for the 64-bit host and silently keeps the default mode when it is
+    # absent, so this default cannot fail a launch -- it only decides what
+    # happens on the builds that ship files/bin-wow64.
+    #
+    # None means "nobody has expressed a preference", and proton.wow64_enabled()
+    # resolves it against WOW64_DEFAULT_ON at read time. True/False appear here
+    # only once the user ticks the box. save() persists this whole dict, so a
+    # literal default would be written into every settings.json on first launch
+    # and would then outrank any later change to the default -- see the note on
+    # WOW64_DEFAULT_ON in ichalaunch/game/proton.py.
+    "linux_use_wow64": None,
     "addons_path": "",
     "vanillafixes_enabled": True,
     "minimize_on_launch": False,

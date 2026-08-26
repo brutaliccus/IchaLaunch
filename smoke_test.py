@@ -8436,6 +8436,206 @@ def test_linux_proton_launch_resolution():
     print("OK linux proton launch resolution")
 
 
+def test_linux_wow64_default_on_when_supported():
+    """New WoW64 is on by default, probed per build, and never set blind.
+
+    Guards four things: that an untouched install gets it on a build that ships
+    files/bin-wow64, that the same untouched install gets a normal launch on a
+    build that does not, that turning it off is honoured on a capable build, and
+    that a value inherited from the caller's own environment cannot decide the
+    launch mode behind the setting's back.
+    """
+    if sys.platform == "win32":
+        print("OK linux wow64 default-on (skipped on Windows)")
+        return
+
+    import os
+
+    from ichalaunch.game import proton
+
+    class _Stub:
+        def __init__(self, d):
+            self.d = dict(d)
+
+        def get(self, k, default=None):
+            return self.d.get(k, default)
+
+        def set(self, k, v):
+            self.d[k] = v
+
+    real = proton.settings
+    inherited = os.environ.get("PROTON_USE_WOW64")
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+
+            umu = root / "umu-run"
+            umu.write_text("#!/bin/sh\nexit 0\n")
+            umu.chmod(0o755)
+
+            # One build ships the 64-bit host, one does not. This is the real
+            # difference between GE-Proton10-34 and GE-Proton11-5.
+            withw = root / "GE-Proton10-34"
+            (withw / "files" / "bin-wow64").mkdir(parents=True)
+            (withw / "files" / "bin-wow64" / "wine").write_text("#!/bin/sh\n")
+            (withw / "toolmanifest.vdf").write_text("x")
+            without = root / "GE-Proton11-5"
+            (without / "files" / "bin").mkdir(parents=True)
+            (without / "toolmanifest.vdf").write_text("x")
+            # An interrupted download or a trimmed build: the directory is
+            # there, the loader Proton would exec is not. Proton does not check,
+            # so a directory-only probe would pass this and fail the launch.
+            partial = root / "GE-Proton10-34-partial"
+            (partial / "files" / "bin-wow64").mkdir(parents=True)
+            (partial / "toolmanifest.vdf").write_text("x")
+
+            assert proton.proton_supports_wow64(withw)
+            assert not proton.proton_supports_wow64(without)
+            assert not proton.proton_supports_wow64(partial)
+
+            _UNSET = object()
+
+            def cmd(build, enabled=_UNSET):
+                data = {
+                    "linux_proton_path": str(build),
+                    "linux_use_latest_proton": False,
+                    "linux_umu_path": str(umu),
+                    "linux_wineprefix": str(root / "prefix"),
+                }
+                # Omitted entirely rather than set, so this exercises the
+                # DEFAULTS fallback the way an untouched install hits it.
+                if enabled is not _UNSET:
+                    data["linux_use_wow64"] = enabled
+                proton.settings = _Stub(data)
+                return proton.build_launch_command(root / "WoW.exe", root)[1]
+
+            # The default an untouched install gets: on where it can be honoured.
+            assert cmd(withw).get("PROTON_USE_WOW64") == "1"
+
+            # Same untouched install, a build that cannot honour it: the flag is
+            # absent, not "0", and the launch is otherwise unchanged.
+            assert "PROTON_USE_WOW64" not in cmd(without)
+            # And the half-extracted build is declined for the same reason.
+            assert "PROTON_USE_WOW64" not in cmd(partial)
+
+            # Turning it off is honoured even where the build supports it.
+            assert "PROTON_USE_WOW64" not in cmd(withw, False)
+
+            # On, and the build can honour it.
+            assert cmd(withw, True).get("PROTON_USE_WOW64") == "1"
+
+            # On, but the build has no 64-bit host. Setting it here would fail
+            # the launch outright, so it is deliberately left unset.
+            assert "PROTON_USE_WOW64" not in cmd(without, True)
+
+            # An inherited value must not survive: the setting is the only
+            # thing that decides the launch mode.
+            os.environ["PROTON_USE_WOW64"] = "1"
+            try:
+                assert "PROTON_USE_WOW64" not in cmd(withw, False)
+                assert "PROTON_USE_WOW64" not in cmd(without, True)
+            finally:
+                os.environ.pop("PROTON_USE_WOW64", None)
+    finally:
+        proton.settings = real
+        if inherited is None:
+            os.environ.pop("PROTON_USE_WOW64", None)
+        else:
+            os.environ["PROTON_USE_WOW64"] = inherited
+
+    print("OK linux wow64 default-on where supported")
+
+
+def test_linux_wow64_settings_checkbox():
+    """The Settings checkbox reflects a default-on key and is Linux-only.
+
+    Two separate things. First, the upgrade path: a settings.json written before
+    this key existed must come back with it on, because _merge_loaded starts from
+    dict(DEFAULTS) -- that is what carries the new default to existing users
+    rather than only to fresh installs.
+
+    Second, refresh(): the shared loop next to it hardcodes False as its fallback,
+    which is the wrong default for this key. That fallback is unreachable while
+    _merge_loaded materialises DEFAULTS, so driving the box through the loop would
+    work today and quietly stop working if that ever changed. The absent-key
+    assertion pins it; reverting to the loop fails it.
+    """
+    import sys as _sys
+
+    from PySide6.QtWidgets import QApplication
+
+    import ichalaunch.ui.pages.settings as settings_page_mod
+    from ichalaunch.config.settings import DEFAULTS, Settings, settings
+    from ichalaunch.game.proton import WOW64_DEFAULT_ON, wow64_enabled
+
+    # Stored as null, not as the default itself. save() writes the whole
+    # DEFAULTS-merged dict, so a literal True here would be baked into every
+    # settings.json on first launch and would then outrank WOW64_DEFAULT_ON
+    # forever -- turning the one-line revert into a no-op for everyone who had
+    # already run the launcher once.
+    assert DEFAULTS["linux_use_wow64"] is None
+    assert WOW64_DEFAULT_ON is True
+
+    # The upgrade path. A settings.json from before this key existed has no
+    # opinion about it, and must stay that way rather than being pinned.
+    legacy = {"game_path": "", "close_on_launch": True}
+    merged, _ = Settings.__new__(Settings)._merge_loaded(legacy)
+    assert merged["linux_use_wow64"] is None
+    # An explicit choice in the file still wins over the default, both ways.
+    for stored in (True, False):
+        m, _ = Settings.__new__(Settings)._merge_loaded(
+            {**legacy, "linux_use_wow64": stored}
+        )
+        assert m["linux_use_wow64"] is stored
+
+    # And the revert lever still works: with nothing stored, flipping the
+    # constant flips what users get.
+    prev_stored = settings.get("linux_use_wow64", None)
+    import ichalaunch.game.proton as _proton
+    try:
+        settings.set("linux_use_wow64", None)
+        assert wow64_enabled() is True
+        _proton.WOW64_DEFAULT_ON = False
+        assert wow64_enabled() is False
+        # An explicit choice is not overridden by the constant.
+        settings.set("linux_use_wow64", True)
+        assert wow64_enabled() is True
+    finally:
+        _proton.WOW64_DEFAULT_ON = True
+        settings.set("linux_use_wow64", prev_stored)
+
+    app = QApplication.instance() or QApplication(_sys.argv)
+    assert app is not None
+    page = settings_page_mod.SettingsPage()
+
+    # Constructed on every platform so refresh() needs no platform branch, but
+    # only shown where the setting can do anything.
+    assert hasattr(page, "cb_wow64")
+    if _sys.platform == "win32":
+        assert page.cb_wow64.parent() is None
+        print("OK linux wow64 checkbox hidden on Windows")
+        return
+
+    prev = settings.get("linux_use_wow64", True)
+    try:
+        # Absent key: the box must follow DEFAULTS, not fall back to False.
+        settings._data.pop("linux_use_wow64", None)
+        page.refresh()
+        assert page.cb_wow64.isChecked()
+
+        settings.set("linux_use_wow64", False)
+        page.refresh()
+        assert not page.cb_wow64.isChecked()
+
+        settings.set("linux_use_wow64", True)
+        page.refresh()
+        assert page.cb_wow64.isChecked()
+    finally:
+        settings.set("linux_use_wow64", prev)
+
+    print("OK linux wow64 settings checkbox")
+
+
 def test_linux_dxvk_vulkan_preflight():
     """DXVK suitability on Linux turns on 32-bit Vulkan, not on the GPU name.
 
@@ -8807,6 +9007,8 @@ def _run_smoke_tests():
     test_owned_paths_are_comparison_keys_not_filenames()
     test_client_exe_probe_is_case_insensitive()
     test_linux_proton_launch_resolution()
+    test_linux_wow64_default_on_when_supported()
+    test_linux_wow64_settings_checkbox()
     test_linux_dxvk_vulkan_preflight()
     test_prepare_for_launch_clears_data_readonly()
     test_plan_missing_installs_dxvk()

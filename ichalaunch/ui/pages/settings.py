@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -16,6 +18,7 @@ from PySide6.QtWidgets import (
 from ichalaunch import __version__
 from ichalaunch.core.logging_setup import log_dir
 from ichalaunch.config.settings import settings
+from ichalaunch.game.proton import wow64_enabled
 from ichalaunch.ui.widgets.casting_bar_search_edit import (
     SETTINGS_MIN_H,
     CastingBarSearchEdit,
@@ -155,7 +158,32 @@ class SettingsPage(QWidget):
         self.cb_close = ThemeCheckBox("Close launcher when game starts")
         self.cb_close.setChecked(bool(settings.get("close_on_launch", False)))
         self.cb_close.toggled.connect(lambda v: settings.set("close_on_launch", v))
-        for cb in (self.cb_vf, self.cb_min, self.cb_close):
+        self.cb_wow64 = ThemeCheckBox(
+            "Run the client under new WoW64 where Proton supports it (Linux)"
+        )
+        self.cb_wow64.setChecked(wow64_enabled())
+        self.cb_wow64.setToolTip(
+            "Runs Wine's translation layer in a 64-bit host process, so its "
+            "libraries stop sharing the 32-bit client's 4 GB of address space. "
+            "The client stays 32-bit and its own ceiling does not move; what "
+            "changes is how much of that ceiling is left for the game. The "
+            "gain shows up with heavy texture packs.\n\n"
+            "On by default, but only where it can be honoured: Proton builds "
+            "differ, and the launcher checks yours before each launch. On a "
+            "build without the 64-bit host it keeps the normal mode and says "
+            "so in the log rather than failing the launch. Turn it off if a "
+            "DLL-injecting client mod misbehaves under it."
+        )
+        self.cb_wow64.toggled.connect(lambda v: settings.set("linux_use_wow64", v))
+        launch_boxes = [self.cb_vf, self.cb_min, self.cb_close]
+        # build_launch_command only consults linux_use_wow64 through the umu
+        # path, and core/process.py imports that module inside its "not win32"
+        # branch, so the setting cannot do anything on Windows. The widget is
+        # still constructed there so refresh() needs no platform branch of its
+        # own -- it is simply never added to the card.
+        if sys.platform != "win32":
+            launch_boxes.append(self.cb_wow64)
+        for cb in launch_boxes:
             cb.setMinimumHeight(28)
             cb.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             launch_card.body.addWidget(cb)
@@ -381,6 +409,14 @@ class SettingsPage(QWidget):
             cb.blockSignals(True)
             cb.setChecked(bool(settings.get(key, False)))
             cb.blockSignals(False)
+        # Kept out of the loop above because that loop resolves a key to a bare
+        # bool, and this one is tri-state: null means "unset", which is not the
+        # same as off. wow64_enabled() is the single place that turns the stored
+        # value into a launch decision, so asking it here is what keeps the box
+        # and the launch path from ever disagreeing.
+        self.cb_wow64.blockSignals(True)
+        self.cb_wow64.setChecked(wow64_enabled())
+        self.cb_wow64.blockSignals(False)
         self.cb_auto_updates.blockSignals(True)
         self.cb_auto_updates.setChecked(settings.check_updates_on_startup())
         self.cb_auto_updates.blockSignals(False)

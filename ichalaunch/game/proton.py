@@ -77,6 +77,42 @@ def _is_proton_build(d: Path) -> bool:
     return (d / "toolmanifest.vdf").is_file()
 
 
+# What an untouched install gets. Kept separate from the stored setting so the
+# stored value can stay null until somebody actually ticks the box: Settings.save()
+# serialises the whole DEFAULTS-merged dict, so a literal True in DEFAULTS is
+# written into every user's settings.json on their first launch, and from then on
+# _merge_loaded's `merged.update(loaded)` makes that stored True beat DEFAULTS
+# forever. Changing this constant would then fix nothing for anyone who had
+# already launched once -- which would leave a one-line revert as the rollback
+# plan while quietly making it a no-op. Resolving null here instead keeps the
+# revert working.
+WOW64_DEFAULT_ON = True
+
+
+def wow64_enabled() -> bool:
+    """Whether new WoW64 should be used, resolving "unset" to the default."""
+    stored = settings.get("linux_use_wow64", None)
+    return WOW64_DEFAULT_ON if stored is None else bool(stored)
+
+
+def proton_supports_wow64(d: Path) -> bool:
+    """Whether *d* ships the 64-bit host binaries that new WoW64 needs.
+
+    Proton's own launch script swaps its bin directory to files/bin-wow64 when
+    PROTON_USE_WOW64 is set, so a build that lacks that directory cannot honour
+    the flag and the launch fails outright. Builds genuinely differ --
+    GE-Proton10-34 ships it, GE-Proton11-5 does not -- so this is probed per
+    build rather than assumed.
+
+    The loader itself is what gets tested, not the directory holding it. Proton
+    re-points bin_dir and then execs bin_dir + "wine" without checking that it
+    exists, so an interrupted ProtonUp-Qt download or a trimmed build can leave
+    files/bin-wow64/ present but empty -- which would pass a directory test and
+    then fail the launch, the exact outcome this probe exists to prevent.
+    """
+    return (d / "files" / "bin-wow64" / "wine").is_file()
+
+
 def discover_proton_builds() -> list[Path]:
     """Every Proton build on disk, newest-looking first, deduplicated."""
     roots: list[Path] = []
@@ -183,6 +219,7 @@ def build_launch_command(exe: Path, cwd: Path) -> tuple[list[str], dict[str, str
         "PROTON_NO_ESYNC",
         "PROTON_NO_FSYNC",
         "PROTON_USE_WINED3D",
+        "PROTON_USE_WOW64",
         "PROTON_VERB",
         "SDL_VIDEODRIVER",
         "STEAM_COMPAT_CLIENT_INSTALL_PATH",
@@ -199,6 +236,36 @@ def build_launch_command(exe: Path, cwd: Path) -> tuple[list[str], dict[str, str
         "GAMEID": "umu-default",
         "STORE": "none",
     })
+
+    # New WoW64 runs the 32-bit client inside a 64-bit host process, which moves
+    # Wine's own libraries, the Vulkan loader and DXVK's host-side allocations
+    # out of the application's 4 GB of address space. The client stays 32-bit and
+    # its own ceiling is unchanged; what this buys is that the ceiling stops
+    # being shared with the translation layer. Measured on a vanilla WoW client
+    # with ~11 GB of texture packs: peak use of the low 4 GB was 48%.
+    #
+    # On by default, because the capability probe below is what makes that safe:
+    # a build that cannot honour the flag never receives it and launches exactly
+    # as it does today. The setting only decides what happens on builds that do
+    # ship the 64-bit host.
+    if wow64_enabled():
+        if proton_supports_wow64(proton):
+            env["PROTON_USE_WOW64"] = "1"
+            log.info("Launch mode: new WoW64 (%s)", proton.name)
+        else:
+            # Setting it anyway would break the launch rather than degrade it.
+            # Info, not a warning: this is the default path on a build without
+            # the 64-bit host, and the user has not misconfigured anything.
+            log.info(
+                "Launch mode: default, because %s ships no usable "
+                "files/bin-wow64/wine (new WoW64 is on, but unavailable here)",
+                proton.name,
+            )
+    else:
+        # Logged unconditionally, at the same level as the other two, so the
+        # launch log always names the mode. A bug report that does not say which
+        # loader ran costs a round trip to find out.
+        log.info("Launch mode: default (new WoW64 turned off in Settings)")
     return [str(umu), str(exe)], env
 
 
