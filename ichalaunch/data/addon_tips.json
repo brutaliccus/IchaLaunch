@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-26T14:44:56Z",
+  "generated_at": "2026-08-26T21:46:17Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -12498,25 +12498,11 @@
         "master": "04f2aee0e0ce1a926419b571554a3f1cbcbd54d1"
       }
     },
-    "tperraut/shootyepgp": {
-      "default_branch": "master",
-      "sha": "4d4b4098fe9e00671b8ab6c8420d2407eaa0a4b9",
-      "branches": {
-        "master": "4d4b4098fe9e00671b8ab6c8420d2407eaa0a4b9"
-      }
-    },
     "mijohansen/shootyepgp": {
       "default_branch": "master",
       "sha": "167f1b37b64b068bf0a521a104a02e77b39bf2db",
       "branches": {
         "master": "167f1b37b64b068bf0a521a104a02e77b39bf2db"
-      }
-    },
-    "laytya/shootyepgp": {
-      "default_branch": "master",
-      "sha": "57c787f2719cfd71a247600ed18ba0daa1962331",
-      "branches": {
-        "master": "57c787f2719cfd71a247600ed18ba0daa1962331"
       }
     },
     "road-block/simpleraidtargeticons": {
@@ -13272,11 +13258,11 @@
     },
     "wayoff333/cursive": {
       "default_branch": "master",
-      "sha": "4f0bc4f0b39a7332ea6ec4f109d40f8654b25bc8",
+      "sha": "7b3e7e545fdbc00be362568ffb311402b82dc35d",
       "branches": {
-        "master": "4f0bc4f0b39a7332ea6ec4f109d40f8654b25bc8"
+        "master": "7b3e7e545fdbc00be362568ffb311402b82dc35d"
       },
-      "latest_tag": "1.0"
+      "latest_tag": "1.2"
     },
     "taeko-ar/cursive-3.3.5a": {
       "default_branch": "master",
@@ -16960,13 +16946,96 @@
         "master": "ddb6a1364174cec86594c5a7659b659406861d89"
       }
     },
-    "brndd/vanilla-tweaks": {
+    "hoys/mikscrollingbattletext": {
       "default_branch": "master",
-      "sha": "fbbe31add71b23602d981d70f1a58520fc349b47",
+      "sha": "e65811e2bc4a1d622df4fe8567f3629eb0edfa44",
       "branches": {
-        "master": "fbbe31add71b23602d981d70f1a58520fc349b47"
-      },
-      "latest_tag": "v1.6.0"
+        "master": "e65811e2bc4a1d622df4fe8567f3629eb0edfa44"
+      }
+    },
+    "kameleonuk/notgrid": {
+      "default_branch": "master",
+      "sha": "f088643d297b4195e3971fb305721da436e3ffaf",
+      "branches": {
+        "master": "f088643d297b4195e3971fb305721da436e3ffaf"
+      }
+    },
+    "igreed1993/greedmeter": {
+      "default_branch": "main",
+      "sha": "ea07903b76fd192fb3315bb3915a409158f73056",
+      "branches": {
+        "main": "ea07903b76fd192fb3315bb3915a409158f73056"
+      }
+    },
+    "kobeniiiiii/combatledger": {
+      "default_branch": "main",
+      "sha": "f714945462cef421928c86db33fc68f972f58c8d",
+      "branches": {
+        "main": "f714945462cef421928c86db33fc68f972f58c8d"
+      }
+    },
+    "sandreasub/questie-octo": {
+      "default_branch": "main",
+      "sha": "f9724ce23aae54e3b1276a43c803c848df3c9f2d",
+      "branches": {
+        "main": "f9724ce23aae54e3b1276a43c803c848df3c9f2d"
+      }
+    },
+    "jordanfaz/questie-octo": {
+      "default_branch": "main",
+      "sha": "a2666787ea96bd3ef0274e9b8475148b7e2ee5a2",
+      "branches": {
+        "main": "a2666787ea96bd3ef0274e9b8475148b7e2ee5a2"
+      }
+    },
+    "excinerus/exautocshs": {
+      "default_branch": "main",
+      "sha": "9c1492b2894ba740dee5a7042a9beac780f6d91c",
+      "branches": {
+        "main": "9c1492b2894ba740dee5a7042a9beac780f6d91c"
+      }
+    },
+    "kninib12a/exautocshs": {
+      "default_branch": "main",
+      "sha": "86eef31a96199821d3238a5ea7d97db819a3eae9",
+      "branches": {
+        "main": "86eef31a96199821d3238a5ea7d97db819a3eae9"
+      }
+    },
+    "wurmschwanz/blizznameplatesplus": {
+      "default_branch": "main",
+      "sha": "d8bc3195d937d3b1321a1ce3089113de2eb43b7b",
+      "branches": {
+        "main": "d8bc3195d937d3b1321a1ce3089113de2eb43b7b"
+      }
+    },
+    "otari98/atlas": {
+      "default_branch": "master",
+      "sha": "9179b654672cffcdb1272f29662e44f516e1484c",
+      "branches": {
+        "master": "9179b654672cffcdb1272f29662e44f516e1484c"
+      }
+    },
+    "seven7000/fishingbuddy": {
+      "default_branch": "main",
+      "sha": "de057d0b6ed86f8a8bcfb5588c793dadd35cc53d",
+      "branches": {
+        "main": "de057d0b6ed86f8a8bcfb5588c793dadd35cc53d"
+      }
+    },
+    "buzzkill54/atlasquest": {
+      "default_branch": "master",
+      "sha": "dc9c364566ca173a75a1fd15adc5d35f4c8f3e00",
+      "branches": {
+        "master": "dc9c364566ca173a75a1fd15adc5d35f4c8f3e00"
+      }
+    },
+    "tubtubs/vanilla-tweaks": {
+      "default_branch": "master",
+      "sha": "1e18414f8f3535d3436d3dc6a7351d4ea74b50b4",
+      "branches": {
+        "master": "1e18414f8f3535d3436d3dc6a7351d4ea74b50b4"
+      }
     },
     "hannesmann/vanillafixes": {
       "default_branch": "main",
@@ -17011,9 +17080,9 @@
     },
     "brues-code/classicapi": {
       "default_branch": "master",
-      "sha": "1170a4e63a6910bf9197c33d0627489166e33438",
+      "sha": "a962c76f09fee136521ed99fc122b369b2b0f98e",
       "branches": {
-        "master": "1170a4e63a6910bf9197c33d0627489166e33438"
+        "master": "a962c76f09fee136521ed99fc122b369b2b0f98e"
       },
       "latest_tag": "v1.12.6"
     },
