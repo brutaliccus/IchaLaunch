@@ -78,6 +78,8 @@ CATEGORY_ORDER = [
 # Title / plan / update-status share this extra left pad (page already has 16).
 # Settings uses 24; 16+8 matches that and sits clear of the ~20px metal rail.
 _HEADER_LEFT_INSET = 8
+# Action row + search share this so plates and the bar clear the metal border.
+_EDGE_INSET = 4
 
 
 class ClientPage(QWidget):
@@ -220,8 +222,11 @@ class ClientPage(QWidget):
         self.plan_lbl.setContentsMargins(_HEADER_LEFT_INSET, 0, 0, 0)
         root.addWidget(self.plan_lbl)
 
-        # Actions sit at the bottom near the play bar (avoids MoA logo collision)
+        # Actions sit at the bottom near the play bar. 4px side inset so the
+        # first/last plates do not clip the content-panel border.
         actions = QHBoxLayout()
+        actions.setContentsMargins(_EDGE_INSET, 0, _EDGE_INSET, 0)
+        actions.setSpacing(8)
         self.rescan_btn = GluePanelButton("Rescan")
         self.rescan_btn.clicked.connect(self.rescan_clicked.emit)
         self.check_btn = GluePanelButton("Check Updates")
@@ -250,6 +255,7 @@ class ClientPage(QWidget):
 
         # Cross-category search (bottom of Client tab)
         search_row = QHBoxLayout()
+        search_row.setContentsMargins(_EDGE_INSET, 0, _EDGE_INSET, 0)
         search_row.setSpacing(8)
         self.search = CastingBarSearchEdit(object_name="ClientSearch")
         self.search.setPlaceholderText("Search all client fixes, tweaks & patches…")

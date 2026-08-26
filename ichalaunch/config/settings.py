@@ -47,7 +47,15 @@ DEFAULTS: dict[str, Any] = {
     # and would then outrank any later change to the default -- see the note on
     # WOW64_DEFAULT_ON in ichalaunch/game/proton.py.
     "linux_use_wow64": None,
+    # Pin the client to the cache-rich CCD on dual-CCD X3D parts. Harmless
+    # everywhere else: detection returns nothing unless two L3 domains of
+    # clearly different size are present. None = unset; see VCACHE_PIN_DEFAULT_ON.
+    "pin_to_vcache_ccd": None,
     "addons_path": "",
+    # Frame pacing follows the display. None = unset; see FRAME_CAP_DEFAULT_ON.
+    # frame_cap_offset is hand-edited (frames below refresh) and bounded in code.
+    "frame_cap_from_refresh": None,
+    "frame_cap_offset": 3,
     "vanillafixes_enabled": True,
     "minimize_on_launch": False,
     "close_on_launch": False,

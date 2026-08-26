@@ -18,6 +18,8 @@ from PySide6.QtWidgets import (
 from ichalaunch import __version__
 from ichalaunch.core.logging_setup import log_dir
 from ichalaunch.config.settings import settings
+from ichalaunch.game.cpu_topology import vcache_pin_enabled
+from ichalaunch.game.display import frame_cap_enabled
 from ichalaunch.game.proton import wow64_enabled
 from ichalaunch.ui.widgets.casting_bar_search_edit import (
     SETTINGS_MIN_H,
@@ -175,6 +177,35 @@ class SettingsPage(QWidget):
             "DLL-injecting client mod misbehaves under it."
         )
         self.cb_wow64.toggled.connect(lambda v: settings.set("linux_use_wow64", v))
+        self.cb_vcache = ThemeCheckBox(
+            "Pin the game to the 3D V-Cache cores (AMD X3D with two CCDs)"
+        )
+        self.cb_vcache.setChecked(vcache_pin_enabled())
+        self.cb_vcache.setToolTip(
+            "On a dual-CCD X3D CPU (7950X3D, 9950X3D, …) one die has the 3D "
+            "V-Cache and the other does not. Vanilla WoW is cache-sensitive, "
+            "so the launcher pins the client to the cache-rich die.\n\n"
+            "On by default. Single-CCD X3D parts and every other CPU are left "
+            "alone — detection reads the L3 layout, not the CPU name. Turn it "
+            "off if you would rather the scheduler pick the cores."
+        )
+        self.cb_vcache.toggled.connect(lambda v: settings.set("pin_to_vcache_ccd", v))
+        self.cb_frame_cap = ThemeCheckBox(
+            "Cap DXVK frames a few below the monitor refresh rate"
+        )
+        self.cb_frame_cap.setChecked(frame_cap_enabled())
+        self.cb_frame_cap.setToolTip(
+            "Sets d3d9.maxFrameRate in dxvk.conf from the live display "
+            "(refresh minus 3). Uses the fastest attached panel, not the "
+            "Windows primary, so a 60 Hz desktop next to a 165 Hz game "
+            "monitor does not lock the game at 57.\n\n"
+            "Applied when DXVK is installed and again at PLAY if the file "
+            "is already there. An unreadable display leaves the file alone. "
+            "Turn it off to keep whatever cap you set by hand."
+        )
+        self.cb_frame_cap.toggled.connect(
+            lambda v: settings.set("frame_cap_from_refresh", v)
+        )
         launch_boxes = [self.cb_vf, self.cb_min, self.cb_close]
         # build_launch_command only consults linux_use_wow64 through the umu
         # path, and core/process.py imports that module inside its "not win32"
@@ -183,6 +214,7 @@ class SettingsPage(QWidget):
         # own -- it is simply never added to the card.
         if sys.platform != "win32":
             launch_boxes.append(self.cb_wow64)
+        launch_boxes.extend((self.cb_vcache, self.cb_frame_cap))
         for cb in launch_boxes:
             cb.setMinimumHeight(28)
             cb.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -417,6 +449,12 @@ class SettingsPage(QWidget):
         self.cb_wow64.blockSignals(True)
         self.cb_wow64.setChecked(wow64_enabled())
         self.cb_wow64.blockSignals(False)
+        self.cb_vcache.blockSignals(True)
+        self.cb_vcache.setChecked(vcache_pin_enabled())
+        self.cb_vcache.blockSignals(False)
+        self.cb_frame_cap.blockSignals(True)
+        self.cb_frame_cap.setChecked(frame_cap_enabled())
+        self.cb_frame_cap.blockSignals(False)
         self.cb_auto_updates.blockSignals(True)
         self.cb_auto_updates.setChecked(settings.check_updates_on_startup())
         self.cb_auto_updates.blockSignals(False)

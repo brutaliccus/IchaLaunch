@@ -1301,6 +1301,27 @@ def detect_actual_state(game_path: Path) -> dict[str, bool]:
     return reconciled
 
 
+def _apply_frame_cap_if_enabled(
+    game: Path, *, raise_on_write_error: bool = True
+) -> int | None:
+    """Point d3d9.maxFrameRate at the user's display, if a dxvk.conf exists.
+
+    Called from every install path that can leave a dxvk.conf behind (the
+    VanillaFixes+DXVK bundle, the optional 2.7.1 upgrade, and the cursor
+    preset) and again from prepare_for_launch so an existing install picks
+    up a monitor change without a reinstall.
+    """
+    from ichalaunch.game.display import apply_frame_cap, frame_cap_enabled
+
+    if not frame_cap_enabled():
+        return None
+    return apply_frame_cap(
+        game / "dxvk.conf",
+        settings.get("frame_cap_offset", 3),
+        raise_on_write_error=raise_on_write_error,
+    )
+
+
 def _pe_artifacts_for_mod(mod: dict[str, Any]) -> list[str]:
     """Game-relative DLL/EXE paths this mod owns (for post-install / detect verify)."""
     return sorted(
@@ -2673,6 +2694,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                     for f in vf.parent.iterdir():
                         if f.is_file():
                             _zip_root_copy(f, game / f.name)
+                _apply_frame_cap_if_enabled(game)
                 soft = _verify_mod_install(game, mod)
                 return _finish_mod_install(mod_id, mod, source, soft_skipped=soft)
 
@@ -2770,6 +2792,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                         raise FileNotFoundError(f"Bundled mod file missing: {resource.name}")
                     dest_rel = str(spec.get("destination") or resource.name)
                     _install_copy(resource, game / dest_rel, game_path=game)
+                _apply_frame_cap_if_enabled(game)
                 soft = _verify_mod_install(game, mod)
                 return _finish_mod_install(mod_id, mod, source, soft_skipped=soft)
 
@@ -2831,6 +2854,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 if "enlargeHardwareCursor" not in text:
                     text = (text.rstrip() + "\n\nd3d9.enlargeHardwareCursor = 2\n")
                     conf.write_text(text, encoding="utf-8")
+                _apply_frame_cap_if_enabled(game)
                 soft = _verify_mod_install(game, mod)
                 return _finish_mod_install(mod_id, mod, source, soft_skipped=soft)
 
@@ -3363,6 +3387,10 @@ def prepare_for_launch(game: Path | None = None) -> PreLaunchResult:
     data_fixes, data_warnings = _ensure_enabled_data_writable(game)
     result.fixes.extend(data_fixes)
     result.warnings.extend(data_warnings)
+
+    # Existing installs and monitor changes: rewrite dxvk.conf if needed.
+    # A locked file must not block PLAY.
+    _apply_frame_cap_if_enabled(game, raise_on_write_error=False)
 
     result.permission_scan = scan_game_permissions(game)
 

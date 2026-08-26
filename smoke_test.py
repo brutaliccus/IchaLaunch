@@ -8375,9 +8375,16 @@ def test_owned_paths_are_comparison_keys_not_filenames():
         # silently holds nothing is worse than no backup, because the rollback
         # path believes it has something to restore.
         backups = {p.name for p in _install_backup_paths(game, mod)}
-        assert "VanillaFixes.exe" in backups, backups
-        assert "VfPatcher.dll" in backups, backups
-        assert "vfpatcher.dll" not in backups, backups
+        backups_l = {n.lower() for n in backups}
+        assert "vanillafixes.exe" in backups_l, backups
+        assert "vfpatcher.dll" in backups_l, backups
+        # On Windows Path.name keeps the lookup spelling because exists()
+        # succeeds for any case. On a case-sensitive FS the snapshot must
+        # name the real files or rollback restores nothing.
+        if sys.platform != "win32":
+            assert "VanillaFixes.exe" in backups, backups
+            assert "VfPatcher.dll" in backups, backups
+            assert "vfpatcher.dll" not in backups, backups
 
         # And a genuinely absent artifact must still be reported as absent --
         # the fix must not turn the check into a no-op.
@@ -8704,6 +8711,438 @@ def test_linux_wow64_settings_checkbox():
         settings.set("linux_use_wow64", prev)
 
     print("OK linux wow64 settings checkbox")
+
+
+def test_vcache_pin_default_is_not_persisted():
+    """The V-Cache default is resolvable, not stored, so it can still be reverted."""
+    from ichalaunch.config.settings import DEFAULTS, Settings, settings
+    import ichalaunch.game.cpu_topology as topo
+
+    assert DEFAULTS["pin_to_vcache_ccd"] is None
+    assert topo.VCACHE_PIN_DEFAULT_ON is True
+
+    legacy = {"game_path": "", "close_on_launch": True}
+    merged, _ = Settings.__new__(Settings)._merge_loaded(legacy)
+    assert merged["pin_to_vcache_ccd"] is None
+    for stored in (True, False):
+        m, _ = Settings.__new__(Settings)._merge_loaded(
+            {**legacy, "pin_to_vcache_ccd": stored}
+        )
+        assert m["pin_to_vcache_ccd"] is stored
+
+    prev = settings.get("pin_to_vcache_ccd", None)
+    try:
+        settings.set("pin_to_vcache_ccd", None)
+        assert topo.vcache_pin_enabled() is True
+        topo.VCACHE_PIN_DEFAULT_ON = False
+        assert topo.vcache_pin_enabled() is False
+        settings.set("pin_to_vcache_ccd", True)
+        assert topo.vcache_pin_enabled() is True
+    finally:
+        topo.VCACHE_PIN_DEFAULT_ON = True
+        settings.set("pin_to_vcache_ccd", prev)
+
+    print("OK vcache pin default is resolvable, not persisted")
+
+
+def test_x3d_vcache_ccd_selection():
+    """Pin only where there is a genuine V-Cache choice; Windows offsets are real."""
+    import ctypes
+    import shutil
+    import struct
+
+    from ichalaunch.game import cpu_topology as ct
+
+    mb = 1024 * 1024
+
+    d = ct.CacheDomain(96 * mb, tuple(list(range(0, 8)) + list(range(16, 24))))
+    assert d.cpu_list == "0-7,16-23", d.cpu_list
+    assert ct.CacheDomain(1, (3,)).cpu_list == "3"
+    assert ct.CacheDomain(1, (0, 2, 4)).cpu_list == "0,2,4"
+    assert ct.CacheDomain(1, (0, 1, 2, 5)).cpu_list == "0-2,5"
+    assert ct.CacheDomain(1, (0, 1)).affinity_mask == 0b11
+    assert d.affinity_mask == 0x00FF00FF, hex(d.affinity_mask)
+
+    assert ct._parse_size("98304K") == 96 * mb
+    assert ct._parse_size("96M") == 96 * mb
+    assert ct._parse_size("garbage") is None
+    assert ct._parse_cpu_list("0-3,8") == (0, 1, 2, 3, 8)
+    assert ct._parse_cpu_list("") == ()
+    assert ct._parse_cpu_list("bad,1") == (1,)
+
+    def _record(level, cache_size, mask, group=0):
+        rec = bytearray(56)
+        struct.pack_into("<I", rec, 0, 2)
+        struct.pack_into("<I", rec, 4, 56)
+        struct.pack_into("<B", rec, 8, level)
+        struct.pack_into("<I", rec, 12, cache_size)
+        struct.pack_into("<I", rec, 16, 2)
+        struct.pack_into("<H", rec, 38, 1)
+        struct.pack_into("<Q", rec, 40, mask)
+        struct.pack_into("<H", rec, 48, group)
+        return bytes(rec)
+
+    def _buffer(*records):
+        blob = b"".join(records)
+        buf = (ctypes.c_byte * len(blob))()
+        ctypes.memmove(buf, blob, len(blob))
+        return buf, len(blob)
+
+    buf, n = _buffer(
+        _record(3, 96 * mb, 0x00FF00FF),
+        _record(3, 32 * mb, 0xFF00FF00),
+        _record(2, 1 * mb, 0x00000003),
+    )
+    parsed = ct._parse_windows_cache_buffer(buf, n)
+    assert len(parsed) == 2, parsed
+    by_size = {dom.l3_bytes: dom for dom in parsed}
+    assert by_size[96 * mb].cpu_list == "0-7,16-23", by_size[96 * mb].cpu_list
+    assert by_size[32 * mb].cpu_list == "8-15,24-31", by_size[32 * mb].cpu_list
+
+    buf, n = _buffer(
+        _record(3, 96 * mb, 0x00FF00FF, group=0),
+        _record(3, 96 * mb, 0x00FF00FF, group=1),
+    )
+    assert ct._parse_windows_cache_buffer(buf, n) == []
+
+    buf, n = _buffer(_record(3, 96 * mb, 0x00FF00FF))
+    assert ct._parse_windows_cache_buffer(buf, n - 10) == []
+    assert ct._parse_windows_cache_buffer(buf, 0) == []
+
+    real = ct.cache_domains
+    try:
+        def stub(domains):
+            ct.cache_domains = lambda: sorted(domains, key=lambda x: -x.l3_bytes)
+
+        stub([
+            ct.CacheDomain(96 * mb, tuple(range(0, 8)) + tuple(range(16, 24))),
+            ct.CacheDomain(32 * mb, tuple(range(8, 16)) + tuple(range(24, 32))),
+        ])
+        v = ct.vcache_domain()
+        assert v is not None and v.cpu_list == "0-7,16-23", v
+
+        stub([ct.CacheDomain(96 * mb, tuple(range(0, 16)))])
+        assert ct.vcache_domain() is None, "single-CCD X3D must not pin"
+
+        stub([
+            ct.CacheDomain(32 * mb, tuple(range(0, 16))),
+            ct.CacheDomain(32 * mb, tuple(range(16, 32))),
+        ])
+        assert ct.vcache_domain() is None, "symmetric CCDs must not pin"
+
+        stub([
+            ct.CacheDomain(16 * mb, tuple(range(0, 4)) + tuple(range(12, 16))),
+            ct.CacheDomain(8 * mb, tuple(range(4, 12)) + tuple(range(16, 24))),
+        ])
+        assert ct.vcache_domain() is None, "heterogeneous CCX must not pin"
+
+        stub([
+            ct.CacheDomain(96 * mb, tuple(range(0, 8))),
+            ct.CacheDomain(80 * mb, tuple(range(8, 16))),
+        ])
+        assert ct.vcache_domain() is None, "sub-threshold ratio must not pin"
+
+        stub([])
+        assert ct.vcache_domain() is None
+        assert ct.taskset_prefix() == []
+
+        stub([ct.CacheDomain(96 * mb, (0, 1)), ct.CacheDomain(32 * mb, (2, 3))])
+        prefix = ct.taskset_prefix()
+        if sys.platform != "win32" and shutil.which("taskset"):
+            assert prefix == ["taskset", "-c", "0-1"], prefix
+
+        if sys.platform != "win32":
+            import os as _os
+            allowed = _os.sched_getaffinity(0)
+            impossible = max(allowed) + 4096
+            stub([
+                ct.CacheDomain(96 * mb, (impossible, impossible + 1)),
+                ct.CacheDomain(32 * mb, (0, 1)),
+            ])
+            assert ct.taskset_prefix() == [], (
+                "an unusable CPU set must yield no prefix, or taskset kills the launch"
+            )
+
+            first = sorted(allowed)[0]
+            stub([
+                ct.CacheDomain(96 * mb, (first, impossible)),
+                ct.CacheDomain(32 * mb, (impossible + 1,)),
+            ])
+            got = ct.taskset_prefix()
+            if shutil.which("taskset"):
+                assert got == ["taskset", "-c", str(first)], got
+        with ct.launch_affinity() as pinned:
+            assert pinned is None or sys.platform == "win32"
+    finally:
+        ct.cache_domains = real
+
+    found = ct.cache_domains()
+    assert isinstance(found, list)
+    for dom in found:
+        assert dom.l3_bytes > 0 and dom.cpus
+    print("OK x3d vcache ccd selection")
+
+
+def test_vcache_pin_settings_checkbox():
+    """V-Cache checkbox is on every platform and follows the resolver, not False."""
+    import sys as _sys
+
+    from PySide6.QtWidgets import QApplication
+
+    import ichalaunch.ui.pages.settings as settings_page_mod
+    from ichalaunch.config.settings import settings
+    from ichalaunch.game.cpu_topology import vcache_pin_enabled
+
+    app = QApplication.instance() or QApplication(_sys.argv)
+    assert app is not None
+    page = settings_page_mod.SettingsPage()
+    assert hasattr(page, "cb_vcache")
+    assert page.cb_vcache.parent() is not None
+
+    prev = settings.get("pin_to_vcache_ccd", None)
+    try:
+        settings._data.pop("pin_to_vcache_ccd", None)
+        page.refresh()
+        assert page.cb_vcache.isChecked() is vcache_pin_enabled()
+        assert page.cb_vcache.isChecked()
+
+        settings.set("pin_to_vcache_ccd", False)
+        page.refresh()
+        assert not page.cb_vcache.isChecked()
+
+        settings.set("pin_to_vcache_ccd", True)
+        page.refresh()
+        assert page.cb_vcache.isChecked()
+    finally:
+        settings.set("pin_to_vcache_ccd", prev)
+
+    print("OK vcache pin settings checkbox")
+
+
+def test_frame_cap_default_is_not_persisted():
+    """The frame-cap default is resolvable, not stored, so it can still be reverted."""
+    from ichalaunch.config.settings import DEFAULTS, Settings, settings
+    import ichalaunch.game.display as disp
+
+    assert DEFAULTS["frame_cap_from_refresh"] is None
+    assert disp.FRAME_CAP_DEFAULT_ON is True
+
+    legacy = {"game_path": "", "close_on_launch": True}
+    merged, _ = Settings.__new__(Settings)._merge_loaded(legacy)
+    assert merged["frame_cap_from_refresh"] is None
+    for stored in (True, False):
+        m, _ = Settings.__new__(Settings)._merge_loaded(
+            {**legacy, "frame_cap_from_refresh": stored}
+        )
+        assert m["frame_cap_from_refresh"] is stored
+
+    prev = settings.get("frame_cap_from_refresh", None)
+    try:
+        settings.set("frame_cap_from_refresh", None)
+        assert disp.frame_cap_enabled() is True
+        disp.FRAME_CAP_DEFAULT_ON = False
+        assert disp.frame_cap_enabled() is False
+        settings.set("frame_cap_from_refresh", True)
+        assert disp.frame_cap_enabled() is True
+    finally:
+        disp.FRAME_CAP_DEFAULT_ON = True
+        settings.set("frame_cap_from_refresh", prev)
+
+    print("OK frame cap default is resolvable, not persisted")
+
+
+def test_frame_cap_from_refresh():
+    """The DXVK frame cap follows the real display, and only the real display."""
+    from ichalaunch.game import display
+
+    assert display.frame_cap_for(165.058, 3) == 162, display.frame_cap_for(165.058, 3)
+    assert display.frame_cap_for(165.058, 2) == 163
+    assert display.frame_cap_for(59.94, 3) == 56, display.frame_cap_for(59.94, 3)
+    assert display.frame_cap_for(60.0, 3) == 57
+    assert display.frame_cap_for(239.76, 3) == 236
+    assert display.frame_cap_for(165.058, 165) == 155, display.frame_cap_for(165.058, 165)
+    assert display.frame_cap_for(144.0, 100) == 134, display.frame_cap_for(144.0, 100)
+    assert display.frame_cap_for(100.0, -5) == 100
+    assert display.frame_cap_for(165.058, "three") == 162
+    assert display.frame_cap_for(165.058, None) == 162
+    assert display.frame_cap_for(165.058, "2") == 163
+
+    assert display.parse_xrandr_refresh(
+        "HDMI-0 connected 2560x1440  144*+  60.00\n"
+        "DP-0 connected 1920x1080  165.00  60.00*\n"
+    ) == 144
+    assert display.parse_xrandr_refresh(
+        "  1920x1080     60.00*+  59.94\n"
+    ) == 60.0
+    assert display.parse_xrandr_refresh("nothing starred") is None
+
+    kscreen = (
+        '{"outputs":['
+        '{"enabled":true,"currentModeId":"1","modes":['
+        '{"id":"1","refreshRate":59.95},{"id":"2","refreshRate":165.0}]},'
+        '{"enabled":true,"currentModeId":"9","modes":['
+        '{"id":"9","refreshRate":165.058}]},'
+        '{"enabled":false,"currentModeId":"3","modes":['
+        '{"id":"3","refreshRate":240.0}]}'
+        "]}"
+    )
+    assert abs(display.parse_kscreen_refresh(kscreen) - 165.058) < 0.001
+    assert display._best_refresh([60.0, 165.0, 30.0]) == 165.0
+    assert display._best_refresh([30.0, 24.0]) is None
+
+    real_detect = display.detect_refresh_hz
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            conf = Path(td) / "dxvk.conf"
+
+            original = (
+                "# Turtle WoW (1.12) - DXVK 2.7.1\n"
+                "dxvk.logLevel = none\n"
+                "\n"
+                "# Uncomment to set framerate limit\n"
+                "d3d9.maxFrameRate = 1000\n"
+                "d3d9.dpiAware = False\n"
+            )
+            conf.write_text(original)
+            display.detect_refresh_hz = lambda: 165.058
+            assert display.apply_frame_cap(conf, 3) == 162
+            after = conf.read_text()
+            assert "d3d9.maxFrameRate = 162" in after, after
+            assert "1000" not in after, after
+            assert "# Turtle WoW (1.12) - DXVK 2.7.1" in after, after
+            assert "dxvk.logLevel = none" in after
+            assert "d3d9.dpiAware = False" in after
+            assert "# Uncomment to set framerate limit" in after
+
+            before = conf.read_bytes()
+            assert display.apply_frame_cap(conf, 3) == 162
+            assert conf.read_bytes() == before, "already-correct cap must not rewrite"
+
+            untouched = conf.read_text()
+            display.detect_refresh_hz = lambda: None
+            assert display.apply_frame_cap(conf, 3) is None
+            assert conf.read_text() == untouched, "a None detection rewrote the file"
+
+            conf.write_text("dxvk.logLevel = none\n")
+            display.detect_refresh_hz = lambda: 120.0
+            assert display.apply_frame_cap(conf, 3) == 117
+            assert "d3d9.maxFrameRate = 117" in conf.read_text()
+
+            conf.write_text("# d3d9.maxFrameRate = 60\ndxvk.logLevel = none\n")
+            display.detect_refresh_hz = lambda: 165.058
+            display.apply_frame_cap(conf, 3)
+            body = conf.read_text()
+            assert "# d3d9.maxFrameRate = 60" in body, body
+            assert "d3d9.maxFrameRate = 162" in body, body
+
+            conf.write_bytes(
+                b"# DXVK 2.7.1\r\nd3d9.maxFrameRate = 1000\r\n"
+                b"dxvk.logLevel = none\r\n"
+            )
+            display.detect_refresh_hz = lambda: 165.058
+            assert display.apply_frame_cap(conf, 3) == 162
+            raw = conf.read_bytes()
+            assert b"\r\n" in raw and raw.count(b"\r\n") == 3, raw
+            assert b"d3d9.maxFrameRate = 162\r\n" in raw, raw
+            assert b"# DXVK 2.7.1\r\n" in raw, raw
+
+            conf.write_bytes(b"# DXVK 2.7.1\nd3d9.maxFrameRate = 1000\n")
+            assert display.apply_frame_cap(conf, 3) == 162
+            raw = conf.read_bytes()
+            assert b"\r" not in raw, raw
+
+            assert display.apply_frame_cap(Path(td) / "nope.conf", 3) is None
+
+            import builtins
+            real_open = builtins.open
+
+            def _fail_on_write(f, mode="r", *a, **kw):
+                if "w" in mode:
+                    raise OSError(28, "No space left on device")
+                return real_open(f, mode, *a, **kw)
+
+            conf.write_text("d3d9.maxFrameRate = 1000\n")
+            builtins.open = _fail_on_write
+            try:
+                raised = False
+                try:
+                    display.apply_frame_cap(conf, 3)
+                except OSError:
+                    raised = True
+                assert raised, "a failed write must not be swallowed"
+                assert display.apply_frame_cap(
+                    conf, 3, raise_on_write_error=False
+                ) is None
+            finally:
+                builtins.open = real_open
+    finally:
+        display.detect_refresh_hz = real_detect
+
+    from ichalaunch.mods import installer as _inst
+    import inspect
+    src = inspect.getsource(_inst)
+    assert src.count("_apply_frame_cap_if_enabled(") >= 4, (
+        "the frame cap must reach zip_root, dxvk_hd, dxvk_cursor, and prepare_for_launch"
+    )
+
+    with tempfile.TemporaryDirectory() as td:
+        empty = Path(td)
+        _inst._apply_frame_cap_if_enabled(empty)
+        assert not (empty / "dxvk.conf").exists(), "helper created a conf out of nothing"
+
+    hz = display.detect_refresh_hz()
+    assert hz is None or hz > 0, hz
+    print("OK frame cap from refresh")
+
+
+def test_frame_cap_settings_checkbox_and_launch_apply():
+    """Frame-cap checkbox is on every platform; PLAY reapplies an existing conf."""
+    import sys as _sys
+
+    from PySide6.QtWidgets import QApplication
+
+    import ichalaunch.ui.pages.settings as settings_page_mod
+    from ichalaunch.config.settings import settings
+    from ichalaunch.game import display
+    from ichalaunch.mods import installer as I
+
+    app = QApplication.instance() or QApplication(_sys.argv)
+    assert app is not None
+    page = settings_page_mod.SettingsPage()
+    assert hasattr(page, "cb_frame_cap")
+    assert page.cb_frame_cap.parent() is not None
+
+    prev = settings.get("frame_cap_from_refresh", None)
+    real_detect = display.detect_refresh_hz
+    try:
+        settings._data.pop("frame_cap_from_refresh", None)
+        page.refresh()
+        assert page.cb_frame_cap.isChecked()
+
+        settings.set("frame_cap_from_refresh", False)
+        page.refresh()
+        assert not page.cb_frame_cap.isChecked()
+
+        settings.set("frame_cap_from_refresh", True)
+        page.refresh()
+        assert page.cb_frame_cap.isChecked()
+
+        display.detect_refresh_hz = lambda: 144.0
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "dxvk.conf").write_text("d3d9.maxFrameRate = 1000\n")
+            assert I._apply_frame_cap_if_enabled(game) == 141
+            assert "d3d9.maxFrameRate = 141" in (game / "dxvk.conf").read_text()
+
+            settings.set("frame_cap_from_refresh", False)
+            (game / "dxvk.conf").write_text("d3d9.maxFrameRate = 1000\n")
+            assert I._apply_frame_cap_if_enabled(game) is None
+            assert "1000" in (game / "dxvk.conf").read_text()
+    finally:
+        display.detect_refresh_hz = real_detect
+        settings.set("frame_cap_from_refresh", prev)
+
+    print("OK frame cap settings checkbox and launch apply")
 
 
 def test_linux_dxvk_vulkan_preflight():
@@ -9080,6 +9519,12 @@ def _run_smoke_tests():
     test_linux_proton_launch_resolution()
     test_linux_wow64_default_on_when_supported()
     test_linux_wow64_settings_checkbox()
+    test_x3d_vcache_ccd_selection()
+    test_vcache_pin_default_is_not_persisted()
+    test_vcache_pin_settings_checkbox()
+    test_frame_cap_from_refresh()
+    test_frame_cap_default_is_not_persisted()
+    test_frame_cap_settings_checkbox_and_launch_apply()
     test_linux_dxvk_vulkan_preflight()
     test_prepare_for_launch_clears_data_readonly()
     test_plan_missing_installs_dxvk()

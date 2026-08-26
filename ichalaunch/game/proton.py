@@ -266,7 +266,21 @@ def build_launch_command(exe: Path, cwd: Path) -> tuple[list[str], dict[str, str
         # launch log always names the mode. A bug report that does not say which
         # loader ran costs a round trip to find out.
         log.info("Launch mode: default (new WoW64 turned off in Settings)")
-    return [str(umu), str(exe)], env
+
+    cmd = [str(umu), str(exe)]
+    from ichalaunch.game.cpu_topology import vcache_pin_enabled
+
+    if vcache_pin_enabled():
+        from ichalaunch.game.cpu_topology import taskset_prefix
+
+        affinity_argv = taskset_prefix()
+        if affinity_argv:
+            log.info(
+                "Pinning the client to the V-Cache CCD via %s",
+                " ".join(affinity_argv),
+            )
+            cmd = affinity_argv + cmd
+    return cmd, env
 
 
 def launch_log_path() -> Path:
