@@ -33,7 +33,7 @@ from ichalaunch.addons.github import (
     parse_github_url,
 )
 from ichalaunch.config.settings import settings
-from ichalaunch.core.backup import create_backup, restore_backup
+from ichalaunch.core.backup import create_backup, list_backups, restore_backup
 from ichalaunch.core.filesystem import (
     LOCK_AV_VERIFY_MESSAGE,
     LOCK_AV_VERIFY_TITLE,
@@ -48,7 +48,9 @@ from ichalaunch.core.filesystem import (
     TOC_FOLDER_MISMATCH_MSG,
     invalidate_dir_listing,
     is_lock_or_av_error,
+    exact_name_present,
     listed_basenames,
+    listed_exact_basenames,
     mirror_dlls_txt_updates,
     name_present,
     PermissionScanResult,
@@ -321,8 +323,15 @@ _VANILLA_HELPERS_ID = "vanilla_helpers"
 _VANILLAFIXES_ID = "vanillafixes"
 _DXVK_ID = "dxvk"
 _HD_DXVK_ID = "hd_dxvk"
+_DXVK_CURSOR_ID = "dxvk_big_cursor"
 # Fingerprint in ichalaunch/data/dxvk.conf — distinguishes HD 2.7.1 from VF-bundled DXVK.
 _HD_DXVK_CONF_MARKER = "DXVK 2.7.1"
+_HD_DXVK_DLL_MARKER = b"2.7.1"
+_DXVK_CURSOR_CONF_MARKER = "enlargeHardwareCursor"
+# Last writer of d3d9.dll wins; keep this install order when several are planned.
+_D3D9_LAYER_RANK = {_DXVK_ID: 0, _HD_DXVK_ID: 1, _DXVK_CURSOR_ID: 2}
+# Destination is lowercase patch-v; Patch-V.mpq is a community WMO override.
+_HD_PATCH_C_EXACT_NAMES = ("patch-v.mpq", "patch-C.mpq", "Patch-C.mpq")
 
 def vanillafixes_dxvk_both_enabled(desired: dict[str, bool] | None = None) -> bool:
     """True when regular VanillaFixes and the DXVK bundle are both desired."""
@@ -1184,6 +1193,142 @@ def _dxvk_conf_has_marker(game_path: Path, marker: str) -> bool:
         return False
 
 
+def _d3d9_is_hd_dxvk(game_path: Path) -> bool:
+    """True when on-disk d3d9.dll is official DXVK 2.7.1, not RetroCro's cursor build.
+
+    Reads bytes only — never LoadLibrary. The 2.7.1 string is embedded in the
+    official release; the bigger-cursor DLL does not carry it.
+    """
+    dll = resolve_ci(game_path, "d3d9.dll")
+    if dll is None:
+        return False
+    try:
+        if not dll.is_file():
+            return False
+        with dll.open("rb") as handle:
+            blob = handle.read(4 * 1024 * 1024)
+    except OSError:
+        return False
+    return _HD_DXVK_DLL_MARKER in blob
+
+
+def _detect_hd_dxvk(
+    game_path: Path,
+    mod: dict[str, Any],
+    root_names: frozenset[str] | None,
+) -> bool:
+    """HD DXVK is the 2.7.1 DLL, not a leftover comment in dxvk.conf.
+
+    When Bigger Mouse Cursor is also desired it replaces d3d9.dll and keeps the
+    2.7.1 conf. Count that layered stack as installed so plan_changes does not
+    fight the two writers.
+    """
+    det = mod.get("detect") or {}
+    files_ok = all(
+        _game_rel_present(game_path, f, root_names)
+        for f in (det.get("all_files") or ["d3d9.dll", "dxvk.conf"])
+    )
+    if not files_ok or not _dxvk_conf_has_marker(game_path, _HD_DXVK_CONF_MARKER):
+        return False
+    if _d3d9_is_hd_dxvk(game_path):
+        return True
+    desired = settings.desired_mods
+    if (
+        desired.get(_HD_DXVK_ID)
+        and desired.get(_DXVK_CURSOR_ID)
+        and _dxvk_conf_has_marker(game_path, _HD_DXVK_CONF_MARKER)
+        and _dxvk_conf_has_marker(game_path, _DXVK_CURSOR_CONF_MARKER)
+    ):
+        return True
+    return False
+
+
+def _detect_hd_patch_c(game_path: Path) -> bool:
+    """Case-exact: Patch-V.mpq is not proof of Patch-C."""
+    data = game_path / "Data"
+    names = listed_exact_basenames(data)
+    if names is None:
+        return False
+    return any(name in names for name in _HD_PATCH_C_EXACT_NAMES)
+
+
+def _vanilla_tweaks_is_ours() -> bool:
+    """True when this launcher (or the user via the Client tab) owns the patch."""
+    if settings.desired_mods.get("vanilla_tweaks"):
+        return True
+    if "vanilla_tweaks" in settings.user_set_mods:
+        return True
+    return "vanilla_tweaks" in settings.installed_mods
+
+
+def _order_d3d9_layers(ordered: list[str]) -> list[str]:
+    """Stable: base DXVK, then 2.7.1, then the cursor overlay."""
+    layers = [mid for mid in ordered if mid in _D3D9_LAYER_RANK]
+    if len(layers) < 2:
+        return ordered
+    rest = [mid for mid in ordered if mid not in _D3D9_LAYER_RANK]
+    layers.sort(key=lambda mid: _D3D9_LAYER_RANK[mid])
+    return rest + layers
+
+
+def _latest_backup_for(game: Path, label: str) -> Path | None:
+    suffix = f"_{label}"
+    for root in list_backups(game):
+        if root.name.endswith(suffix):
+            return root
+    return None
+
+
+def _restore_backup_files(game: Path, backup_root: Path, names: tuple[str, ...]) -> bool:
+    restored = False
+    for name in names:
+        src = backup_root / name
+        try:
+            if not src.is_file():
+                continue
+        except OSError:
+            continue
+        try:
+            _install_copy(src, game / name, game_path=game)
+            restored = True
+        except OSError as exc:
+            log.warning("Could not restore %s from %s: %s", name, backup_root.name, exc)
+    return restored
+
+
+def _restore_dxvk_layer(
+    game: Path,
+    *,
+    backup_label: str,
+    fallback_id: str | None,
+    progress: ProgressCb | None,
+) -> None:
+    """Put d3d9.dll + dxvk.conf back without requiring the network first."""
+    backup = _latest_backup_for(game, backup_label)
+    if backup is not None and _restore_backup_files(
+        game, backup, ("d3d9.dll", "dxvk.conf")
+    ):
+        return
+    if not fallback_id:
+        return
+    try:
+        install_mod(fallback_id, progress=progress)
+    except (
+        OSError,
+        RuntimeError,
+        FileNotFoundError,
+        KeyError,
+        shutil.Error,
+        requests.RequestException,
+    ) as exc:
+        log.warning(
+            "Could not reinstall %s after %s; leaving current DXVK files: %s",
+            fallback_id,
+            backup_label,
+            exc,
+        )
+
+
 def _detect_mod(
     game_path: Path,
     mod: dict[str, Any],
@@ -1193,21 +1338,17 @@ def _detect_mod(
     det = mod.get("detect") or {}
     mid = mod.get("id") or ""
     kind = mod.get("kind")
-    # HD DXVK shares d3d9.dll / dxvk.conf with VF+Vulkan — require the 2.7.1 conf marker.
+    # HD DXVK shares d3d9.dll / dxvk.conf with VF+Vulkan — require the 2.7.1 DLL.
     if mid == _HD_DXVK_ID or kind == "dxvk_hd":
-        files_ok = all(
-            _game_rel_present(game_path, f, root_names)
-            for f in (det.get("all_files") or ["d3d9.dll", "dxvk.conf"])
-        )
-        if not files_ok:
-            return False
-        marker = _HD_DXVK_CONF_MARKER
-        conf_spec = det.get("config_file_contains") or []
-        if isinstance(conf_spec, (list, tuple)) and len(conf_spec) >= 2:
-            marker = str(conf_spec[1])
-        return _dxvk_conf_has_marker(game_path, marker)
+        return _detect_hd_dxvk(game_path, mod, root_names)
+    if mid == "hd_patch_c":
+        return _detect_hd_patch_c(game_path)
     if det.get("exe_differs_from"):
-        return _exe_differs_from_backup(game_path, str(det["exe_differs_from"]))
+        if not _exe_differs_from_backup(game_path, str(det["exe_differs_from"])):
+            return False
+        if mid == "vanilla_tweaks":
+            return _vanilla_tweaks_is_ours()
+        return True
     if det.get("wdb_file"):
         return name_present(game_path, "WDB", root_names) and (game_path / "WDB").is_file()
     if det.get("any_files"):
@@ -1252,7 +1393,10 @@ def _detect_mod(
         "perfboost": name_present(game_path, "perf_boost.dll", root_names),
         "no1600x1200": name_present(game_path, "no1600x1200.dll", root_names),
         "wdb_block": name_present(game_path, "WDB", root_names) and (game_path / "WDB").is_file(),
-        "vanilla_tweaks": _exe_differs_from_backup(game_path, _VANILLA_TWEAKS_BACKUP),
+        "vanilla_tweaks": (
+            _exe_differs_from_backup(game_path, _VANILLA_TWEAKS_BACKUP)
+            and _vanilla_tweaks_is_ours()
+        ),
     }
     if mid in legacy:
         return legacy[mid]
@@ -1556,6 +1700,7 @@ def plan_changes(desired: dict[str, bool] | None = None) -> list[dict[str, str]]
 
     for mid in to_install:
         add_with_deps(mid)
+    ordered = _order_d3d9_layers(ordered)
 
     if _any_hd_patch_desired(desired) and not _effective_mod_installed(
         _VANILLA_HELPERS_ID, actual
@@ -2767,13 +2912,20 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 artifact = stage_mpq_before_data(artifact, dest_rel, work)
                 dest = game / dest_rel
                 dest.parent.mkdir(parents=True, exist_ok=True)
+                if mod_id == "hd_patch_c" and exact_name_present(
+                    dest.parent, "Patch-V.mpq"
+                ) and not exact_name_present(dest.parent, "patch-v.mpq"):
+                    raise RuntimeError(
+                        "Data/Patch-V.mpq is already in use (often a WMO crash-fix "
+                        "pack). IchaLaunch will not overwrite it with Patch-C. "
+                        "Rename or move Patch-V.mpq first."
+                    )
                 status_only(progress, f"Installing {dest.name} (large file)...")
                 _install_copy(artifact, dest, game_path=game)
                 if mod_id == "hd_patch_c":
                     for legacy in ("patch-C.mpq", "Patch-C.mpq"):
-                        legacy_path = dest.parent / legacy
-                        if legacy_path.is_file() and legacy_path != dest:
-                            safe_remove(legacy_path)
+                        if exact_name_present(dest.parent, legacy):
+                            safe_remove(dest.parent / legacy)
                 return _finish_mod_install(mod_id, mod, source)
 
             if kind == "dxvk_hd":
@@ -3153,11 +3305,28 @@ def remove_mod(mod_id: str, progress: ProgressCb | None = None) -> None:
         # locked WoW.exe (game running) does not fail a no-op revert.
         if backup is not None and backup.is_file() and wow.is_file():
             if _files_content_differ(backup, wow):
+                try:
+                    create_backup(game, "before_remove_vanilla_tweaks", [wow])
+                except OSError as exc:
+                    log.warning("Pre-remove WoW.exe snapshot skipped: %s", exc)
                 _install_copy(backup, wow, game_path=game)
         return
 
     if kind == "mpq_file":
         dest = mod.get("destination")
+        if dest and mod_id == "hd_patch_c":
+            parent = (game / dest).parent
+            for name in _HD_PATCH_C_EXACT_NAMES:
+                if exact_name_present(parent, name):
+                    remove_owned(Path(dest).parent / name)
+            src = mod.get("source") or {}
+            filename = src.get("filename")
+            if filename and not is_stock_data_mpq(filename):
+                src_rel = Path("Data") / filename
+                if exact_name_present(parent, Path(filename).name):
+                    remove_owned(src_rel)
+            raise_failures()
+            return
         if dest:
             remove_owned(dest)
         src = mod.get("source") or {}
@@ -3185,11 +3354,17 @@ def remove_mod(mod_id: str, progress: ProgressCb | None = None) -> None:
 
     if kind == "dxvk_hd":
         # Optional 2.7.1 upgrade sits on top of VF+Vulkan. If the base DXVK
-        # bundle remains desired, reinstall it so d3d9.dll + dxvk.conf revert
-        # to the VanillaFixes-shipped layer (not the HD-tuned conf).
+        # bundle remains desired, restore the pre-upgrade snapshot (offline)
+        # or reinstall the VF-bundled layer. A failed GitHub fetch must not
+        # raise — Play would otherwise abort and re-plan the same remove.
         if settings.desired_mods.get(_DXVK_ID):
             status_only(progress, "Restoring VanillaFixes DXVK (dll + conf)...")
-            install_mod(_DXVK_ID, progress=progress)
+            _restore_dxvk_layer(
+                game,
+                backup_label=f"before_{_HD_DXVK_ID}",
+                fallback_id=_DXVK_ID,
+                progress=progress,
+            )
             return
         for name in ("d3d9.dll", "dxvk.conf"):
             remove_owned(name)
@@ -3199,8 +3374,24 @@ def remove_mod(mod_id: str, progress: ProgressCb | None = None) -> None:
     if kind == "dxvk_cursor":
         conf = game / "dxvk.conf"
         if conf.exists():
-            lines = [ln for ln in conf.read_text(encoding="utf-8", errors="ignore").splitlines() if "enlargeHardwareCursor" not in ln]
+            lines = [
+                ln
+                for ln in conf.read_text(encoding="utf-8", errors="ignore").splitlines()
+                if _DXVK_CURSOR_CONF_MARKER not in ln
+            ]
             conf.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        fallback = (
+            _HD_DXVK_ID
+            if settings.desired_mods.get(_HD_DXVK_ID)
+            else (_DXVK_ID if settings.desired_mods.get(_DXVK_ID) else None)
+        )
+        status_only(progress, "Restoring DXVK d3d9.dll…")
+        _restore_dxvk_layer(
+            game,
+            backup_label=f"before_{_DXVK_CURSOR_ID}",
+            fallback_id=fallback,
+            progress=progress,
+        )
         return
 
     # Remove known DLLs / files from ownership

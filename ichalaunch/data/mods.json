@@ -437,12 +437,11 @@
     "id": "hd_patch_c",
     "name": "Reforged HD — Patch-C (Creatures)",
     "category": "HD Graphics",
-    "description": "Creatures and related assets. Installed as Data/patch-v.mpq (source patch-C is renamed; legacy Data/patch-C.mpq is detected).",
+    "description": "Creatures and related assets. Installed as Data/patch-v.mpq (source patch-C is renamed; legacy Data/patch-C.mpq is detected). Data/Patch-V.mpq is left alone — that letter is used for hand-built WMO overrides.",
     "info_url": "https://projectreforged.github.io/vanilla/downloads/turtle/",
     "detect": {
       "data_mpq": [
         "patch-v.mpq",
-        "Patch-V.mpq",
         "patch-C.mpq",
         "Patch-C.mpq"
       ]

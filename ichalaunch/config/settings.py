@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import sys
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator  # Path used by default_addons_path_for
@@ -17,10 +18,86 @@ AUTO_SCAN_COOLDOWN_MINUTES = 15
 AUTO_SCAN_COOLDOWN_SEC = AUTO_SCAN_COOLDOWN_MINUTES * 60
 
 
+def _user_home() -> Path:
+    return Path.home()
+
+
+def _windows_appdata_root() -> Path:
+    return _user_home() / "AppData" / "Local" / APP_DIR_NAME
+
+
+def _xdg_config_home() -> Path:
+    raw = (os.environ.get("XDG_CONFIG_HOME") or "").strip()
+    if raw:
+        return Path(raw)
+    return _user_home() / ".config"
+
+
+def _linux_xdg_root() -> Path:
+    return _xdg_config_home() / APP_DIR_NAME
+
+
+def _linux_legacy_appdata_root() -> Path:
+    return _user_home() / "AppData" / "Local" / APP_DIR_NAME
+
+
+def _settings_mtime(root: Path) -> float:
+    path = root / "settings.json"
+    try:
+        return path.stat().st_mtime if path.is_file() else 0.0
+    except OSError:
+        return 0.0
+
+
+def _copy_appdata_tree(src: Path, dest: Path) -> None:
+    dest.mkdir(parents=True, exist_ok=True)
+    for item in src.iterdir():
+        target = dest / item.name
+        try:
+            if item.is_dir():
+                shutil.copytree(item, target, dirs_exist_ok=True)
+            elif (
+                not target.exists()
+                or item.stat().st_mtime > target.stat().st_mtime
+            ):
+                shutil.copy2(item, target)
+        except OSError:
+            continue
+
+
+def _migrate_linux_appdata(legacy: Path, xdg: Path) -> None:
+    """Move off ~/AppData/Local when that tree is the live one.
+
+    An older checkout may already have a stale ``~/.config/IchaLaunch``.
+    Prefer whichever ``settings.json`` is newer so we do not roll users back.
+    """
+    try:
+        legacy_exists = legacy.is_dir()
+    except OSError:
+        legacy_exists = False
+    if not legacy_exists:
+        return
+    legacy_m = _settings_mtime(legacy)
+    xdg_m = _settings_mtime(xdg)
+    if legacy_m <= 0 and xdg_m <= 0:
+        return
+    if xdg_m > legacy_m:
+        return
+    try:
+        _copy_appdata_tree(legacy, xdg)
+    except OSError:
+        return
+
+
 def appdata_root() -> Path:
-    base = Path.home() / "AppData" / "Local" / APP_DIR_NAME
-    base.mkdir(parents=True, exist_ok=True)
-    return base
+    if sys.platform == "win32":
+        base = _windows_appdata_root()
+        base.mkdir(parents=True, exist_ok=True)
+        return base
+    xdg = _linux_xdg_root()
+    _migrate_linux_appdata(_linux_legacy_appdata_root(), xdg)
+    xdg.mkdir(parents=True, exist_ok=True)
+    return xdg
 
 
 def settings_path() -> Path:

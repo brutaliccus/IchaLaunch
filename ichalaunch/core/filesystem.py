@@ -570,6 +570,35 @@ def listed_basenames(directory: Path) -> frozenset[str] | None:
     return names
 
 
+def listed_exact_basenames(directory: Path) -> frozenset[str] | None:
+    """Original-case names in *directory* via listdir — does not open files.
+
+    ``listed_basenames`` folds case, so ``patch-v.mpq`` and ``Patch-V.mpq``
+    look the same. Callers that must not treat a hand-placed ``Patch-V`` as
+    the launcher's lowercase ``patch-v`` need the on-disk spelling.
+    """
+    try:
+        return frozenset(os.listdir(directory))
+    except FileNotFoundError:
+        return frozenset()
+    except OSError as exc:
+        if is_lock_or_av_error(exc):
+            mark_path_locked(directory)
+            _log.warning("Could not list %s: %s", directory, exc)
+        return None
+
+
+def exact_name_present(directory: Path, name: str) -> bool:
+    """True only when *name* appears in the directory with this exact casing."""
+    raw = (name or "").strip()
+    if not raw:
+        return False
+    names = listed_exact_basenames(directory)
+    if names is None:
+        return False
+    return raw in names
+
+
 def name_present(
     directory: Path,
     name: str,

@@ -359,6 +359,46 @@ def test_vanilla_tweaks_disable_clears_pending():
     print("OK vanilla tweaks disable clears pending")
 
 
+def test_hand_patched_wow_exe_is_not_vanilla_tweaks():
+    """Play must not restore stock WoW.exe over a hand-patched client (#280)."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import detect_actual_state, plan_changes, plan_sync_changes
+
+    keys = (
+        "desired_mods",
+        "user_set_mods",
+        "installed_mods",
+        "user_mods",
+        "game_path",
+        "addons_path",
+    )
+    saved = {k: s.get(k) for k in keys}
+    stock = b"MZ" + b"\0" * 64
+    patched = b"MZ" + b"\x01" * 64
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(patched)
+            (game / "WoW-OriginalBackup.exe").write_bytes(stock)
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("desired_mods", {"vanilla_tweaks": False})
+            s.set("user_set_mods", [])
+            s.set("installed_mods", {})
+            s.set("user_mods", [])
+            clear_fs_caches()
+            assert detect_actual_state(game).get("vanilla_tweaks") is False
+            assert not any(c.get("id") == "vanilla_tweaks" for c in plan_changes())
+            assert not any(c.get("id") == "vanilla_tweaks" for c in plan_sync_changes())
+            assert (game / "WoW.exe").read_bytes() == patched
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK hand-patched WoW.exe is not treated as Vanilla Tweaks")
+
+
 def test_apply_desired_state_guard():
     from ichalaunch.mods import installer as inst
 
@@ -977,6 +1017,7 @@ def test_hd_dxvk_catalog_and_patch_v():
     assert patch_c.get("destination") == "Data/patch-v.mpq"
     assert "patch-v.mpq" in (patch_c.get("detect") or {}).get("data_mpq", [])
     assert "patch-C.mpq" in (patch_c.get("detect") or {}).get("data_mpq", [])
+    assert "Patch-V.mpq" not in (patch_c.get("detect") or {}).get("data_mpq", [])
     assert str((patch_c.get("source") or {}).get("url") or "").endswith("/patches/patch-C.mpq")
     assert "Creatures" in mod_contains_caption(patch_c)
 
@@ -1038,7 +1079,7 @@ def test_hd_dxvk_disable_restores_vf_layer():
             game = Path(td)
             (game / "WoW.exe").write_bytes(b"MZ")
             (game / "VanillaFixes.exe").write_bytes(b"MZ")
-            (game / "d3d9.dll").write_bytes(b"hd-dll")
+            (game / "d3d9.dll").write_bytes(b"MZ-DXVK-2.7.1")
             (game / "dxvk.conf").write_text(
                 "# Turtle WoW (1.12) - DXVK 2.7.1\ndxvk.logLevel = none\n",
                 encoding="utf-8",
@@ -1080,7 +1121,7 @@ def test_hd_dxvk_disable_restores_vf_layer():
             assert "hd_dxvk" not in s.installed_mods
 
             # Full DXVK removal when VF+Vulkan is not desired.
-            (game / "d3d9.dll").write_bytes(b"hd-dll")
+            (game / "d3d9.dll").write_bytes(b"MZ-DXVK-2.7.1")
             (game / "dxvk.conf").write_text("# DXVK 2.7.1\n", encoding="utf-8")
             s.set("desired_mods", {"dxvk": False, "hd_dxvk": False})
             s.set("installed_mods", {"hd_dxvk": {"name": "DXVK 2.7.1"}})
@@ -1095,6 +1136,192 @@ def test_hd_dxvk_disable_restores_vf_layer():
             s.set(k, saved[k])
         clear_fs_caches()
     print("OK hd dxvk disable restores vf layer")
+
+
+def test_dxvk_layers_detect_dll_not_conf_comment():
+    """hd_dxvk must not stay installed after the cursor DLL replaces 2.7.1 (#277)."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import (
+        _order_d3d9_layers,
+        detect_actual_state,
+        plan_changes,
+    )
+
+    keys = ("desired_mods", "user_set_mods", "installed_mods", "game_path", "addons_path")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            (game / "d3d9.dll").write_bytes(b"MZ-DXVK-2.7.1")
+            (game / "dxvk.conf").write_text(
+                "# Turtle WoW (1.12) - DXVK 2.7.1\n", encoding="utf-8"
+            )
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("desired_mods", {"dxvk": True, "hd_dxvk": True, "dxvk_big_cursor": False})
+            s.set("user_set_mods", [])
+            s.set("installed_mods", {})
+            clear_fs_caches()
+            actual = detect_actual_state(game)
+            assert actual.get("hd_dxvk") is True
+            assert actual.get("dxvk_big_cursor") is False
+
+            # Cursor DLL + leftover 2.7.1 comment, HD not stacked with cursor.
+            (game / "d3d9.dll").write_bytes(b"MZ-retrocro-cursor")
+            (game / "dxvk.conf").write_text(
+                "# Turtle WoW (1.12) - DXVK 2.7.1\nd3d9.enlargeHardwareCursor = 2\n",
+                encoding="utf-8",
+            )
+            clear_fs_caches()
+            actual2 = detect_actual_state(game)
+            assert actual2.get("hd_dxvk") is False
+            assert actual2.get("dxvk_big_cursor") is True
+            assert any(
+                c.get("action") == "install" and c.get("id") == "hd_dxvk"
+                for c in plan_changes()
+            )
+
+            # Both desired: cursor may own the DLL if the 2.7.1 conf remains.
+            s.set("desired_mods", {"dxvk": True, "hd_dxvk": True, "dxvk_big_cursor": True})
+            clear_fs_caches()
+            actual3 = detect_actual_state(game)
+            assert actual3.get("hd_dxvk") is True
+            assert actual3.get("dxvk_big_cursor") is True
+            assert not any(c.get("id") == "hd_dxvk" for c in plan_changes())
+
+            assert _order_d3d9_layers(
+                ["dxvk_big_cursor", "nampower", "hd_dxvk", "dxvk"]
+            ) == ["nampower", "dxvk", "hd_dxvk", "dxvk_big_cursor"]
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK dxvk layers detect the DLL, not a leftover conf comment")
+
+
+def test_dxvk_cursor_remove_restores_dll_from_backup():
+    """Unchecking Bigger Mouse Cursor must put d3d9.dll back (#277)."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.backup import create_backup
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import remove_mod
+
+    keys = ("desired_mods", "user_set_mods", "installed_mods", "game_path", "addons_path")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            (game / "d3d9.dll").write_bytes(b"MZ-retrocro-cursor")
+            (game / "dxvk.conf").write_text(
+                "# Turtle WoW (1.12) - DXVK 2.7.1\nd3d9.enlargeHardwareCursor = 2\n",
+                encoding="utf-8",
+            )
+            snap = create_backup(
+                game, "before_dxvk_big_cursor", [game / "d3d9.dll", game / "dxvk.conf"]
+            )
+            (snap / "d3d9.dll").write_bytes(b"MZ-DXVK-2.7.1")
+            (snap / "dxvk.conf").write_text(
+                "# Turtle WoW (1.12) - DXVK 2.7.1\n", encoding="utf-8"
+            )
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("desired_mods", {"dxvk": True, "hd_dxvk": True, "dxvk_big_cursor": False})
+            s.set("installed_mods", {"dxvk_big_cursor": {"name": "cursor"}})
+            clear_fs_caches()
+            remove_mod("dxvk_big_cursor")
+            assert (game / "d3d9.dll").read_bytes() == b"MZ-DXVK-2.7.1"
+            text = (game / "dxvk.conf").read_text(encoding="utf-8")
+            assert "enlargeHardwareCursor" not in text
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK dxvk cursor remove restores the previous d3d9.dll")
+
+
+def test_hd_dxvk_remove_offline_does_not_raise():
+    """Unchecking DXVK 2.7.1 offline must not abort Play (#277)."""
+    from unittest.mock import patch
+
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods import installer as inst
+
+    keys = ("desired_mods", "user_set_mods", "installed_mods", "game_path", "addons_path")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            (game / "d3d9.dll").write_bytes(b"MZ-DXVK-2.7.1")
+            (game / "dxvk.conf").write_text("# DXVK 2.7.1\n", encoding="utf-8")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("desired_mods", {"dxvk": True, "hd_dxvk": False})
+            s.set("installed_mods", {"hd_dxvk": {"name": "DXVK 2.7.1"}})
+            clear_fs_caches()
+
+            def _offline(_mod_id, progress=None, prefer_latest=False):
+                raise inst.requests.RequestException("offline")
+
+            with patch.object(inst, "install_mod", side_effect=_offline):
+                inst.remove_mod("hd_dxvk")
+            assert (game / "d3d9.dll").is_file()
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK hd dxvk offline revert does not raise")
+
+
+def test_patch_v_is_not_patch_c():
+    """Hand-placed Patch-V.mpq must not count as, or be deleted as, Patch-C (#278)."""
+    import os
+
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import detect_actual_state, remove_mod
+
+    keys = ("desired_mods", "user_set_mods", "installed_mods", "game_path", "addons_path")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            data = game / "Data"
+            data.mkdir()
+            (game / "WoW.exe").write_bytes(b"MZ")
+            (data / "Patch-V.mpq").write_bytes(b"wmo-override")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("desired_mods", {"hd_patch_c": False})
+            s.set("user_set_mods", [])
+            s.set("installed_mods", {})
+            clear_fs_caches()
+            assert detect_actual_state(game).get("hd_patch_c") is False
+            s.set("installed_mods", {"hd_patch_c": {"name": "Patch-C"}})
+            remove_mod("hd_patch_c")
+            assert (data / "Patch-V.mpq").read_bytes() == b"wmo-override"
+
+            other = Path(td) / "game2"
+            other_data = other / "Data"
+            other_data.mkdir(parents=True)
+            (other / "WoW.exe").write_bytes(b"MZ")
+            (other_data / "patch-v.mpq").write_bytes(b"creatures")
+            s.set("game_path", str(other))
+            s.set("installed_mods", {"hd_patch_c": {"name": "Patch-C"}})
+            clear_fs_caches()
+            assert detect_actual_state(other).get("hd_patch_c") is True
+            remove_mod("hd_patch_c")
+            clear_fs_caches()
+            assert "patch-v.mpq" not in set(os.listdir(other_data))
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK Patch-V.mpq is not treated as Patch-C")
 
 
 def test_mod_author_labels():
@@ -4850,6 +5077,53 @@ def test_spellbook_page_buttons_use_wow_art():
     print("OK addons pagination uses spellbook page icons at GLUE_BTN_H")
 
 
+def test_contributor_wow_name_tooltip():
+    """Discord-linked portraits use a tiled WoW tooltip, not the native tip."""
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.core.paths import theme_file
+    from ichalaunch.ui.widgets.contributor_portrait import ContributorPortrait
+    from ichalaunch.ui.widgets.wow_tooltip import (
+        render_contributor_tooltip,
+        tooltip_size_for,
+    )
+
+    app = QApplication.instance() or QApplication([])
+    del app
+    for name in (
+        "UI-Tooltip-TL.PNG",
+        "UI-Tooltip-T.PNG",
+        "UI-Tooltip-TR.PNG",
+        "UI-Tooltip-L.PNG",
+        "UI-Tooltip-R.PNG",
+        "UI-Tooltip-BL.PNG",
+        "UI-Tooltip-B.PNG",
+        "UI-Tooltip-BR.PNG",
+        "UI-Tooltip-Background-Corrupted.PNG",
+    ):
+        assert theme_file("tooltips", name).is_file(), name
+    short = tooltip_size_for("Mynie")
+    long = tooltip_size_for("Valheru")
+    assert long.width() > short.width()
+    assert short.height() == long.height()
+    pix = render_contributor_tooltip("Valheru")
+    assert not pix.isNull()
+    assert pix.width() == long.width()
+    assert pix.height() == long.height()
+    img = pix.toImage()
+    assert img.pixelColor(0, 0).alpha() == 0
+    fill = img.pixelColor(pix.width() // 2, 18)
+    assert 40 <= fill.alpha() < 220, f"corrupted fill opacity a={fill.alpha()}"
+    portrait = ContributorPortrait(
+        "contributor_01.jpg",
+        tooltip="Mynie",
+        url="https://discord.com/users/1080557702339633222",
+    )
+    assert portrait.toolTip() == ""
+    portrait.deleteLater()
+    print("OK contributor Discord names use tiled WoW tooltip")
+
+
 def test_floor_lighting_overlay():
     from ichalaunch.core.paths import theme_file
     from ichalaunch.ui.main_window import _floor_lighting_pixmap
@@ -5887,6 +6161,46 @@ def test_game_permissions_protected_path():
         assert not fix.fixes
         assert any("restricted location" in w.lower() for w in fix.warnings)
     print("OK game permissions protected path")
+
+
+def test_linux_appdata_uses_xdg_and_migrates():
+    """Linux settings live under XDG; newer ~/AppData/Local trees migrate (#279)."""
+    import os
+
+    import ichalaunch.config.settings as settings_mod
+
+    with tempfile.TemporaryDirectory() as td:
+        home = Path(td) / "home"
+        home.mkdir()
+        legacy = home / "AppData" / "Local" / "IchaLaunch"
+        xdg = home / ".config" / "IchaLaunch"
+        legacy.mkdir(parents=True)
+        (legacy / "settings.json").write_text('{"game_path": "E:/Live"}', encoding="utf-8")
+        xdg.mkdir(parents=True)
+        (xdg / "settings.json").write_text('{"game_path": "E:/Stale"}', encoding="utf-8")
+        os.utime(legacy / "settings.json", (2_000_000_000, 2_000_000_000))
+        os.utime(xdg / "settings.json", (1_000_000_000, 1_000_000_000))
+
+        real_platform = settings_mod.sys.platform
+        real_home = settings_mod._user_home
+        real_env = os.environ.get("XDG_CONFIG_HOME")
+        try:
+            settings_mod.sys.platform = "linux"
+            settings_mod._user_home = lambda: home
+            os.environ.pop("XDG_CONFIG_HOME", None)
+            root = settings_mod.appdata_root()
+            assert root == xdg
+            text = (xdg / "settings.json").read_text(encoding="utf-8")
+            assert "E:/Live" in text
+            assert not str(root).replace("\\", "/").endswith("AppData/Local/IchaLaunch")
+        finally:
+            settings_mod.sys.platform = real_platform
+            settings_mod._user_home = real_home
+            if real_env is None:
+                os.environ.pop("XDG_CONFIG_HOME", None)
+            else:
+                os.environ["XDG_CONFIG_HOME"] = real_env
+    print("OK linux appdata uses XDG and migrates the newer tree")
 
 
 def test_settings_paths_survive_load_cycle():
@@ -9428,6 +9742,7 @@ def _run_smoke_tests():
     test_dlls_txt()
     test_detect_state()
     test_vanilla_tweaks_disable_clears_pending()
+    test_hand_patched_wow_exe_is_not_vanilla_tweaks()
     test_apply_desired_state_guard()
     test_mod_remove_desired_state()
     test_stock_patch9_not_owned_by_pretty_night_sky()
@@ -9440,6 +9755,10 @@ def _run_smoke_tests():
     test_hd_patch_e_includes_caption()
     test_hd_dxvk_catalog_and_patch_v()
     test_hd_dxvk_disable_restores_vf_layer()
+    test_dxvk_layers_detect_dll_not_conf_comment()
+    test_dxvk_cursor_remove_restores_dll_from_backup()
+    test_hd_dxvk_remove_offline_does_not_raise()
+    test_patch_v_is_not_patch_c()
     test_mod_author_labels()
     test_hd_graphics_project_link_only()
     test_dxvk_disable_cascades_dependents()
@@ -9498,6 +9817,7 @@ def _run_smoke_tests():
     test_auto_scan_cooldown_setting()
     test_auto_scan_cooldown_persists_to_disk()
     test_addon_startup_token_gating()
+    test_linux_appdata_uses_xdg_and_migrates()
     test_settings_paths_survive_load_cycle()
     test_settings_paths_recover_from_backup()
     test_bagshui_catalog_pin()
@@ -9576,6 +9896,7 @@ def _run_smoke_tests():
     test_refresh_reinstall_uses_wow_art()
     test_addon_row_reinstall_aligns_with_delete_bottom()
     test_spellbook_page_buttons_use_wow_art()
+    test_contributor_wow_name_tooltip()
     test_floor_lighting_overlay()
     test_nav_tab_update_alert_badge()
     test_nav_tab_glue_floor_chrome()

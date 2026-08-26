@@ -15,6 +15,7 @@ from ichalaunch.ui.widgets.common import (
     open_url_in_browser,
 )
 from ichalaunch.ui.widgets.cursors import apply_open_hand
+from ichalaunch.ui.widgets.wow_tooltip import ContributorNameTip
 
 # Default rim (contributor 1) — pink-tinted CheckButtonGlow.
 _DEFAULT_BORDER = "CheckButtonGlow-Pink.PNG"
@@ -477,10 +478,8 @@ class ContributorPortrait(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.setFixedSize(_DISPLAY, _DISPLAY)
         self._url = (url or "").strip()
-        if tooltip:
-            self.setToolTip(tooltip)
-        elif self._url:
-            self.setToolTip("Open in Discord")
+        self._tip_name = (tooltip or "").strip()
+        self._name_tip: ContributorNameTip | None = None
         if self._url:
             apply_open_hand(self)
         self._pix = compose_contributor_portrait(
@@ -493,6 +492,31 @@ class ContributorPortrait(QWidget):
 
     def sizeHint(self) -> QSize:
         return QSize(_DISPLAY, _DISPLAY)
+
+    def _ensure_name_tip(self) -> ContributorNameTip:
+        if self._name_tip is None:
+            self._name_tip = ContributorNameTip(self.window())
+            self._name_tip.set_name(self._tip_name)
+            self._name_tip.destroyed.connect(self._clear_name_tip)
+        return self._name_tip
+
+    def _clear_name_tip(self, *_args) -> None:
+        self._name_tip = None
+
+    def enterEvent(self, event) -> None:  # noqa: ANN001, N802
+        if self._tip_name:
+            self._ensure_name_tip().popup_above(self)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:  # noqa: ANN001, N802
+        if self._name_tip is not None:
+            self._name_tip.dismiss()
+        super().leaveEvent(event)
+
+    def hideEvent(self, event) -> None:  # noqa: ANN001, N802
+        if self._name_tip is not None:
+            self._name_tip.dismiss()
+        super().hideEvent(event)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         if (

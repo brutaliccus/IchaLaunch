@@ -1727,6 +1727,7 @@ class MainWindow(QMainWindow):
                 "contributor_01.jpg",
                 border_name="CheckButtonGlow-Pink.PNG",
                 url="https://discord.com/users/1080557702339633222",
+                tooltip="Mynie",
             )
         )
         portraits.addWidget(
@@ -1735,6 +1736,7 @@ class MainWindow(QMainWindow):
                 border_name=None,
                 fill_mode="circle_cutout",
                 url="https://discord.com/users/608476640271663129",
+                tooltip="Valheru",
             )
         )
         portraits.addWidget(
