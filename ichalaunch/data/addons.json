@@ -14994,5 +14994,13 @@
     "source": "community",
     "folder": "Atlas",
     "description": "# Atlas for Turtle WoW\nAtlas allows you to view dungeon maps/ battleground maps/dungeon locations/ flight paths and transport routes in game!\n\n## Important\nIf you want to use AtlasLoot and/or AtlasQuest with this fork of Atlas, download them from here:\n - [AtlasLoot](https://github.com/Otari98/AtlasLoot)\n - [AtlasQuest](https://github.com/Otari98/AtlasQuest)\n\nOtherwise you may encounter errors.\n\n## Preview\n<img width=\"1450\" height=\"771\" alt=\"image\" src=\"https://github.com/user-attachments/assets/b40c399d-5b48-440e-aeea-21e191e6aa08\" />"
+  },
+  {
+    "name": "FishingBuddy",
+    "repo": "https://github.com/SeVeN7000/FishingBuddy",
+    "category": "General",
+    "source": "community",
+    "folder": "FishingBuddy",
+    "description": "# FishingBuddy\nvanilla world of warcraft addon that I've made updates to in order to fix in-game bugs"
   }
 ]
