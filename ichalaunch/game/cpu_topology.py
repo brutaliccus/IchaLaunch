@@ -200,6 +200,19 @@ def _domains_windows() -> list["CacheDomain"]:
     return _parse_windows_cache_buffer(buf, length.value)
 
 
+# What an untouched install gets. Kept out of DEFAULTS so the stored value can stay
+# null until the user actually touches the checkbox -- see the note there.
+VCACHE_PIN_DEFAULT_ON = True
+
+
+def vcache_pin_enabled() -> bool:
+    """Whether to pin, resolving an unset setting to the default."""
+    from ichalaunch.config.settings import settings
+
+    stored = settings.get("pin_to_vcache_ccd", None)
+    return VCACHE_PIN_DEFAULT_ON if stored is None else bool(stored)
+
+
 def cache_domains() -> list[CacheDomain]:
     """Every L3 domain on this machine, largest cache first."""
     try:

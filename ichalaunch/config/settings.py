@@ -37,7 +37,13 @@ DEFAULTS: dict[str, Any] = {
     # Pin the client to the cache-rich CCD on dual-CCD X3D parts. Harmless
     # everywhere else: detection returns nothing unless two L3 domains of
     # clearly different size are present, so single-CCD parts never pin.
-    "pin_to_vcache_ccd": True,
+    # None means "nobody has expressed a preference"; cpu_topology.vcache_pin_enabled()
+    # resolves it against VCACHE_PIN_DEFAULT_ON at read time. True/False appear here only
+    # once the user touches the checkbox. save() persists this whole dict, so a literal
+    # default would be written into every settings.json on first launch and would then
+    # outrank any later change to the default -- leaving a one-line revert that silently
+    # does nothing for anyone who had already launched once.
+    "pin_to_vcache_ccd": None,
     "addons_path": "",
     "vanillafixes_enabled": True,
     "minimize_on_launch": False,

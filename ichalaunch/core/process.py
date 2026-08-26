@@ -457,10 +457,9 @@ def launch_exe(path: Path, cwd: Path | None = None) -> subprocess.Popen:
     # the duration of the spawn so the child -- and, when VanillaFixes is doing
     # the launching, its own child -- inherits it at creation. No-ops on every
     # other CPU and on every other platform.
-    from ichalaunch.config.settings import settings as _settings
-    from ichalaunch.game.cpu_topology import launch_affinity
+    from ichalaunch.game.cpu_topology import launch_affinity, vcache_pin_enabled
 
-    if not _settings.get("pin_to_vcache_ccd", True):
+    if not vcache_pin_enabled():
         return subprocess.Popen([str(path)], cwd=str(workdir), shell=False)
     with launch_affinity():
         return subprocess.Popen([str(path)], cwd=str(workdir), shell=False)

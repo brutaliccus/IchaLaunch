@@ -200,7 +200,9 @@ def build_launch_command(exe: Path, cwd: Path) -> tuple[list[str], dict[str, str
         "STORE": "none",
     })
     cmd = [str(umu), str(exe)]
-    if settings.get("pin_to_vcache_ccd", True):
+    from ichalaunch.game.cpu_topology import vcache_pin_enabled
+
+    if vcache_pin_enabled():
         from ichalaunch.game.cpu_topology import taskset_prefix
 
         affinity_argv = taskset_prefix()

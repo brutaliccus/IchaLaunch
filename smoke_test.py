@@ -8253,6 +8253,47 @@ def test_play_stays_right_when_progress_hidden():
     print("OK PLAY stays right-aligned when progress is hidden")
 
 
+def test_vcache_pin_default_is_not_persisted():
+    """The default is resolvable, not stored, so it can still be reverted.
+
+    save() writes the whole DEFAULTS-merged dict, so a literal True in DEFAULTS is
+    baked into every settings.json on first launch and then outranks DEFAULTS via
+    merged.update(loaded) forever -- which would make a one-line revert a no-op for
+    anyone who had already run the launcher once.
+    """
+    from ichalaunch.config.settings import DEFAULTS, Settings, settings
+    import ichalaunch.game.cpu_topology as topo
+
+    assert DEFAULTS["pin_to_vcache_ccd"] is None
+    assert topo.VCACHE_PIN_DEFAULT_ON is True
+
+    # A settings.json predating the key stays unset rather than being pinned.
+    legacy = {"game_path": "", "close_on_launch": True}
+    merged, _ = Settings.__new__(Settings)._merge_loaded(legacy)
+    assert merged["pin_to_vcache_ccd"] is None
+    for stored in (True, False):
+        m, _ = Settings.__new__(Settings)._merge_loaded(
+            {**legacy, "pin_to_vcache_ccd": stored}
+        )
+        assert m["pin_to_vcache_ccd"] is stored
+
+    prev = settings.get("pin_to_vcache_ccd", None)
+    try:
+        settings.set("pin_to_vcache_ccd", None)
+        assert topo.vcache_pin_enabled() is True
+        # The revert lever: flipping the constant moves everyone who never chose.
+        topo.VCACHE_PIN_DEFAULT_ON = False
+        assert topo.vcache_pin_enabled() is False
+        # An explicit choice is not overridden by the constant.
+        settings.set("pin_to_vcache_ccd", True)
+        assert topo.vcache_pin_enabled() is True
+    finally:
+        topo.VCACHE_PIN_DEFAULT_ON = True
+        settings.set("pin_to_vcache_ccd", prev)
+
+    print("OK vcache pin default is resolvable, not persisted")
+
+
 def test_x3d_vcache_ccd_selection():
     """Pinning happens only where there is a genuine choice, and the Windows
     buffer walk is exercised for real rather than stubbed past.
@@ -8894,6 +8935,7 @@ def _run_smoke_tests():
     test_apply_desired_state_restores_dlls_txt()
     test_prepare_for_launch_syncs_dlls_txt()
     test_x3d_vcache_ccd_selection()
+    test_vcache_pin_default_is_not_persisted()
     test_client_exe_probe_is_case_insensitive()
     test_linux_proton_launch_resolution()
     test_linux_dxvk_vulkan_preflight()

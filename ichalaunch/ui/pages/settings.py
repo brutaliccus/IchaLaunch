@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 from ichalaunch import __version__
 from ichalaunch.core.logging_setup import log_dir
 from ichalaunch.config.settings import settings
+from ichalaunch.game.cpu_topology import vcache_pin_enabled
 from ichalaunch.ui.widgets.casting_bar_search_edit import (
     SETTINGS_MIN_H,
     CastingBarSearchEdit,
@@ -158,7 +159,7 @@ class SettingsPage(QWidget):
         self.cb_vcache = ThemeCheckBox(
             "Pin the game to the 3D V-Cache cores (AMD X3D with two CCDs)"
         )
-        self.cb_vcache.setChecked(bool(settings.get("pin_to_vcache_ccd", True)))
+        self.cb_vcache.setChecked(vcache_pin_enabled())
         self.cb_vcache.toggled.connect(lambda v: settings.set("pin_to_vcache_ccd", v))
         for cb in (self.cb_vf, self.cb_min, self.cb_close, self.cb_vcache):
             cb.setMinimumHeight(28)
@@ -390,7 +391,7 @@ class SettingsPage(QWidget):
         # to False when a key is absent, which would show this unchecked while
         # the behaviour was still active.
         self.cb_vcache.blockSignals(True)
-        self.cb_vcache.setChecked(bool(settings.get("pin_to_vcache_ccd", True)))
+        self.cb_vcache.setChecked(vcache_pin_enabled())
         self.cb_vcache.blockSignals(False)
         self.cb_auto_updates.blockSignals(True)
         self.cb_auto_updates.setChecked(settings.check_updates_on_startup())
