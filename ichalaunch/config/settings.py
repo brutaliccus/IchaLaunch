@@ -34,6 +34,10 @@ DEFAULTS: dict[str, Any] = {
     "linux_proton_path": "",
     "linux_use_latest_proton": False,
     "linux_wineprefix": "",
+    # Pin the client to the cache-rich CCD on dual-CCD X3D parts. Harmless
+    # everywhere else: detection returns nothing unless two L3 domains of
+    # clearly different size are present, so single-CCD parts never pin.
+    "pin_to_vcache_ccd": True,
     "addons_path": "",
     "vanillafixes_enabled": True,
     "minimize_on_launch": False,

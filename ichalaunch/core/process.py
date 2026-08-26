@@ -452,8 +452,15 @@ def launch_exe(path: Path, cwd: Path | None = None) -> subprocess.Popen:
         from ichalaunch.game.proton import launch_windows_exe
 
         return launch_windows_exe(path, workdir)
-    return subprocess.Popen(
-        [str(path)],
-        cwd=str(workdir),
-        shell=False,
-    )
+    # Vanilla WoW is single-threaded and cache-bound, so on a dual-CCD X3D part
+    # it wants the CCD carrying the 3D V-Cache. The mask goes on this process for
+    # the duration of the spawn so the child -- and, when VanillaFixes is doing
+    # the launching, its own child -- inherits it at creation. No-ops on every
+    # other CPU and on every other platform.
+    from ichalaunch.config.settings import settings as _settings
+    from ichalaunch.game.cpu_topology import launch_affinity
+
+    if not _settings.get("pin_to_vcache_ccd", True):
+        return subprocess.Popen([str(path)], cwd=str(workdir), shell=False)
+    with launch_affinity():
+        return subprocess.Popen([str(path)], cwd=str(workdir), shell=False)

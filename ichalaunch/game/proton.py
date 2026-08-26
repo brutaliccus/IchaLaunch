@@ -199,7 +199,16 @@ def build_launch_command(exe: Path, cwd: Path) -> tuple[list[str], dict[str, str
         "GAMEID": "umu-default",
         "STORE": "none",
     })
-    return [str(umu), str(exe)], env
+    cmd = [str(umu), str(exe)]
+    if settings.get("pin_to_vcache_ccd", True):
+        from ichalaunch.game.cpu_topology import taskset_prefix
+
+        affinity_argv = taskset_prefix()
+        if affinity_argv:
+            log.info("Pinning the client to the V-Cache CCD via %s",
+                     " ".join(affinity_argv))
+            cmd = affinity_argv + cmd
+    return cmd, env
 
 
 def launch_log_path() -> Path:

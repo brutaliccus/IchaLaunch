@@ -155,7 +155,12 @@ class SettingsPage(QWidget):
         self.cb_close = ThemeCheckBox("Close launcher when game starts")
         self.cb_close.setChecked(bool(settings.get("close_on_launch", False)))
         self.cb_close.toggled.connect(lambda v: settings.set("close_on_launch", v))
-        for cb in (self.cb_vf, self.cb_min, self.cb_close):
+        self.cb_vcache = ThemeCheckBox(
+            "Pin the game to the 3D V-Cache cores (AMD X3D with two CCDs)"
+        )
+        self.cb_vcache.setChecked(bool(settings.get("pin_to_vcache_ccd", True)))
+        self.cb_vcache.toggled.connect(lambda v: settings.set("pin_to_vcache_ccd", v))
+        for cb in (self.cb_vf, self.cb_min, self.cb_close, self.cb_vcache):
             cb.setMinimumHeight(28)
             cb.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             launch_card.body.addWidget(cb)
@@ -381,6 +386,12 @@ class SettingsPage(QWidget):
             cb.blockSignals(True)
             cb.setChecked(bool(settings.get(key, False)))
             cb.blockSignals(False)
+        # Defaults to on, so it cannot share the loop above -- that falls back
+        # to False when a key is absent, which would show this unchecked while
+        # the behaviour was still active.
+        self.cb_vcache.blockSignals(True)
+        self.cb_vcache.setChecked(bool(settings.get("pin_to_vcache_ccd", True)))
+        self.cb_vcache.blockSignals(False)
         self.cb_auto_updates.blockSignals(True)
         self.cb_auto_updates.setChecked(settings.check_updates_on_startup())
         self.cb_auto_updates.blockSignals(False)

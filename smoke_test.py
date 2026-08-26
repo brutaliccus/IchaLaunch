@@ -7737,6 +7737,7 @@ def test_addon_preview_gates_combos_and_open_git():
 
     print("OK addon preview gates fork/version; Open in Git inline beside title")
 
+
 def test_glue_combo_popup_hide_wiring_in_settings_dialogs():
     """Settings/Install use Dialog (not Qt.Popup); lazy version fetch keeps combo enabled."""
     from PySide6.QtCore import Qt
@@ -8252,6 +8253,164 @@ def test_play_stays_right_when_progress_hidden():
     print("OK PLAY stays right-aligned when progress is hidden")
 
 
+def test_x3d_vcache_ccd_selection():
+    """Pinning happens only where there is a genuine choice, and the Windows
+    buffer walk is exercised for real rather than stubbed past.
+
+    The selection runs against synthetic topologies so the decision is proven for
+    hardware not present here. The Windows half is proven the same way: the API
+    call cannot run off Windows, but the parsing is where an offset can be wrong,
+    and a wrong offset reads zeroes out of a reserved field instead of failing.
+    _parse_windows_cache_buffer is therefore pure and is driven here against a
+    buffer laid out to the documented structure.
+    """
+    import ctypes
+    import shutil
+    import struct
+
+    from ichalaunch.game import cpu_topology as ct
+
+    MB = 1024 * 1024
+
+    # --- cpu_list formatting, which is what taskset actually receives -------
+    d = ct.CacheDomain(96 * MB, tuple(list(range(0, 8)) + list(range(16, 24))))
+    assert d.cpu_list == "0-7,16-23", d.cpu_list
+    assert ct.CacheDomain(1, (3,)).cpu_list == "3"
+    assert ct.CacheDomain(1, (0, 2, 4)).cpu_list == "0,2,4"
+    assert ct.CacheDomain(1, (0, 1, 2, 5)).cpu_list == "0-2,5"
+    assert ct.CacheDomain(1, (0, 1)).affinity_mask == 0b11
+    assert d.affinity_mask == 0x00FF00FF, hex(d.affinity_mask)
+
+    # --- parsers ------------------------------------------------------------
+    assert ct._parse_size("98304K") == 96 * MB
+    assert ct._parse_size("96M") == 96 * MB
+    assert ct._parse_size("garbage") is None
+    assert ct._parse_cpu_list("0-3,8") == (0, 1, 2, 3, 8)
+    assert ct._parse_cpu_list("") == ()
+    assert ct._parse_cpu_list("bad,1") == (1,)
+
+    # --- the Windows buffer walk, against the documented layout -------------
+    # SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX: Relationship +0, Size +4, then
+    # CACHE_RELATIONSHIP at +8. Inside it Level +0, CacheSize +4, Type +8,
+    # Reserved[18] +12..29, GroupCount +30, GROUP_AFFINITY +32 -- so from the
+    # start of the record, Mask is at +40 and Group at +48, and the record is 56
+    # bytes. Reading Mask at +24 instead lands inside Reserved, which Windows
+    # zero-fills, and every cache record is then silently discarded.
+    def _record(level, cache_size, mask, group=0):
+        rec = bytearray(56)
+        struct.pack_into("<I", rec, 0, 2)            # RelationCache
+        struct.pack_into("<I", rec, 4, 56)           # Size
+        struct.pack_into("<B", rec, 8, level)        # Level
+        struct.pack_into("<I", rec, 12, cache_size)  # CacheSize
+        struct.pack_into("<I", rec, 16, 2)           # Type = CacheUnified
+        struct.pack_into("<H", rec, 38, 1)           # GroupCount
+        struct.pack_into("<Q", rec, 40, mask)        # GROUP_AFFINITY.Mask
+        struct.pack_into("<H", rec, 48, group)       # GROUP_AFFINITY.Group
+        return bytes(rec)
+
+    def _buffer(*records):
+        blob = b"".join(records)
+        buf = (ctypes.c_byte * len(blob))()
+        ctypes.memmove(buf, blob, len(blob))
+        return buf, len(blob)
+
+    # A 9950X3D: two L3 domains, 96 MB on 0-7,16-23 and 32 MB on 8-15,24-31.
+    buf, n = _buffer(_record(3, 96 * MB, 0x00FF00FF),
+                     _record(3, 32 * MB, 0xFF00FF00),
+                     _record(2, 1 * MB, 0x00000003))  # an L2 that must be ignored
+    parsed = ct._parse_windows_cache_buffer(buf, n)
+    assert len(parsed) == 2, parsed
+    by_size = {dom.l3_bytes: dom for dom in parsed}
+    assert by_size[96 * MB].cpu_list == "0-7,16-23", by_size[96 * MB].cpu_list
+    assert by_size[32 * MB].cpu_list == "8-15,24-31", by_size[32 * MB].cpu_list
+
+    # Records spanning more than one processor group are declined outright: a
+    # plain affinity mask cannot address them and pinning would truncate.
+    buf, n = _buffer(_record(3, 96 * MB, 0x00FF00FF, group=0),
+                     _record(3, 96 * MB, 0x00FF00FF, group=1))
+    assert ct._parse_windows_cache_buffer(buf, n) == []
+
+    # A truncated or zero-sized record terminates the walk instead of looping.
+    buf, n = _buffer(_record(3, 96 * MB, 0x00FF00FF))
+    assert ct._parse_windows_cache_buffer(buf, n - 10) == []
+    assert ct._parse_windows_cache_buffer(buf, 0) == []
+
+    real = ct.cache_domains
+    try:
+        def stub(domains):
+            ct.cache_domains = lambda: sorted(domains, key=lambda x: -x.l3_bytes)
+
+        # 9950X3D / 7950X3D: 96 MB against 32 MB -> pin to the stacked die.
+        stub([ct.CacheDomain(96 * MB, tuple(range(0, 8)) + tuple(range(16, 24))),
+              ct.CacheDomain(32 * MB, tuple(range(8, 16)) + tuple(range(24, 32)))])
+        v = ct.vcache_domain()
+        assert v is not None and v.cpu_list == "0-7,16-23", v
+
+        # 7800X3D / 9800X3D: one domain, every core already has the cache.
+        stub([ct.CacheDomain(96 * MB, tuple(range(0, 16)))])
+        assert ct.vcache_domain() is None, "single-CCD X3D must not pin"
+
+        # Symmetric dual-CCD: nothing to choose between.
+        stub([ct.CacheDomain(32 * MB, tuple(range(0, 16))),
+              ct.CacheDomain(32 * MB, tuple(range(16, 32)))])
+        assert ct.vcache_domain() is None, "symmetric CCDs must not pin"
+
+        # ⭐ Strix Point (Ryzen AI 9 HX 370 / AI 9 365): a 16 MB Zen 5 CCX beside
+        # an 8 MB Zen 5c CCX. That is a ratio of 2.0 with no V-Cache anywhere on
+        # the package, so a ratio test alone would pin a heterogeneous part onto
+        # four cores. The absolute floor is what rejects it.
+        stub([ct.CacheDomain(16 * MB, tuple(range(0, 4)) + tuple(range(12, 16))),
+              ct.CacheDomain(8 * MB, tuple(range(4, 12)) + tuple(range(16, 24)))])
+        assert ct.vcache_domain() is None, "heterogeneous CCX must not pin"
+
+        # Sub-threshold asymmetry on genuinely large caches.
+        stub([ct.CacheDomain(96 * MB, tuple(range(0, 8))),
+              ct.CacheDomain(80 * MB, tuple(range(8, 16)))])
+        assert ct.vcache_domain() is None, "sub-threshold ratio must not pin"
+
+        stub([])
+        assert ct.vcache_domain() is None
+        assert ct.taskset_prefix() == []
+
+        stub([ct.CacheDomain(96 * MB, (0, 1)), ct.CacheDomain(32 * MB, (2, 3))])
+        prefix = ct.taskset_prefix()
+        if sys.platform != "win32" and shutil.which("taskset"):
+            assert prefix == ["taskset", "-c", "0-1"], prefix
+
+        # ⚠️ taskset sets affinity and only then exec's, so an unsettable CPU
+        # list means the command never runs and the caller sees exit 1 -- the
+        # launcher reports that as "Launch failed". A pin that cannot be applied
+        # must degrade to an unpinned launch, never to no launch.
+        if sys.platform != "win32":
+            import os as _os
+            allowed = _os.sched_getaffinity(0)
+            impossible = max(allowed) + 4096
+            stub([ct.CacheDomain(96 * MB, (impossible, impossible + 1)),
+                  ct.CacheDomain(32 * MB, (0, 1))])
+            assert ct.taskset_prefix() == [], (
+                "an unusable CPU set must yield no prefix, or taskset kills the launch")
+
+            # A partially-available CCD pins to what is left rather than handing
+            # taskset a list it will reject.
+            first = sorted(allowed)[0]
+            stub([ct.CacheDomain(96 * MB, (first, impossible)),
+                  ct.CacheDomain(32 * MB, (impossible + 1,))])
+            got = ct.taskset_prefix()
+            if shutil.which("taskset"):
+                assert got == ["taskset", "-c", str(first)], got
+        # Off Windows the context manager is inert and restores nothing.
+        with ct.launch_affinity() as pinned:
+            assert pinned is None or sys.platform == "win32"
+    finally:
+        ct.cache_domains = real
+
+    found = ct.cache_domains()
+    assert isinstance(found, list)
+    for dom in found:
+        assert dom.l3_bytes > 0 and dom.cpus
+    print("OK x3d vcache ccd selection")
+
+
 def test_client_exe_probe_is_case_insensitive():
     """3.3.5-era clients ship "Wow.exe"; 1.12-era ship "WoW.exe".
 
@@ -8734,6 +8893,7 @@ def _run_smoke_tests():
     test_vanillafixes_preserves_dlls_txt()
     test_apply_desired_state_restores_dlls_txt()
     test_prepare_for_launch_syncs_dlls_txt()
+    test_x3d_vcache_ccd_selection()
     test_client_exe_probe_is_case_insensitive()
     test_linux_proton_launch_resolution()
     test_linux_dxvk_vulkan_preflight()
