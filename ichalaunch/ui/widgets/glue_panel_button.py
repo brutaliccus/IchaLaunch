@@ -277,19 +277,16 @@ def _luminance(c: QColor) -> float:
     return 0.299 * c.red() + 0.587 * c.green() + 0.114 * c.blue()
 
 
-def tint_pixmap_toward_color(
-    pm: QPixmap,
+def tint_image_toward_color(
+    img: QImage,
     target: QColor,
     *,
     lift: float = 1.0,
     ref_lum: float = _FLOOR_REF_LUM,
-) -> QPixmap:
-    """Tint every opaque texel in *pm* toward *target*, keeping relative contrast."""
-    if pm.isNull():
-        return QPixmap()
-    img = pm.toImage()
+) -> QImage:
+    """Tint every opaque texel in *img* toward *target*, keeping relative contrast."""
     if img.isNull():
-        return QPixmap()
+        return QImage()
     if img.format() != QImage.Format.Format_ARGB32:
         img = img.convertToFormat(QImage.Format.Format_ARGB32)
     out = img.copy()
@@ -311,7 +308,21 @@ def tint_pixmap_toward_color(
                     a,
                 ).rgba(),
             )
-    return QPixmap.fromImage(out)
+    return out
+
+
+def tint_pixmap_toward_color(
+    pm: QPixmap,
+    target: QColor,
+    *,
+    lift: float = 1.0,
+    ref_lum: float = _FLOOR_REF_LUM,
+) -> QPixmap:
+    """Tint every opaque texel in *pm* toward *target*, keeping relative contrast."""
+    if pm.isNull():
+        return QPixmap()
+    out = tint_image_toward_color(pm.toImage(), target, lift=lift, ref_lum=ref_lum)
+    return QPixmap.fromImage(out) if not out.isNull() else QPixmap()
 
 
 def _tint_art_toward_floor(src: QImage, target: QColor, lift: float) -> QPixmap:
@@ -322,8 +333,8 @@ def _tint_art_toward_floor(src: QImage, target: QColor, lift: float) -> QPixmap:
     """
     if src.isNull():
         return QPixmap()
-    out = src.copy()
-    return tint_pixmap_toward_color(QPixmap.fromImage(out), target, lift=lift)
+    out = tint_image_toward_color(src, target, lift=lift)
+    return QPixmap.fromImage(out) if not out.isNull() else QPixmap()
 
 
 def glue_floor_chrome_pixmap(*, pressed: bool = False, shade: str = "idle") -> QPixmap:

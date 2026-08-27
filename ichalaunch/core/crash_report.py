@@ -154,7 +154,14 @@ def reporting_suppressed() -> bool:
 
 
 def should_prompt_crash_reporting_opt_in() -> bool:
-    """True once, until the first-launch opt-in prompt is answered or skipped."""
+    """True once, until the first-launch opt-in prompt is answered or skipped.
+
+    Smoke tests and ``ICHALAUNCH_NO_CRASH_REPORT`` runs never prompt. The
+    dialog is modal; a headless/CI run on a fresh config would hang in
+    ``choice()`` waiting for a click that never comes (issue #344).
+    """
+    if reporting_suppressed():
+        return False
     if bool(settings_mod.settings.get(CRASH_REPORTING_OPT_IN_KEY, False)):
         return False
     # Already on (e.g. toggled in Settings before the prompt) — never nag.

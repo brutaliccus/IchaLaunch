@@ -16,6 +16,7 @@ from PySide6.QtGui import (
     QFontMetrics,
     QGuiApplication,
     QIcon,
+    QImage,
     QMouseEvent,
     QPainter,
     QPainterPath,
@@ -370,7 +371,10 @@ from ichalaunch.ui.widgets.loading_bar import ThemeLoadingBar
 from ichalaunch.ui.widgets.chrome_buttons import ChromeGlyphButton
 from ichalaunch.ui.widgets.contributor_portrait import ContributorPortrait
 from ichalaunch.ui.widgets.cursors import apply_open_hand
-from ichalaunch.ui.widgets.glue_panel_button import glue_floor_chrome_pixmap, tint_pixmap_toward_color
+from ichalaunch.ui.widgets.glue_panel_button import (
+    glue_floor_chrome_pixmap,
+    tint_image_toward_color,
+)
 from ichalaunch.ui.widgets.launch_button import LaunchButton, UpdateLaunchButton
 
 
@@ -627,12 +631,24 @@ def _floor_lighting_pixmap() -> QPixmap:
     global _FLOOR_LIGHTING_PIX
     if _FLOOR_LIGHTING_PIX is not None:
         return _FLOOR_LIGHTING_PIX
-    raw = _load_theme_texture(_FLOOR_LIGHTING_NAME, _FLOOR_LIGHTING_EXTERNAL)
-    if raw.isNull():
+    path = _resolve_theme_texture(_FLOOR_LIGHTING_NAME, _FLOOR_LIGHTING_EXTERNAL)
+    if path is None:
         _FLOOR_LIGHTING_PIX = QPixmap()
         return _FLOOR_LIGHTING_PIX
-    rotated = _rotate_pixmap(raw, 90.0)
-    _FLOOR_LIGHTING_PIX = tint_pixmap_toward_color(rotated, _FLOOR_BASE, lift=1.0)
+    # Load/rotate on QImage so offscreen/headless Qt does not need a screen
+    # paint engine. QPixmap.transformed() can native-abort there (issue #344).
+    img = QImage(str(path))
+    if img.isNull():
+        _FLOOR_LIGHTING_PIX = QPixmap()
+        return _FLOOR_LIGHTING_PIX
+    rotated = img.transformed(
+        QTransform().rotate(90.0),
+        Qt.TransformationMode.FastTransformation,
+    )
+    tinted = tint_image_toward_color(rotated, _FLOOR_BASE, lift=1.0)
+    _FLOOR_LIGHTING_PIX = (
+        QPixmap.fromImage(tinted) if not tinted.isNull() else QPixmap()
+    )
     return _FLOOR_LIGHTING_PIX
 
 

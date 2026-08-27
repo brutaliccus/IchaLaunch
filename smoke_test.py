@@ -4231,11 +4231,35 @@ def test_download_file_retries_transient_http_not_404():
     print("OK download retries 502 but not 404")
 
 
+def test_crash_reporting_opt_in_skipped_when_reporting_suppressed():
+    """Fresh config + ICHALAUNCH_NO_CRASH_REPORT must not first-launch prompt (#344)."""
+    from ichalaunch.config import settings as settings_mod
+    from ichalaunch.config.settings import Settings
+    from ichalaunch.core import crash_report as cr
+
+    assert cr.reporting_suppressed() is True
+    with tempfile.TemporaryDirectory() as td:
+        fake = Path(td) / "settings.json"
+        orig_path = settings_mod.settings_path
+        orig_singleton = settings_mod.settings
+        settings_mod.settings_path = lambda: fake
+        try:
+            settings_mod.settings = Settings()
+            assert settings_mod.settings.get("crash_reporting_opt_in_prompted_v1") is False
+            assert cr.crash_reporting_enabled() is False
+            assert cr.should_prompt_crash_reporting_opt_in() is False
+        finally:
+            settings_mod.settings_path = orig_path
+            settings_mod.settings = orig_singleton
+    print("OK crash reporting opt-in skipped when reporting suppressed")
+
+
 def test_crash_reporting_opt_in_prompt_one_shot():
     """First-launch crash-reporting prompt is one-shot; decline leaves reporting off."""
     import json
     import tempfile
     from pathlib import Path
+    from unittest import mock
 
     from PySide6.QtWidgets import QApplication, QWidget
 
@@ -4263,30 +4287,33 @@ def test_crash_reporting_opt_in_prompt_one_shot():
         settings_mod.settings_path = lambda: fake
         try:
             settings_mod.settings = Settings()
-            assert cr.should_prompt_crash_reporting_opt_in() is True
-            assert cr.crash_reporting_enabled() is False
+            # smoke_test sets ICHALAUNCH_NO_CRASH_REPORT; exercise the real
+            # one-shot path as a normal launch would see it.
+            with mock.patch.object(cr, "reporting_suppressed", return_value=False):
+                assert cr.should_prompt_crash_reporting_opt_in() is True
+                assert cr.crash_reporting_enabled() is False
 
-            cr.mark_crash_reporting_opt_in_prompted()
-            assert json.loads(fake.read_text(encoding="utf-8"))[
-                "crash_reporting_opt_in_prompted_v1"
-            ] is True
-            assert cr.should_prompt_crash_reporting_opt_in() is False
-            assert cr.crash_reporting_enabled() is False
+                cr.mark_crash_reporting_opt_in_prompted()
+                assert json.loads(fake.read_text(encoding="utf-8"))[
+                    "crash_reporting_opt_in_prompted_v1"
+                ] is True
+                assert cr.should_prompt_crash_reporting_opt_in() is False
+                assert cr.crash_reporting_enabled() is False
 
-            settings_mod.settings = Settings()
-            assert settings_mod.settings.get("crash_reporting_opt_in_prompted_v1") is True
-            assert cr.should_prompt_crash_reporting_opt_in() is False
+                settings_mod.settings = Settings()
+                assert settings_mod.settings.get("crash_reporting_opt_in_prompted_v1") is True
+                assert cr.should_prompt_crash_reporting_opt_in() is False
 
-            settings_mod.settings.set("crash_reporting_opt_in_prompted_v1", False)
-            settings_mod.settings.set("crash_reporting_enabled", True)
-            assert cr.should_prompt_crash_reporting_opt_in() is False
-            assert settings_mod.settings.get("crash_reporting_opt_in_prompted_v1") is True
+                settings_mod.settings.set("crash_reporting_opt_in_prompted_v1", False)
+                settings_mod.settings.set("crash_reporting_enabled", True)
+                assert cr.should_prompt_crash_reporting_opt_in() is False
+                assert settings_mod.settings.get("crash_reporting_opt_in_prompted_v1") is True
 
-            settings_mod.settings.set("crash_reporting_opt_in_prompted_v1", False)
-            settings_mod.settings.set("crash_reporting_enabled", False)
-            cr.enable_crash_reporting_from_opt_in()
-            assert cr.crash_reporting_enabled() is True
-            assert cr.should_prompt_crash_reporting_opt_in() is False
+                settings_mod.settings.set("crash_reporting_opt_in_prompted_v1", False)
+                settings_mod.settings.set("crash_reporting_enabled", False)
+                cr.enable_crash_reporting_from_opt_in()
+                assert cr.crash_reporting_enabled() is True
+                assert cr.should_prompt_crash_reporting_opt_in() is False
         finally:
             settings_mod.settings_path = orig_path
             settings_mod.settings = orig_singleton
@@ -6629,9 +6656,12 @@ def test_contributor_wow_name_tooltip():
 
 
 def test_floor_lighting_overlay():
+    from PySide6.QtWidgets import QApplication
+
     from ichalaunch.core.paths import theme_file
     from ichalaunch.ui.main_window import _floor_lighting_pixmap
 
+    QApplication.instance() or QApplication([])
     assert theme_file("Legion_DH_Lighting_02.PNG").is_file()
     pm = _floor_lighting_pixmap()
     assert not pm.isNull()
@@ -12879,6 +12909,7 @@ def _run_smoke_tests():
     test_crash_report_skips_lock_and_network_noise()
     test_crash_report_skips_smoke_test_uploads()
     test_download_file_retries_transient_http_not_404()
+    test_crash_reporting_opt_in_skipped_when_reporting_suppressed()
     test_crash_reporting_opt_in_prompt_one_shot()
     test_mod_remote_identity_uses_tip_index()
     test_addon_toc_folder_name_required()
