@@ -12,11 +12,43 @@ from typing import Any, Callable
 from urllib.parse import urljoin
 
 import requests
-from requests.exceptions import ChunkedEncodingError, ConnectionError, Timeout
+from requests.exceptions import ChunkedEncodingError, ConnectionError, HTTPError, Timeout
 
 BytesProgressCb = Callable[[int, int], None]  # downloaded, total
 # Back-compat alias used by download_file callers.
 ProgressCb = BytesProgressCb
+
+# HTTPError subclasses OSError, so download retries must not treat every
+# 4xx as "try again". These statuses are the usual CDN / gateway blips.
+TRANSIENT_HTTP_STATUSES = frozenset({408, 429, 500, 502, 503, 504})
+
+
+def http_error_status(exc: BaseException) -> int | None:
+    """Status code from a ``requests.HTTPError``, or None."""
+    resp = getattr(exc, "response", None)
+    if resp is not None:
+        try:
+            return int(resp.status_code)
+        except (TypeError, ValueError):
+            return None
+    if isinstance(exc, HTTPError):
+        match = re.match(r"^(\d{3})\b", str(exc))
+        if match:
+            return int(match.group(1))
+    return None
+
+
+def is_transient_http_error(exc: BaseException) -> bool:
+    """True for gateway / rate-limit HTTP failures that are worth retrying."""
+    status = http_error_status(exc)
+    return status in TRANSIENT_HTTP_STATUSES
+
+
+def is_retryable_download_error(exc: BaseException) -> bool:
+    """True when ``download_file`` should retry *exc*."""
+    if isinstance(exc, HTTPError):
+        return is_transient_http_error(exc)
+    return isinstance(exc, (ConnectionError, ChunkedEncodingError, Timeout, OSError))
 
 
 class StatusProgress:
@@ -178,7 +210,7 @@ def download_file(
     *,
     retries: int = 3,
 ) -> Path:
-    """Download *url* to *dest*, retrying transient connection failures."""
+    """Download *url* to *dest*, retrying transient connection / HTTP 5xx failures."""
     last_exc: Exception | None = None
     attempts = max(1, int(retries))
     for attempt in range(attempts):
@@ -192,7 +224,9 @@ def download_file(
                 source_url=source_url,
                 known_total=known_total,
             )
-        except (ConnectionError, ChunkedEncodingError, Timeout, OSError) as exc:
+        except Exception as exc:
+            if not is_retryable_download_error(exc):
+                raise
             last_exc = exc
             if dest.exists():
                 try:

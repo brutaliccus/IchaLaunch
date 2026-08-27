@@ -13,6 +13,7 @@ import logging
 import os
 import platform
 import re
+import sys
 import threading
 import time
 from collections import deque
@@ -107,7 +108,14 @@ _SKIP_ERROR_MSG_RE = re.compile(
     r"|\[WinError\s+32\]"
     r"|sharing\s+violation\b"
     r"|being\s+used\s+by\s+another\s+process\b"
+    r"|502\s+Server\s+Error"
+    r"|503\s+Service\s+Unavailable"
+    r"|504\s+Gateway\s+Timeout"
+    r"|simulated\s+GitHub\s+failure"
 )
+
+# smoke_test.py imports the app (and this hook). Never POST those runs to #58.
+_NO_CRASH_REPORT_ENV = "ICHALAUNCH_NO_CRASH_REPORT"
 
 # crash.log blocks look like ``====…====`` … ``app_version: X`` … ``====…====``.
 _CRASH_BLOCK_RE = re.compile(
@@ -133,6 +141,16 @@ CRASH_REPORTING_OPT_IN_TEXT = (
 def crash_reporting_enabled() -> bool:
     """True only when the user explicitly opted in (default off)."""
     return bool(settings_mod.settings.get("crash_reporting_enabled", False))
+
+
+def reporting_suppressed() -> bool:
+    """True when local tests/dev runs must not POST to the sticky crash issue."""
+    flag = (os.environ.get(_NO_CRASH_REPORT_ENV) or "").strip().lower()
+    if flag in {"1", "true", "yes"}:
+        return True
+    argv0 = (sys.argv[0] if sys.argv else "") or ""
+    name = Path(argv0).name.lower()
+    return name in {"smoke_test.py", "smoke_test"}
 
 
 def should_prompt_crash_reporting_opt_in() -> bool:
@@ -235,6 +253,13 @@ def _should_skip_error_report(record: logging.LogRecord) -> bool:
                 return True
         exc_obj = record.exc_info[1]
         if isinstance(exc_obj, BaseException):
+            try:
+                from ichalaunch.core.process import is_transient_http_error
+
+                if is_transient_http_error(exc_obj):
+                    return True
+            except Exception:  # noqa: BLE001
+                pass
             try:
                 from ichalaunch.core.filesystem import is_lock_or_av_error
 
@@ -381,7 +406,7 @@ def _send_async(payload: dict[str, Any]) -> None:
 
 def report_crash(summary: str = "Unhandled exception") -> None:
     """Best-effort POST after a crash.log write. No-op when opt-in is off."""
-    if not crash_reporting_enabled():
+    if reporting_suppressed() or not crash_reporting_enabled():
         return
     try:
         payload = _build_payload(kind="crash", summary=summary)
@@ -396,7 +421,7 @@ def _flush_pending_error() -> None:
         _error_timer = None
         summary = _pending_error_summary or "Logged ERROR"
         _pending_error_summary = ""
-    if not crash_reporting_enabled():
+    if reporting_suppressed() or not crash_reporting_enabled():
         return
     try:
         payload = _build_payload(kind="error", summary=summary)
@@ -407,7 +432,7 @@ def _flush_pending_error() -> None:
 
 def report_logged_error(summary: str) -> None:
     """Debounced ERROR log → one report. No-op when opt-in is off."""
-    if not crash_reporting_enabled():
+    if reporting_suppressed() or not crash_reporting_enabled():
         return
     global _error_timer, _pending_error_summary
     text = (summary or "").strip() or "Logged ERROR"

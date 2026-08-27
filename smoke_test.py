@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 import time
@@ -11,6 +12,10 @@ from pathlib import Path
 # Ensure project root on path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
+
+# Importing ichalaunch installs the opt-in crash hook. Never POST test
+# AssertionErrors / simulated worker failures to the sticky #58 issue.
+os.environ.setdefault("ICHALAUNCH_NO_CRASH_REPORT", "1")
 
 from ichalaunch.addons.github import load_catalog, parse_github_url
 from ichalaunch.core.filesystem import is_protected_path, update_dlls_txt, write_dlls_txt, read_dlls_txt
@@ -3920,6 +3925,28 @@ def test_crash_report_skips_lock_and_network_noise():
             handler.emit(net_rec)
             mocked.assert_not_called()
 
+            class _Resp:
+                status_code = 502
+
+            try:
+                raise requests.HTTPError(
+                    "502 Server Error: Bad Gateway for url: "
+                    "https://share.ichasarmory.quest/patch-9.mpq",
+                    response=_Resp(),
+                )
+            except requests.HTTPError:
+                http_rec = logging.LogRecord(
+                    name="ichalaunch.test",
+                    level=logging.ERROR,
+                    pathname=__file__,
+                    lineno=1,
+                    msg="Worker failed",
+                    args=(),
+                    exc_info=sys.exc_info(),
+                )
+            handler.emit(http_rec)
+            mocked.assert_not_called()
+
             # Message-only lock/DNS noise (no exc_info).
             for msg in (
                 "Lock/AV skipped copy foo.dll: [WinError 32] sharing violation",
@@ -3986,6 +4013,84 @@ def test_crash_report_skips_lock_and_network_noise():
         path.write_text(stale, encoding="utf-8")
         assert cr._crash_excerpt_current_version(path, 12_000) == ""
     print("OK crash report skips lock/network noise + stale crash.log")
+
+
+def test_crash_report_skips_smoke_test_uploads():
+    """smoke_test / ICHALAUNCH_NO_CRASH_REPORT must not POST even when opted in."""
+    from unittest import mock
+
+    from ichalaunch.config import settings as settings_mod
+    from ichalaunch.core import crash_report as cr
+
+    prev = settings_mod.settings.get("crash_reporting_enabled", False)
+    try:
+        settings_mod.settings.set("crash_reporting_enabled", True)
+        assert cr.reporting_suppressed() is True
+        with mock.patch.object(cr, "_send_async") as send:
+            cr.report_crash("unhandled exception: AssertionError")
+            cr.report_logged_error("ichalaunch: Worker failed (RuntimeError)")
+            send.assert_not_called()
+    finally:
+        settings_mod.settings.set("crash_reporting_enabled", prev)
+    print("OK crash report skips smoke-test uploads")
+
+
+def test_download_file_retries_transient_http_not_404():
+    """502 is retried; 404 fails immediately (HTTPError subclasses OSError)."""
+    from unittest import mock
+
+    import requests
+
+    from ichalaunch.core.process import (
+        download_file,
+        is_retryable_download_error,
+        is_transient_http_error,
+    )
+
+    class _Resp:
+        def __init__(self, code: int) -> None:
+            self.status_code = code
+
+    http502 = requests.HTTPError("502 Server Error", response=_Resp(502))
+    http404 = requests.HTTPError("404 Client Error", response=_Resp(404))
+    assert is_transient_http_error(http502) is True
+    assert is_transient_http_error(http404) is False
+    assert is_retryable_download_error(http502) is True
+    assert is_retryable_download_error(http404) is False
+
+    dest = Path(tempfile.mkdtemp()) / "patch-9.mpq"
+    calls = {"n": 0}
+
+    def _once(*_a, **_k):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise requests.HTTPError("502 Server Error", response=_Resp(502))
+        dest.write_bytes(b"ok")
+        return dest
+
+    with mock.patch("ichalaunch.core.process._download_file_once", side_effect=_once), mock.patch(
+        "ichalaunch.core.process.time.sleep", return_value=None
+    ):
+        assert download_file("https://example.test/patch-9.mpq", dest) == dest
+    assert calls["n"] == 3
+    assert dest.read_bytes() == b"ok"
+
+    calls["n"] = 0
+
+    def _404(*_a, **_k):
+        calls["n"] += 1
+        raise requests.HTTPError("404 Client Error", response=_Resp(404))
+
+    with mock.patch("ichalaunch.core.process._download_file_once", side_effect=_404), mock.patch(
+        "ichalaunch.core.process.time.sleep", return_value=None
+    ):
+        try:
+            download_file("https://example.test/missing", dest)
+            raise AssertionError("404 must not be swallowed")
+        except requests.HTTPError as exc:
+            assert "404" in str(exc)
+    assert calls["n"] == 1
+    print("OK download retries 502 but not 404")
 
 
 def test_crash_reporting_opt_in_prompt_one_shot():
@@ -12100,6 +12205,8 @@ def _run_smoke_tests():
     test_crash_report_opt_in_and_redaction()
     test_crash_report_skips_rate_limit_errors()
     test_crash_report_skips_lock_and_network_noise()
+    test_crash_report_skips_smoke_test_uploads()
+    test_download_file_retries_transient_http_not_404()
     test_crash_reporting_opt_in_prompt_one_shot()
     test_mod_remote_identity_uses_tip_index()
     test_addon_toc_folder_name_required()
