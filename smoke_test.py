@@ -1456,6 +1456,96 @@ def test_client_preset_downgrade_basic_plus_to_basic():
     print("OK client preset downgrade basic+ to basic")
 
 
+def test_client_preset_apply_hd_aio():
+    """HD AIO enables Basic+ mods plus lettered HD patches A/B/C/D/E/G/S/T."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.mods.client_presets import (
+        PRESET_BASIC_PLUS,
+        PRESET_HD_AIO,
+        apply_client_preset,
+        preset_mod_ids_for_tests,
+    )
+
+    keys = ("desired_mods", "user_set_mods", "client_preset", "client_preset_hd_ultra")
+    saved = {k: s.get(k) for k in keys}
+    letters = {f"hd_patch_{letter}" for letter in "abcdegst"}
+    try:
+        s.set("desired_mods", {})
+        s.set("user_set_mods", [])
+        apply_client_preset(PRESET_HD_AIO)
+        expected = preset_mod_ids_for_tests(PRESET_HD_AIO)
+        plus = preset_mod_ids_for_tests(PRESET_BASIC_PLUS)
+        assert plus <= expected
+        assert letters <= expected
+        for mid in expected:
+            assert s.desired_mods.get(mid), mid
+        assert s.desired_mods.get("perfboost")
+        assert s.desired_mods.get("hd_dxvk")
+        assert s.desired_mods.get("hd_patch_i")
+        assert s.desired_mods.get("hd_patch_t")
+        assert not s.desired_mods.get("hd_patch_t_ultra")
+        assert not s.desired_mods.get("hd_patch_u")
+        assert s.get("client_preset") == PRESET_HD_AIO
+
+        apply_client_preset(PRESET_HD_AIO, hd_ultra=True)
+        ultra = preset_mod_ids_for_tests(PRESET_HD_AIO, hd_ultra=True)
+        assert plus <= ultra
+        assert "hd_patch_t" not in ultra
+        assert "hd_patch_t_ultra" in ultra and "hd_patch_u" in ultra
+        assert s.desired_mods.get("hd_patch_t_ultra")
+        assert s.desired_mods.get("hd_patch_u")
+        assert not s.desired_mods.get("hd_patch_t")
+        assert s.desired_mods.get("perfboost")
+        assert s.desired_mods.get("hd_patch_a")
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+    print("OK client preset apply hd aio")
+
+
+def test_client_preset_downgrade_hd_aio_to_basic_plus():
+    """Downgrading HD AIO to Basic+ drops A/B/C/D/E/G/S/T (and ultra T/U)."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.mods.client_presets import (
+        PRESET_BASIC_PLUS,
+        PRESET_HD_AIO,
+        apply_client_preset,
+        downgrade_extra_mods,
+        preset_mod_ids_for_tests,
+    )
+
+    keys = ("desired_mods", "user_set_mods", "client_preset", "client_preset_hd_ultra")
+    saved = {k: s.get(k) for k in keys}
+    letters = {f"hd_patch_{letter}" for letter in "abcdegst"}
+    plus = preset_mod_ids_for_tests(PRESET_BASIC_PLUS)
+    try:
+        s.set("desired_mods", {})
+        s.set("user_set_mods", [])
+        apply_client_preset(PRESET_HD_AIO)
+        extras = set(downgrade_extra_mods(PRESET_HD_AIO, PRESET_BASIC_PLUS))
+        assert extras == letters
+        apply_client_preset(PRESET_BASIC_PLUS)
+        for mid in extras:
+            assert not s.desired_mods.get(mid), mid
+        for mid in plus:
+            assert s.desired_mods.get(mid), mid
+        assert s.desired_mods.get("perfboost")
+        assert s.desired_mods.get("hd_patch_i")
+        assert s.desired_mods.get("fog_pushback")
+        assert s.get("client_preset") == PRESET_BASIC_PLUS
+
+        apply_client_preset(PRESET_HD_AIO, hd_ultra=True)
+        apply_client_preset(PRESET_BASIC_PLUS)
+        for mid in letters | {"hd_patch_t_ultra", "hd_patch_u"}:
+            assert not s.desired_mods.get(mid), mid
+        for mid in plus:
+            assert s.desired_mods.get(mid), mid
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+    print("OK client preset downgrade hd aio to basic+")
+
+
 def test_client_preset_manual_toggle_custom():
     """Manual mod toggle marks preset as Custom."""
     from ichalaunch.config.settings import settings as s
@@ -13677,6 +13767,8 @@ def _run_smoke_tests():
     test_client_preset_catalog_ids()
     test_client_preset_apply_basic()
     test_client_preset_downgrade_basic_plus_to_basic()
+    test_client_preset_apply_hd_aio()
+    test_client_preset_downgrade_hd_aio_to_basic_plus()
     test_client_preset_manual_toggle_custom()
     test_client_preset_tweaks_cog_not_custom()
     test_hd_patch_e_includes_caption()
