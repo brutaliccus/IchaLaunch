@@ -479,9 +479,20 @@ def file_in_use_hint(*paths: Path | str) -> str:
 
 def child_launch_env(base: dict[str, str] | None = None) -> dict[str, str]:
     """Environment for the game child: inherit, then apply launcher-owned vars."""
+    from ichalaunch.core.logging_setup import log
+    from ichalaunch.core.tls import strip_launcher_ca_env
     from ichalaunch.game.nampower_encrypt import apply_wow_encryption_env
 
     env = dict(os.environ if base is None else base)
+    # This process's own CA bundle sits inside the PyInstaller extraction
+    # directory, which is removed when the launcher exits. The child outlives
+    # it, so the path must not be inherited.
+    dropped_ca = strip_launcher_ca_env(env)
+    if dropped_ca:
+        log.info(
+            "Dropped launcher-owned CA variables from the launch environment: %s",
+            ", ".join(dropped_ca),
+        )
     apply_wow_encryption_env(env)
     return env
 

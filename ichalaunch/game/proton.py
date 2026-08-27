@@ -230,6 +230,18 @@ def build_launch_command(exe: Path, cwd: Path) -> tuple[list[str], dict[str, str
     ):
         env.pop(name, None)
 
+    # A CA bundle that belongs to this process must not cross into a child that
+    # outlives it: the path is inside the PyInstaller extraction directory and
+    # goes away when the launcher exits. umu fetches its runtime over HTTPS.
+    from ichalaunch.core.tls import strip_launcher_ca_env
+
+    dropped_ca = strip_launcher_ca_env(env)
+    if dropped_ca:
+        log.info(
+            "Dropped launcher-owned CA variables from the launch environment: %s",
+            ", ".join(dropped_ca),
+        )
+
     env.update({
         "WINEPREFIX": str(prefix),
         "PROTONPATH": str(proton),

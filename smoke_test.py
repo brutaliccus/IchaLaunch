@@ -113,6 +113,97 @@ def test_tls_ca_env_sanitizer():
     print("OK tls ca env sanitizer")
 
 
+def test_launcher_ca_env_does_not_reach_the_game():
+    """The launcher's own bundled CA path is stripped from the child environment."""
+    from ichalaunch.core.process import child_launch_env
+    from ichalaunch.core.tls import (
+        CA_FILE_ENV_VARS,
+        bundled_ca_file,
+        strip_launcher_ca_env,
+    )
+
+    bundled = bundled_ca_file()
+    assert bundled, "the test needs a readable bundled CA to have something to strip"
+
+    # A CA the user set themselves is theirs and stays. Only the launcher's own
+    # copy is removed, because only that one is about to be deleted.
+    user_ca = "/etc/ssl/certs/ca-certificates.crt"
+    env = {"SSL_CERT_FILE": bundled, "REQUESTS_CA_BUNDLE": user_ca}
+    removed = strip_launcher_ca_env(env)
+    assert removed == ["SSL_CERT_FILE"]
+    assert "SSL_CERT_FILE" not in env
+    assert env["REQUESTS_CA_BUNDLE"] == user_ca
+
+    # Nothing to strip is not an error.
+    assert strip_launcher_ca_env({}) == []
+    assert strip_launcher_ca_env({"SSL_CERT_FILE": user_ca}) == []
+
+    saved = {n: os.environ.get(n) for n in CA_FILE_ENV_VARS}
+    try:
+        for name in CA_FILE_ENV_VARS:
+            os.environ[name] = bundled
+
+        # The Windows launch path builds its own environment.
+        win_env = child_launch_env()
+        for name in CA_FILE_ENV_VARS:
+            assert name not in win_env, f"{name} must not reach the game child"
+
+        if sys.platform != "win32":
+            import tempfile as _tf
+
+            from ichalaunch.game import proton
+
+            class _Stub:
+                def __init__(self, d):
+                    self.d = d
+
+                def get(self, k, default=None):
+                    return self.d.get(k, default)
+
+                def set(self, k, v):
+                    self.d[k] = v
+
+            real = proton.settings
+            try:
+                with _tf.TemporaryDirectory() as td:
+                    root = Path(td)
+                    umu = root / "umu-run"
+                    umu.write_text("#!/bin/sh\nexit 0\n")
+                    umu.chmod(0o755)
+                    build = root / "GE-Proton10-34"
+                    (build / "files" / "bin-wow64").mkdir(parents=True)
+                    (build / "files" / "bin-wow64" / "wine").write_text("#!/bin/sh\n")
+                    (build / "toolmanifest.vdf").write_text("x")
+                    proton.settings = _Stub({
+                        "linux_proton_path": str(build),
+                        "linux_use_latest_proton": False,
+                        "linux_umu_path": str(umu),
+                        "linux_wineprefix": str(root / "prefix"),
+                    })
+                    launch_env = proton.build_launch_command(root / "WoW.exe", root)[1]
+                    for name in CA_FILE_ENV_VARS:
+                        assert name not in launch_env, (
+                            f"{name} points inside the PyInstaller extraction "
+                            "directory, which is deleted when the launcher exits. "
+                            "umu fetches its runtime over HTTPS after that."
+                        )
+
+                    # The user's own CA is still handed through, so a corporate
+                    # prefix keeps working.
+                    os.environ["SSL_CERT_FILE"] = user_ca
+                    kept = proton.build_launch_command(root / "WoW.exe", root)[1]
+                    assert kept.get("SSL_CERT_FILE") == user_ca
+            finally:
+                proton.settings = real
+    finally:
+        for name, value in saved.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+    print("OK launcher CA env does not reach the game")
+
+
 def test_github_parse():
     assert parse_github_url("https://github.com/shagu/ShaguTweaks") == (
         "shagu",
@@ -12386,6 +12477,7 @@ def main():
 def _run_smoke_tests():
     test_catalogs()
     test_tls_ca_env_sanitizer()
+    test_launcher_ca_env_does_not_reach_the_game()
     test_github_parse()
     test_gitlab_parse_and_install_url()
     test_gitlab_preview_does_not_use_github_api()
