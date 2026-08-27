@@ -1228,14 +1228,15 @@ class AddonsPage(QWidget):
         finally:
             self._sync_check_btn()
             if self._pending_list_work and not self._lists_frozen() and not self._scan_busy():
-                # Reveal-only while the page is off-stack must not spin the flush
-                # loop — showEvent will drain it when Addons becomes current.
                 if self._pending_list_work <= {"reveal"} and not self._page_is_live():
-                    return
-                if self._rendering_avail:
+                    # Reveal-only while the page is off-stack must not spin the
+                    # flush loop. showEvent drains it when Addons becomes
+                    # current, so nothing is scheduled here.
+                    pass
+                elif self._rendering_avail:
                     self._arm_flush_timer()
-                    return
-                QTimer.singleShot(0, self._flush_list_work)
+                else:
+                    QTimer.singleShot(0, self._flush_list_work)
             else:
                 QTimer.singleShot(0, self._flush_pending_page)
 
@@ -1431,9 +1432,13 @@ class AddonsPage(QWidget):
                 self._pending_list_work.add("reveal")
             self._sync_check_btn()
             if self._pending_list_work and not self._lists_frozen() and not self._scan_busy():
-                if self._pending_list_work <= {"reveal"} and not self._page_is_live():
-                    return
-                QTimer.singleShot(0, self._flush_list_work)
+                # Reveal-only while the page is off-stack is left for showEvent
+                # to drain, so it does not spin the flush loop.
+                off_stack_reveal_only = (
+                    self._pending_list_work <= {"reveal"} and not self._page_is_live()
+                )
+                if not off_stack_reveal_only:
+                    QTimer.singleShot(0, self._flush_list_work)
 
     def set_never_update(self, entry: dict, enabled: bool) -> None:
         folder = entry.get("folder") or entry.get("name")

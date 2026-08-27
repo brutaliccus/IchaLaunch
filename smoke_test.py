@@ -161,6 +161,52 @@ def test_bundle_pins_charset_normalizer_and_excludes_chardet():
     print("OK bundle pins charset_normalizer and excludes chardet")
 
 
+def test_no_control_flow_escapes_a_finally_block():
+    """No return/break/continue inside a finally: it discards the in-flight exception."""
+    import ast
+
+    root = ROOT / "ichalaunch"
+    offenders: list[str] = []
+
+    def scan(body, *, in_loop):
+        """Walk a finally body without entering nested scopes that reset the rule."""
+        for node in body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                continue  # its own scope; a return there is that function's
+            if isinstance(node, ast.Return):
+                yield node
+                continue
+            if isinstance(node, (ast.Break, ast.Continue)) and not in_loop:
+                yield node
+                continue
+            if isinstance(node, (ast.For, ast.AsyncFor, ast.While)):
+                for f in ("body", "orelse"):
+                    yield from scan(getattr(node, f), in_loop=True)
+                continue
+            for field in ("body", "orelse", "finalbody"):
+                yield from scan(getattr(node, field, []) or [], in_loop=in_loop)
+            for handler in getattr(node, "handlers", []) or []:
+                yield from scan(handler.body, in_loop=in_loop)
+
+    for path in sorted(root.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.Try, getattr(ast, "TryStar", ast.Try))):
+                continue
+            for bad in scan(node.finalbody, in_loop=False):
+                offenders.append(
+                    f"{path.relative_to(ROOT)}:{bad.lineno} "
+                    f"{type(bad).__name__.lower()} in finally"
+                )
+
+    assert not offenders, (
+        "control flow leaving a finally block silently discards whatever "
+        "exception was propagating, so the crash reporter never sees it:\n  "
+        + "\n  ".join(offenders)
+    )
+    print("OK no control flow escapes a finally block")
+
+
 def test_github_parse():
     assert parse_github_url("https://github.com/shagu/ShaguTweaks") == (
         "shagu",
@@ -13562,6 +13608,7 @@ def _run_smoke_tests():
     test_catalogs()
     test_tls_ca_env_sanitizer()
     test_bundle_pins_charset_normalizer_and_excludes_chardet()
+    test_no_control_flow_escapes_a_finally_block()
     test_github_parse()
     test_gitlab_parse_and_install_url()
     test_gitlab_preview_does_not_use_github_api()
