@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-27T13:38:48Z",
+  "generated_at": "2026-08-27T23:31:37Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -11446,9 +11446,9 @@
     },
     "emyrk/chroniclecompanion": {
       "default_branch": "main",
-      "sha": "d72ba0e0a1586770f68afb3faec5f4211bc995c2",
+      "sha": "3dbc41d13b433eedd375f11fa0bb3d9a8c7ae426",
       "branches": {
-        "main": "d72ba0e0a1586770f68afb3faec5f4211bc995c2"
+        "main": "3dbc41d13b433eedd375f11fa0bb3d9a8c7ae426"
       }
     },
     "artificialowl/chroniclecompanion": {
@@ -12801,11 +12801,11 @@
     },
     "wayoff333/turtlecalendar": {
       "default_branch": "main",
-      "sha": "ba1f4570c0358402f2401d53043dc876f5e90960",
+      "sha": "5e546506f104a61babfa5514f1c5aa521066ad71",
       "branches": {
-        "main": "ba1f4570c0358402f2401d53043dc876f5e90960"
+        "main": "5e546506f104a61babfa5514f1c5aa521066ad71"
       },
-      "latest_tag": "1.6"
+      "latest_tag": "1.7"
     },
     "bretharte89/turtlecalendar": {
       "default_branch": "main",
@@ -16409,9 +16409,9 @@
     },
     "torchlite-bit/aegis_sbr": {
       "default_branch": "main",
-      "sha": "b845046871ad4afcc96002ab09f2e72775807452",
+      "sha": "0c187a422caa6996a040dfe355c3806760cf7371",
       "branches": {
-        "main": "b845046871ad4afcc96002ab09f2e72775807452"
+        "main": "0c187a422caa6996a040dfe355c3806760cf7371"
       }
     },
     "eirikaskheim/aegis_sbr": {
@@ -16430,9 +16430,9 @@
     },
     "torchlite-bit/aegis_exchange": {
       "default_branch": "main",
-      "sha": "9db290b7ed9cb3dee2883e7608296812215ff868",
+      "sha": "836ca85631e2913daa3481be7c658cbf5dc3cbf7",
       "branches": {
-        "main": "9db290b7ed9cb3dee2883e7608296812215ff868"
+        "main": "836ca85631e2913daa3481be7c658cbf5dc3cbf7"
       }
     },
     "rustybelter77/aegis_exchange": {
@@ -16451,9 +16451,9 @@
     },
     "torchlite-bit/aegis_rallypower": {
       "default_branch": "main",
-      "sha": "4b5a481c670de0d0938367570e0cec7e94439fab",
+      "sha": "23b19431d4c4cc120b16596645b46d8c40a249a8",
       "branches": {
-        "main": "4b5a481c670de0d0938367570e0cec7e94439fab"
+        "main": "23b19431d4c4cc120b16596645b46d8c40a249a8"
       }
     },
     "cinos03/bijoucounter": {
@@ -16976,16 +16976,16 @@
     },
     "igreed1993/greedmeter": {
       "default_branch": "main",
-      "sha": "5658c715e0278ef6f5497d1641e363fc8a11708c",
+      "sha": "0b0536af159b910e4c28bfc7baeb5c411ccf6f33",
       "branches": {
-        "main": "5658c715e0278ef6f5497d1641e363fc8a11708c"
+        "main": "0b0536af159b910e4c28bfc7baeb5c411ccf6f33"
       }
     },
     "kobeniiiiii/combatledger": {
       "default_branch": "main",
-      "sha": "f714945462cef421928c86db33fc68f972f58c8d",
+      "sha": "2f57df4f6605ef775147fc54029cefb4de304dfe",
       "branches": {
-        "main": "f714945462cef421928c86db33fc68f972f58c8d"
+        "main": "2f57df4f6605ef775147fc54029cefb4de304dfe"
       }
     },
     "sandreasub/questie-octo": {
@@ -16997,9 +16997,9 @@
     },
     "jordanfaz/questie-octo": {
       "default_branch": "main",
-      "sha": "a2666787ea96bd3ef0274e9b8475148b7e2ee5a2",
+      "sha": "1fbf731169e5b0f4b03adec277294b6323055de6",
       "branches": {
-        "main": "a2666787ea96bd3ef0274e9b8475148b7e2ee5a2"
+        "main": "1fbf731169e5b0f4b03adec277294b6323055de6"
       }
     },
     "excinerus/exautocshs": {
@@ -17101,6 +17101,35 @@
         "master": "1b0d4971bac9b71adf72111b1943d25e59f6e02a"
       }
     },
+    "shagu/pfquest": {
+      "default_branch": "master",
+      "sha": "104f35678ca39ab1fb78b655f815cc7016f5e0c8",
+      "branches": {
+        "master": "104f35678ca39ab1fb78b655f815cc7016f5e0c8"
+      },
+      "latest_tag": "7.0.1"
+    },
+    "roby-brok/pfquest-classicapi": {
+      "default_branch": "octo",
+      "sha": "473b17f107f4627e5e6ffdbf1a9758ee30f87f4b",
+      "branches": {
+        "octo": "473b17f107f4627e5e6ffdbf1a9758ee30f87f4b"
+      }
+    },
+    "otari98/addonorganizer": {
+      "default_branch": "master",
+      "sha": "af2a5306d9ab08fafeb7a129ee08cc4956ec49e3",
+      "branches": {
+        "master": "af2a5306d9ab08fafeb7a129ee08cc4956ec49e3"
+      }
+    },
+    "monteo/addonorganizer": {
+      "default_branch": "master",
+      "sha": "b11a9485d0060831af67171c26a5107f82f21cf6",
+      "branches": {
+        "master": "b11a9485d0060831af67171c26a5107f82f21cf6"
+      }
+    },
     "tubtubs/vanilla-tweaks": {
       "default_branch": "master",
       "sha": "1e18414f8f3535d3436d3dc6a7351d4ea74b50b4",
@@ -17159,9 +17188,9 @@
     },
     "brues-code/classicapi": {
       "default_branch": "master",
-      "sha": "772cd5ec157ac48cf378e57d156d7ee7f46d2d01",
+      "sha": "fbe40743c03bc504e9bf6f18690831813436ca11",
       "branches": {
-        "master": "772cd5ec157ac48cf378e57d156d7ee7f46d2d01"
+        "master": "fbe40743c03bc504e9bf6f18690831813436ca11"
       },
       "latest_tag": "v1.12.7"
     },
