@@ -417,23 +417,41 @@ def is_lock_or_av_error(exc: BaseException) -> bool:
 # Plain-English copy for UI — never surface raw Errno / WinError to users.
 # WinError 32 is a sharing lock ("in use by another process"), not antivirus by
 # itself; we used to lead with AV and misled users who had Defender disabled.
-TASK_MANAGER_END_GAME_HINT = (
+_WIN_END_GAME_PROCESS_HINT = (
     "Open Task Manager (Ctrl+Shift+Esc) and End task on WoW.exe and "
     "VanillaFixes.exe if either is listed."
+)
+# Task Manager, Explorer and Controlled Folder Access do not exist here, and a
+# hint a user cannot act on is worse than none. Name the tools they do have.
+_POSIX_END_GAME_PROCESS_HINT = (
+    "Close the game, then list any leftover client process with "
+    "'pgrep -fai WoW.exe' and end it with 'pkill -fi WoW.exe'."
+)
+END_GAME_PROCESS_HINT = (
+    _WIN_END_GAME_PROCESS_HINT if sys.platform == "win32" else _POSIX_END_GAME_PROCESS_HINT
+)
+_WIN_OTHER_HOLDERS = (
+    "Overlays, Explorer previews, backup/sync, Controlled Folder Access, or "
+    "antivirus (not only Windows Defender) can also hold the file."
+)
+_POSIX_OTHER_HOLDERS = (
+    "A second Wine process, an overlay, a file manager preview, or backup/sync "
+    "can also hold the file."
+)
+_OTHER_HOLDERS_HINT = (
+    _WIN_OTHER_HOLDERS if sys.platform == "win32" else _POSIX_OTHER_HOLDERS
 )
 LOCK_AV_VERIFY_TITLE = "Could not verify install"
 LOCK_AV_VERIFY_MESSAGE = (
     "Could not verify the install because the file is in use by another process. "
     "The mod was left installed. "
-    f"{TASK_MANAGER_END_GAME_HINT} Then retry. "
-    "Overlays, Explorer previews, backup/sync, Controlled Folder Access, or "
-    "antivirus (not only Windows Defender) can also hold the file."
+    f"{END_GAME_PROCESS_HINT} Then retry. "
+    f"{_OTHER_HOLDERS_HINT}"
 )
 LOCK_AV_APPLY_MESSAGE = (
     "Could not apply this change because the file is in use by another process. "
-    f"{TASK_MANAGER_END_GAME_HINT} Then retry Apply. "
-    "Overlays, Explorer previews, backup/sync, Controlled Folder Access, or "
-    "antivirus (not only Windows Defender) can also hold the file."
+    f"{END_GAME_PROCESS_HINT} Then retry Apply. "
+    f"{_OTHER_HOLDERS_HINT}"
 )
 
 _RAW_OS_DETAIL = frozenset(
@@ -455,17 +473,31 @@ def _looks_like_raw_os_detail(text: str) -> bool:
     return low.startswith(("[errno", "[winerror")) or "winerror" in low
 
 
-def _ensure_task_manager_guidance(text: str, *, retry_apply: bool = True) -> str:
-    """Append Task Manager End-task steps when *text* lacks them."""
+def has_end_game_guidance(text: str, *, strict: bool = True) -> bool:
+    """True when *text* already carries this platform's end-the-game steps.
+
+    ``strict`` also requires VanillaFixes to be named, which is what the
+    ``user_facing_os_error`` path checked inline before this was shared.
+    """
+    low = (text or "").strip().lower()
+    if sys.platform == "win32":
+        if "task manager" not in low or "wow.exe" not in low:
+            return False
+        return ("vanillafixes" in low) if strict else True
+    if "wow.exe" not in low:
+        return False
+    return "pgrep" in low or "pkill" in low
+
+
+def _ensure_end_game_guidance(text: str, *, retry_apply: bool = True) -> str:
+    """Append the end-the-game steps when *text* lacks them."""
     body = (text or "").strip()
-    low = body.lower()
-    has_tm = "task manager" in low and "wow.exe" in low and "vanillafixes" in low
-    if has_tm:
+    if has_end_game_guidance(body):
         return body
     suffix = (
-        f"{TASK_MANAGER_END_GAME_HINT} Then retry Apply."
+        f"{END_GAME_PROCESS_HINT} Then retry Apply."
         if retry_apply
-        else f"{TASK_MANAGER_END_GAME_HINT} Then retry."
+        else f"{END_GAME_PROCESS_HINT} Then retry."
     )
     return f"{body}\n\n{suffix}" if body else suffix
 
@@ -475,7 +507,7 @@ def user_facing_os_error(exc: BaseException, *, kept_install: bool = False) -> s
 
     Launcher-authored ``OSError`` detail strings (missing file, truncated PE, …)
     are preserved even when errno happens to be 22. Lock/sharing failures always
-    include Task Manager guidance to end WoW.exe / VanillaFixes.exe.
+    include end-the-game guidance for WoW.exe / VanillaFixes.exe.
     """
     detail = ""
     filename = ""
@@ -492,7 +524,7 @@ def user_facing_os_error(exc: BaseException, *, kept_install: bool = False) -> s
                 hint = file_in_use_hint(filename)
                 # Only append a *specific* diagnosis (game running / named lockers).
                 if hint.startswith("WoW.exe") or hint.startswith("In use by:"):
-                    return _ensure_task_manager_guidance(
+                    return _ensure_end_game_guidance(
                         f"{base}\n\n{hint}",
                         retry_apply=not kept_install,
                     )
@@ -501,7 +533,7 @@ def user_facing_os_error(exc: BaseException, *, kept_install: bool = False) -> s
         return base
     if detail:
         if is_lock_or_av_error(exc):
-            return _ensure_task_manager_guidance(detail, retry_apply=not kept_install)
+            return _ensure_end_game_guidance(detail, retry_apply=not kept_install)
         return detail
     text = str(exc).strip()
     if is_lock_or_av_error(exc):
@@ -795,7 +827,7 @@ def remove_path_strict(path: Path) -> None:
                 hint = file_in_use_hint(path)
             except Exception:  # noqa: BLE001
                 hint = (
-                    f"{TASK_MANAGER_END_GAME_HINT} Then retry Apply."
+                    f"{END_GAME_PROCESS_HINT} Then retry Apply."
                 )
             raise OSError(
                 getattr(exc, "errno", None) or 13,

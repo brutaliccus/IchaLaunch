@@ -600,13 +600,20 @@ def test_dlls_txt():
         assert "Errno" not in LOCK_AV_VERIFY_MESSAGE
         assert "Errno" not in LOCK_AV_APPLY_MESSAGE
         assert "another process" in LOCK_AV_APPLY_MESSAGE.lower()
-        assert "task manager" in LOCK_AV_APPLY_MESSAGE.lower()
         assert "wow.exe" in LOCK_AV_APPLY_MESSAGE.lower()
-        assert "vanillafixes.exe" in LOCK_AV_APPLY_MESSAGE.lower()
-        assert "end task" in LOCK_AV_APPLY_MESSAGE.lower()
-        assert "antivirus" in LOCK_AV_APPLY_MESSAGE.lower()
-        assert "task manager" in LOCK_AV_VERIFY_MESSAGE.lower()
-        assert "end task" in LOCK_AV_VERIFY_MESSAGE.lower()
+        if sys.platform == "win32":
+            assert "task manager" in LOCK_AV_APPLY_MESSAGE.lower()
+            assert "vanillafixes.exe" in LOCK_AV_APPLY_MESSAGE.lower()
+            assert "end task" in LOCK_AV_APPLY_MESSAGE.lower()
+            assert "antivirus" in LOCK_AV_APPLY_MESSAGE.lower()
+            assert "task manager" in LOCK_AV_VERIFY_MESSAGE.lower()
+            assert "end task" in LOCK_AV_VERIFY_MESSAGE.lower()
+        else:
+            # Task Manager does not exist here, so the hint must not name it.
+            assert "task manager" not in LOCK_AV_APPLY_MESSAGE.lower()
+            assert "pkill" in LOCK_AV_APPLY_MESSAGE.lower()
+            assert "task manager" not in LOCK_AV_VERIFY_MESSAGE.lower()
+            assert "pkill" in LOCK_AV_VERIFY_MESSAGE.lower()
         assert user_facing_os_error(OSError(22, "Invalid argument")) == LOCK_AV_APPLY_MESSAGE
         assert (
             user_facing_os_error(OSError(22, "Invalid argument"), kept_install=True)
@@ -616,15 +623,21 @@ def test_dlls_txt():
         locked.winerror = 32  # type: ignore[attr-defined]
         locked_msg = user_facing_os_error(locked)
         assert "Errno" not in locked_msg
-        assert "task manager" in locked_msg.lower()
-        assert "end task" in locked_msg.lower()
         assert "wow.exe" in locked_msg.lower()
+        if sys.platform == "win32":
+            assert "task manager" in locked_msg.lower()
+            assert "end task" in locked_msg.lower()
+        else:
+            assert "pkill" in locked_msg.lower()
         title, body = format_mod_verify_warning(["unitxp"])
         assert title == "Could not verify install"
         assert "Errno" not in body
         assert "another process" in body.lower()
-        assert "task manager" in body.lower()
-        assert "antivirus" in body.lower()
+        if sys.platform == "win32":
+            assert "task manager" in body.lower()
+            assert "antivirus" in body.lower()
+        else:
+            assert "pkill" in body.lower()
         installed, removed, warns, fails = split_mod_apply_results(
             ["+ unitxp", "~ unitxp", "! other skipped: boom"]
         )
@@ -9606,24 +9619,25 @@ def test_wow_exe_running_matches_game_directory():
     assert not proc._path_is_under(wow_b, game_a)
     assert not proc._path_is_under(Path("D:/Games/Apple/WoW.exe"), Path("D:/Games/App"))
 
-    with patch.object(proc, "_wow_process_images", return_value=(True, [wow_b])):
-        assert proc.wow_exe_running() is True
-        assert proc.wow_exe_running(game_a) is False
-        assert proc.wow_exe_running(game_b) is True
-    with patch.object(proc, "_wow_process_images", return_value=(True, [vf_a])):
-        assert proc.wow_exe_running(game_a) is True
-        assert proc.wow_exe_running(game_b) is False
-    with patch.object(proc, "_wow_process_images", return_value=(True, [])):
-        with patch.object(proc, "_wow_exe_locked_in_dir", return_value=True):
-            assert proc.wow_exe_running(game_a) is True
-        with patch.object(proc, "_wow_exe_locked_in_dir", return_value=False):
+    if sys.platform == "win32":
+        with patch.object(proc, "_wow_process_images", return_value=(True, [wow_b])):
+            assert proc.wow_exe_running() is True
             assert proc.wow_exe_running(game_a) is False
-        with patch.object(proc, "_wow_exe_locked_in_dir", return_value=None):
+            assert proc.wow_exe_running(game_b) is True
+        with patch.object(proc, "_wow_process_images", return_value=(True, [vf_a])):
             assert proc.wow_exe_running(game_a) is True
-        assert proc.wow_exe_running() is True
-    with patch.object(proc, "_wow_process_images", return_value=(False, [])):
-        assert proc.wow_exe_running() is False
-        assert proc.wow_exe_running(game_a) is False
+            assert proc.wow_exe_running(game_b) is False
+        with patch.object(proc, "_wow_process_images", return_value=(True, [])):
+            with patch.object(proc, "_wow_exe_locked_in_dir", return_value=True):
+                assert proc.wow_exe_running(game_a) is True
+            with patch.object(proc, "_wow_exe_locked_in_dir", return_value=False):
+                assert proc.wow_exe_running(game_a) is False
+            with patch.object(proc, "_wow_exe_locked_in_dir", return_value=None):
+                assert proc.wow_exe_running(game_a) is True
+            assert proc.wow_exe_running() is True
+        with patch.object(proc, "_wow_process_images", return_value=(False, [])):
+            assert proc.wow_exe_running() is False
+            assert proc.wow_exe_running(game_a) is False
 
     with tempfile.TemporaryDirectory() as tmp:
         empty = Path(tmp)
@@ -14131,6 +14145,117 @@ def test_wayland_window_move_and_resize_handoff():
     print("OK wayland window move/resize handoff")
 
 
+def test_linux_game_running_guard():
+    """Linux /proc matcher is scoped to game_dir; Windows hint strings stay verbatim."""
+    import io
+    from unittest.mock import patch
+
+    import ichalaunch.addons.loadstate as lsmod
+    import ichalaunch.core.filesystem as fsmod
+    import ichalaunch.core.process as procmod
+    from ichalaunch.addons.loadstate import GENERIC_LOCK_MESSAGE
+    from ichalaunch.core.filesystem import (
+        END_GAME_PROCESS_HINT,
+        LOCK_AV_APPLY_MESSAGE,
+        LOCK_AV_VERIFY_MESSAGE,
+        has_end_game_guidance,
+    )
+
+    # The Windows wording is a contract with existing users, so pin it from
+    # either platform. These are the exact strings master shipped.
+    assert fsmod._WIN_END_GAME_PROCESS_HINT == (
+        "Open Task Manager (Ctrl+Shift+Esc) and End task on WoW.exe and "
+        "VanillaFixes.exe if either is listed."
+    )
+    assert fsmod._WIN_OTHER_HOLDERS == (
+        "Overlays, Explorer previews, backup/sync, Controlled Folder Access, or "
+        "antivirus (not only Windows Defender) can also hold the file."
+    )
+    assert lsmod._GENERIC_LOCK_LEAD + lsmod._WIN_GENERIC_LOCK_TAIL == (
+        "Could not move the addon folder. Close World of Warcraft if it is running, "
+        "then retry. Explorer, antivirus, or Git may also be locking files."
+    )
+
+    if sys.platform == "win32":
+        assert END_GAME_PROCESS_HINT == fsmod._WIN_END_GAME_PROCESS_HINT
+        assert "Controlled Folder Access" in LOCK_AV_APPLY_MESSAGE
+        assert "antivirus (not only Windows Defender)" in LOCK_AV_VERIFY_MESSAGE
+        assert GENERIC_LOCK_MESSAGE.endswith(lsmod._WIN_GENERIC_LOCK_TAIL)
+        assert has_end_game_guidance(LOCK_AV_APPLY_MESSAGE)
+    else:
+        for text in (
+            END_GAME_PROCESS_HINT,
+            LOCK_AV_APPLY_MESSAGE,
+            LOCK_AV_VERIFY_MESSAGE,
+            GENERIC_LOCK_MESSAGE,
+        ):
+            low = text.lower()
+            assert "task manager" not in low, text
+            assert "explorer" not in low, text
+            assert "controlled folder access" not in low, text
+            assert "windows defender" not in low, text
+        assert "pgrep" in END_GAME_PROCESS_HINT and "pkill" in END_GAME_PROCESS_HINT
+        assert has_end_game_guidance(LOCK_AV_APPLY_MESSAGE)
+        assert "-fai" in END_GAME_PROCESS_HINT, END_GAME_PROCESS_HINT
+        assert "pkill -fi" in END_GAME_PROCESS_HINT, END_GAME_PROCESS_HINT
+
+    # An argument has to END with the exe name. A backup beside the client, or a
+    # log line quoting the path, must not read as a running game.
+    assert procmod._arg_names_client("/games/rc/wow.exe", "/games/rc")
+    assert not procmod._arg_names_client("/games/rc/wow.exe.bak", "/games/rc")
+    assert not procmod._arg_names_client("/games/rc/wow.exe.log", "/games/rc")
+    assert not procmod._arg_names_client("/elsewhere/wow.exe", "/games/rc")
+    assert procmod._arg_names_client("end task on wow.exe if listed", "") is False
+    assert procmod._arg_names_client(
+        "end task on wow.exe if listed", procmod._norm_cmdline("/games/rc")
+    ) is False
+
+    # With no configured install there is nothing to scope to.
+    assert procmod._proc_client_running(None) is False
+    assert procmod._proc_client_running("") is False
+    assert not has_end_game_guidance("Could not replace ClassicAPI.dll.")
+    assert fsmod._ensure_end_game_guidance("boom").endswith("Then retry Apply.")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        game = Path(tmp) / "RavenCraft"
+        other = Path(tmp) / "Elsewhere"
+        game.mkdir(parents=True)
+        other.mkdir(parents=True)
+        wow = game / "WoW.exe"
+        cmdlines = {"42": f"{wow}\x00".encode("utf-8")}
+
+        def fake_listdir(path):
+            if os.fspath(path) == "/proc":
+                return ["42", "self"]
+            raise FileNotFoundError(path)
+
+        real_open = open
+
+        def fake_open(path, mode="r", *args, **kwargs):
+            text = os.fspath(path)
+            if text == "/proc/42/cmdline":
+                return io.BytesIO(cmdlines["42"])
+            return real_open(path, mode, *args, **kwargs)
+
+        with patch.object(procmod.os, "listdir", fake_listdir):
+            with patch("builtins.open", fake_open):
+                assert procmod._proc_client_running(game) is True
+                assert procmod._proc_client_running(other) is False
+                wine_style = "Z:" + str(wow).replace("/", "\\")
+                assert procmod._norm_cmdline(str(game)).rstrip("/") in procmod._norm_cmdline(
+                    wine_style
+                )
+                # wow_exe_running(game_dir=) on Linux uses the same matcher.
+                with patch.object(procmod.sys, "platform", "linux"):
+                    assert procmod.wow_exe_running(game) is True
+                    assert procmod.wow_exe_running(other) is False
+                    with patch.object(procmod, "_configured_game_dir", return_value=game):
+                        assert procmod.wow_exe_running() is True
+                    with patch.object(procmod, "_configured_game_dir", return_value=None):
+                        assert procmod.wow_exe_running() is False
+
+    print("OK linux game running guard")
+
 
 def main():
     import ichalaunch.config.settings as settings_mod
@@ -14433,6 +14558,7 @@ def _run_smoke_tests():
     test_chrome_buttons_clear_metal_tr()
     test_play_stays_right_when_progress_hidden()
     test_wayland_window_move_and_resize_handoff()
+    test_linux_game_running_guard()
     test_detect_and_installer_drop_unused_imports()
     print("\nAll smoke tests passed.")
 
