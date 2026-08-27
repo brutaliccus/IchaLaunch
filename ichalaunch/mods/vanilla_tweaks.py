@@ -54,6 +54,8 @@ VANILLA_TWEAKS_DEFAULTS: dict[str, Any] = {
     "crossfactionresfix": False,
     "maxcameradistance_patch": False,
     "maxcameradistance": 50.0,
+    # UI-only: lets the V2 modal unlock the SuperWoW-covered column.
+    "superwow_override": False,
 }
 
 # brndd 1.6.0 clap defaults: FoV / sound / channels / quickloot are ON.
@@ -93,8 +95,12 @@ _BOOL_KEYS = frozenset(
         "quickloot",
         "crossfactionresfix",
         "maxcameradistance_patch",
+        "superwow_override",
     }
 )
+# Persisted with the V2 options but never passed to the patcher, so they are
+# ignored by the repatch fingerprint and change detection.
+VANILLA_TWEAKS_UI_ONLY_KEYS = frozenset({"superwow_override"})
 _OLD_BOOL_KEYS = frozenset(
     {
         "farclip",
@@ -249,10 +255,18 @@ def normalize_vanilla_tweaks_old_options(raw: Any) -> dict[str, Any]:
     return _normalize_schema(raw, VANILLA_TWEAKS_OLD_DEFAULTS, _OLD_BOOL_KEYS)
 
 
+def _patch_relevant(normalized: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in normalized.items()
+        if key not in VANILLA_TWEAKS_UI_ONLY_KEYS
+    }
+
+
 def options_equal(left: Any, right: Any) -> bool:
-    return normalize_vanilla_tweaks_options(left) == normalize_vanilla_tweaks_options(
-        right
-    )
+    return _patch_relevant(
+        normalize_vanilla_tweaks_options(left)
+    ) == _patch_relevant(normalize_vanilla_tweaks_options(right))
 
 
 def old_options_equal(left: Any, right: Any) -> bool:
@@ -268,7 +282,7 @@ def _fingerprint(normalized: dict[str, Any]) -> str:
 
 def options_fingerprint(raw: Any = None) -> str:
     """Stable hash of normalized V2 options — used to skip no-op re-patches."""
-    return _fingerprint(normalize_vanilla_tweaks_options(raw))
+    return _fingerprint(_patch_relevant(normalize_vanilla_tweaks_options(raw)))
 
 
 def old_options_fingerprint(raw: Any = None) -> str:

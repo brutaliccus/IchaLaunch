@@ -1133,6 +1133,99 @@ def test_config_wtf_farclip_clamp():
     print("OK config.wtf farclip clamp")
 
 
+def test_config_wtf_regenerate():
+    """Regenerate moves Config.wtf into WTF/Backup; no-op when missing."""
+    from ichalaunch.game.config_wtf import backup_and_remove_config
+
+    with tempfile.TemporaryDirectory() as td:
+        game = Path(td)
+        assert backup_and_remove_config(game) is None  # no WTF folder at all
+        wtf = game / "WTF"
+        wtf.mkdir()
+        assert backup_and_remove_config(game) is None  # folder without file
+        cfg = wtf / "Config.wtf"
+        body = 'SET farclip "777"\nSET gxVSync "0"\n'
+        cfg.write_text(body, encoding="utf-8")
+        first = backup_and_remove_config(game)
+        assert first is not None
+        assert first.parent == wtf / "Backup"
+        assert first.name.startswith("Config-")
+        assert first.name.endswith(".wtf.bak")
+        assert not cfg.exists()
+        assert first.read_text(encoding="utf-8") == body
+        assert backup_and_remove_config(game) is None  # second call is a no-op
+        # A later regeneration must not destroy the earlier backup, even
+        # within the same timestamp second (numeric suffix uniquifier).
+        body2 = 'SET farclip "500"\n'
+        cfg.write_text(body2, encoding="utf-8")
+        second = backup_and_remove_config(game)
+        assert second is not None
+        assert second.parent == wtf / "Backup"
+        assert second != first
+        assert first.read_text(encoding="utf-8") == body
+        assert second.read_text(encoding="utf-8") == body2
+    print("OK config.wtf regenerate backup")
+
+
+def test_config_wtf_restore():
+    """Restore copies a chosen WTF/Backup entry over Config.wtf, saving the live file."""
+    from ichalaunch.game.config_wtf import (
+        list_config_backups,
+        restore_config_backup,
+    )
+
+    with tempfile.TemporaryDirectory() as td:
+        game = Path(td)
+        assert list_config_backups(game) == []  # no WTF folder at all
+        wtf = game / "WTF"
+        backup_dir = wtf / "Backup"
+        backup_dir.mkdir(parents=True)
+        assert list_config_backups(game) == []  # empty Backup folder
+        (backup_dir / "notes.txt").write_text("not a backup", encoding="utf-8")
+        old = backup_dir / "Config-20260826-120000.wtf.bak"
+        old.write_text('SET farclip "500"\n', encoding="utf-8")
+        newer = backup_dir / "Config-20260827-091500.wtf.bak"
+        newer.write_text('SET farclip "600"\n', encoding="utf-8")
+        suffixed = backup_dir / "Config-20260827-091500-1.wtf.bak"
+        suffixed.write_text('SET farclip "650"\n', encoding="utf-8")
+        backups = list_config_backups(game)
+        assert [b.path.name for b in backups] == [
+            suffixed.name,
+            newer.name,
+            old.name,
+        ]  # newest first; same-second suffix sorts above its base
+        assert backups[0].label == "2026-08-27 09:15:00 (1)"
+        assert backups[1].label == "2026-08-27 09:15:00"
+        assert backups[2].label == "2026-08-26 12:00:00"
+
+        live = wtf / "Config.wtf"
+        live_body = 'SET farclip "777"\n'
+        live.write_text(live_body, encoding="utf-8")
+        prior = restore_config_backup(game, old)
+        assert live.read_text(encoding="utf-8") == 'SET farclip "500"\n'
+        assert old.is_file()  # the restored backup stays in Backup/
+        assert prior is not None
+        assert prior.parent == backup_dir
+        assert prior.read_text(encoding="utf-8") == live_body
+        assert not (wtf / "Config.wtf.tmp").exists()
+
+        # Missing backup raises so the UI can re-list and inform.
+        missing = backup_dir / "Config-19990101-000000.wtf.bak"
+        try:
+            restore_config_backup(game, missing)
+            raise AssertionError("expected FileNotFoundError")
+        except FileNotFoundError:
+            pass
+        assert live.read_text(encoding="utf-8") == 'SET farclip "500"\n'
+
+        # No live Config.wtf: restore just puts the backup in place.
+        live.unlink()
+        assert restore_config_backup(game, newer) is None
+        assert live.read_text(encoding="utf-8") == 'SET farclip "600"\n'
+        assert newer.is_file()
+    print("OK config.wtf restore from backup")
+
+
 def test_darker_nights_migration():
     """Legacy darker_nights settings migrate to hd_patch_n on load."""
     from ichalaunch.config.settings import migrate_legacy_mod_ids
@@ -8323,6 +8416,7 @@ def test_vanilla_tweaks_settings_dialog():
                 "quickloot",
                 "crossfactionresfix",
                 "maxcameradistance_patch",
+                "superwow_override",
             }
             assert set(dlg._checks) == expected_checks
             assert set(dlg._spins) == {
@@ -8376,18 +8470,115 @@ def test_vanilla_tweaks_settings_dialog():
     print("OK vanilla tweaks settings dialog")
 
 
-def test_vanilla_tweaks_optional_greyed_when_superwow():
-    """Optional Tweaks column greys out when SuperWoW is desired or on disk."""
+def test_tweaks_dialogs_regenerate_button():
+    """Both Tweaks dialogs expose Regenerate + restore dropdown after Defaults."""
     import tempfile
     from pathlib import Path
+    from unittest.mock import patch
+
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.config import settings as settings_mod
+    from ichalaunch.config.settings import Settings
+    from ichalaunch.ui.widgets.dialogs import (
+        VanillaTweaksOldSettingsDialog,
+        VanillaTweaksSettingsDialog,
+    )
+    from ichalaunch.ui.widgets.glue_combo import GlueComboBox
+
+    app = QApplication.instance() or QApplication([])
+    del app
+    with tempfile.TemporaryDirectory() as td:
+        fake = Path(td) / "settings.json"
+        game = Path(td) / "game"
+        game.mkdir()
+        (game / "WoW.exe").write_bytes(b"MZ")
+        backup_dir = game / "WTF" / "Backup"
+        backup_dir.mkdir(parents=True)
+        (backup_dir / "Config-20260826-120000.wtf.bak").write_text(
+            'SET farclip "500"\n', encoding="utf-8"
+        )
+        (backup_dir / "Config-20260827-091500.wtf.bak").write_text(
+            'SET farclip "600"\n', encoding="utf-8"
+        )
+        orig_path = settings_mod.settings_path
+        orig = settings_mod.settings
+        settings_mod.settings_path = lambda: fake
+        settings_mod.settings = Settings()
+        try:
+            for cls in (VanillaTweaksSettingsDialog, VanillaTweaksOldSettingsDialog):
+                # detect_game is bound to the real settings object at import
+                # time, so patch it rather than the swapped-in fake settings.
+                with patch(
+                    "ichalaunch.game.launcher.detect_game", return_value=None
+                ):
+                    dlg = cls(None)
+                btn = dlg._regen_config_btn
+                assert btn.text() == "Regenerate Config.wtf", cls.__name__
+                assert "Config.wtf" in btn.toolTip()
+                combo = dlg._restore_combo
+                assert isinstance(combo, GlueComboBox), cls.__name__
+                assert not combo.isEnabled(), cls.__name__
+                assert combo.itemText(0) == "No backups", cls.__name__
+                # Find the bottom action row holding Defaults and assert the
+                # regenerate button and dropdown sit immediately to its right.
+                body = dlg._defaults_btn.parentWidget().layout()
+                row = None
+                for i in range(body.count()):
+                    sub = body.itemAt(i).layout()
+                    if sub is not None and sub.indexOf(dlg._defaults_btn) >= 0:
+                        row = sub
+                        break
+                assert row is not None, cls.__name__
+                base = row.indexOf(dlg._defaults_btn)
+                assert row.indexOf(btn) == base + 1, cls.__name__
+                assert row.indexOf(combo) == base + 2, cls.__name__
+                dlg.deleteLater()
+
+                # With a game and backups on disk — newest first after the
+                # "Restore backup…" placeholder.
+                with patch(
+                    "ichalaunch.game.launcher.detect_game", return_value=game
+                ):
+                    filled = cls(None)
+                combo = filled._restore_combo
+                assert combo.isEnabled(), cls.__name__
+                assert combo.itemText(0) == "Restore backup…", cls.__name__
+                assert combo.itemData(0) is None, cls.__name__
+                labels = [combo.itemText(i) for i in range(1, combo.count())]
+                assert labels == [
+                    "2026-08-27 09:15:00",
+                    "2026-08-26 12:00:00",
+                ], (cls.__name__, labels)
+                assert combo.itemData(1).endswith(
+                    "Config-20260827-091500.wtf.bak"
+                ), cls.__name__
+                filled.deleteLater()
+        finally:
+            settings_mod.settings_path = orig_path
+            settings_mod.settings = orig
+    print("OK tweaks dialogs regenerate button")
+
+
+def test_vanilla_tweaks_optional_greyed_when_superwow():
+    """Optional Tweaks column greys out when SuperWoW; override un-greys it."""
+    import tempfile
+    from pathlib import Path
+    from unittest.mock import patch
 
     from PySide6.QtWidgets import QApplication
 
     from ichalaunch.config import settings as settings_mod
     from ichalaunch.config.settings import Settings
     from ichalaunch.core.filesystem import clear_fs_caches
-    from ichalaunch.mods.vanilla_tweaks import VANILLA_TWEAKS_OPTIONAL_KEYS
-    from ichalaunch.ui.widgets.dialogs import VanillaTweaksSettingsDialog
+    from ichalaunch.mods.vanilla_tweaks import (
+        VANILLA_TWEAKS_OPTIONAL_KEYS,
+        normalize_vanilla_tweaks_options,
+        options_equal,
+        options_fingerprint,
+        vanilla_tweaks_argv,
+    )
+    from ichalaunch.ui.widgets.dialogs import DialogResult, VanillaTweaksSettingsDialog
 
     app = QApplication.instance() or QApplication([])
     del app
@@ -8419,6 +8610,8 @@ def test_vanilla_tweaks_optional_greyed_when_superwow():
             for key in default_on:
                 assert dlg._checks[key].isEnabled(), key
             assert dlg._spins["fov"].isEnabled() is False  # checkbox off by default
+            # Without SuperWoW the override toggle is irrelevant and hidden.
+            assert dlg._checks["superwow_override"].isHidden()
             dlg.deleteLater()
 
             settings_mod.settings.set("desired_mods", {"superwow": True})
@@ -8432,6 +8625,64 @@ def test_vanilla_tweaks_optional_greyed_when_superwow():
             assert not locked._spins["fov"].isEnabled()
             assert not locked._combos["soundchannels"].isEnabled()
             assert not locked._sliders["maxcameradistance"].isEnabled()
+
+            # Override toggle is shown only while SuperWoW locks the column.
+            override = locked._checks["superwow_override"]
+            assert not override.isHidden()
+            assert override.isEnabled()
+
+            # Cancelling the warning reverts the toggle and keeps the lock.
+            with patch(
+                "ichalaunch.ui.widgets.dialogs.choice",
+                return_value=DialogResult.Cancel,
+            ) as mocked:
+                override.setChecked(True)
+            assert mocked.call_count == 1
+            assert mocked.call_args.kwargs.get("kind") == "warning"
+            assert override.isChecked() is False
+            for key in VANILLA_TWEAKS_OPTIONAL_KEYS:
+                assert not locked._checks[key].isEnabled(), key
+
+            # Confirming the warning un-greys the optional column.
+            with patch(
+                "ichalaunch.ui.widgets.dialogs.choice",
+                return_value=DialogResult.Yes,
+            ):
+                override.setChecked(True)
+            assert override.isChecked() is True
+            for key in VANILLA_TWEAKS_OPTIONAL_KEYS:
+                assert locked._checks[key].isEnabled(), key
+            assert not locked._spins["fov"].isEnabled()  # follows its checkbox
+            locked._checks["fov_patch"].setChecked(True)
+            assert locked._spins["fov"].isEnabled()
+            locked._checks["quickloot"].setChecked(True)
+            collected = locked.collect_options()
+            assert collected["superwow_override"] is True
+            assert collected["fov_patch"] is True
+            assert collected["quickloot"] is True
+            argv = vanilla_tweaks_argv(collected)
+            assert "--fov-patch" in argv
+            assert "--quickloot" in argv
+
+            # Persistence roundtrip keeps the key; defaults leave it off.
+            assert normalize_vanilla_tweaks_options(collected)[
+                "superwow_override"
+            ] is True
+            assert (
+                normalize_vanilla_tweaks_options(None)["superwow_override"] is False
+            )
+            # UI-only key never changes the repatch fingerprint or equality.
+            assert options_fingerprint({}) == options_fingerprint(
+                {"superwow_override": True}
+            )
+            assert options_equal({}, {"superwow_override": True})
+
+            # Turning the override back off re-greys and re-forces the column.
+            override.setChecked(False)
+            for key in VANILLA_TWEAKS_OPTIONAL_KEYS:
+                assert not locked._checks[key].isEnabled(), key
+                assert not locked._checks[key].isChecked(), key
+            assert not locked._spins["fov"].isEnabled()
             locked.deleteLater()
 
             settings_mod.settings.set("desired_mods", {})
@@ -12853,6 +13104,8 @@ def _run_smoke_tests():
     test_stock_patch9_reacquire_detect()
     test_stock_patch9_prompt_requires_wow_exe()
     test_config_wtf_farclip_clamp()
+    test_config_wtf_regenerate()
+    test_config_wtf_restore()
     test_darker_nights_migration()
     test_mod_toggle_resolution()
     test_hd_patch_e_includes_caption()
@@ -12992,6 +13245,7 @@ def _run_smoke_tests():
     test_mod_version_label()
     test_vanilla_tweaks_tubtubs_catalog_and_argv()
     test_vanilla_tweaks_settings_dialog()
+    test_tweaks_dialogs_regenerate_button()
     test_vanilla_tweaks_optional_greyed_when_superwow()
     test_client_pending_plan_row_badge_and_apply_pulse()
     test_theme_checkbox_disabled_uses_grey_check_art()

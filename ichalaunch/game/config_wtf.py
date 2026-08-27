@@ -2,7 +2,9 @@
 
 The launcher does not invent farclip values. This module only inspects the
 file the client already wrote, and can clamp a stored farclip that is above
-the stock 1.12 maximum (777).
+the stock 1.12 maximum (777). It can also move the whole file aside (into
+``WTF/Backup``) so the client regenerates defaults on the next launch, and
+restore any of those timestamped backups back into place.
 """
 
 from __future__ import annotations
@@ -10,6 +12,7 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from ichalaunch.core.filesystem import resolve_ci
@@ -50,6 +53,111 @@ def config_wtf_path(game: Path | str) -> Path | None:
         return found
     candidate = wtf_dir / "Config.wtf"
     return candidate if candidate.is_file() else None
+
+
+_BACKUP_NAME = re.compile(
+    r"(?i)^Config-(?P<stamp>\d{8}-\d{6})(?:-(?P<n>\d+))?\.wtf\.bak$"
+)
+
+
+@dataclass(frozen=True)
+class ConfigBackup:
+    path: Path
+    stamp: datetime
+    suffix: int
+
+    @property
+    def label(self) -> str:
+        text = self.stamp.strftime("%Y-%m-%d %H:%M:%S")
+        return f"{text} ({self.suffix})" if self.suffix else text
+
+
+def _wtf_dir(game: Path | str) -> Path:
+    root = Path(game)
+    return resolve_ci(root, "WTF") or (root / "WTF")
+
+
+def _config_backup_dir(game: Path | str) -> Path:
+    wtf_dir = _wtf_dir(game)
+    return resolve_ci(wtf_dir, "Backup") or (wtf_dir / "Backup")
+
+
+def list_config_backups(game: Path | str) -> list[ConfigBackup]:
+    """Timestamped Config.wtf backups under ``WTF/Backup``, newest first."""
+    backup_dir = _config_backup_dir(game)
+    try:
+        entries = list(backup_dir.iterdir())
+    except OSError:
+        return []
+    found: list[ConfigBackup] = []
+    for entry in entries:
+        match = _BACKUP_NAME.match(entry.name)
+        if match is None or not entry.is_file():
+            continue
+        try:
+            stamp = datetime.strptime(match.group("stamp"), "%Y%m%d-%H%M%S")
+        except ValueError:
+            continue
+        found.append(
+            ConfigBackup(path=entry, stamp=stamp, suffix=int(match.group("n") or 0))
+        )
+    found.sort(key=lambda b: (b.stamp, b.suffix), reverse=True)
+    return found
+
+
+def restore_config_backup(game: Path | str, backup: Path | str) -> Path | None:
+    """Replace ``WTF/Config.wtf`` with *backup*; the live file is saved first.
+
+    *backup* is copied, not moved, so it stays available in ``WTF/Backup``.
+    The live Config.wtf (when present) goes through
+    :func:`backup_and_remove_config`, making the restore itself undoable.
+    Returns the path the live file was saved to, or None when there was no
+    live file. Raises FileNotFoundError when *backup* is gone.
+    """
+    src = Path(backup)
+    if not src.is_file():
+        raise FileNotFoundError(2, "Backup no longer exists", str(src))
+    data = src.read_bytes()
+    wtf_dir = _wtf_dir(game)
+    wtf_dir.mkdir(parents=True, exist_ok=True)
+    target = wtf_dir / "Config.wtf"
+    # Stage inside WTF so the final os.replace is a same-volume swap; only
+    # move the live file aside once the staged copy is safely on disk.
+    tmp = target.with_name(target.name + ".tmp")
+    try:
+        tmp.write_bytes(data)
+        prior = backup_and_remove_config(game)
+        os.replace(tmp, target)
+    finally:
+        if tmp.exists():
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+    return prior
+
+
+def backup_and_remove_config(game: Path | str) -> Path | None:
+    """Move ``WTF/Config.wtf`` into ``WTF/Backup`` so the client regenerates it.
+
+    Backups are timestamped (like ``core.backup``), so repeated regenerations
+    never destroy an earlier backup and users can undo by renaming one back.
+    Returns the backup path, or None when there is no Config.wtf to move.
+    """
+    path = config_wtf_path(game)
+    if path is None:
+        return None
+    backup_dir = path.parent / "Backup"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    backup = backup_dir / f"Config-{stamp}.wtf.bak"
+    counter = 1
+    # Same-second regenerations get a numeric suffix instead of overwriting.
+    while backup.exists():
+        backup = backup_dir / f"Config-{stamp}-{counter}.wtf.bak"
+        counter += 1
+    os.replace(path, backup)
+    return backup
 
 
 def parse_farclip_value(raw: str | None) -> float | None:

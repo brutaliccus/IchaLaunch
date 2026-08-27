@@ -2597,6 +2597,8 @@ class VanillaTweaksSettingsDialog(QDialog):
         self._extras_for_check: dict[str, tuple] = {}
         self._check_tips: dict[str, str] = {}
         self._superwow_locks_optional = False
+        # V2-only override checkbox; the Old dialog never builds it.
+        self._superwow_override_cb: ThemeCheckBox | None = None
 
         cols = QHBoxLayout()
         cols.setSpacing(22)
@@ -2630,6 +2632,33 @@ class VanillaTweaksSettingsDialog(QDialog):
         defaults_btn.setToolTip(self._DEFAULTS_TIP)
         defaults_btn.clicked.connect(self._reset_defaults)
         row.addWidget(defaults_btn)
+        # Wider than _dialog_glue_button allows — the 21-char label needs room.
+        regen_btn = GluePanelButton(
+            "Regenerate Config.wtf",
+            card,
+            role="standard",
+            width=170,
+            height=GLUE_BTN_H,
+        )
+        regen_btn.setToolTip(
+            "Move WTF/Config.wtf aside so the client rebuilds default "
+            "in-game settings on the next launch."
+        )
+        regen_btn.clicked.connect(self._regenerate_config_wtf)
+        row.addWidget(regen_btn)
+        from ichalaunch.ui.widgets.glue_combo import GlueComboBox
+
+        restore_combo = GlueComboBox(card, min_width=150)
+        restore_combo.setToolTip(
+            "Restore a previous Config.wtf from the WTF/Backup folder."
+        )
+        # activated fires on user picks only, so reloads cannot re-trigger it.
+        restore_combo.activated.connect(self._on_restore_backup_activated)
+        row.addWidget(restore_combo)
+        self._defaults_btn = defaults_btn
+        self._regen_config_btn = regen_btn
+        self._restore_combo = restore_combo
+        self._reload_config_backups()
         row.addStretch(1)
         cancel_btn = _dialog_glue_button("Cancel", card, primary=False)
         cancel_btn.clicked.connect(self.reject)
@@ -2748,6 +2777,18 @@ class VanillaTweaksSettingsDialog(QDialog):
         extra.setObjectName("ThemedDialogHint")
         extra.setWordWrap(True)
         right.addWidget(extra)
+        self._add_toggle(
+            right,
+            right_host,
+            "superwow_override",
+            "Enable anyway (SuperWoW override)",
+            "Unlock these patches even though SuperWoW is enabled. "
+            "They overlap with SuperWoW and can cause conflicts or crashes.",
+        )
+        self._superwow_override_cb = self._checks["superwow_override"]
+        self._superwow_override_cb.toggled.connect(
+            self._on_superwow_override_toggled
+        )
         self._add_toggle(
             right,
             right_host,
@@ -2954,17 +2995,49 @@ class VanillaTweaksSettingsDialog(QDialog):
 
         return superwow_is_active()
 
+    def _on_superwow_override_toggled(self, on: bool) -> None:
+        cb = self._superwow_override_cb
+        if cb is None:
+            return
+        if on and self._superwow_locks_optional:
+            # Cancel is listed first so Enter cannot confirm the override;
+            # Enable anyway still renders as the primary button.
+            result = choice(
+                self,
+                "SuperWoW override",
+                "SuperWoW already provides these features. Patching them "
+                "into WoW.exe as well can cause conflicts or crashes in "
+                "game.\n\nEnable them anyway?",
+                buttons=[
+                    ("Cancel", DialogResult.Cancel),
+                    ("Enable anyway", DialogResult.Yes),
+                ],
+                kind="warning",
+            )
+            if result != DialogResult.Yes:
+                cb.blockSignals(True)
+                cb.setChecked(False)
+                cb.blockSignals(False)
+                return
+        self._apply_superwow_optional_lock()
+
     def _apply_superwow_optional_lock(self) -> None:
         from ichalaunch.mods.vanilla_tweaks import VANILLA_TWEAKS_OPTIONAL_KEYS
 
         locked = self._superwow_detected()
         self._superwow_locks_optional = locked
+        override_cb = self._superwow_override_cb
+        if override_cb is not None:
+            # The override is meaningless without SuperWoW — hide it then.
+            override_cb.setVisible(locked)
+        overridden = bool(override_cb is not None and override_cb.isChecked())
+        grey = locked and not overridden
         for key in VANILLA_TWEAKS_OPTIONAL_KEYS:
             cb = self._checks.get(key)
             if cb is None:
                 continue
             extras = self._extras_for_check.get(key, ())
-            if locked:
+            if grey:
                 cb.blockSignals(True)
                 cb.setChecked(False)
                 cb.blockSignals(False)
@@ -3026,6 +3099,147 @@ class VanillaTweaksSettingsDialog(QDialog):
 
     def _reset_defaults(self) -> None:
         self._apply_options(self._defaults)
+
+    def _regenerate_config_wtf(self) -> None:
+        from ichalaunch.core.process import wow_exe_running
+        from ichalaunch.game.config_wtf import backup_and_remove_config
+        from ichalaunch.game.launcher import detect_game
+
+        title = "Regenerate Config.wtf"
+        game = detect_game()
+        if not game:
+            warning(self, title, "No game folder detected.")
+            return
+        if wow_exe_running(game):
+            # The client rewrites Config.wtf on exit, so removing it now
+            # would be silently undone.
+            warning(
+                self,
+                title,
+                "Close the game first. WoW rewrites Config.wtf when it "
+                "exits, so removing the file while the client is running "
+                "has no effect.",
+            )
+            return
+        # Cancel is listed first so Enter cannot trigger the destructive
+        # action; Regenerate still renders as the primary button.
+        result = choice(
+            self,
+            title,
+            "This resets ALL in-game settings stored in Config.wtf — video, "
+            "sound, and the keybinds kept there. The client writes a fresh "
+            "Config.wtf on the next launch.\n\n"
+            "The current file is saved into the WTF/Backup folder first.",
+            buttons=[
+                ("Cancel", DialogResult.Cancel),
+                ("Regenerate", DialogResult.Yes),
+            ],
+            kind="warning",
+        )
+        if result != DialogResult.Yes:
+            return
+        try:
+            backup = backup_and_remove_config(game)
+        except OSError as exc:
+            error(self, title, f"Could not move Config.wtf aside: {exc}")
+            return
+        if backup is None:
+            info(
+                self,
+                title,
+                "No Config.wtf found — the client will already write a "
+                "fresh one on the next launch.",
+            )
+            return
+        self._reload_config_backups()
+        info(
+            self,
+            title,
+            f"Done. The old file was saved to WTF/Backup/{backup.name}; "
+            "a fresh Config.wtf will be created on the next launch.",
+        )
+
+    def _reload_config_backups(self) -> None:
+        from ichalaunch.game.config_wtf import list_config_backups
+        from ichalaunch.game.launcher import detect_game
+
+        combo = self._restore_combo
+        game = detect_game()
+        backups = list_config_backups(game) if game else []
+        combo.blockSignals(True)
+        combo.clear()
+        if backups:
+            combo.addItem("Restore backup…", None)
+            for entry in backups:
+                combo.addItem(entry.label, str(entry.path))
+            combo.setEnabled(True)
+        else:
+            combo.addItem("No backups", None)
+            combo.setEnabled(False)
+        combo.setCurrentIndex(0)
+        combo.blockSignals(False)
+
+    def _on_restore_backup_activated(self, index: int) -> None:
+        from ichalaunch.core.process import wow_exe_running
+        from ichalaunch.game.config_wtf import restore_config_backup
+        from ichalaunch.game.launcher import detect_game
+
+        combo = self._restore_combo
+        backup_path = combo.itemData(index)
+        label = combo.itemText(index)
+        combo.setCurrentIndex(0)
+        if not backup_path:
+            return  # "Restore backup…" placeholder row
+        title = "Restore Config.wtf"
+        game = detect_game()
+        if not game:
+            warning(self, title, "No game folder detected.")
+            return
+        if wow_exe_running(game):
+            warning(
+                self,
+                title,
+                "Close the game first. WoW rewrites Config.wtf when it "
+                "exits, so a restore while the client is running would be "
+                "overwritten.",
+            )
+            return
+        # Cancel first so Enter cannot trigger the overwrite.
+        result = choice(
+            self,
+            title,
+            f"This replaces the current Config.wtf with the backup from "
+            f"{label}. In-game settings stored there (video, sound, "
+            "keybinds) revert to that snapshot.\n\n"
+            "The current file is saved into the WTF/Backup folder first.",
+            buttons=[
+                ("Cancel", DialogResult.Cancel),
+                ("Restore", DialogResult.Yes),
+            ],
+            kind="warning",
+        )
+        if result != DialogResult.Yes:
+            return
+        try:
+            restore_config_backup(game, backup_path)
+        except FileNotFoundError:
+            self._reload_config_backups()
+            warning(
+                self,
+                title,
+                "That backup no longer exists — the list has been refreshed.",
+            )
+            return
+        except OSError as exc:
+            error(self, title, f"Could not restore Config.wtf: {exc}")
+            return
+        self._reload_config_backups()
+        info(
+            self,
+            title,
+            f"Restored the Config.wtf backup from {label}. The previous "
+            "file was saved into the WTF/Backup folder.",
+        )
 
     def _normalize_collected(self, raw: dict) -> dict:
         from ichalaunch.mods.vanilla_tweaks import normalize_vanilla_tweaks_options
