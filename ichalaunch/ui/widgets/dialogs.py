@@ -2678,8 +2678,8 @@ class VanillaTweaksSettingsDialog(QDialog):
             left_host,
             "farclip",
             "Farclip (terrain distance)",
-            "Stock maximum is 777. After patching, set with /console farclip 1000. "
-            "The patcher allows up to 10000; values that high can crash.",
+            "Stock maximum is 777. The patcher can raise the cap (up to 10000), "
+            "but Config.wtf values above 777 can hide world geometry.",
             spin_key="farclip_value",
             spin_kind="float",
             decimals=0,
@@ -3114,8 +3114,8 @@ class VanillaTweaksOldSettingsDialog(VanillaTweaksSettingsDialog):
             left_host,
             "farclip",
             "Farclip (terrain distance)",
-            "Stock maximum is 777. After patching, set with /console farclip 1000. "
-            "The patcher allows up to 10000; values that high can crash.",
+            "Stock maximum is 777. The patcher can raise the cap (up to 10000), "
+            "but Config.wtf values above 777 can hide world geometry.",
             spin_key="farclip_value",
             spin_kind="float",
             decimals=0,

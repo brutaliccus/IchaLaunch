@@ -35,6 +35,7 @@ UA = {"User-Agent": "IchaLaunch/0.1", "Accept": "application/vnd.github+json"}
 RATE_LIMIT_STATUS = "GitHub rate limit hit — add a token in Settings or try later"
 WAITING_RATE_LIMIT_STATUS = "Waiting for GitHub rate limit…"
 GITHUB_TOKEN_REJECTED_MSG = "GitHub token rejected — clear or update it in Settings"
+UPDATE_CATALOG_UNAVAILABLE = "Update catalog unavailable"
 # Automatic (startup/silent) rescans are skipped if the last scan was within this window.
 # Default only — live value comes from settings.auto_scan_cooldown_sec() (15 min).
 STARTUP_CHECK_COOLDOWN_SEC = 15 * 60
@@ -2570,6 +2571,16 @@ def _mark_addon_update_check_time() -> None:
     settings.set("last_addon_update_check", time.time())
 
 
+def _record_pending_addon_updates(updates: list[dict[str, Any]]) -> None:
+    """Replace last-known pending updates after a real catalog/tip compare."""
+    try:
+        from ichalaunch.addons.pending_updates import replace_pending_updates_cache
+
+        replace_pending_updates_cache(updates)
+    except Exception as exc:  # noqa: BLE001
+        log.debug("Could not cache pending addon updates: %s", exc)
+
+
 def commit_addon_update_check() -> None:
     """UI thread: results applied successfully — cooldown may take effect."""
     settings.set("addon_update_check_incomplete", False)
@@ -2722,7 +2733,7 @@ def check_addon_updates(
             updates=[],
             checked_count=0,
             total_count=len(to_check),
-            status_message="Update catalog unavailable",
+            status_message=UPDATE_CATALOG_UNAVAILABLE,
             catalog_refreshed=catalog_refreshed,
         )
 
@@ -2732,6 +2743,7 @@ def check_addon_updates(
 
     if not to_check:
         _mark_addon_update_check_time()
+        _record_pending_addon_updates([])
         if callable(on_count):
             on_count(1, 1, "Checking addon updates…")
         return AddonUpdateCheckResult(
@@ -2785,6 +2797,8 @@ def check_addon_updates(
                     "remote": remote_label,
                     "url": meta.get("url") or f"https://github.com/{repo}",
                     "branch": branch,
+                    "installed_ref": local_sha or local_ver,
+                    "available_ref": remote_sha or remote_ver,
                 }
             )
 
@@ -2792,6 +2806,7 @@ def check_addon_updates(
         on_count(1, 1, "Checking addon updates…")
 
     _mark_addon_update_check_time()
+    _record_pending_addon_updates(updates)
     return AddonUpdateCheckResult(
         updates=list(updates),
         checked_count=checked,

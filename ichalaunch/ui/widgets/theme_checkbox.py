@@ -20,6 +20,7 @@ _FALLBACK_DIR = Path(r"F:\wow-ui-textures\Buttons")
 _EMPTY = "UI-EmptySlot.PNG"
 _DEPRESS = "UI-Quickslot-Depress.PNG"
 _CHECK = "UI-CheckBox-Check.PNG"
+_CHECK_DISABLED = "UI-CheckBox-Check-Disabled.PNG"
 
 _INDICATOR_PX = 22
 _LABEL_SPACING = 10
@@ -106,14 +107,20 @@ def _scaled_indicator(pm: QPixmap) -> QPixmap:
     )
 
 
-def _assets() -> tuple[QPixmap, QPixmap, QPixmap]:
-    key = "normalized_chrome_check_v1"
+def _assets() -> tuple[QPixmap, QPixmap, QPixmap, QPixmap]:
+    key = "normalized_chrome_check_v2_disabled"
     if key in _CACHE:
-        return _CACHE["empty"], _CACHE["depress"], _CACHE["checked"]
+        return (
+            _CACHE["empty"],
+            _CACHE["depress"],
+            _CACHE["checked"],
+            _CACHE["checked_disabled"],
+        )
 
     raw_empty = _load_raw(_EMPTY)
     raw_depress = _load_raw(_DEPRESS)
     raw_check = _load_raw(_CHECK)
+    raw_check_off = _load_raw(_CHECK_DISABLED)
     sides = [pm.width() for pm in (raw_empty, raw_depress) if not pm.isNull()]
     common = max(sides) if sides else 64
 
@@ -121,12 +128,14 @@ def _assets() -> tuple[QPixmap, QPixmap, QPixmap]:
     depress = _scaled_indicator(_normalize_to_square(raw_depress, common))
     check_target = max(1, int(round(_INDICATOR_PX * _CHECK_FIT_SCALE)))
     checked = _prepare_check(raw_check, check_target)
+    checked_disabled = _prepare_check(raw_check_off, check_target)
 
     _CACHE["empty"] = empty
     _CACHE["depress"] = depress
     _CACHE["checked"] = checked
+    _CACHE["checked_disabled"] = checked_disabled
     _CACHE[key] = QPixmap()
-    return empty, depress, checked
+    return empty, depress, checked, checked_disabled
 
 
 class ThemeCheckBox(QAbstractButton):
@@ -213,9 +222,11 @@ class ThemeCheckBox(QAbstractButton):
     def _paint_indicator(self, painter: QPainter, rect: QRect) -> None:
         if not painter.isActive():
             return
-        empty, depress, checked = _assets()
+        empty, depress, checked, checked_disabled = _assets()
         dest = QRect(rect)
-        if not self.isEnabled():
+        enabled = self.isEnabled()
+        mark = checked_disabled if (not enabled and not checked_disabled.isNull()) else checked
+        if not enabled:
             painter.setOpacity(0.45)
 
         if not empty.isNull():
@@ -223,22 +234,28 @@ class ThemeCheckBox(QAbstractButton):
             fy = dest.y() + (dest.height() - empty.height()) // 2
             painter.drawPixmap(fx, fy, empty)
 
-            if self.isChecked() and not checked.isNull():
-                cx = fx + (empty.width() - checked.width()) // 2
-                cy = fy + (empty.height() - checked.height()) // 2
-                painter.drawPixmap(cx, cy, checked)
+            if self.isChecked() and not mark.isNull():
+                if not enabled:
+                    painter.setOpacity(1.0)
+                cx = fx + (empty.width() - mark.width()) // 2
+                cy = fy + (empty.height() - mark.height()) // 2
+                painter.drawPixmap(cx, cy, mark)
+                if not enabled:
+                    painter.setOpacity(0.45)
 
-            if self._hover and self.isEnabled() and not depress.isNull():
+            if self._hover and enabled and not depress.isNull():
                 painter.drawPixmap(fx, fy, depress)
         else:
             painter.setPen(QColor(150, 131, 158, 80))
             painter.setBrush(QColor(120, 100, 150, 30))
             painter.drawRoundedRect(dest.adjusted(1, 1, -1, -1), 4, 4)
             if self.isChecked():
-                if not checked.isNull():
-                    cx = dest.x() + (dest.width() - checked.width()) // 2
-                    cy = dest.y() + (dest.height() - checked.height()) // 2
-                    painter.drawPixmap(cx, cy, checked)
+                if not mark.isNull():
+                    if not enabled:
+                        painter.setOpacity(1.0)
+                    cx = dest.x() + (dest.width() - mark.width()) // 2
+                    cy = dest.y() + (dest.height() - mark.height()) // 2
+                    painter.drawPixmap(cx, cy, mark)
                 else:
                     painter.setPen(QColor(_GOLD))
                     # Minimal fallback tick if textures are missing.

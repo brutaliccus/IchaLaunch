@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QShowEvent
+from PySide6.QtGui import QHideEvent, QShowEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 from ichalaunch.config.settings import settings
 from ichalaunch.core.filesystem import LOCK_AV_VERIFY_MESSAGE
+from ichalaunch.core.process import wow_exe_running
 from ichalaunch.game.launcher import detect_game, sync_vanillafixes_enabled_from_desired
 from ichalaunch.mods.client_mod_hints import (
     is_dll_injection_mod,
@@ -46,6 +47,7 @@ from ichalaunch.mods.superwow_support import (
 )
 from ichalaunch.ui.widgets.casting_bar_search_edit import CastingBarSearchEdit
 from ichalaunch.ui.widgets.common import (
+    MOD_EDIT_LOCKED_TIP,
     ModCheckRow,
     mod_author,
     mod_git_url,
@@ -187,6 +189,7 @@ class ClientPage(QWidget):
         self._row_meta: dict[str, dict] = {}
         self._pending_updates: dict[str, dict] = {}
         self._apply_pending = False
+        self._game_edit_locked = False
         self._client_mods_scan_done = False
         self._cat_hosts: dict[str, QVBoxLayout] = {}
         self._cat_scrolls: dict[str, MarbleScrollArea] = {}
@@ -291,6 +294,9 @@ class ClientPage(QWidget):
             self._show_cat(0)
         self.refresh_from_settings()
         self._reveal_rows()
+        self._game_lock_timer = QTimer(self)
+        self._game_lock_timer.setInterval(2000)
+        self._game_lock_timer.timeout.connect(self._poll_game_edit_lock)
 
     def _add_category_page(self, cat: str, mods: list[dict], index: int) -> None:
         btn = BadgeNavButton(cat)
@@ -399,6 +405,7 @@ class ClientPage(QWidget):
             self._insert_row_before_stretch(layout, row)
         row.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, False)
         row.show()
+        row.set_editing_locked(self._game_edit_locked)
         self.rows[mid] = row
         return row
 
@@ -409,6 +416,8 @@ class ClientPage(QWidget):
             open_url_in_browser(url)
 
     def _open_mod_config(self, mod_id: str) -> None:
+        if self._game_edit_locked:
+            return
         if mod_id == "vanilla_tweaks":
             from ichalaunch.ui.widgets.dialogs import vanilla_tweaks_settings_dialog
 
@@ -484,6 +493,8 @@ class ClientPage(QWidget):
                 self._add_mod_row(mod)
 
     def _open_custom_dll_dialog(self) -> None:
+        if self._game_edit_locked:
+            return
         url = github_import_dialog(self, kind="dll")
         if url:
             self.custom_dll_import_requested.emit(url)
@@ -587,6 +598,7 @@ class ClientPage(QWidget):
         self.update_all_btn.setEnabled(n > 0)
         self.refresh_from_settings()
         self._refresh_cat_badges()
+        self._sync_game_lock_actions()
         self.badge_state_changed.emit()
 
     def reset_scan_done(self) -> None:
@@ -604,6 +616,7 @@ class ClientPage(QWidget):
         self.update_all_btn.setEnabled(n > 0)
         self.refresh_from_settings()
         self._refresh_cat_badges()
+        self._sync_game_lock_actions()
         self.badge_state_changed.emit()
 
     def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
@@ -611,11 +624,75 @@ class ClientPage(QWidget):
         self._reveal_rows()
         if getattr(self, "launch_settings", None) is not None:
             self.launch_settings.refresh()
+        self._poll_game_edit_lock()
+        if not self._game_lock_timer.isActive():
+            self._game_lock_timer.start()
         QTimer.singleShot(0, self._maybe_prompt_vf_dxvk_conflict)
         # Patch-9 dialog is Home-first (MainWindow); Client keeps banner + fallback.
         QTimer.singleShot(0, self._maybe_prompt_stock_patch9)
+        QTimer.singleShot(0, self._maybe_prompt_high_farclip)
+
+    def hideEvent(self, event: QHideEvent) -> None:  # noqa: N802
+        self._game_lock_timer.stop()
+        super().hideEvent(event)
+
+    def _poll_game_edit_lock(self) -> None:
+        self._set_game_edit_locked(
+            wow_exe_running(detect_game() or settings.game_path or None)
+        )
+
+    def _set_game_edit_locked(self, locked: bool) -> None:
+        self._game_edit_locked = bool(locked)
+        for row in self.rows.values():
+            row.set_editing_locked(self._game_edit_locked)
+        self._sync_game_lock_actions()
+
+    def _sync_game_lock_actions(self) -> None:
+        locked = self._game_edit_locked
+        pending = self._apply_pending
+        if locked:
+            self.apply_btn.setEnabled(False)
+            self.apply_btn.setToolTip(MOD_EDIT_LOCKED_TIP)
+            self._apply_pulse_timer.stop()
+            self._apply_pulse = False
+            if isinstance(self.apply_btn, GluePanelButton):
+                self.apply_btn.set_pulse(False)
+            self.update_all_btn.setEnabled(False)
+            self.update_all_btn.setToolTip(MOD_EDIT_LOCKED_TIP)
+            self.add_dll_btn.setEnabled(False)
+            self.add_dll_btn.setToolTip(MOD_EDIT_LOCKED_TIP)
+            self.reacquire_patch9_btn.setEnabled(False)
+            self.reacquire_patch9_btn.setToolTip(MOD_EDIT_LOCKED_TIP)
+            return
+        self.apply_btn.setEnabled(pending)
+        self.apply_btn.setToolTip(
+            "Pending client mod changes — click to apply"
+            if pending
+            else "No pending client mod changes"
+        )
+        if pending:
+            if isinstance(self.apply_btn, GluePanelButton):
+                self.apply_btn.set_pulse(True)
+            if not self._apply_pulse_timer.isActive():
+                self._apply_pulse = True
+                self._apply_pulse_timer.start()
+        else:
+            self._apply_pulse_timer.stop()
+            self._apply_pulse = False
+            if isinstance(self.apply_btn, GluePanelButton):
+                self.apply_btn.set_pulse(False)
+        self.update_all_btn.setEnabled(bool(self._pending_updates))
+        self.update_all_btn.setToolTip("")
+        self.add_dll_btn.setEnabled(True)
+        self.add_dll_btn.setToolTip("Add a client DLL from a GitHub release")
+        self.reacquire_patch9_btn.setEnabled(True)
+        self.reacquire_patch9_btn.setToolTip(
+            "Download official Data/patch-9.mpq (~500 MB) into the client folder"
+        )
 
     def _maybe_prompt_vf_dxvk_conflict(self) -> None:
+        if self._game_edit_locked:
+            return
         if self._vf_dxvk_prompted or not vanillafixes_dxvk_both_enabled():
             return
         self._vf_dxvk_prompted = True
@@ -697,6 +774,13 @@ class ClientPage(QWidget):
             b.setChecked(i == idx)
 
     def _on_toggle(self, mod_id: str, enabled: bool) -> None:
+        if self._game_edit_locked:
+            row = self.rows.get(mod_id)
+            if row is not None:
+                row.cb.blockSignals(True)
+                row.cb.setChecked(not enabled)
+                row.cb.blockSignals(False)
+            return
         if enabled and mod_id == "vanilla_tweaks_old":
             if not confirm_vanilla_tweaks_old(self):
                 row = self.rows.get(mod_id)
@@ -811,6 +895,18 @@ class ClientPage(QWidget):
         if callable(fn):
             fn()
 
+    def _maybe_prompt_high_farclip(self) -> None:
+        """Fallback if Home never ran; MainWindow owns once-per-session dismiss."""
+        if self._game_edit_locked:
+            return
+        win = self.window()
+        stack = getattr(win, "stack", None)
+        if stack is not None and stack.currentWidget() is not self:
+            return
+        fn = getattr(win, "_maybe_prompt_high_farclip", None)
+        if callable(fn):
+            fn()
+
     @staticmethod
     def _mod_can_reinstall(mod: dict) -> bool:
         """True when a downloadable source exists (same gate as update checks)."""
@@ -881,6 +977,7 @@ class ClientPage(QWidget):
         if self._search_q:
             self._apply_search()
         self.refresh_plan()
+        self._set_game_edit_locked(self._game_edit_locked)
         if vanillafixes_dxvk_both_enabled():
             QTimer.singleShot(0, self._maybe_prompt_vf_dxvk_conflict)
         QTimer.singleShot(0, self._maybe_superwow_client_drift)
@@ -931,22 +1028,12 @@ class ClientPage(QWidget):
         if pending:
             if isinstance(self.apply_btn, GluePanelButton):
                 self.apply_btn.set_role("primary")
-                self.apply_btn.set_pulse(True)
-            self.apply_btn.setEnabled(True)
-            self.apply_btn.setToolTip("Pending client mod changes — click to apply")
             self._set_apply_flash_property(True)
-            if not self._apply_pulse_timer.isActive():
-                self._apply_pulse = True
-                self._apply_pulse_timer.start()
         else:
-            self._apply_pulse_timer.stop()
-            self._apply_pulse = False
             if isinstance(self.apply_btn, GluePanelButton):
                 self.apply_btn.set_role("standard")
-                self.apply_btn.set_pulse(False)
-            self.apply_btn.setEnabled(False)
-            self.apply_btn.setToolTip("No pending client mod changes")
             self._set_apply_flash_property(False)
+        self._sync_game_lock_actions()
         if changed:
             self._refresh_cat_badges()
             self.badge_state_changed.emit()

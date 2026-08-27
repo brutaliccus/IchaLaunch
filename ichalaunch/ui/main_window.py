@@ -292,6 +292,7 @@ from ichalaunch.addons.github import (
     GIT_REPAIR_STATUS,
     GITHUB_TOKEN_REJECTED_MSG,
     RATE_LIMIT_STATUS,
+    UPDATE_CATALOG_UNAVAILABLE,
     check_addon_updates,
     finalize_install_after_toc_renames,
     format_github_error_message,
@@ -316,7 +317,7 @@ from ichalaunch.core.filesystem import (
     take_pending_toc_mismatches,
 )
 from ichalaunch.core.logging_setup import log
-from ichalaunch.core.process import StatusProgress, status_only
+from ichalaunch.core.process import StatusProgress, status_only, wow_exe_running
 from ichalaunch.core.self_update import (
     LauncherReleaseInfo,
     apply_windows_self_replace,
@@ -3060,6 +3061,51 @@ class MainWindow(QMainWindow):
         if result == themed.DialogResult.Yes:
             self._reacquire_stock_patch9()
 
+    def _maybe_prompt_high_farclip(self) -> None:
+        """Once per session: Config.wtf farclip above the stock 777 cap."""
+        from ichalaunch.core.crash_report import reporting_suppressed
+
+        if reporting_suppressed():
+            return
+        if getattr(self, "_farclip_prompted", False):
+            return
+        game = detect_game()
+        if not game or not has_wow_exe(game):
+            return
+        if wow_exe_running(game):
+            return
+        from ichalaunch.game.config_wtf import farclip_too_high, set_farclip
+
+        found = farclip_too_high(game)
+        if found is None:
+            return
+        self._farclip_prompted = True
+        result = themed.choice(
+            self,
+            "Farclip is set too high",
+            (
+                f"WTF/Config.wtf has farclip set to {found.display}. "
+                "The stock 1.12 maximum is 777.\n\n"
+                "Values above 777 can hide world geometry (buildings, terrain, barns).\n\n"
+                "Set farclip to 777 now?"
+            ),
+            [
+                ("Leave it", themed.DialogResult.No),
+                ("Set to 777", themed.DialogResult.Yes),
+            ],
+            kind="warning",
+        )
+        if result != themed.DialogResult.Yes:
+            return
+        try:
+            if set_farclip(game):
+                self.status_lbl.setText("Set Config.wtf farclip to 777")
+            else:
+                self._farclip_prompted = False
+        except OSError as exc:
+            self._farclip_prompted = False
+            themed.error(self, "Could not update Config.wtf", str(exc))
+
     def _apply_toc_mismatch_prompts(self, result: object) -> object:
         """UI-thread prompts for install mismatches collected on a worker."""
         if isinstance(result, AddonInstallResult):
@@ -3399,6 +3445,7 @@ class MainWindow(QMainWindow):
 
     def _launch_prepared(self) -> None:
         try:
+            self._maybe_prompt_high_farclip()
             manuals = plan_manual_missing()
             if manuals:
                 themed.warning(
@@ -4131,6 +4178,12 @@ class MainWindow(QMainWindow):
             ok_folders = set(result.get("ok") or [])
             remaining = [u for u in self.addons.pending_updates if u.get("folder") not in ok_folders]
             self.addons.set_updates(remaining)
+            try:
+                from ichalaunch.addons.pending_updates import replace_pending_updates_cache
+
+                replace_pending_updates_cache(remaining)
+            except Exception:  # noqa: BLE001
+                pass
             n_ok = len(ok_folders)
             failed = result.get("failed") or []
             if failed:
@@ -4297,12 +4350,19 @@ class MainWindow(QMainWindow):
                 try:
                     self._addon_check_status = ""
                     self._check_addon_pct = 100
+                    apply_updates = True
                     if isinstance(result, AddonUpdateCheckResult):
                         updates = list(result.updates or [])
                         status = result.status_message
+                        # Failed / skipped scans must not wipe last-known pending.
+                        apply_updates = (
+                            not result.skipped_recent
+                            and status != UPDATE_CATALOG_UNAVAILABLE
+                        )
                     else:
                         updates = list(result or [])
-                    self.addons.set_updates(updates)
+                    if apply_updates:
+                        self.addons.set_updates(updates)
                     if not self._checking_mods:
                         if status:
                             self.status_lbl.setText(status)

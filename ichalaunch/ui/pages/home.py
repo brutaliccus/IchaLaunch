@@ -422,12 +422,21 @@ class HomePage(QWidget):
         self._sync_brand_layout()
         # Patch-9 is game-breaking when missing — prompt on Home (first surface).
         QTimer.singleShot(0, self._request_stock_patch9_prompt)
+        QTimer.singleShot(0, self._request_high_farclip_prompt)
 
     def _request_stock_patch9_prompt(self) -> None:
         if not self._home_overlays_active():
             return
         win = self.window()
         fn = getattr(win, "_maybe_prompt_stock_patch9", None)
+        if callable(fn):
+            fn()
+
+    def _request_high_farclip_prompt(self) -> None:
+        if not self._home_overlays_active():
+            return
+        win = self.window()
+        fn = getattr(win, "_maybe_prompt_high_farclip", None)
         if callable(fn):
             fn()
 

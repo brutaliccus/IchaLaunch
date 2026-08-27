@@ -453,6 +453,9 @@ class AddonsPage(QWidget):
         # early-launch clicks into a half-built list abort Qt with no traceback.
         self.set_checking(False)
         self._sync_filter_lock()
+        # Last-known pending updates from the previous scan — launch is not a
+        # "no updates" result. The next 15-minute / manual refresh replaces this.
+        self._restore_cached_pending_updates()
         # Do not refresh() here — building rows before the page is in the stack
         # (or while hidden) is the launch-time HWND spam. First paint is on show.
 
@@ -688,6 +691,22 @@ class AddonsPage(QWidget):
     @property
     def pending_updates(self) -> list[dict]:
         return list(self._pending_updates)
+
+    def _restore_cached_pending_updates(self) -> None:
+        """Show last scan's Update Available rows immediately (no network)."""
+        from ichalaunch.addons.pending_updates import restore_pending_updates
+
+        restored = restore_pending_updates(rewrite=True)
+        if not restored:
+            return
+        filtered = [
+            u
+            for u in restored
+            if u.get("folder") and not settings.is_addon_never_update(str(u.get("folder")))
+        ]
+        self._pending_updates = filtered
+        if filtered:
+            self.updates_lbl.setText(f"{len(filtered)} update(s) available")
 
     def mark_dirty(self) -> None:
         self._dirty = True
@@ -1462,6 +1481,12 @@ class AddonsPage(QWidget):
         self._pending_updates = [u for u in self._pending_updates if u.get("folder") != folder]
         if len(self._pending_updates) == before:
             return
+        try:
+            from ichalaunch.addons.pending_updates import drop_cached_pending_folder
+
+            drop_cached_pending_folder(folder)
+        except Exception:  # noqa: BLE001
+            pass
         if self._pending_updates:
             self.updates_lbl.setText(f"{len(self._pending_updates)} update(s) available")
         else:

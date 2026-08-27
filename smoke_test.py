@@ -1078,6 +1078,61 @@ def test_stock_patch9_prompt_requires_wow_exe():
     print("OK stock patch-9 prompt requires WoW.exe")
 
 
+def test_config_wtf_farclip_clamp():
+    """Detect Config.wtf farclip above 777 and rewrite only that CVar to 777."""
+    from ichalaunch.game.config_wtf import (
+        FARCLIP_STOCK_MAX,
+        farclip_too_high,
+        read_farclip,
+        set_farclip,
+    )
+
+    with tempfile.TemporaryDirectory() as td:
+        game = Path(td)
+        wtf = game / "WTF"
+        wtf.mkdir()
+        cfg = wtf / "Config.wtf"
+        cfg.write_text(
+            'SET scriptMemory "0"\n'
+            'SET farclip "1500"\n'
+            'SET SmallCull "0.01"\n',
+            encoding="utf-8",
+        )
+        found = farclip_too_high(game)
+        assert found is not None
+        assert found.value == 1500
+        assert found.display == "1500"
+        assert found.path == cfg
+        assert read_farclip(game).value == 1500
+        assert set_farclip(game) is True
+        text = cfg.read_text(encoding="utf-8")
+        assert 'SET farclip "777"' in text
+        assert 'SET scriptMemory "0"' in text
+        assert 'SET SmallCull "0.01"' in text
+        assert "1500" not in text
+        assert farclip_too_high(game) is None
+        assert read_farclip(game).value == FARCLIP_STOCK_MAX
+        assert set_farclip(game) is False
+
+        cfg.write_text('SET farclip "777"\nSET other "1"\n', encoding="utf-8")
+        assert farclip_too_high(game) is None
+        assert set_farclip(game) is False
+
+        cfg.write_bytes(b'SET FARCLIP 2000\r\nSET gxVSync "0"\r\n')
+        assert farclip_too_high(game).value == 2000
+        assert set_farclip(game) is True
+        fixed = cfg.read_bytes()
+        assert b"\r\n" in fixed
+        assert b'SET FARCLIP "777"' in fixed
+        assert b'SET gxVSync "0"' in fixed
+
+        cfg.unlink()
+        assert read_farclip(game) is None
+        assert farclip_too_high(game) is None
+        assert set_farclip(game) is False
+    print("OK config.wtf farclip clamp")
+
+
 def test_darker_nights_migration():
     """Legacy darker_nights settings migrate to hd_patch_n on load."""
     from ichalaunch.config.settings import migrate_legacy_mod_ids
@@ -3031,12 +3086,12 @@ def test_robust_move_tree_and_lock_message():
     import ichalaunch.addons.loadstate as ls
 
     orig_wow = ls.wow_exe_running
-    ls.wow_exe_running = lambda: True
+    ls.wow_exe_running = lambda *_a, **_k: True
     try:
         assert addon_move_error_text(denied) == GAME_LOCK_MESSAGE
     finally:
         ls.wow_exe_running = orig_wow
-    ls.wow_exe_running = lambda: False
+    ls.wow_exe_running = lambda *_a, **_k: False
     try:
         text = addon_move_error_text(denied)
         assert text == GENERIC_LOCK_MESSAGE
@@ -4582,38 +4637,43 @@ def test_addon_update_check_uses_catalog_index_only():
     def fake_cat_refresh(*, force: bool = False):
         return cat.load_bundled_catalog()
 
-    try:
-        tips._loaded = (0.0, index)
-        tips.refresh_tip_index = fake_refresh
-        cat.refresh_catalog = fake_cat_refresh
-        gh.github_remote_tip = boom
-        gh.github_latest_version_tag = boom
-        settings.set(
-            "installed_addons",
-            {
-                "pfUI": {
-                    "repository": "shagu/pfUI",
-                    "url": "https://github.com/shagu/pfUI",
-                    "installed_commit": "a" * 40,
-                    "branch": "master",
-                }
-            },
-        )
-        result = gh.check_addon_updates()
-        assert result.queued is False
-        assert result.checked_count == 1
-        assert len(result.updates) == 1
-        assert result.updates[0]["folder"] == "pfUI"
-        assert result.catalog_refreshed is True
-    finally:
-        gh.github_remote_tip = orig_tip
-        gh.github_latest_version_tag = orig_tag
-        tips.refresh_tip_index = orig_refresh
-        cat.refresh_catalog = orig_cat_refresh
-        settings.set("installed_addons", prev_addons)
-        tips._loaded = prev_loaded
-        if prev_loaded is None:
-            clear_tip_index_cache()
+    from ichalaunch.addons import pending_updates as pending
+
+    with tempfile.TemporaryDirectory() as pending_tmp:
+      pending_cache = Path(pending_tmp) / "addon_pending_updates.json"
+      with pending.isolated_pending_updates_cache(pending_cache):
+        try:
+            tips._loaded = (0.0, index)
+            tips.refresh_tip_index = fake_refresh
+            cat.refresh_catalog = fake_cat_refresh
+            gh.github_remote_tip = boom
+            gh.github_latest_version_tag = boom
+            settings.set(
+                "installed_addons",
+                {
+                    "pfUI": {
+                        "repository": "shagu/pfUI",
+                        "url": "https://github.com/shagu/pfUI",
+                        "installed_commit": "a" * 40,
+                        "branch": "master",
+                    }
+                },
+            )
+            result = gh.check_addon_updates()
+            assert result.queued is False
+            assert result.checked_count == 1
+            assert len(result.updates) == 1
+            assert result.updates[0]["folder"] == "pfUI"
+            assert result.catalog_refreshed is True
+        finally:
+            gh.github_remote_tip = orig_tip
+            gh.github_latest_version_tag = orig_tag
+            tips.refresh_tip_index = orig_refresh
+            cat.refresh_catalog = orig_cat_refresh
+            settings.set("installed_addons", prev_addons)
+            tips._loaded = prev_loaded
+            if prev_loaded is None:
+                clear_tip_index_cache()
     print("OK addon update check uses catalog index only")
 
 
@@ -4671,101 +4731,282 @@ def test_older_tag_install_reports_update():
         captured["allow_stored_tag"] = allow_stored_tag
         return None
 
-    try:
-        tips._loaded = (0.0, index)
-        tips.refresh_tip_index = fake_refresh
-        cat.refresh_catalog = fake_cat_refresh
-        gh.github_remote_tip = boom
-        gh.github_latest_version_tag = boom
-        gh.install_from_github = fake_install
+    from ichalaunch.addons import pending_updates as pending
 
-        # Older tag pin: branch field often equals the tag name (not default branch).
-        settings.set(
-            "installed_addons",
-            {
-                "ShaguTweaks": {
-                    "repository": "shagu/ShaguTweaks",
-                    "url": "https://github.com/shagu/ShaguTweaks/releases/tag/v1.0.0",
-                    "installed_commit": old_sha,
-                    "branch": "v1.0.0",
-                    "tag": "v1.0.0",
-                    "version": "v1.0.0",
-                    "source": "github",
-                },
-                "NoTipsAddon": {
-                    "repository": "owner/NoTips",
-                    "url": "https://github.com/owner/NoTips",
-                    "installed_commit": old_sha,
-                    "branch": "main",
-                    "source": "github",
-                },
-                "Bagshui": {
-                    "repository": "The-Kludge-Bureau/Bagshui",
-                    "url": "https://github.com/The-Kludge-Bureau/Bagshui/releases/tag/1.5.16",
-                    "installed_commit": old_sha,
-                    "branch": "1.5.16",
-                    "tag": "1.5.16",
-                    "version": "1.5.16",
-                    "source": "github",
-                    "never_update": True,
-                },
-            },
-        )
-        result = gh.check_addon_updates()
-        assert result.checked_count == 1, result
-        assert len(result.updates) == 1
-        assert result.updates[0]["folder"] == "ShaguTweaks"
-        assert result.updates[0]["remote"] == tip_sha[:7]
+    with tempfile.TemporaryDirectory() as pending_tmp:
+      pending_cache = Path(pending_tmp) / "addon_pending_updates.json"
+      with pending.isolated_pending_updates_cache(pending_cache):
+        try:
+            tips._loaded = (0.0, index)
+            tips.refresh_tip_index = fake_refresh
+            cat.refresh_catalog = fake_cat_refresh
+            gh.github_remote_tip = boom
+            gh.github_latest_version_tag = boom
+            gh.install_from_github = fake_install
 
-        # At default tip (even if installed via matching tag) → no update.
-        settings.set(
-            "installed_addons",
-            {
-                "ShaguTweaks": {
-                    "repository": "shagu/ShaguTweaks",
-                    "url": "https://github.com/shagu/ShaguTweaks/releases/tag/v2.0.0",
-                    "installed_commit": tip_sha,
-                    "branch": "v2.0.0",
-                    "tag": "v2.0.0",
-                    "version": "v2.0.0",
-                    "source": "github",
-                }
-            },
-        )
-        at_tip = gh.check_addon_updates()
-        assert at_tip.checked_count == 1
-        assert at_tip.updates == []
+            # Older tag pin: branch field often equals the tag name (not default branch).
+            settings.set(
+                "installed_addons",
+                {
+                    "ShaguTweaks": {
+                        "repository": "shagu/ShaguTweaks",
+                        "url": "https://github.com/shagu/ShaguTweaks/releases/tag/v1.0.0",
+                        "installed_commit": old_sha,
+                        "branch": "v1.0.0",
+                        "tag": "v1.0.0",
+                        "version": "v1.0.0",
+                        "source": "github",
+                    },
+                    "NoTipsAddon": {
+                        "repository": "owner/NoTips",
+                        "url": "https://github.com/owner/NoTips",
+                        "installed_commit": old_sha,
+                        "branch": "main",
+                        "source": "github",
+                    },
+                    "Bagshui": {
+                        "repository": "The-Kludge-Bureau/Bagshui",
+                        "url": "https://github.com/The-Kludge-Bureau/Bagshui/releases/tag/1.5.16",
+                        "installed_commit": old_sha,
+                        "branch": "1.5.16",
+                        "tag": "1.5.16",
+                        "version": "1.5.16",
+                        "source": "github",
+                        "never_update": True,
+                    },
+                },
+            )
+            result = gh.check_addon_updates()
+            assert result.checked_count == 1, result
+            assert len(result.updates) == 1
+            assert result.updates[0]["folder"] == "ShaguTweaks"
+            assert result.updates[0]["remote"] == tip_sha[:7]
 
-        # Update must target branch tip, not reinstall the stored older tag.
-        settings.set(
-            "installed_addons",
-            {
-                "ShaguTweaks": {
-                    "repository": "shagu/ShaguTweaks",
-                    "url": "https://github.com/shagu/ShaguTweaks/releases/tag/v1.0.0",
-                    "installed_commit": old_sha,
-                    "branch": "v1.0.0",
-                    "tag": "v1.0.0",
-                    "version": "v1.0.0",
-                    "source": "github",
-                }
-            },
-        )
-        gh.update_addon("ShaguTweaks")
-        assert captured.get("allow_stored_tag") is False
-        assert "/releases/tag/" not in str(captured.get("url") or "")
-        assert "shagu/shagutweaks" in str(captured.get("url") or "").lower()
-    finally:
-        gh.github_remote_tip = orig_tip
-        gh.github_latest_version_tag = orig_tag
-        gh.install_from_github = orig_install
-        tips.refresh_tip_index = orig_refresh
-        cat.refresh_catalog = orig_cat_refresh
-        settings.set("installed_addons", prev_addons)
-        tips._loaded = prev_loaded
-        if prev_loaded is None:
-            clear_tip_index_cache()
+            # At default tip (even if installed via matching tag) → no update.
+            settings.set(
+                "installed_addons",
+                {
+                    "ShaguTweaks": {
+                        "repository": "shagu/ShaguTweaks",
+                        "url": "https://github.com/shagu/ShaguTweaks/releases/tag/v2.0.0",
+                        "installed_commit": tip_sha,
+                        "branch": "v2.0.0",
+                        "tag": "v2.0.0",
+                        "version": "v2.0.0",
+                        "source": "github",
+                    }
+                },
+            )
+            at_tip = gh.check_addon_updates()
+            assert at_tip.checked_count == 1
+            assert at_tip.updates == []
+
+            # Update must target branch tip, not reinstall the stored older tag.
+            settings.set(
+                "installed_addons",
+                {
+                    "ShaguTweaks": {
+                        "repository": "shagu/ShaguTweaks",
+                        "url": "https://github.com/shagu/ShaguTweaks/releases/tag/v1.0.0",
+                        "installed_commit": old_sha,
+                        "branch": "v1.0.0",
+                        "tag": "v1.0.0",
+                        "version": "v1.0.0",
+                        "source": "github",
+                    }
+                },
+            )
+            gh.update_addon("ShaguTweaks")
+            assert captured.get("allow_stored_tag") is False
+            assert "/releases/tag/" not in str(captured.get("url") or "")
+            assert "shagu/shagutweaks" in str(captured.get("url") or "").lower()
+        finally:
+            gh.github_remote_tip = orig_tip
+            gh.github_latest_version_tag = orig_tag
+            gh.install_from_github = orig_install
+            tips.refresh_tip_index = orig_refresh
+            cat.refresh_catalog = orig_cat_refresh
+            settings.set("installed_addons", prev_addons)
+            tips._loaded = prev_loaded
+            if prev_loaded is None:
+                clear_tip_index_cache()
     print("OK older tag install reports update")
+
+
+def test_pending_addon_updates_cache_survives_restart():
+    """Last-known pending addon updates persist across launch until the next scan."""
+    from ichalaunch.addons import catalog as cat
+    from ichalaunch.addons import github as gh
+    from ichalaunch.addons import pending_updates as pending
+    from ichalaunch.addons import tip_index as tips
+    from ichalaunch.addons.tip_index import clear_tip_index_cache, normalize_index
+    from ichalaunch.config.settings import settings
+
+    old_sha = "a" * 40
+    new_sha = "b" * 40
+    other_old = "c" * 40
+    other_new = "d" * 40
+    index = normalize_index(
+        {
+            "generated_at": "2026-08-26T00:00:00Z",
+            "repos": {
+                "shagu/pfui": {
+                    "default_branch": "master",
+                    "sha": new_sha,
+                    "branches": {"master": new_sha},
+                },
+                "shagu/shagutweaks": {
+                    "default_branch": "master",
+                    "sha": other_new,
+                    "branches": {"master": other_new},
+                },
+            },
+        }
+    )
+    two_installed = {
+        "pfUI": {
+            "repository": "shagu/pfUI",
+            "url": "https://github.com/shagu/pfUI",
+            "installed_commit": old_sha,
+            "branch": "master",
+            "source": "github",
+        },
+        "ShaguTweaks": {
+            "repository": "shagu/ShaguTweaks",
+            "url": "https://github.com/shagu/ShaguTweaks",
+            "installed_commit": other_old,
+            "branch": "master",
+            "source": "github",
+        },
+    }
+    prev_loaded = tips._loaded
+    prev_addons = settings.installed_addons
+    orig_tip = gh.github_remote_tip
+    orig_tag = gh.github_latest_version_tag
+    orig_refresh = tips.refresh_tip_index
+    orig_cat_refresh = cat.refresh_catalog
+
+    def boom(*_a, **_k):
+        raise AssertionError("per-addon GitHub probe should not run")
+
+    def fake_refresh(*, force: bool = False):
+        return index
+
+    def fake_cat_refresh(*, force: bool = False):
+        return cat.load_bundled_catalog()
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cache_file = Path(tmp) / "addon_pending_updates.json"
+        with pending.isolated_pending_updates_cache(cache_file):
+            try:
+                tips._loaded = (0.0, index)
+                tips.refresh_tip_index = fake_refresh
+                cat.refresh_catalog = fake_cat_refresh
+                gh.github_remote_tip = boom
+                gh.github_latest_version_tag = boom
+                settings.set("installed_addons", dict(two_installed))
+
+                result = gh.check_addon_updates()
+                assert result.skipped_recent is False
+                folders = sorted(u["folder"] for u in result.updates)
+                assert folders == ["ShaguTweaks", "pfUI"], result.updates
+                assert cache_file.is_file()
+                raw = json.loads(cache_file.read_text(encoding="utf-8"))
+                assert raw.get("scanned_at")
+                cached_folders = sorted(
+                    str(u.get("folder")) for u in raw.get("updates") or []
+                )
+                assert cached_folders == ["ShaguTweaks", "pfUI"]
+                by_folder = {u["folder"]: u for u in raw["updates"]}
+                assert by_folder["pfUI"]["installed_ref"] == old_sha
+                assert by_folder["pfUI"]["available_ref"] == new_sha
+                assert by_folder["pfUI"]["repository"].lower() == "shagu/pfui"
+                assert by_folder["ShaguTweaks"]["installed_ref"] == other_old
+                assert by_folder["ShaguTweaks"]["available_ref"] == other_new
+
+                # Restart: load cache only — no catalog/tip refresh.
+                restored = pending.restore_pending_updates(
+                    installed=two_installed,
+                    never_update=lambda _folder: False,
+                    rewrite=False,
+                )
+                assert sorted(u["folder"] for u in restored) == [
+                    "ShaguTweaks",
+                    "pfUI",
+                ]
+
+                # Removed on disk / from installed → dropped.
+                only_pfui = {"pfUI": dict(two_installed["pfUI"])}
+                dropped = pending.restore_pending_updates(
+                    installed=only_pfui,
+                    never_update=lambda _folder: False,
+                    rewrite=False,
+                )
+                assert [u["folder"] for u in dropped] == ["pfUI"]
+
+                # Applied (installed ref now matches available) → not pending.
+                applied = {
+                    "pfUI": {
+                        **two_installed["pfUI"],
+                        "installed_commit": new_sha,
+                    },
+                    "ShaguTweaks": dict(two_installed["ShaguTweaks"]),
+                }
+                after_apply = pending.restore_pending_updates(
+                    installed=applied,
+                    never_update=lambda _folder: False,
+                    rewrite=False,
+                )
+                assert [u["folder"] for u in after_apply] == ["ShaguTweaks"]
+
+                # Failed tip-index fetch must not wipe last-known pending.
+                orig_tip_refresh = tips.refresh_tip_index
+                tips.refresh_tip_index = lambda **_k: tips.empty_index()
+                try:
+                    unavailable = gh.check_addon_updates()
+                finally:
+                    tips.refresh_tip_index = orig_tip_refresh
+                assert unavailable.status_message == gh.UPDATE_CATALOG_UNAVAILABLE
+                still_cached = json.loads(cache_file.read_text(encoding="utf-8"))
+                assert sorted(
+                    str(u.get("folder")) for u in still_cached.get("updates") or []
+                ) == ["ShaguTweaks", "pfUI"]
+
+                # Real refresh that finds 0 updates replaces the cache.
+                settings.set(
+                    "installed_addons",
+                    {
+                        "pfUI": {
+                            **two_installed["pfUI"],
+                            "installed_commit": new_sha,
+                        },
+                        "ShaguTweaks": {
+                            **two_installed["ShaguTweaks"],
+                            "installed_commit": other_new,
+                        },
+                    },
+                )
+                empty = gh.check_addon_updates()
+                assert empty.updates == []
+                raw_empty = json.loads(cache_file.read_text(encoding="utf-8"))
+                assert raw_empty.get("updates") == []
+                assert (
+                    pending.restore_pending_updates(
+                        installed=settings.installed_addons,
+                        never_update=lambda _folder: False,
+                    )
+                    == []
+                )
+            finally:
+                gh.github_remote_tip = orig_tip
+                gh.github_latest_version_tag = orig_tag
+                tips.refresh_tip_index = orig_refresh
+                cat.refresh_catalog = orig_cat_refresh
+                settings.set("installed_addons", prev_addons)
+                tips._loaded = prev_loaded
+                if prev_loaded is None:
+                    clear_tip_index_cache()
+    print("OK pending addon updates cache survives restart")
 
 
 def test_update_to_tip_clears_stored_version_pin():
@@ -8223,6 +8464,181 @@ def test_client_pending_plan_row_badge_and_apply_pulse():
     assert page.apply_btn._pulse is False
     page.deleteLater()
     print("OK client pending plan row badge and apply pulse")
+
+
+def test_theme_checkbox_disabled_uses_grey_check_art():
+    """Disabled checked ThemeCheckBox paints UI-CheckBox-Check-Disabled, not gold."""
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.core.paths import theme_file
+    from ichalaunch.ui.widgets.theme_checkbox import ThemeCheckBox, _assets
+
+    app = QApplication.instance() or QApplication([])
+    del app
+    path = theme_file("checkboxes", "UI-CheckBox-Check-Disabled.PNG")
+    assert path.is_file(), path
+    _empty, _depress, checked, checked_off = _assets()
+    assert not checked.isNull()
+    assert not checked_off.isNull()
+    assert checked.toImage() != checked_off.toImage()
+
+    cb = ThemeCheckBox("")
+    cb.setFixedSize(22, 22)
+    cb.setChecked(True)
+    enabled_img = cb.grab().toImage()
+    cb.setEnabled(False)
+    disabled_img = cb.grab().toImage()
+    assert not enabled_img.isNull()
+    assert not disabled_img.isNull()
+    assert enabled_img != disabled_img
+    cb.deleteLater()
+    print("OK theme checkbox disabled grey check art")
+
+
+def test_client_page_does_not_poll_game_lock_until_shown():
+    """Constructing ClientPage must not tasklist; WoW running on the dev box cannot lock tests."""
+    from unittest.mock import patch
+
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.pages.client import ClientPage
+
+    app = QApplication.instance() or QApplication([])
+    del app
+    with patch("ichalaunch.ui.pages.client.wow_exe_running") as probe:
+        with patch("ichalaunch.ui.pages.client.plan_changes", return_value=[]):
+            page = ClientPage()
+        probe.assert_not_called()
+    row = next(iter(page.rows.values()))
+    assert row.cb.isEnabled()
+    assert page.apply_btn.isEnabled() is False
+    page.deleteLater()
+    print("OK client page does not poll game lock until shown")
+
+
+def test_client_page_locks_mod_edits_when_wow_running():
+    """WoW.exe / VanillaFixes.exe greys client mod checkboxes and blocks Apply."""
+    from pathlib import Path
+    from unittest.mock import patch
+
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.pages.client import ClientPage
+    from ichalaunch.ui.widgets.common import MOD_EDIT_LOCKED_TIP
+
+    app = QApplication.instance() or QApplication([])
+    del app
+    with patch("ichalaunch.ui.pages.client.plan_changes", return_value=[]):
+        page = ClientPage()
+    row = page.rows.get("vanilla_tweaks")
+    assert row is not None
+    assert row.cb.isEnabled()
+
+    with patch("ichalaunch.ui.pages.client.wow_exe_running", return_value=True):
+        page._poll_game_edit_lock()
+    assert page._game_edit_locked
+    assert not row.cb.isEnabled()
+    assert row.cb.toolTip() == MOD_EDIT_LOCKED_TIP
+    if row.settings_btn is not None:
+        assert not row.settings_btn.isEnabled()
+    assert page.launch_settings.cb_min.isEnabled()
+
+    was = row.cb.isChecked()
+    with patch("ichalaunch.ui.pages.client.apply_mod_toggle") as apply_toggle:
+        page._on_toggle("vanilla_tweaks", not was)
+        apply_toggle.assert_not_called()
+    assert row.cb.isChecked() == was
+
+    fake_plan = [
+        {"action": "install", "id": "vanilla_tweaks", "detail": "Install Vanilla Tweaks"}
+    ]
+    with patch("ichalaunch.ui.pages.client.detect_game", return_value=Path("C:/fake")):
+        with patch("ichalaunch.ui.pages.client.plan_changes", return_value=fake_plan):
+            page.refresh_plan()
+    assert page._apply_pending
+    assert not page.apply_btn.isEnabled()
+    assert page.apply_btn.toolTip() == MOD_EDIT_LOCKED_TIP
+    assert not page._apply_pulse_timer.isActive()
+    assert not page.update_all_btn.isEnabled()
+    assert not page.add_dll_btn.isEnabled()
+
+    with patch("ichalaunch.ui.pages.client.wow_exe_running", return_value=False):
+        page._poll_game_edit_lock()
+    assert not page._game_edit_locked
+    assert row.cb.isEnabled()
+    assert row.cb.toolTip() == ""
+    assert page.apply_btn.isEnabled()
+    assert page.apply_btn.toolTip() == "Pending client mod changes — click to apply"
+    page.deleteLater()
+    print("OK client page locks mod edits when wow running")
+
+
+def test_wow_exe_running_matches_game_directory():
+    """Lock only the WoW/VanillaFixes image that lives in this client folder."""
+    from pathlib import Path
+    from unittest.mock import patch
+
+    from ichalaunch.core import process as proc
+
+    game_a = Path("D:/Games/ClientA")
+    game_b = Path("D:/Games/ClientB")
+    wow_a = game_a / "WoW.exe"
+    wow_b = game_b / "WoW.exe"
+    vf_a = game_a / "VanillaFixes.exe"
+
+    assert proc._path_is_under(wow_a, game_a)
+    assert proc._path_is_under(vf_a, game_a)
+    assert not proc._path_is_under(wow_b, game_a)
+    assert not proc._path_is_under(Path("D:/Games/Apple/WoW.exe"), Path("D:/Games/App"))
+
+    with patch.object(proc, "_wow_process_images", return_value=(True, [wow_b])):
+        assert proc.wow_exe_running() is True
+        assert proc.wow_exe_running(game_a) is False
+        assert proc.wow_exe_running(game_b) is True
+    with patch.object(proc, "_wow_process_images", return_value=(True, [vf_a])):
+        assert proc.wow_exe_running(game_a) is True
+        assert proc.wow_exe_running(game_b) is False
+    with patch.object(proc, "_wow_process_images", return_value=(True, [])):
+        with patch.object(proc, "_wow_exe_locked_in_dir", return_value=True):
+            assert proc.wow_exe_running(game_a) is True
+        with patch.object(proc, "_wow_exe_locked_in_dir", return_value=False):
+            assert proc.wow_exe_running(game_a) is False
+        with patch.object(proc, "_wow_exe_locked_in_dir", return_value=None):
+            assert proc.wow_exe_running(game_a) is True
+        assert proc.wow_exe_running() is True
+    with patch.object(proc, "_wow_process_images", return_value=(False, [])):
+        assert proc.wow_exe_running() is False
+        assert proc.wow_exe_running(game_a) is False
+
+    with tempfile.TemporaryDirectory() as tmp:
+        empty = Path(tmp)
+        assert proc._wow_exe_locked_in_dir(empty) is False
+        (empty / "WoW.exe").write_bytes(b"MZ")
+        unlocked = proc._wow_exe_locked_in_dir(empty)
+        assert unlocked in (False, None)
+    print("OK wow_exe_running matches game directory")
+
+
+def test_client_page_lock_uses_configured_game_dir():
+    """Client lockout asks whether THIS folder's WoW/VanillaFixes is running."""
+    from pathlib import Path
+    from unittest.mock import patch
+
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.pages.client import ClientPage
+
+    app = QApplication.instance() or QApplication([])
+    del app
+    game = Path("D:/Games/RavenCraft")
+    with patch("ichalaunch.ui.pages.client.plan_changes", return_value=[]):
+        page = ClientPage()
+    with patch("ichalaunch.ui.pages.client.detect_game", return_value=game):
+        with patch("ichalaunch.ui.pages.client.wow_exe_running", return_value=False) as probe:
+            page._poll_game_edit_lock()
+    probe.assert_called_once_with(game)
+    page.deleteLater()
+    print("OK client page lock uses configured game dir")
 
 
 def test_vanilla_tweaks_force_tubtubs_repatch():
@@ -12376,8 +12792,12 @@ def main():
         isolated = Path(td) / "settings.json"
         settings_mod.settings_path = lambda: isolated
         settings_mod.settings.load()
+        from ichalaunch.addons import pending_updates as pending
+
+        pending_cache = Path(td) / "addon_pending_updates.json"
         try:
-            _run_smoke_tests()
+            with pending.isolated_pending_updates_cache(pending_cache):
+                _run_smoke_tests()
         finally:
             settings_mod.settings_path = real_path_fn
             settings_mod.settings.load()
@@ -12402,6 +12822,7 @@ def _run_smoke_tests():
     test_pretty_night_sky_migrates_off_fog_y()
     test_stock_patch9_reacquire_detect()
     test_stock_patch9_prompt_requires_wow_exe()
+    test_config_wtf_farclip_clamp()
     test_darker_nights_migration()
     test_mod_toggle_resolution()
     test_hd_patch_e_includes_caption()
@@ -12465,6 +12886,7 @@ def _run_smoke_tests():
     test_addon_toc_folder_rename()
     test_addon_update_check_uses_catalog_index_only()
     test_older_tag_install_reports_update()
+    test_pending_addon_updates_cache_survives_restart()
     test_update_to_tip_clears_stored_version_pin()
     test_available_catalog_remote_refresh_and_merge()
     test_available_catalog_offline_keeps_cache()
@@ -12541,6 +12963,11 @@ def _run_smoke_tests():
     test_vanilla_tweaks_settings_dialog()
     test_vanilla_tweaks_optional_greyed_when_superwow()
     test_client_pending_plan_row_badge_and_apply_pulse()
+    test_theme_checkbox_disabled_uses_grey_check_art()
+    test_client_page_does_not_poll_game_lock_until_shown()
+    test_client_page_locks_mod_edits_when_wow_running()
+    test_wow_exe_running_matches_game_directory()
+    test_client_page_lock_uses_configured_game_dir()
     test_vanilla_tweaks_force_tubtubs_repatch()
     test_vanilla_tweaks_enable_opens_config_once()
     test_mod_check_row_tweaks_cog()

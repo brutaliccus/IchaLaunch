@@ -2025,6 +2025,12 @@ class Card(QFrame):
     @property
     def body(self) -> QVBoxLayout:
         return self._layout
+MOD_EDIT_LOCKED_TIP = (
+    "Close World of Warcraft for this client folder "
+    "(WoW.exe / VanillaFixes.exe) to change client mods."
+)
+
+
 class ModCheckRow(QWidget):
     """Compact row: [checkbox] Name [▸] [created by] [Open] [Git] — status [Update] [Reinstall].
 
@@ -2062,6 +2068,8 @@ class ModCheckRow(QWidget):
         self._desc_expanded = False
         self._git_url: str | None = None
         self._open_url: str | None = None
+        self._editing_locked = False
+        self._update_detail = ""
         self.setObjectName("ModCheckRow")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setMinimumWidth(0)
@@ -2236,10 +2244,39 @@ class ModCheckRow(QWidget):
 
     def set_update_available(self, available: bool, detail: str = "") -> None:
         self.update_btn.setVisible(available)
+        self._update_detail = (detail or "Update available") if available else ""
         if available:
-            self.update_btn.setToolTip(detail or "Update available")
+            self.update_btn.setToolTip(self._update_detail)
+        self._sync_editing_lock()
+
     def set_reinstall_visible(self, visible: bool) -> None:
         self.reinstall_btn.setVisible(visible)
+        self._sync_editing_lock()
+
+    def set_editing_locked(self, locked: bool) -> None:
+        """Grey out the checkbox while WoW.exe / VanillaFixes.exe is running."""
+        self._editing_locked = bool(locked)
+        self._sync_editing_lock()
+
+    def _sync_editing_lock(self) -> None:
+        locked = self._editing_locked
+        self.cb.setEnabled(not locked)
+        self.cb.setToolTip(MOD_EDIT_LOCKED_TIP if locked else "")
+        self.update_btn.setEnabled(not locked)
+        self.reinstall_btn.setEnabled(not locked)
+        if self.settings_btn is not None:
+            self.settings_btn.setEnabled(not locked)
+            self.settings_btn.setToolTip(
+                MOD_EDIT_LOCKED_TIP if locked else "Configure Vanilla Tweaks patches"
+            )
+        if locked:
+            self.update_btn.setToolTip(MOD_EDIT_LOCKED_TIP)
+            self.reinstall_btn.setToolTip(MOD_EDIT_LOCKED_TIP)
+            return
+        if self.update_btn.isVisible() and self._update_detail:
+            self.update_btn.setToolTip(self._update_detail)
+        if self.reinstall_btn.toolTip() == MOD_EDIT_LOCKED_TIP:
+            self.reinstall_btn.setToolTip("Re-download and overwrite installed files")
 
     def set_pending_change(self, pending: bool) -> None:
         """Show the Adventure Guide alert on this row when Apply has work."""

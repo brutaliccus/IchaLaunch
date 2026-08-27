@@ -17,7 +17,7 @@ from ichalaunch.core.filesystem import (
     robust_move_tree,
 )
 from ichalaunch.core.process import wow_exe_running
-from ichalaunch.game.launcher import resolve_addons_dir
+from ichalaunch.game.launcher import detect_game, resolve_addons_dir
 
 UNLOADED_SIBLING = "AddOnsUnloaded"
 UNLOAD_TOOLTIP = "Unload — keeps files, hidden from the game."
@@ -114,7 +114,7 @@ def addon_move_error_text(exc: BaseException) -> str:
         return text
     if text.startswith("Could not move the addon folder"):
         return text
-    if wow_exe_running():
+    if wow_exe_running(detect_game()):
         return GAME_LOCK_MESSAGE
     if is_access_denied(exc):
         return GENERIC_LOCK_MESSAGE

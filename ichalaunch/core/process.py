@@ -312,10 +312,112 @@ def google_drive_url(file_id: str) -> str:
         f"?id={file_id}&export=download&confirm=t"
     )
 
-def wow_exe_running() -> bool:
-    """True when WoW.exe (or VanillaFixes.exe) is running. Windows-only; no admin."""
-    if sys.platform != "win32":
+_GAME_IMAGE_NAMES = frozenset({"wow.exe", "vanillafixes.exe"})
+
+
+def _path_is_under(image: Path | str, root: Path | str) -> bool:
+    """True when *image* is *root* or a file inside it (Windows-case-safe)."""
+    img_s = os.path.normcase(os.path.normpath(str(image)))
+    base_s = os.path.normcase(os.path.normpath(str(root)))
+    if not img_s or not base_s:
         return False
+    try:
+        img_s = os.path.normcase(str(Path(img_s).expanduser().resolve()))
+        base_s = os.path.normcase(str(Path(base_s).expanduser().resolve()))
+    except OSError:
+        pass
+    if img_s == base_s:
+        return True
+    prefix = base_s.rstrip("\\/") + os.sep
+    return img_s.startswith(prefix)
+
+
+def _query_process_image(pid: int) -> Path | None:
+    """Full image path for *pid*, or None. No admin; same-user processes only."""
+    try:
+        import ctypes
+        from ctypes import wintypes
+    except ImportError:
+        return None
+    kernel32 = ctypes.windll.kernel32
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    handle = kernel32.OpenProcess(0x1000, False, int(pid))  # PROCESS_QUERY_LIMITED_INFORMATION
+    if not handle:
+        return None
+    try:
+        buf = ctypes.create_unicode_buffer(32768)
+        size = wintypes.DWORD(len(buf))
+        if kernel32.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(size)):
+            text = (buf.value or "").strip()
+            return Path(text) if text else None
+    except (OSError, AttributeError, ValueError, TypeError):
+        return None
+    finally:
+        kernel32.CloseHandle(handle)
+    return None
+
+
+def _wow_process_images_toolhelp() -> tuple[bool, list[Path]] | None:
+    """Enumerate WoW.exe / VanillaFixes.exe via Toolhelp. None if the snapshot fails."""
+    try:
+        import ctypes
+        from ctypes import wintypes
+    except ImportError:
+        return None
+
+    class PROCESSENTRY32W(ctypes.Structure):
+        _fields_ = [
+            ("dwSize", wintypes.DWORD),
+            ("cntUsage", wintypes.DWORD),
+            ("th32ProcessID", wintypes.DWORD),
+            ("th32DefaultHeapID", ctypes.c_size_t),
+            ("th32ModuleID", wintypes.DWORD),
+            ("cntThreads", wintypes.DWORD),
+            ("th32ParentProcessID", wintypes.DWORD),
+            ("pcPriClassBase", ctypes.c_long),
+            ("dwFlags", wintypes.DWORD),
+            ("szExeFile", wintypes.WCHAR * 260),
+        ]
+
+    kernel32 = ctypes.windll.kernel32
+    kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    kernel32.Process32FirstW.argtypes = [
+        wintypes.HANDLE,
+        ctypes.POINTER(PROCESSENTRY32W),
+    ]
+    kernel32.Process32NextW.argtypes = [
+        wintypes.HANDLE,
+        ctypes.POINTER(PROCESSENTRY32W),
+    ]
+    invalid = wintypes.HANDLE(-1).value
+    snap = kernel32.CreateToolhelp32Snapshot(0x00000002, 0)  # TH32CS_SNAPPROCESS
+    if not snap or snap == invalid:
+        return None
+    name_seen = False
+    images: list[Path] = []
+    try:
+        entry = PROCESSENTRY32W()
+        entry.dwSize = ctypes.sizeof(PROCESSENTRY32W)
+        if not kernel32.Process32FirstW(snap, ctypes.byref(entry)):
+            return False, []
+        while True:
+            exe = (entry.szExeFile or "").strip().lower()
+            if exe in _GAME_IMAGE_NAMES:
+                name_seen = True
+                image = _query_process_image(int(entry.th32ProcessID))
+                if image is not None:
+                    images.append(image)
+            if not kernel32.Process32NextW(snap, ctypes.byref(entry)):
+                break
+    except (OSError, AttributeError, ValueError, TypeError):
+        return None
+    finally:
+        kernel32.CloseHandle(snap)
+    return name_seen, images
+
+
+def _wow_exe_running_tasklist() -> bool:
+    """Name-only fallback when Toolhelp is unavailable."""
     names = ("WoW.exe", "VanillaFixes.exe")
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     try:
@@ -337,19 +439,123 @@ def wow_exe_running() -> bool:
     return False
 
 
+def _wow_process_images() -> tuple[bool, list[Path]]:
+    """``(name_seen, image_paths)`` for WoW.exe / VanillaFixes.exe. Windows-only."""
+    if sys.platform != "win32":
+        return False, []
+    try:
+        result = _wow_process_images_toolhelp()
+        if result is not None:
+            return result
+    except (OSError, AttributeError, ValueError, TypeError):
+        pass
+    return _wow_exe_running_tasklist(), []
+
+
+def _locker_is_game_exe(name: str) -> bool:
+    n = (name or "").strip().lower()
+    if n in _GAME_IMAGE_NAMES:
+        return True
+    if n.endswith("wow.exe") or n.endswith("vanillafixes.exe"):
+        return True
+    if n in {"wow", "world of warcraft"}:
+        return True
+    return "vanillafixes" in n
+
+
+def _game_dir_exe_paths(game_dir: Path | str) -> list[Path]:
+    """WoW.exe / VanillaFixes.exe that actually live in *game_dir*."""
+    root = Path(game_dir)
+    found: list[Path] = []
+    seen: set[str] = set()
+
+    def _add(path: Path | None) -> None:
+        if path is None:
+            return
+        try:
+            key = os.path.normcase(str(path.resolve() if path.exists() else path))
+        except OSError:
+            key = os.path.normcase(str(path))
+        if key in seen:
+            return
+        seen.add(key)
+        found.append(path)
+
+    try:
+        from ichalaunch.game.launcher import resolve_vanilla_fixes_exe, wow_exe_in
+
+        _add(wow_exe_in(root))
+        _add(resolve_vanilla_fixes_exe(root))
+    except Exception:  # noqa: BLE001
+        pass
+    if found:
+        return found
+    try:
+        for item in root.iterdir():
+            if item.is_file() and item.name.lower() in _GAME_IMAGE_NAMES:
+                _add(item)
+    except OSError:
+        pass
+    return found
+
+
+def _wow_exe_locked_in_dir(game_dir: Path | str) -> bool | None:
+    """True when this folder's client exe is open. None if Restart Manager cannot say."""
+    paths = _game_dir_exe_paths(game_dir)
+    if not paths:
+        # No WoW.exe / VanillaFixes.exe in this folder, so the running process
+        # is some other client.
+        return False
+    lockers = _restart_manager_lockers(paths)
+    if lockers is None:
+        return None
+    return any(_locker_is_game_exe(name) for name in lockers)
+
+
+def wow_exe_running(game_dir: Path | str | None = None) -> bool:
+    """True when WoW.exe or VanillaFixes.exe is running. Windows-only; no admin.
+
+    When *game_dir* is set, only that folder's client counts. Image paths are
+    used when QueryFullProcessImageName is allowed; some clients deny
+    OpenProcess (WinError 5), so this then asks Restart Manager whether
+    *that folder's* WoW.exe / VanillaFixes.exe is open. If the name is seen
+    but neither path nor Restart Manager can be read, this stays True.
+    """
+    if sys.platform != "win32":
+        return False
+    name_seen, images = _wow_process_images()
+    if not name_seen:
+        return False
+    root = str(game_dir or "").strip()
+    if not root:
+        return True
+    if images:
+        return any(_path_is_under(image, root) for image in images)
+    locked = _wow_exe_locked_in_dir(root)
+    if locked is None:
+        return True
+    return bool(locked)
+
+
 def processes_locking_paths(paths: list[Path | str], *, limit: int = 6) -> list[str]:
     """Best-effort image names holding *paths* open (Windows Restart Manager).
 
     Returns ``[]`` when unavailable (non-Windows, API failure, or no lockers found).
     Never raises. Does not require admin.
     """
+    found = _restart_manager_lockers(paths, limit=limit)
+    return found if found is not None else []
+
+
+def _restart_manager_lockers(paths: list[Path | str], *, limit: int = 6) -> list[str] | None:
+    """Locker image names, or None when Restart Manager cannot be queried."""
     if sys.platform != "win32" or not paths:
-        return []
+        return None if sys.platform != "win32" else []
     try:
         import ctypes
         from ctypes import wintypes
     except ImportError:
-        return []
+        return None
 
     rstrtmgr = ctypes.windll.rstrtmgr
     kernel32 = ctypes.windll.kernel32
@@ -374,16 +580,17 @@ def processes_locking_paths(paths: list[Path | str], *, limit: int = 6) -> list[
     session = wintypes.DWORD(0)
     key = ctypes.create_unicode_buffer(32)
     if int(rstrtmgr.RmStartSession(ctypes.byref(session), 0, key)) != 0:
-        return []
+        return None
 
     found: list[str] = []
+    failed = False
     try:
         existing = [str(Path(p)) for p in paths if p and Path(p).exists()]
         if not existing:
             return []
         arr = (wintypes.LPCWSTR * len(existing))(*existing)
         if int(rstrtmgr.RmRegisterResources(session, len(existing), arr, 0, None, 0, None)) != 0:
-            return []
+            return None
 
         needed = wintypes.UINT(0)
         count = wintypes.UINT(0)
@@ -408,7 +615,7 @@ def processes_locking_paths(paths: list[Path | str], *, limit: int = 6) -> list[
             )
         )
         if rc not in (0, 234):
-            return []
+            return None
 
         seen: set[str] = set()
         for i in range(int(count.value)):
@@ -434,13 +641,14 @@ def processes_locking_paths(paths: list[Path | str], *, limit: int = 6) -> list[
             if len(found) >= max(1, int(limit)):
                 break
     except (OSError, AttributeError, ValueError, TypeError):
-        return []
+        failed = True
+        return None
     finally:
         try:
             rstrtmgr.RmEndSession(session)
         except Exception:  # noqa: BLE001
             pass
-    return found
+    return None if failed else found
 
 
 def file_in_use_hint(*paths: Path | str) -> str:
@@ -453,9 +661,16 @@ def file_in_use_hint(*paths: Path | str) -> str:
     from ichalaunch.core.filesystem import TASK_MANAGER_END_GAME_HINT
 
     end_tasks = f"{TASK_MANAGER_END_GAME_HINT} Then retry Apply."
-    if wow_exe_running():
+    game_dir = None
+    try:
+        from ichalaunch.game.launcher import detect_game
+
+        game_dir = detect_game()
+    except Exception:  # noqa: BLE001
+        game_dir = None
+    if wow_exe_running(game_dir):
         return (
-            "WoW.exe or VanillaFixes.exe is still running "
+            "WoW.exe or VanillaFixes.exe is still running from this client folder "
             "(the game window can be closed while the process stays in Task Manager). "
             + end_tasks
         )

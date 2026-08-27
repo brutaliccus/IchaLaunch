@@ -229,7 +229,7 @@ def _install_copy(src: Path, dest: Path, game_path: Path | None = None) -> None:
             log.warning(
                 "Replace blocked for %s (wow_running=%s): %s",
                 dest.name,
-                wow_exe_running(),
+                wow_exe_running(game_path),
                 hint,
             )
             raise OSError(
@@ -2863,7 +2863,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
     if not mod:
         raise KeyError(mod_id)
 
-    if _mod_requires_game_closed(mod) and wow_exe_running():
+    if _mod_requires_game_closed(mod) and wow_exe_running(game):
         hint = file_in_use_hint(game / "WoW.exe", game / "VanillaFixes.exe")
         log.warning("Refusing %s install — game process still running: %s", mod_id, hint)
         raise OSError(
