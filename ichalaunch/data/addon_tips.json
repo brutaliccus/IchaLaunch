@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-26T23:43:30Z",
+  "generated_at": "2026-08-27T02:34:41Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -12275,9 +12275,9 @@
     },
     "obszczymucha/roll-for-vanilla": {
       "default_branch": "master",
-      "sha": "66c87040f030d5f4635d040f6d1b0fd6a4bf9c6e",
+      "sha": "78367e916692a092cf58efb3c1c83479c02f7d20",
       "branches": {
-        "master": "66c87040f030d5f4635d040f6d1b0fd6a4bf9c6e"
+        "master": "78367e916692a092cf58efb3c1c83479c02f7d20"
       },
       "latest_tag": "v4.6.5"
     },
@@ -16430,9 +16430,9 @@
     },
     "torchlite-bit/aegis_exchange": {
       "default_branch": "main",
-      "sha": "f84f423a006bcc202602ddeaf72b38a75d3bfd47",
+      "sha": "9db290b7ed9cb3dee2883e7608296812215ff868",
       "branches": {
-        "main": "f84f423a006bcc202602ddeaf72b38a75d3bfd47"
+        "main": "9db290b7ed9cb3dee2883e7608296812215ff868"
       }
     },
     "rustybelter77/aegis_exchange": {
@@ -16990,9 +16990,9 @@
     },
     "sandreasub/questie-octo": {
       "default_branch": "main",
-      "sha": "f9724ce23aae54e3b1276a43c803c848df3c9f2d",
+      "sha": "4af4e081b14e57ed4db7c7460389d60e89a246d1",
       "branches": {
-        "main": "f9724ce23aae54e3b1276a43c803c848df3c9f2d"
+        "main": "4af4e081b14e57ed4db7c7460389d60e89a246d1"
       }
     },
     "jordanfaz/questie-octo": {
@@ -17044,12 +17044,48 @@
         "master": "dc9c364566ca173a75a1fd15adc5d35f4c8f3e00"
       }
     },
+    "jrc13245/supermacro-turtle-superwow": {
+      "default_branch": "master",
+      "sha": "8f2978b992358ab86757d34107f6ddf890467dc7",
+      "branches": {
+        "master": "8f2978b992358ab86757d34107f6ddf890467dc7"
+      }
+    },
+    "retrocro/unitscan-turtle-hc": {
+      "default_branch": "master",
+      "sha": "0a1002827b611c6cfbefe186329e9e412530f012",
+      "branches": {
+        "master": "0a1002827b611c6cfbefe186329e9e412530f012"
+      }
+    },
+    "shagu/pfui": {
+      "default_branch": "master",
+      "sha": "b2f6df84a93a4ce6adbe1fd8f0372454795151f1",
+      "branches": {
+        "master": "b2f6df84a93a4ce6adbe1fd8f0372454795151f1"
+      }
+    },
+    "redbu11dev/unitplates": {
+      "default_branch": "main",
+      "sha": "1d7cd29b6a196bccafd0d68e6932db4372bd5d0d",
+      "branches": {
+        "main": "1d7cd29b6a196bccafd0d68e6932db4372bd5d0d"
+      }
+    },
     "tubtubs/vanilla-tweaks": {
       "default_branch": "master",
       "sha": "1e18414f8f3535d3436d3dc6a7351d4ea74b50b4",
       "branches": {
         "master": "1e18414f8f3535d3436d3dc6a7351d4ea74b50b4"
       }
+    },
+    "brndd/vanilla-tweaks": {
+      "default_branch": "master",
+      "sha": "fbbe31add71b23602d981d70f1a58520fc349b47",
+      "branches": {
+        "master": "fbbe31add71b23602d981d70f1a58520fc349b47"
+      },
+      "latest_tag": "v1.6.0"
     },
     "hannesmann/vanillafixes": {
       "default_branch": "main",
@@ -17094,11 +17130,11 @@
     },
     "brues-code/classicapi": {
       "default_branch": "master",
-      "sha": "a962c76f09fee136521ed99fc122b369b2b0f98e",
+      "sha": "772cd5ec157ac48cf378e57d156d7ee7f46d2d01",
       "branches": {
-        "master": "a962c76f09fee136521ed99fc122b369b2b0f98e"
+        "master": "772cd5ec157ac48cf378e57d156d7ee7f46d2d01"
       },
-      "latest_tag": "v1.12.6"
+      "latest_tag": "v1.12.7"
     },
     "retrocro/turtlewow-mods": {
       "default_branch": "main",
