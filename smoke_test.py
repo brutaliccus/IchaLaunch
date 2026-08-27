@@ -10237,10 +10237,24 @@ def test_superwow_tracks_dll_release_not_patch_mpq():
 
 def test_superwow_issue_detection():
     import tempfile
+    from unittest.mock import patch
 
     from ichalaunch.config.settings import settings as s
     from ichalaunch.core.filesystem import clear_fs_caches
-    from ichalaunch.mods.superwow_support import detect_superwow_issues
+    from ichalaunch.mods.superwow_support import (
+        SuperWoWTrigger,
+        detect_superwow_issues,
+        maybe_show_superwow_troubleshoot,
+        should_prompt_superwow_troubleshoot,
+    )
+
+    client_src = (ROOT / "ichalaunch" / "ui" / "pages" / "client.py").read_text(
+        encoding="utf-8"
+    )
+    assert "_maybe_superwow_enable_check" not in client_src
+    assert "_maybe_superwow_client_drift" not in client_src
+    assert "ENABLE_BAD_DLL" not in SuperWoWTrigger.__members__
+    assert "CLIENT_DRIFT" not in SuperWoWTrigger.__members__
 
     keys = ("desired_mods", "game_path", "addons_path")
     saved = {k: s.get(k) for k in keys}
@@ -10262,6 +10276,28 @@ def test_superwow_issue_detection():
             assert "stale_hook" in codes
             assert "stale_superapi" in codes
             assert "stale_dlls_txt" in codes
+            # Leftovers after unchecking SuperWoW are expected until Apply.
+            # Only real install/remove/sync failures may still prompt.
+            assert SuperWoWTrigger.__members__.keys() == {
+                "INSTALL_FAIL",
+                "REMOVE_FAIL",
+                "SYNC_FAIL",
+            }
+            assert not should_prompt_superwow_troubleshoot(
+                SuperWoWTrigger.SYNC_FAIL, []
+            )
+            shown = []
+            with patch(
+                "ichalaunch.ui.widgets.dialogs.warning",
+                side_effect=lambda *a, **k: shown.append(a),
+            ):
+                assert (
+                    maybe_show_superwow_troubleshoot(
+                        None, SuperWoWTrigger.SYNC_FAIL, issues=issues
+                    )
+                    is True
+                )
+            assert shown, "real sync/install/remove failures may still prompt"
 
             s.set("desired_mods", {"superwow": True})
             (game / "SuperWoWhook.dll").write_bytes(b"xx")
@@ -10273,6 +10309,87 @@ def test_superwow_issue_detection():
             s.set(k, saved[k])
         clear_fs_caches()
     print("OK superwow issue detection")
+
+
+def test_superwow_toggle_does_not_prompt_install_issue():
+    """Unchecking SuperWoW must not pop the leftover-file install-issue dialog."""
+    import tempfile
+    from unittest.mock import patch
+
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.ui.pages.client import ClientPage
+
+    app = QApplication.instance() or QApplication([])
+    keys = (
+        "desired_mods",
+        "game_path",
+        "addons_path",
+        "dismissed_dll_security_exclusion_hint",
+        "dll_security_exclusion_hint_shown",
+    )
+    saved = {k: s.get(k) for k in keys}
+    assert not hasattr(ClientPage, "_maybe_superwow_enable_check")
+    assert not hasattr(ClientPage, "_maybe_superwow_client_drift")
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            addons = game / "Interface" / "AddOns"
+            addons.mkdir(parents=True)
+            (addons / "SuperAPI").mkdir()
+            (game / "SuperWoWhook.dll").write_bytes(b"MZ" + b"\0" * 64)
+            (game / "dlls.txt").write_text("SuperWoWhook.dll\n", encoding="utf-8")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("desired_mods", {**s.desired_mods, "superwow": True, "auto_login": False})
+            s.set("dismissed_dll_security_exclusion_hint", True)
+            s.set("dll_security_exclusion_hint_shown", True)
+            clear_fs_caches()
+            shown = []
+
+            def _capture_warning(parent, title, text):  # noqa: ANN001
+                shown.append((title, text))
+
+            with (
+                patch("ichalaunch.ui.pages.client.plan_changes", return_value=[]),
+                patch(
+                    "ichalaunch.ui.pages.client.ClientPage._maybe_prompt_vf_dxvk_conflict"
+                ),
+                patch("ichalaunch.ui.pages.client.confirm", return_value=True),
+                patch(
+                    "ichalaunch.ui.widgets.dialogs.warning",
+                    side_effect=_capture_warning,
+                ),
+                patch(
+                    "ichalaunch.mods.superwow_support.maybe_show_superwow_troubleshoot",
+                    side_effect=lambda *a, **k: shown.append(("troubleshoot", a, k)),
+                ),
+            ):
+                page = ClientPage()
+                app.processEvents()
+                page._on_toggle("superwow", False)
+                page.refresh_from_settings()
+                app.processEvents()
+                page._on_toggle("superwow", True)
+                page.refresh_from_settings()
+                app.processEvents()
+                page.deleteLater()
+            install_issue = [
+                item
+                for item in shown
+                if (isinstance(item, tuple) and item and "install issue" in str(item[0]).lower())
+                or (isinstance(item, tuple) and "troubleshoot" in str(item[0]).lower())
+            ]
+            assert install_issue == [], install_issue
+            assert s.desired_mods.get("superwow") is True
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK superwow toggle does not prompt install issue")
 
 
 def test_themed_dialog_flags_and_close():
@@ -14271,6 +14388,7 @@ def _run_smoke_tests():
     test_vanilla_tweaks_old_settings_dialog_and_warning()
     test_superwow_tracks_dll_release_not_patch_mpq()
     test_superwow_issue_detection()
+    test_superwow_toggle_does_not_prompt_install_issue()
     test_themed_dialog_flags_and_close()
     test_dll_security_dialog_dont_show_again_is_themed_checkbox()
     test_mpq_patch_warning_dialog_and_persist()

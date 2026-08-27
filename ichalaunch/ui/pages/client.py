@@ -49,11 +49,6 @@ from ichalaunch.mods.stock_patch import (
     inspect_stock_patch9,
     should_offer_stock_patch9_reacquire,
 )
-from ichalaunch.mods.superwow_support import (
-    SuperWoWTrigger,
-    detect_superwow_issues,
-    maybe_show_superwow_troubleshoot,
-)
 from ichalaunch.ui.widgets.casting_bar_search_edit import CastingBarSearchEdit
 from ichalaunch.ui.widgets.common import (
     MOD_EDIT_LOCKED_TIP,
@@ -1024,8 +1019,6 @@ class ClientPage(QWidget):
         if enabled:
             QTimer.singleShot(0, lambda: self._maybe_show_dll_security_hint(mod_id, enabled))
             QTimer.singleShot(0, lambda: self._maybe_show_mpq_patch_warning(mod_id, enabled))
-        if enabled and mod_id == "superwow":
-            QTimer.singleShot(0, self._maybe_superwow_enable_check)
         if enabled and mod_id in ("vanilla_tweaks", "vanilla_tweaks_old"):
             QTimer.singleShot(0, lambda mid=mod_id: self._open_mod_config(mid))
         if not self._applying_preset:
@@ -1062,18 +1055,6 @@ class ClientPage(QWidget):
                 "\n\nMods that required VanillaFixes will be unchecked as well."
             )
         return confirm(self, "Also disable related mods?", body)
-
-    def _maybe_superwow_enable_check(self) -> None:
-        issues = detect_superwow_issues()
-        if not issues:
-            return
-        maybe_show_superwow_troubleshoot(self, SuperWoWTrigger.ENABLE_BAD_DLL, issues=issues)
-
-    def _maybe_superwow_client_drift(self) -> None:
-        if not settings.desired_mods.get("superwow", False):
-            issues = detect_superwow_issues()
-            if issues:
-                maybe_show_superwow_troubleshoot(self, SuperWoWTrigger.CLIENT_DRIFT, issues=issues)
 
     def _refresh_patch9_banner(self) -> None:
         game = detect_game()
@@ -1179,7 +1160,6 @@ class ClientPage(QWidget):
         self._set_game_edit_locked(self._game_edit_locked)
         if vanillafixes_dxvk_both_enabled():
             QTimer.singleShot(0, self._maybe_prompt_vf_dxvk_conflict)
-        QTimer.singleShot(0, self._maybe_superwow_client_drift)
         self._refresh_patch9_banner()
         self._refresh_cat_badges()
         if not self._applying_preset:

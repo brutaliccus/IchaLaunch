@@ -38,15 +38,11 @@ SUPERWOW_TROUBLESHOOT_BODY = (
     "e.g. C:\\Games\\YourServer and use Check Game Permissions in Settings."
 )
 
-_SESSION_DRIFT_PROMPTED = False
-
 
 class SuperWoWTrigger(str, Enum):
     INSTALL_FAIL = "install_fail"
     REMOVE_FAIL = "remove_fail"
     SYNC_FAIL = "sync_fail"
-    ENABLE_BAD_DLL = "enable_bad_dll"
-    CLIENT_DRIFT = "client_drift"
 
 
 @dataclass(frozen=True)
@@ -156,23 +152,14 @@ def _failure_lines_refer_superwow(failures: list[str]) -> bool:
 
 
 def should_prompt_superwow_troubleshoot(trigger: SuperWoWTrigger, issues: list[SuperWoWIssue]) -> bool:
-    """Decide whether to show the troubleshooting dialog (avoid launch spam)."""
+    """True only after SuperWoW install/remove/sync failures, never on toggle."""
     if not issues:
         return False
-    if trigger in (
+    return trigger in (
         SuperWoWTrigger.INSTALL_FAIL,
         SuperWoWTrigger.REMOVE_FAIL,
         SuperWoWTrigger.SYNC_FAIL,
-        SuperWoWTrigger.ENABLE_BAD_DLL,
-    ):
-        return True
-    if trigger == SuperWoWTrigger.CLIENT_DRIFT:
-        global _SESSION_DRIFT_PROMPTED
-        if _SESSION_DRIFT_PROMPTED:
-            return False
-        _SESSION_DRIFT_PROMPTED = True
-        return True
-    return False
+    )
 
 
 def maybe_show_superwow_troubleshoot(
