@@ -27,6 +27,23 @@ hiddenimports = [
 datas += collect_data_files("certifi")
 hiddenimports.append("certifi")
 
+# requests chooses its character-detection library at runtime, taking the first
+# of chardet / charset_normalizer that imports. That choice goes through
+# importlib, so it is invisible to PyInstaller's analysis and would otherwise be
+# decided by whatever the build machine happens to have installed.
+#
+# charset_normalizer is a hard dependency of requests and is always present.
+# chardet is only an optional extra (requests[use-chardet-on-py3]), is not in
+# requirements.txt, and arrives incidentally through unrelated packages. When it
+# does it wins, and it costs about 50 ms of every launch plus 12 MB of language
+# frequency models for Welsh, Thai, Slovak and friends, to do a job
+# charset_normalizer already does. Pinning the choice here makes the build
+# reproducible rather than dependent on the machine it was made on.
+cn_datas, cn_binaries, cn_hidden = collect_all("charset_normalizer")
+datas += cn_datas
+binaries += cn_binaries
+hiddenimports += cn_hidden
+
 # PySide6 + shiboken6 (plugins, translations, Qt DLLs, .pyd modules).
 for package in ("PySide6", "shiboken6"):
     pkg_datas, pkg_binaries, pkg_hidden = collect_all(package)
@@ -110,7 +127,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=["chardet"],
     noarchive=False,
     optimize=0,
 )
