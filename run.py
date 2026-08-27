@@ -1,5 +1,10 @@
 import sys
 
+# Frozen onefile entry: sanitize stale SSL_CERT_FILE etc. before any HTTPS.
+from ichalaunch.core.tls import sanitize_tls_ca_env
+
+sanitize_tls_ca_env()
+
 # Install crash hooks before other imports when launched via run.py.
 import ichalaunch.core.logging_setup  # noqa: F401
 

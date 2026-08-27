@@ -1,5 +1,10 @@
 """IchaLaunch — Ravencraft / Turtle-compatible WoW client launcher."""
 
-__version__ = "1.3.3"
+from .core.tls import sanitize_tls_ca_env
+
+__version__ = "1.3.4"
 __app_name__ = "IchaLaunch"
+
+# Before any HTTPS (catalog, addons, GitHub, updates): drop stale CA env paths.
+sanitize_tls_ca_env()
 

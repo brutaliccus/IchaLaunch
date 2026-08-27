@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import errno
 import json
 import os
+import secrets
 import shutil
 import sys
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator  # Path used by default_addons_path_for
@@ -104,6 +107,18 @@ def settings_path() -> Path:
     return appdata_root() / "settings.json"
 
 
+# Addons page list-filter dropdown. Order matches the combo items.
+ADDON_LIST_FILTERS = ("Installed", "Available", "Update Available", "All")
+ADDON_LIST_FILTER_DEFAULT = "All"
+
+
+def normalize_addons_filter(value: Any) -> str:
+    """Return a known filter label, or All when the saved value is invalid."""
+    if isinstance(value, str) and value in ADDON_LIST_FILTERS:
+        return value
+    return ADDON_LIST_FILTER_DEFAULT
+
+
 DEFAULTS: dict[str, Any] = {
     "game_path": "",
     # Linux launch. Empty proton path means "resolve and then pin".
@@ -187,6 +202,8 @@ DEFAULTS: dict[str, Any] = {
     "user_mods": [],
     "user_set_mods": [],
     "window_geometry": None,
+    # Addons page filter dropdown (All / Available / Installed / Update Available).
+    "addons_filter": ADDON_LIST_FILTER_DEFAULT,
     "dismissed_dll_security_exclusion_hint": False,
     "dll_security_exclusion_hint_shown": False,
     "dismissed_mpq_patch_warning": False,
@@ -226,6 +243,29 @@ def _read_settings_dict(path: Path) -> dict[str, Any] | None:
 
 def _settings_backup_path(path: Path) -> Path:
     return path.with_name(path.name + ".bak")
+
+
+# Two IchaLaunch processes (double-click, leftover + new) used to share
+# settings.json.tmp. Last writer then hit WinError 5 / 2 on os.replace.
+_SETTINGS_SAVE_RETRIES = 4
+_SETTINGS_REPLACE_RACE_WINERRORS = frozenset({2, 5, 32})
+_SETTINGS_REPLACE_RACE_ERRNOS = frozenset(
+    {errno.ENOENT, errno.EACCES, errno.EPERM, errno.EAGAIN}
+)
+
+
+def _is_settings_replace_race(exc: BaseException) -> bool:
+    """True for the double-process replace collisions seen on #58."""
+    winerr = getattr(exc, "winerror", None)
+    if winerr in _SETTINGS_REPLACE_RACE_WINERRORS:
+        return True
+    return getattr(exc, "errno", None) in _SETTINGS_REPLACE_RACE_ERRNOS
+
+
+def _settings_tmp_path(path: Path) -> Path:
+    """Per-save temp name so two processes never share settings.json.tmp."""
+    token = f"{os.getpid()}.{secrets.token_hex(4)}"
+    return path.with_name(f"{path.name}.{token}.tmp")
 
 
 def migrate_legacy_mod_ids(data: dict[str, Any]) -> bool:
@@ -442,15 +482,33 @@ class Settings:
         path = settings_path()
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = json.dumps(self._data, indent=2)
-        tmp = path.with_name(path.name + ".tmp")
-        tmp.write_text(payload, encoding="utf-8")
-        if path.is_file():
-            bak = _settings_backup_path(path)
+        tmp = _settings_tmp_path(path)
+        last: OSError | None = None
+        try:
+            for attempt in range(_SETTINGS_SAVE_RETRIES):
+                try:
+                    tmp.write_text(payload, encoding="utf-8")
+                    if path.is_file():
+                        bak = _settings_backup_path(path)
+                        try:
+                            shutil.copy2(path, bak)
+                        except OSError:
+                            pass
+                    os.replace(tmp, path)
+                    return
+                except OSError as exc:
+                    last = exc
+                    if not _is_settings_replace_race(exc) or attempt + 1 >= _SETTINGS_SAVE_RETRIES:
+                        break
+                    time.sleep(0.05 * (attempt + 1))
+            assert last is not None
+            raise last
+        finally:
             try:
-                shutil.copy2(path, bak)
+                if tmp.exists():
+                    tmp.unlink()
             except OSError:
                 pass
-        os.replace(tmp, path)
 
     def get(self, key: str, default: Any = None) -> Any:
         return self._data.get(key, default)
@@ -470,6 +528,13 @@ class Settings:
             return
         self._data[key] = value
         self.save()
+
+    def addons_filter(self) -> str:
+        """Last Addons list filter, or All when missing/unknown."""
+        return normalize_addons_filter(self.get("addons_filter", ADDON_LIST_FILTER_DEFAULT))
+
+    def set_addons_filter(self, value: Any) -> None:
+        self.set("addons_filter", normalize_addons_filter(value))
 
     @staticmethod
     def default_addons_path_for(game_path: str | Path) -> str:

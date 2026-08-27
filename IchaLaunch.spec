@@ -5,7 +5,7 @@ import glob
 import os
 import sys
 
-from PyInstaller.utils.hooks import collect_all
+from PyInstaller.utils.hooks import collect_all, collect_data_files
 from PyInstaller.utils.hooks.qt import pyside6_library_info
 
 block_cipher = None
@@ -22,6 +22,10 @@ hiddenimports = [
     "shiboken6",
     "PySide6.support.deprecated",
 ]
+
+# certifi CA bundle — every HTTPS stack in the onefile (catalog, addons, updates).
+datas += collect_data_files("certifi")
+hiddenimports.append("certifi")
 
 # PySide6 + shiboken6 (plugins, translations, Qt DLLs, .pyd modules).
 for package in ("PySide6", "shiboken6"):

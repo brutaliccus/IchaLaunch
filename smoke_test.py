@@ -30,6 +30,89 @@ def test_catalogs():
     print(f"OK catalogs: {len(mods)} mods, {len(addons)} addons")
 
 
+def test_tls_ca_env_sanitizer():
+    """Stale CA env vars (Postgres, foo.crt, missing dir) must not survive startup."""
+    import os
+    import ssl
+
+    import requests
+
+    from ichalaunch.core.tls import (
+        CA_DIR_ENV_VARS,
+        CA_FILE_ENV_VARS,
+        bundled_ca_file,
+        process_ca_file,
+        sanitize_tls_ca_env,
+    )
+
+    ca_names = CA_FILE_ENV_VARS + CA_DIR_ENV_VARS
+    saved = {name: os.environ.get(name) for name in ca_names}
+
+    def _restore() -> None:
+        for name, value in saved.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+        sanitize_tls_ca_env()
+
+    certifi_pem = bundled_ca_file()
+    assert certifi_pem and os.path.isfile(certifi_pem), "certifi cacert.pem must be readable"
+
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            postgres = root / "Program Files" / "PostgreSQL" / "16" / "ssl" / "certs" / "ca-bundle.crt"
+            foo = root / "foo.crt"
+            missing_dir = root / "no_such_certs"
+            git_crt = root / "git-missing.crt"
+            os.environ["SSL_CERT_FILE"] = str(postgres)
+            os.environ["REQUESTS_CA_BUNDLE"] = str(foo)
+            os.environ["CURL_CA_BUNDLE"] = str(root / "curl-missing.pem")
+            os.environ["GIT_SSL_CAINFO"] = str(git_crt)
+            os.environ["PIP_CERT"] = str(root / "pip.crt")
+            os.environ["NODE_EXTRA_CA_CERTS"] = str(root / "node.crt")
+            os.environ["SSL_CERT_DIR"] = str(missing_dir)
+
+            bundle = sanitize_tls_ca_env()
+            assert bundle == certifi_pem
+            assert process_ca_file() == certifi_pem
+            leftover = " ".join(os.environ.get(n, "") for n in ca_names)
+            assert "PostgreSQL" not in leftover
+            assert "foo.crt" not in leftover
+            assert "curl-missing" not in leftover
+            assert "git-missing" not in leftover
+            assert "no_such_certs" not in leftover
+            assert os.environ.get("SSL_CERT_DIR") in (None, "")
+            for name in CA_FILE_ENV_VARS:
+                assert os.environ.get(name) == certifi_pem, name
+            assert requests.certs.where() == certifi_pem
+            session = requests.Session()
+            merged = session.merge_environment_settings(
+                "https://example.com", {}, None, True, None
+            )
+            assert merged.get("verify") == certifi_pem
+            ssl.create_default_context()
+
+            custom = root / "corporate.pem"
+            custom.write_bytes(Path(certifi_pem).read_bytes())
+            os.environ["SSL_CERT_FILE"] = str(custom)
+            os.environ["REQUESTS_CA_BUNDLE"] = str(foo)
+            os.environ["CURL_CA_BUNDLE"] = str(root / "other-missing.crt")
+            os.environ["SSL_CERT_DIR"] = str(missing_dir)
+            chosen = sanitize_tls_ca_env()
+            assert chosen == str(custom)
+            assert os.environ["SSL_CERT_FILE"] == str(custom)
+            assert os.environ["REQUESTS_CA_BUNDLE"] == str(custom)
+            assert os.environ["CURL_CA_BUNDLE"] == str(custom)
+            assert "foo.crt" not in (os.environ.get("REQUESTS_CA_BUNDLE") or "")
+            assert os.environ.get("SSL_CERT_DIR") in (None, "")
+    finally:
+        _restore()
+
+    print("OK tls ca env sanitizer")
+
+
 def test_github_parse():
     assert parse_github_url("https://github.com/shagu/ShaguTweaks") == (
         "shagu",
@@ -7519,6 +7602,169 @@ def test_settings_merge_keeps_game_path_and_tweaks_v2():
     print("OK settings merge keeps game path and Tweaks V2")
 
 
+def test_settings_save_survives_double_process_replace_race():
+    """Two writers must not share settings.json.tmp; replace 5/2 is retried (#58)."""
+    import threading
+    from unittest import mock
+
+    import ichalaunch.config.settings as settings_mod
+    from ichalaunch.config.settings import (
+        Settings,
+        _is_settings_replace_race,
+        _settings_tmp_path,
+    )
+
+    denied = OSError(13, "Access is denied")
+    denied.winerror = 5
+    missing = FileNotFoundError(2, "The system cannot find the file specified")
+    missing.winerror = 2
+    assert _is_settings_replace_race(denied) is True
+    assert _is_settings_replace_race(missing) is True
+    assert _is_settings_replace_race(OSError(28, "No space left on device")) is False
+
+    with tempfile.TemporaryDirectory() as td:
+        fake = Path(td) / "settings.json"
+        orig_path = settings_mod.settings_path
+        settings_mod.settings_path = lambda: fake
+        try:
+            first = _settings_tmp_path(fake)
+            second = _settings_tmp_path(fake)
+            assert first != second
+            assert first.parent == fake.parent
+            assert first.name.startswith("settings.json.")
+            assert first.suffix == ".tmp"
+            assert "settings.json.tmp" not in {first.name, second.name}
+
+            s = Settings()
+            s._data["game_path"] = r"D:\Games\RavenCraft"
+            calls = {"n": 0}
+            real_replace = os.replace
+
+            def _flaky_replace(src, dest):
+                calls["n"] += 1
+                if calls["n"] < 3:
+                    raise denied
+                real_replace(src, dest)
+
+            with mock.patch("ichalaunch.config.settings.os.replace", side_effect=_flaky_replace):
+                s.save()
+            assert calls["n"] == 3
+            assert json.loads(fake.read_text(encoding="utf-8"))["game_path"] == r"D:\Games\RavenCraft"
+            leftover = list(Path(td).glob("settings.json.*.tmp"))
+            assert leftover == []
+
+            errors: list[BaseException] = []
+
+            def _writer(label: str) -> None:
+                other = Settings()
+                try:
+                    for i in range(8):
+                        other.set("last_mod_update_check", float(i) + (0.1 if label == "b" else 0.0))
+                except Exception as exc:  # noqa: BLE001
+                    errors.append(exc)
+
+            a = threading.Thread(target=_writer, args=("a",))
+            b = threading.Thread(target=_writer, args=("b",))
+            a.start()
+            b.start()
+            a.join()
+            b.join()
+            assert errors == []
+            raw = json.loads(fake.read_text(encoding="utf-8"))
+            assert "last_mod_update_check" in raw
+        finally:
+            settings_mod.settings_path = orig_path
+    print("OK settings save survives double-process replace race")
+
+
+def test_addons_filter_persists():
+    """Addons list filter survives save/load; unknown values fall back to All."""
+    import ichalaunch.config.settings as settings_mod
+    from ichalaunch.config.settings import (
+        ADDON_LIST_FILTER_DEFAULT,
+        ADDON_LIST_FILTERS,
+        Settings,
+    )
+
+    assert ADDON_LIST_FILTER_DEFAULT == "All"
+    assert ADDON_LIST_FILTERS == ("Installed", "Available", "Update Available", "All")
+    assert settings_mod.DEFAULTS["addons_filter"] == "All"
+
+    with tempfile.TemporaryDirectory() as td:
+        fake = Path(td) / "settings.json"
+        orig_path = settings_mod.settings_path
+        settings_mod.settings_path = lambda: fake
+        try:
+            s = Settings()
+            assert s.addons_filter() == "All"
+
+            for mode in ADDON_LIST_FILTERS:
+                s.set_addons_filter(mode)
+                reloaded = Settings()
+                assert reloaded.addons_filter() == mode, mode
+                raw = json.loads(fake.read_text(encoding="utf-8"))
+                assert raw["addons_filter"] == mode
+
+            s.set_addons_filter("not-a-filter")
+            assert s.addons_filter() == "All"
+            reloaded = Settings()
+            assert reloaded.addons_filter() == "All"
+
+            fake.write_text(json.dumps({"addons_filter": "Nope"}), encoding="utf-8")
+            reloaded = Settings()
+            assert reloaded.addons_filter() == "All"
+
+            fake.write_text(json.dumps({"addons_filter": 123}), encoding="utf-8")
+            reloaded = Settings()
+            assert reloaded.addons_filter() == "All"
+
+            fake.write_text(json.dumps({"addons_filter": None}), encoding="utf-8")
+            reloaded = Settings()
+            assert reloaded.addons_filter() == "All"
+        finally:
+            settings_mod.settings_path = orig_path
+    print("OK addons filter persists and unknown values fall back")
+
+
+def test_addons_page_restores_and_saves_filter():
+    """Addons page restores addons_filter and writes it when the dropdown changes."""
+    from unittest.mock import MagicMock, patch
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.config.settings import ADDON_LIST_FILTERS
+    from ichalaunch.ui.pages.addons import AddonsPage
+
+    app = QApplication.instance() or QApplication([])
+
+    for mode in ADDON_LIST_FILTERS:
+        mock_settings = MagicMock()
+        mock_settings.addons_filter.return_value = mode
+        with patch("ichalaunch.ui.pages.addons.settings", mock_settings):
+            page = AddonsPage()
+            page.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+            assert page.filter_box.currentText() == mode, mode
+            page.close()
+            app.processEvents()
+
+    mock_settings = MagicMock()
+    mock_settings.addons_filter.return_value = "Nope"
+    with patch("ichalaunch.ui.pages.addons.settings", mock_settings):
+        page = AddonsPage()
+        page.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        assert page.filter_box.currentText() == "All"
+        page.filter_box.setCurrentText("Installed")
+        mock_settings.set_addons_filter.assert_called_with("Installed")
+        mock_settings.set_addons_filter.reset_mock()
+        page.cat_box.addItem("Interface")
+        page.cat_box.setCurrentText("Interface")
+        mock_settings.set_addons_filter.assert_not_called()
+        page.close()
+        app.processEvents()
+    print("OK addons page restores and saves filter dropdown")
+
+
 def test_launcher_release_cache():
     from ichalaunch.config.settings import settings
     from ichalaunch.core.self_update import (
@@ -9944,6 +10190,10 @@ def test_mainwindow_addons_next_all_filter_fully_loaded():
     for _ in range(600):
         app.processEvents()
     page = win.addons
+    if page.filter_box.currentText() != "All":
+        page.filter_box.setCurrentText("All")
+        for _ in range(400):
+            app.processEvents()
     assert page.filter_box.currentText() == "All"
     # Simulate post-startup idle: scan finished, lists revealed.
     page.set_scanning(False)
@@ -12135,6 +12385,7 @@ def main():
 
 def _run_smoke_tests():
     test_catalogs()
+    test_tls_ca_env_sanitizer()
     test_github_parse()
     test_gitlab_parse_and_install_url()
     test_gitlab_preview_does_not_use_github_api()
@@ -12240,6 +12491,9 @@ def _run_smoke_tests():
     test_settings_paths_survive_load_cycle()
     test_settings_paths_recover_from_backup()
     test_settings_merge_keeps_game_path_and_tweaks_v2()
+    test_settings_save_survives_double_process_replace_race()
+    test_addons_filter_persists()
+    test_addons_page_restores_and_saves_filter()
     test_bagshui_catalog_pin()
     test_never_update_persists()
     test_reinstall_clears_never_update()

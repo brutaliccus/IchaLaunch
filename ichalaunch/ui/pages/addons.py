@@ -25,7 +25,7 @@ from ichalaunch.addons.github import (
 )
 from ichalaunch.addons.release_downloads import popularity_sort_key
 from ichalaunch.addons.loadstate import addon_disk_path, addon_is_loaded, set_addon_loaded
-from ichalaunch.config.settings import settings
+from ichalaunch.config.settings import ADDON_LIST_FILTER_DEFAULT, ADDON_LIST_FILTERS, settings
 from ichalaunch.core.detect import (
     catalog_index,
     merge_addon_meta,
@@ -311,11 +311,13 @@ class AddonsPage(QWidget):
 
         self.filter_box = GlueComboBox(min_width=160, height=GLUE_BTN_H)
         self.filter_box.blockSignals(True)
-        self.filter_box.addItems(["Installed", "Available", "Update Available", "All"])
-        # Default to All (two-column Available | Installed).
-        all_idx = self.filter_box.findText("All")
-        if all_idx >= 0:
-            self.filter_box.setCurrentIndex(all_idx)
+        self.filter_box.addItems(list(ADDON_LIST_FILTERS))
+        # Restore last filter; unknown/missing → All (first-run default).
+        saved_idx = self.filter_box.findText(settings.addons_filter())
+        if saved_idx < 0:
+            saved_idx = self.filter_box.findText(ADDON_LIST_FILTER_DEFAULT)
+        if saved_idx >= 0:
+            self.filter_box.setCurrentIndex(saved_idx)
         self.filter_box.blockSignals(False)
         self.filter_box.currentTextChanged.connect(self._on_filter_changed)
         self.filter_box.popupShown.connect(self._on_combo_popup_shown)
@@ -848,11 +850,22 @@ class AddonsPage(QWidget):
         self._sync_filter_lock()
         self._arm_flush_timer()
 
+    def _persist_addons_filter(self) -> None:
+        try:
+            mode = self.filter_box.currentText()
+        except RuntimeError:
+            return
+        if settings.addons_filter() == mode:
+            return
+        settings.set_addons_filter(mode)
+
     def _on_filter_changed(self, *_args) -> None:
         """Combo changed — never full-rebuild synchronously (popup still dying)."""
+        src = self.sender()
+        if src is self.filter_box:
+            self._persist_addons_filter()
         if not self._filter_selection_changed():
             return
-        src = self.sender()
         if src is self.cat_box:
             self._available_base_ready = False
         if (

@@ -187,3 +187,14 @@ def install_crash_handlers() -> None:
 
 log = setup_logging()
 install_crash_handlers()
+try:
+    from ichalaunch.core.tls import sanitize_tls_ca_env, tls_ca_log_line
+
+    sanitize_tls_ca_env()
+    _tls_line = tls_ca_log_line()
+    if _tls_line and "replaced invalid" in _tls_line:
+        log.info("%s", _tls_line)
+    elif _tls_line:
+        log.debug("%s", _tls_line)
+except Exception:  # noqa: BLE001
+    pass

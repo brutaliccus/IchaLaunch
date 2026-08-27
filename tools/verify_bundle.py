@@ -13,6 +13,7 @@ REQUIRED = (
     "PySide6\\icuuc.dll",
     "PySide6\\plugins\\platforms\\qwindows.dll",
     "shiboken6\\Shiboken.pyd",
+    "certifi\\cacert.pem",
 )
 
 OPTIONAL_BUT_RECOMMENDED = (
