@@ -30,6 +30,19 @@ from ichalaunch.core.paths import theme_file
 _HOLD_MS = 11_000
 _FADE_MS = 2_800
 _BASE_OPACITY = 0.82
+# Featured Home slide (theme root). First in rotation; 2× hold; fit-width.
+_FEATURED_ART = "zaeya_first_60.jpg"
+# Decorative border overlay for the featured slide only (transparent center).
+_FEATURED_FRAME = "zaeya_first_60_frame.png"
+_HOLD_MULT: dict[str, float] = {_FEATURED_ART: 2.0}
+_FIT_WIDTH: frozenset[str] = frozenset({_FEATURED_ART})
+_FRAME_OVERLAY: dict[str, str] = {_FEATURED_ART: _FEATURED_FRAME}
+# Keep the featured frame on-screen (photo + overlay share this dest nudge).
+_FEATURED_NUDGE_X = -5
+_FEATURED_NUDGE_Y = -5
+# Fit-width dest minus this after the -5x nudge so L/R frame stays on-canvas.
+# 2×|nudge| is the minimum that keeps the shifted center (x ends at 0).
+_FEATURED_SHRINK_W = 10
 # Soft L/R + top falloff. Bottom stays hard so art still sits flush on the
 # diamond strip (any bottom feather reads as a mid-page gap).
 _EDGE_FEATHER = 0.04
@@ -98,6 +111,9 @@ def _list_dir_images(folder: Path) -> list[str]:
 
 
 def _resolve_path(name: str) -> Path | None:
+    root = theme_file(name)
+    if root.is_file():
+        return root
     for folder in (_ART_DIR, _LEGACY_DIR):
         bundled = theme_file(folder, name)
         if bundled.is_file():
@@ -106,6 +122,10 @@ def _resolve_path(name: str) -> Path | None:
     if external.is_file():
         return external
     return None
+
+
+def _hold_ms_for(name: str) -> int:
+    return max(1, int(_HOLD_MS * _HOLD_MULT.get(name, 1.0)))
 
 
 def _load_raw(name: str) -> QPixmap:
@@ -236,6 +256,7 @@ class TalentFrameBackground(QWidget):
 
         self._paths: list[str] = []
         self._cache: dict[str, QPixmap] = {}
+        self._overlay_cache: dict[str, QPixmap] = {}
         self._index = 0
         self._next_index = 0
         self._cur_opacity = _BASE_OPACITY
@@ -256,7 +277,15 @@ class TalentFrameBackground(QWidget):
         names = _list_dir_images(theme_file(_ART_DIR))
         if not names:
             names = [n for n in TALENT_BG_NAMES if _resolve_path(n) is not None]
-        self._paths = names
+        pinned = [
+            n for n in (_FEATURED_ART,) if _resolve_path(n) is not None
+        ]
+        pinned_l = {n.lower() for n in pinned}
+        rest = [n for n in names if n.lower() not in pinned_l]
+        self._paths = pinned + rest
+
+    def _name_at(self, index: int) -> str:
+        return self._paths[index] if self._paths else ""
 
     def _pixmap(self, name: str) -> QPixmap:
         cached = self._cache.get(name)
@@ -265,6 +294,19 @@ class TalentFrameBackground(QWidget):
         pm = _load_framed(name)
         if not pm.isNull():
             self._cache[name] = pm
+        return pm
+
+    def _frame_overlay(self, name: str) -> QPixmap:
+        """Decorative border for the featured slide only; empty for all others."""
+        overlay_name = _FRAME_OVERLAY.get(name)
+        if not overlay_name:
+            return QPixmap()
+        cached = self._overlay_cache.get(overlay_name)
+        if cached is not None:
+            return cached
+        pm = _load_raw(overlay_name)
+        if not pm.isNull():
+            self._overlay_cache[overlay_name] = pm
         return pm
 
     def source_size(self) -> tuple[int, int]:
@@ -327,7 +369,7 @@ class TalentFrameBackground(QWidget):
             self._pixmap(self._paths[self._index])
             if len(self._paths) > 1:
                 self._pixmap(self._paths[(self._index + 1) % len(self._paths)])
-            self._timer.start(_HOLD_MS)
+            self._timer.start(_hold_ms_for(self._name_at(self._index)))
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
@@ -351,16 +393,30 @@ class TalentFrameBackground(QWidget):
             src = self._pixmap(name)
             if src.isNull():
                 return
-            # Widget is aspect-correct — KeepAspectRatio shows the full frame,
-            # no Expanding crop / overscale.
-            scaled = src.scaled(
-                w,
-                h,
-                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            x = (w - scaled.width()) // 2
-            y = (h - scaled.height()) // 2
+            if name in _FIT_WIDTH:
+                # Full width, no L/R crop — honor unusual AR; pin to banner.
+                dest_w = w
+                if name == _FEATURED_ART:
+                    dest_w = max(1, w - _FEATURED_SHRINK_W)
+                scaled = src.scaledToWidth(
+                    dest_w, Qt.TransformationMode.SmoothTransformation
+                )
+                x = (w - scaled.width()) // 2
+                y = h - scaled.height()
+            else:
+                # Cover the brand rect (center crop). Widget itself is
+                # bottom-tucked to the nav banner.
+                scaled = src.scaled(
+                    w,
+                    h,
+                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+                x = (w - scaled.width()) // 2
+                y = (h - scaled.height()) // 2
+            if name == _FEATURED_ART:
+                x += _FEATURED_NUDGE_X
+                y += _FEATURED_NUDGE_Y
             layer = QPixmap(w, h)
             layer.fill(Qt.GlobalColor.transparent)
             lp = QPainter(layer)
@@ -369,6 +425,18 @@ class TalentFrameBackground(QWidget):
             if not self._mask.isNull():
                 lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
                 lp.drawPixmap(0, 0, self._mask)
+            overlay = self._frame_overlay(name)
+            if not overlay.isNull() and scaled.width() > 0 and scaled.height() > 0:
+                # Full-bleed border with transparent center — stretch to the
+                # painted photo dest (not the widget/letterbox).
+                lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+                frame = overlay.scaled(
+                    scaled.width(),
+                    scaled.height(),
+                    Qt.AspectRatioMode.IgnoreAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+                lp.drawPixmap(x, y, frame)
             lp.end()
             painter.setOpacity(opacity)
             painter.drawPixmap(0, 0, layer)
@@ -411,7 +479,7 @@ class TalentFrameBackground(QWidget):
             self._fade = None
             self.update()
             self.frame_changed.emit()
-            self._timer.start(_HOLD_MS)
+            self._timer.start(_hold_ms_for(self._name_at(self._index)))
 
         group.finished.connect(_done)
         self._fade = group
