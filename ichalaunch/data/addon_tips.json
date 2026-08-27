@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-27T02:34:41Z",
+  "generated_at": "2026-08-27T13:38:48Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -12275,9 +12275,9 @@
     },
     "obszczymucha/roll-for-vanilla": {
       "default_branch": "master",
-      "sha": "78367e916692a092cf58efb3c1c83479c02f7d20",
+      "sha": "9991694a69e04d55cbb9e5249918eb34e9b5d694",
       "branches": {
-        "master": "78367e916692a092cf58efb3c1c83479c02f7d20"
+        "master": "9991694a69e04d55cbb9e5249918eb34e9b5d694"
       },
       "latest_tag": "v4.6.5"
     },
@@ -13272,11 +13272,11 @@
     },
     "wayoff333/cursive": {
       "default_branch": "master",
-      "sha": "7b3e7e545fdbc00be362568ffb311402b82dc35d",
+      "sha": "fb83abb6f563682e33075fc7f35cb404723616da",
       "branches": {
-        "master": "7b3e7e545fdbc00be362568ffb311402b82dc35d"
+        "master": "fb83abb6f563682e33075fc7f35cb404723616da"
       },
-      "latest_tag": "1.2"
+      "latest_tag": "1.3"
     },
     "taeko-ar/cursive-3.3.5a": {
       "default_branch": "master",
@@ -13703,9 +13703,9 @@
     },
     "otari98/overhead": {
       "default_branch": "master",
-      "sha": "52ad238305ac3f8b5615b453ff4b2954c97029d8",
+      "sha": "f3d3a9eea8bb5c31fd0e540f414bb8a266d1cd38",
       "branches": {
-        "master": "52ad238305ac3f8b5615b453ff4b2954c97029d8"
+        "master": "f3d3a9eea8bb5c31fd0e540f414bb8a266d1cd38"
       }
     },
     "amonra/overhead": {
@@ -16976,9 +16976,9 @@
     },
     "igreed1993/greedmeter": {
       "default_branch": "main",
-      "sha": "ea07903b76fd192fb3315bb3915a409158f73056",
+      "sha": "5658c715e0278ef6f5497d1641e363fc8a11708c",
       "branches": {
-        "main": "ea07903b76fd192fb3315bb3915a409158f73056"
+        "main": "5658c715e0278ef6f5497d1641e363fc8a11708c"
       }
     },
     "kobeniiiiii/combatledger": {
@@ -17070,6 +17070,35 @@
       "sha": "1d7cd29b6a196bccafd0d68e6932db4372bd5d0d",
       "branches": {
         "main": "1d7cd29b6a196bccafd0d68e6932db4372bd5d0d"
+      }
+    },
+    "pylebecq/necrosis-twow": {
+      "default_branch": "main",
+      "sha": "8d05b2c7adce1f1849b18cffb46a1635087caf82",
+      "branches": {
+        "main": "8d05b2c7adce1f1849b18cffb46a1635087caf82"
+      },
+      "latest_tag": "1.8.0"
+    },
+    "blackhobbit/necrosis-twow": {
+      "default_branch": "main",
+      "sha": "b7eb990c0a92affc543d5e549026ab938a150911",
+      "branches": {
+        "main": "b7eb990c0a92affc543d5e549026ab938a150911"
+      }
+    },
+    "otari98/atlasloot": {
+      "default_branch": "main",
+      "sha": "3c229608cad0a8b7f46e2746d6a10d938b6c9003",
+      "branches": {
+        "main": "3c229608cad0a8b7f46e2746d6a10d938b6c9003"
+      }
+    },
+    "ashigaru/atlasloot": {
+      "default_branch": "master",
+      "sha": "1b0d4971bac9b71adf72111b1943d25e59f6e02a",
+      "branches": {
+        "master": "1b0d4971bac9b71adf72111b1943d25e59f6e02a"
       }
     },
     "tubtubs/vanilla-tweaks": {
