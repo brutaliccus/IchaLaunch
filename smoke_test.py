@@ -7677,6 +7677,110 @@ def test_settings_save_survives_double_process_replace_race():
     print("OK settings save survives double-process replace race")
 
 
+def test_settings_save_fsyncs_payload_before_replace():
+    """Settings.save must flush the temp file to disk before os.replace publishes it."""
+    import json
+    import os
+    import tempfile
+    from pathlib import Path
+    from unittest import mock
+
+    import ichalaunch.config.settings as settings_mod
+    from ichalaunch.config.settings import Settings, _settings_backup_path
+
+    key = "0123456789abcdef0123456789abcdef"
+
+    with tempfile.TemporaryDirectory() as td:
+        fake = Path(td) / "settings.json"
+        orig_path = settings_mod.settings_path
+        settings_mod.settings_path = lambda: fake
+        real_fsync = os.fsync
+        real_replace = os.replace
+        try:
+            s = Settings()
+            s._data["game_path"] = r"D:\Games\RavenCraft"
+            s._data["wow_encryption_key"] = key
+
+            synced: list[tuple[int, int]] = []
+            seen: dict[str, object] = {}
+
+            def _record_fsync(fd):
+                st = os.fstat(fd)
+                synced.append((st.st_dev, st.st_ino))
+                return real_fsync(fd)
+
+            def _record_replace(src, dest):
+                st = os.stat(src)
+                seen["tmp_id"] = (st.st_dev, st.st_ino)
+                seen["tmp_text"] = Path(src).read_text(encoding="utf-8")
+                seen["synced_before"] = list(synced)
+                return real_replace(src, dest)
+
+            with mock.patch.object(settings_mod.os, "fsync", _record_fsync):
+                with mock.patch.object(settings_mod.os, "replace", _record_replace):
+                    s.save()
+
+            # The whole point: the temp file's data was on disk before the rename.
+            assert seen["tmp_id"] in seen["synced_before"], "temp file was renamed without fsync"
+            assert json.loads(seen["tmp_text"])["wow_encryption_key"] == key
+            assert json.loads(seen["tmp_text"])["game_path"] == r"D:\Games\RavenCraft"
+
+            # On POSIX the directory entry is flushed too, after the rename.
+            if os.name == "posix":
+                dir_st = os.stat(td)
+                assert (dir_st.st_dev, dir_st.st_ino) in synced, "settings dir was not fsynced"
+                assert (dir_st.st_dev, dir_st.st_ino) not in seen["synced_before"]
+
+            # Normal saves still round-trip and leave no temp behind.
+            assert json.loads(fake.read_text(encoding="utf-8"))["wow_encryption_key"] == key
+            assert Settings().get("wow_encryption_key") == key
+            assert list(Path(td).glob("settings.json.*.tmp")) == []
+
+            # A save that dies at the rename still leaves complete bytes on disk,
+            # never a truncated temp file, and still cleans the temp up.
+            fatal: dict[str, object] = {}
+
+            def _dying_replace(src, dest):
+                fatal["text"] = Path(src).read_text(encoding="utf-8")
+                raise OSError(28, "No space left on device")
+
+            s._data["game_path"] = r"D:\Games\Other"
+            with mock.patch.object(settings_mod.os, "replace", _dying_replace):
+                try:
+                    s.save()
+                    raise AssertionError("save should have propagated the replace failure")
+                except OSError as exc:
+                    assert getattr(exc, "errno", None) == 28
+            assert json.loads(str(fatal["text"]))["game_path"] == r"D:\Games\Other"
+            assert list(Path(td).glob("settings.json.*.tmp")) == []
+            # The failed save left the previously published file untouched.
+            assert json.loads(fake.read_text(encoding="utf-8"))["game_path"] == r"D:\Games\RavenCraft"
+
+            # The replace-race retry loop and the .bak copy are unchanged.
+            denied = OSError(13, "Access is denied")
+            denied.winerror = 5
+            calls = {"n": 0}
+
+            def _flaky_replace(src, dest):
+                calls["n"] += 1
+                if calls["n"] < 3:
+                    raise denied
+                return real_replace(src, dest)
+
+            s._data["game_path"] = r"D:\Games\Retried"
+            with mock.patch.object(settings_mod.os, "replace", _flaky_replace):
+                s.save()
+            assert calls["n"] == 3
+            assert json.loads(fake.read_text(encoding="utf-8"))["game_path"] == r"D:\Games\Retried"
+            bak = _settings_backup_path(fake)
+            assert bak.is_file()
+            assert json.loads(bak.read_text(encoding="utf-8"))["game_path"] == r"D:\Games\RavenCraft"
+            assert list(Path(td).glob("settings.json.*.tmp")) == []
+        finally:
+            settings_mod.settings_path = orig_path
+    print("OK settings save fsyncs the payload before the atomic replace")
+
+
 def test_addons_filter_persists():
     """Addons list filter survives save/load; unknown values fall back to All."""
     import ichalaunch.config.settings as settings_mod
@@ -12492,6 +12596,7 @@ def _run_smoke_tests():
     test_settings_paths_recover_from_backup()
     test_settings_merge_keeps_game_path_and_tweaks_v2()
     test_settings_save_survives_double_process_replace_race()
+    test_settings_save_fsyncs_payload_before_replace()
     test_addons_filter_persists()
     test_addons_page_restores_and_saves_filter()
     test_bagshui_catalog_pin()

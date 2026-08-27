@@ -268,6 +268,56 @@ def _settings_tmp_path(path: Path) -> Path:
     return path.with_name(f"{path.name}.{token}.tmp")
 
 
+def _write_settings_payload(tmp: Path, payload: str) -> None:
+    """Write the temp file and force its bytes to disk before any rename.
+
+    Path.write_text only hands the bytes to the page cache. On ext4 with the
+    default data=ordered mount the os.replace metadata can reach the journal
+    before that data reaches the platter, so a power cut in the gap leaves a
+    zero length or truncated settings.json. Since v1.3.1 that file carries
+    wow_encryption_key, and losing the key makes every saved Nampower
+    password permanently unreadable with nothing on screen to explain it.
+
+    The open() call deliberately mirrors Path.write_text: text mode, utf-8,
+    and the default newline handling, so the bytes on disk are unchanged on
+    every platform. Only the fsync is new, and fsync is valid on Windows too.
+    """
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.write(payload)
+        fh.flush()
+        os.fsync(fh.fileno())
+
+
+def _fsync_settings_dir(directory: Path) -> None:
+    """Make the rename itself durable, on the platforms that allow it.
+
+    fsync on the containing directory is the second half of the POSIX
+    write-temp-then-rename recipe: without it the new directory entry can
+    still be lost even though the file data survived. Windows has no way to
+    open a directory as a file descriptor, so os.open would fail there and
+    the call is skipped. NTFS orders the metadata for os.replace itself, and
+    the file fsync above already covers the data, so nothing is lost by that.
+
+    Any OSError is swallowed. The settings are already written and renamed at
+    this point, and a failure to flush the directory must not turn a
+    successful save into a raised exception or trigger the retry loop.
+    """
+    if sys.platform == "win32":
+        return
+    fd: int | None = None
+    try:
+        fd = os.open(str(directory), getattr(os, "O_DIRECTORY", os.O_RDONLY))
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+
+
 def migrate_legacy_mod_ids(data: dict[str, Any]) -> bool:
     """Rename removed catalog mod ids in persisted settings (one-time on load)."""
     changed = False
@@ -487,7 +537,7 @@ class Settings:
         try:
             for attempt in range(_SETTINGS_SAVE_RETRIES):
                 try:
-                    tmp.write_text(payload, encoding="utf-8")
+                    _write_settings_payload(tmp, payload)
                     if path.is_file():
                         bak = _settings_backup_path(path)
                         try:
@@ -495,6 +545,7 @@ class Settings:
                         except OSError:
                             pass
                     os.replace(tmp, path)
+                    _fsync_settings_dir(path.parent)
                     return
                 except OSError as exc:
                     last = exc
