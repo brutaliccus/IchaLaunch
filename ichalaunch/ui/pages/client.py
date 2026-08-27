@@ -58,6 +58,7 @@ from ichalaunch.ui.widgets.dialogs import (
     DialogResult,
     choice,
     confirm,
+    confirm_vanilla_tweaks_old,
     dll_security_exclusion_dialog,
     github_import_dialog,
     mpq_patch_warning_dialog,
@@ -408,13 +409,19 @@ class ClientPage(QWidget):
             open_url_in_browser(url)
 
     def _open_mod_config(self, mod_id: str) -> None:
-        if mod_id != "vanilla_tweaks":
-            return
-        from ichalaunch.ui.widgets.dialogs import vanilla_tweaks_settings_dialog
+        if mod_id == "vanilla_tweaks":
+            from ichalaunch.ui.widgets.dialogs import vanilla_tweaks_settings_dialog
 
-        result = vanilla_tweaks_settings_dialog(self)
-        if result and result.get("repatch"):
-            self.reinstall_mod_requested.emit("vanilla_tweaks")
+            result = vanilla_tweaks_settings_dialog(self)
+            if result and result.get("repatch"):
+                self.reinstall_mod_requested.emit("vanilla_tweaks")
+            return
+        if mod_id == "vanilla_tweaks_old":
+            from ichalaunch.ui.widgets.dialogs import vanilla_tweaks_old_settings_dialog
+
+            result = vanilla_tweaks_old_settings_dialog(self)
+            if result and result.get("repatch"):
+                self.reinstall_mod_requested.emit("vanilla_tweaks_old")
 
     def ensure_mod_row(self, mod: dict) -> None:
         """Ensure a catalog (or newly registered user) mod has a checkbox row."""
@@ -690,6 +697,14 @@ class ClientPage(QWidget):
             b.setChecked(i == idx)
 
     def _on_toggle(self, mod_id: str, enabled: bool) -> None:
+        if enabled and mod_id == "vanilla_tweaks_old":
+            if not confirm_vanilla_tweaks_old(self):
+                row = self.rows.get(mod_id)
+                if row is not None:
+                    row.cb.blockSignals(True)
+                    row.cb.setChecked(False)
+                    row.cb.blockSignals(False)
+                return
         if not enabled:
             preview = resolve_mod_toggle(mod_id, False)
             cascade_off = [
@@ -731,8 +746,8 @@ class ClientPage(QWidget):
             QTimer.singleShot(0, lambda: self._maybe_show_mpq_patch_warning(mod_id, enabled))
         if enabled and mod_id == "superwow":
             QTimer.singleShot(0, self._maybe_superwow_enable_check)
-        if enabled and mod_id == "vanilla_tweaks":
-            QTimer.singleShot(0, lambda: self._open_mod_config("vanilla_tweaks"))
+        if enabled and mod_id in ("vanilla_tweaks", "vanilla_tweaks_old"):
+            QTimer.singleShot(0, lambda mid=mod_id: self._open_mod_config(mid))
         self.refresh_plan()
 
     def _confirm_disable_cascade(self, mod_id: str, cascade_ids: list[str]) -> bool:

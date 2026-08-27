@@ -66,9 +66,11 @@ def has_wow_exe(directory: Path | str) -> bool:
 
 def detect_game(path: str | Path | None = None) -> Path | None:
     """Return the folder that contains WoW.exe (game root or ``…/RavenCraft``)."""
-    p = Path(path or settings.game_path or "")
-    if not p or not str(p):
+    raw = settings.game_path if path is None else path
+    text = str(raw or "").strip()
+    if not text:
         return None
+    p = Path(text)
     try:
         if has_wow_exe(p):
             return p
@@ -165,6 +167,10 @@ def discover_game_path_near_launcher() -> Path | None:
 def ensure_game_path_from_launcher() -> Path | None:
     """If settings lack a valid game folder, auto-fill from nearby WoW.exe."""
     if detect_game() is not None:
+        return None
+    if str(settings.game_path or "").strip():
+        # A saved folder must not be replaced just because WoW.exe is missing
+        # right now (drive offline) or another client sits next to the EXE.
         return None
     found = discover_game_path_near_launcher()
     if found is None:

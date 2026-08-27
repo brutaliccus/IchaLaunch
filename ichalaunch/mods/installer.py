@@ -322,6 +322,9 @@ def _collect_mod_dependencies(
 _HD_PATCH_PREFIX = "hd_patch_"
 _VANILLA_HELPERS_ID = "vanilla_helpers"
 _VANILLAFIXES_ID = "vanillafixes"
+_VANILLA_TWEAKS_ID = "vanilla_tweaks"
+_VANILLA_TWEAKS_OLD_ID = "vanilla_tweaks_old"
+_TWEAKS_IDS = frozenset({_VANILLA_TWEAKS_ID, _VANILLA_TWEAKS_OLD_ID})
 _DXVK_ID = "dxvk"
 _HD_DXVK_ID = "hd_dxvk"
 _DXVK_CURSOR_ID = "dxvk_big_cursor"
@@ -422,6 +425,36 @@ def _pick_exclusive_detect_winner(
     game_path: Path | None = None,
 ) -> str:
     """Pick which conflicting mod id should read as installed when both match disk."""
+    if frozenset({a, b}) == _TWEAKS_IDS:
+        from ichalaunch.mods.vanilla_tweaks import (
+            TWEAKS_SOURCE_BRNDD,
+            TWEAKS_SOURCE_TUBTUBS,
+            VANILLA_TWEAKS_ID,
+            VANILLA_TWEAKS_OLD_ID,
+            installed_tweaks_source,
+        )
+
+        disk = installed_tweaks_source()
+        if disk == TWEAKS_SOURCE_TUBTUBS:
+            return VANILLA_TWEAKS_ID
+        if disk == TWEAKS_SOURCE_BRNDD:
+            from ichalaunch.mods.vanilla_tweaks import leftover_brndd_under_v2, meta_tweaks_source
+
+            chosen_old = meta_tweaks_source(
+                settings.installed_mods.get(VANILLA_TWEAKS_OLD_ID)
+            ) == TWEAKS_SOURCE_BRNDD
+            leftover = leftover_brndd_under_v2() is not None and not chosen_old
+            if leftover and desired.get(VANILLA_TWEAKS_OLD_ID) and not desired.get(
+                VANILLA_TWEAKS_ID
+            ):
+                return VANILLA_TWEAKS_OLD_ID
+            if leftover:
+                return VANILLA_TWEAKS_ID
+            return VANILLA_TWEAKS_OLD_ID
+        # Missing tweaks_source is not Old.
+        if desired.get(VANILLA_TWEAKS_OLD_ID) and not desired.get(VANILLA_TWEAKS_ID):
+            return VANILLA_TWEAKS_OLD_ID
+        return VANILLA_TWEAKS_ID
     if game_path is not None:
         by_size = _variant_on_disk_by_size(a, b, game_path, mod_catalog_map())
         if by_size is not None:
@@ -547,6 +580,13 @@ def reconcile_exclusive_desired_mods(
             if prefer in (a, b):
                 out[b if prefer == a else a] = False
                 continue
+            if pair == _TWEAKS_IDS:
+                from ichalaunch.mods.vanilla_tweaks import preferred_tweaks_variant
+
+                keep = preferred_tweaks_variant(out, prefer=prefer)
+                if keep in pair:
+                    out[b if keep == a else a] = False
+                    continue
             if actual:
                 a_have, b_have = bool(actual.get(a)), bool(actual.get(b))
                 if a_have and not b_have:
@@ -722,6 +762,9 @@ def resolve_mod_toggle(mod_id: str, enabled: bool) -> dict[str, bool]:
 
     def enable_with_deps(mid: str) -> None:
         for dep in _collect_mod_dependencies(mid, catalog):
+            # Fog Pushback depends on Tweaks; Old satisfies that slot.
+            if dep == "vanilla_tweaks" and effective("vanilla_tweaks_old"):
+                continue
             changes[dep] = True
         changes[mid] = True
 
@@ -750,7 +793,11 @@ def resolve_mod_toggle(mod_id: str, enabled: bool) -> dict[str, bool]:
                 continue
             for conf in catalog.get(mid, {}).get("conflicts") or []:
                 if conf in catalog and effective(conf):
-                    disable_branch(conf, set())
+                    # Switching V2 ↔ Old must not cascade-disable Fog Pushback.
+                    if mid in _TWEAKS_IDS and conf in _TWEAKS_IDS:
+                        changes[conf] = False
+                    else:
+                        disable_branch(conf, set())
         for mid in list(changes):
             if not changes.get(mid):
                 continue
@@ -1251,24 +1298,43 @@ def _detect_hd_patch_c(game_path: Path) -> bool:
 
 
 def _vanilla_tweaks_is_ours() -> bool:
-    """True when this launcher (or the user via the Client tab) owns the patch."""
-    if settings.desired_mods.get("vanilla_tweaks"):
-        return True
-    if "vanilla_tweaks" in settings.user_set_mods:
-        return True
-    return "vanilla_tweaks" in settings.installed_mods
+    """True when this launcher (or the user via the Client tab) owns V2."""
+    from ichalaunch.mods.vanilla_tweaks import vanilla_tweaks_is_ours
+
+    return vanilla_tweaks_is_ours(_VANILLA_TWEAKS_ID)
 
 
 def _vanilla_tweaks_needs_catalog_repatch(mid: str, actual: dict[str, bool]) -> bool:
-    """Desired+installed Tweaks that is still brndd or has stale options."""
-    if mid != "vanilla_tweaks":
+    """Desired+installed Tweaks that needs a catalog re-patch.
+
+    Leftover brndd under ``vanilla_tweaks`` force-migrates only when V2 is
+    desired. A user who chose Old is not upgraded to tubtubs.
+    """
+    if mid not in _TWEAKS_IDS:
         return False
     if not _effective_mod_installed(mid, actual):
         return False
-    from ichalaunch.mods.vanilla_tweaks import vanilla_tweaks_needs_repatch
+    desired = settings.desired_mods
+    if mid == _VANILLA_TWEAKS_ID:
+        if not desired.get(_VANILLA_TWEAKS_ID) or desired.get(_VANILLA_TWEAKS_OLD_ID):
+            return False
+        from ichalaunch.mods.vanilla_tweaks import vanilla_tweaks_needs_repatch
+
+        meta = settings.installed_mods.get(mid) or {}
+        return vanilla_tweaks_needs_repatch(meta, settings.vanilla_tweaks_options)
+    if not desired.get(_VANILLA_TWEAKS_OLD_ID):
+        return False
+    from ichalaunch.mods.vanilla_tweaks import (
+        leftover_brndd_under_v2,
+        vanilla_tweaks_old_needs_repatch,
+    )
 
     meta = settings.installed_mods.get(mid) or {}
-    return vanilla_tweaks_needs_repatch(meta, settings.vanilla_tweaks_options)
+    if not meta:
+        leftover = leftover_brndd_under_v2()
+        if leftover is not None:
+            meta = leftover
+    return vanilla_tweaks_old_needs_repatch(meta, settings.vanilla_tweaks_old_options)
 
 
 def _order_d3d9_layers(ordered: list[str]) -> list[str]:
@@ -1356,8 +1422,10 @@ def _detect_mod(
     if det.get("exe_differs_from"):
         if not _exe_differs_from_backup(game_path, str(det["exe_differs_from"])):
             return False
-        if mid == "vanilla_tweaks":
-            return _vanilla_tweaks_is_ours()
+        if mid in _TWEAKS_IDS:
+            from ichalaunch.mods.vanilla_tweaks import vanilla_tweaks_detects_as
+
+            return vanilla_tweaks_detects_as(str(mid), True)
         return True
     if det.get("wdb_file"):
         return name_present(game_path, "WDB", root_names) and (game_path / "WDB").is_file()
@@ -1393,6 +1461,9 @@ def _detect_mod(
     # fallback by kind heuristics
     kind = mod.get("kind")
     mid = mod["id"]
+    from ichalaunch.mods.vanilla_tweaks import vanilla_tweaks_detects_as
+
+    exe_tweaked = _exe_differs_from_backup(game_path, _VANILLA_TWEAKS_BACKUP)
     legacy = {
         "vanillafixes": name_present(game_path, "VanillaFixes.exe", root_names),
         "dxvk": name_present(game_path, "d3d9.dll", root_names)
@@ -1403,9 +1474,9 @@ def _detect_mod(
         "perfboost": name_present(game_path, "perf_boost.dll", root_names),
         "no1600x1200": name_present(game_path, "no1600x1200.dll", root_names),
         "wdb_block": name_present(game_path, "WDB", root_names) and (game_path / "WDB").is_file(),
-        "vanilla_tweaks": (
-            _exe_differs_from_backup(game_path, _VANILLA_TWEAKS_BACKUP)
-            and _vanilla_tweaks_is_ours()
+        "vanilla_tweaks": vanilla_tweaks_detects_as(_VANILLA_TWEAKS_ID, exe_tweaked),
+        "vanilla_tweaks_old": vanilla_tweaks_detects_as(
+            _VANILLA_TWEAKS_OLD_ID, exe_tweaked
         ),
     }
     if mid in legacy:
@@ -1544,11 +1615,29 @@ def _apply_planned_mod_changes(
     - ``! id …`` — hard failure (friendly text; raw errno only in logs)
     """
     done: list[str] = []
+    tweaks_installs = [
+        ch.get("id")
+        for ch in changes
+        if ch.get("action") == "install" and ch.get("id") in _TWEAKS_IDS
+    ]
+    keep_tweaks = None
+    if len(tweaks_installs) > 1:
+        from ichalaunch.mods.vanilla_tweaks import preferred_tweaks_variant
+
+        keep_tweaks = preferred_tweaks_variant()
     for ch in changes:
         if ch.get("action") not in ("install", "remove"):
             continue
         mid = ch.get("id") or ""
         action = ch["action"]
+        if (
+            action == "install"
+            and mid in _TWEAKS_IDS
+            and keep_tweaks
+            and mid != keep_tweaks
+        ):
+            log.info("Skipping extra Tweaks install %s — keeping %s", mid, keep_tweaks)
+            continue
         try:
             vf_label = _vf_sync_action_log_label(mid, action)
             if vf_label:
@@ -1705,12 +1794,35 @@ def plan_changes(desired: dict[str, bool] | None = None) -> list[dict[str, str]]
         seen.add(mid)
         mod = catalog.get(mid) or {}
         for dep in mod.get("dependencies") or []:
+            if dep == _VANILLA_TWEAKS_ID and (
+                desired.get(_VANILLA_TWEAKS_OLD_ID)
+                or _effective_mod_installed(_VANILLA_TWEAKS_OLD_ID, actual)
+            ):
+                continue
             if not _effective_mod_installed(dep, actual):
                 add_with_deps(dep)
         ordered.append(mid)
 
+    keep_tweaks = None
+    tweaks_wanted = [mid for mid in (_VANILLA_TWEAKS_ID, _VANILLA_TWEAKS_OLD_ID) if desired.get(mid)]
+    if len(tweaks_wanted) > 1:
+        from ichalaunch.mods.vanilla_tweaks import preferred_tweaks_variant
+
+        keep_tweaks = preferred_tweaks_variant(desired)
+        desired = dict(desired)
+        for mid in tweaks_wanted:
+            if mid != keep_tweaks:
+                desired[mid] = False
+        to_install = [mid for mid in to_install if mid not in _TWEAKS_IDS or mid == keep_tweaks]
+    elif tweaks_wanted:
+        keep_tweaks = tweaks_wanted[0]
+
     for mid in to_install:
         add_with_deps(mid)
+    if keep_tweaks:
+        ordered = [
+            mid for mid in ordered if mid not in _TWEAKS_IDS or mid == keep_tweaks
+        ]
     ordered = _order_d3d9_layers(ordered)
 
     if _any_hd_patch_desired(desired) and not _effective_mod_installed(
@@ -2384,7 +2496,12 @@ def _clear_exclusive_sibling_install_records(mod_id: str, mod: dict[str, Any]) -
     """Drop install metadata for conflict siblings sharing the same install slot."""
     vf_dxvk_pair = frozenset({_VANILLAFIXES_ID, _DXVK_ID})
     for conf in mod.get("conflicts") or []:
-        if mod.get("kind") == "mpq_file" or frozenset({mod_id, conf}) == vf_dxvk_pair:
+        pair = frozenset({mod_id, conf})
+        if (
+            mod.get("kind") == "mpq_file"
+            or pair == vf_dxvk_pair
+            or pair == _TWEAKS_IDS
+        ):
             settings.remove_installed_mod(conf)
 
 
@@ -2429,6 +2546,11 @@ def _backfill_detected_installed_mods(actual: dict[str, bool]) -> None:
     for mid, present in actual.items():
         if not present or mid not in catalog or mid in installed:
             continue
+        if mid == _VANILLA_TWEAKS_OLD_ID:
+            # Do not stamp Old from a disk guess — that cleared the V2 record
+            # and flipped existing Tweaks users onto brndd.
+            if not settings.desired_mods.get(mid) and mid not in settings.user_set_mods:
+                continue
         mod = catalog[mid]
         if mod.get("kind") in ("manual_link", "wdb_block", "config_script_memory"):
             continue
@@ -2529,10 +2651,14 @@ def _record_mod_install(
         src_url = (source or {}).get("url")
         if src_url:
             meta["source_url"] = src_url
-    if mod_id == "vanilla_tweaks":
+    if mod_id == _VANILLA_TWEAKS_ID:
         from ichalaunch.mods.vanilla_tweaks import tweaks_install_stamp
 
         meta.update(tweaks_install_stamp(settings.vanilla_tweaks_options))
+    elif mod_id == _VANILLA_TWEAKS_OLD_ID:
+        from ichalaunch.mods.vanilla_tweaks import tweaks_old_install_stamp
+
+        meta.update(tweaks_old_install_stamp(settings.vanilla_tweaks_old_options))
     settings.set_installed_mod(mod_id, meta)
 
 
@@ -2764,7 +2890,12 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
         with tempfile.TemporaryDirectory(prefix="ichalaunch_") as tmp:
             work = Path(tmp)
             source = dict(mod.get("source") or {}) if mod.get("source") else None
-            if prefer_latest and source and source.get("type") == "github_release":
+            if (
+                prefer_latest
+                and source
+                and source.get("type") == "github_release"
+                and mod_id != _VANILLA_TWEAKS_OLD_ID
+            ):
                 repo = _repo_from_github_url(source.get("url") or "")
                 if repo:
                     fname = (
@@ -2809,15 +2940,19 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 if resolve_ci(game, _VANILLA_TWEAKS_BACKUP) is None:
                     _install_copy(wow, game / _VANILLA_TWEAKS_BACKUP, game_path=game)
                 from ichalaunch.mods.vanilla_tweaks import (
-                    vanilla_tweaks_command,
+                    VANILLA_TWEAKS_OLD_ID,
+                    tweaks_patch_command,
                     vanilla_tweaks_infile,
                 )
 
                 # Always patch the stock backup so option changes do not stack.
                 infile = vanilla_tweaks_infile(game, wow, _VANILLA_TWEAKS_BACKUP)
-                cmd = vanilla_tweaks_command(
-                    vt, infile, settings.vanilla_tweaks_options
+                opts = (
+                    settings.vanilla_tweaks_old_options
+                    if mod_id == VANILLA_TWEAKS_OLD_ID
+                    else settings.vanilla_tweaks_options
                 )
+                cmd = tweaks_patch_command(mod_id, vt, infile, opts)
                 status_only(progress, "Patching WoW.exe with Vanilla Tweaks...")
                 subprocess.run(cmd, cwd=str(game), check=True)
                 tweaked = game / f"{wow.stem}_tweaked.exe"

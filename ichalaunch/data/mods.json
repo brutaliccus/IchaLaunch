@@ -1,7 +1,7 @@
 [
   {
     "id": "vanilla_tweaks",
-    "name": "Vanilla Tweaks",
+    "name": "Vanilla Tweaks V2",
     "category": "Performance & Fixes",
     "description": "Patches WoW.exe (not a DLL). Farclip, grass, nameplates, 4GB LAA, camera skip fix, custom glues, and blue moon on by default. Widescreen FoV, sound, and quickloot are optional — use the cog to configure.",
     "detect": {
@@ -16,8 +16,30 @@
     "kind": "exe_patch",
     "has_config": true,
     "dependencies": [],
-    "conflicts": [],
+    "conflicts": [
+      "vanilla_tweaks_old"
+    ],
     "author": "tubtubs"
+  },
+  {
+    "id": "vanilla_tweaks_old",
+    "name": "Vanilla Tweaks (Old)",
+    "category": "Performance & Fixes",
+    "description": "Pinned brndd 1.6.0 (the pre-tubtubs catalog). May conflict with SuperWoW — only use if Vanilla Tweaks V2 causes poor performance. Patches WoW.exe (not a DLL).",
+    "detect": {
+      "exe_differs_from": "WoW-OriginalBackup.exe"
+    },
+    "source": {
+      "type": "github_release",
+      "url": "https://github.com/brndd/vanilla-tweaks/releases/download/v1.6.0/vanilla-tweaks_v1.6.0_x86_64-pc-windows-gnu.zip"
+    },
+    "kind": "exe_patch",
+    "has_config": true,
+    "dependencies": [],
+    "conflicts": [
+      "vanilla_tweaks"
+    ],
+    "author": "brndd"
   },
   {
     "id": "vanillafixes",

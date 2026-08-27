@@ -1034,6 +1034,9 @@ def sync_desired_mods_from_disk() -> dict[str, bool]:
     desired = settings.desired_mods
     for mod_id, present in actual.items():
         if mod_id in known and mod_id not in user_set:
+            if mod_id == "vanilla_tweaks_old" and not desired.get(mod_id):
+                # New catalog id: never auto-enable Old for existing users.
+                continue
             desired[mod_id] = bool(present)
     desired = enforce_vanilla_helpers_for_hd_desired(desired)
     desired = reconcile_exclusive_desired_mods(desired, actual=actual)

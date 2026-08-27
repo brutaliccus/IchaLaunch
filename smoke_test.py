@@ -572,6 +572,9 @@ def test_mod_remove_desired_state():
             # User unchecks Reforged Patch-N — an explicit choice.
             s.set_desired_mod("hd_patch_n", False)
             assert "hd_patch_n" in s.user_set_mods
+            # HD is off; do not schedule a VanillaHelpers download (apply refuses
+            # DLL installs while WoW.exe is already running).
+            s.set_desired_mod("vanilla_helpers", False)
             plan = plan_changes()
             assert any(
                 c["action"] == "remove" and c["id"] == "hd_patch_n" for c in plan
@@ -958,6 +961,33 @@ def test_stock_patch9_reacquire_detect():
     finally:
         installer_mod._download_source = orig_dl
     print("OK stock patch-9 reacquire detect")
+
+
+def test_stock_patch9_prompt_requires_wow_exe():
+    """No WoW.exe in the selected folder → no patch-9 reacquire prompt."""
+    from ichalaunch.mods.stock_patch import (
+        inspect_stock_patch9,
+        should_offer_stock_patch9_reacquire,
+    )
+
+    assert inspect_stock_patch9(None).state == "no_game"
+    assert not should_offer_stock_patch9_reacquire(inspect_stock_patch9(None))
+    assert inspect_stock_patch9("").state == "no_game"
+    assert not should_offer_stock_patch9_reacquire(inspect_stock_patch9(""))
+
+    with tempfile.TemporaryDirectory() as td:
+        folder = Path(td)
+        data = folder / "Data"
+        data.mkdir()
+        missing_exe = inspect_stock_patch9(folder)
+        assert missing_exe.state == "no_game"
+        assert not should_offer_stock_patch9_reacquire(missing_exe)
+
+        (folder / "wow.exe").write_bytes(b"MZ")
+        missing_patch = inspect_stock_patch9(folder)
+        assert missing_patch.state == "missing"
+        assert should_offer_stock_patch9_reacquire(missing_patch)
+    print("OK stock patch-9 prompt requires WoW.exe")
 
 
 def test_darker_nights_migration():
@@ -2545,6 +2575,36 @@ def test_discover_game_path_near_launcher():
         finally:
             os.chdir(old)
     print("OK discover game path near launcher")
+
+
+def test_ensure_game_path_keeps_saved_folder():
+    """A saved game_path must not be overwritten by a nearby WoW.exe."""
+    from unittest.mock import patch
+
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.game.launcher import ensure_game_path_from_launcher
+
+    keys = ("game_path", "addons_path")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            saved_dir = Path(td) / "saved"
+            saved_dir.mkdir()
+            nearby = Path(td) / "near"
+            nearby.mkdir()
+            (nearby / "WoW.exe").write_bytes(b"MZ")
+            s.set("game_path", str(saved_dir))
+            s.set("addons_path", "")
+            with patch(
+                "ichalaunch.game.launcher.discover_game_path_near_launcher",
+                return_value=nearby,
+            ):
+                assert ensure_game_path_from_launcher() is None
+            assert Path(s.game_path).resolve() == saved_dir.resolve()
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+    print("OK ensure game path keeps saved folder")
 
 
 def test_addons_path_defaults():
@@ -7226,6 +7286,68 @@ def test_settings_paths_recover_from_backup():
     print("OK settings paths recover from backup")
 
 
+def test_settings_merge_keeps_game_path_and_tweaks_v2():
+    """Saved game_path + Tweaks stay; new Old key defaults off and does not flip V2."""
+    import ichalaunch.config.settings as settings_mod
+    from ichalaunch.config.settings import DEFAULTS, Settings
+
+    assert DEFAULTS["desired_mods"]["vanilla_tweaks"] is True
+    assert DEFAULTS["desired_mods"]["vanilla_tweaks_old"] is False
+
+    loaded = {
+        "game_path": r"D:\Games\RavenCraft",
+        "addons_path": r"D:\Games\RavenCraft\Interface\AddOns",
+        "desired_mods": {
+            "vanilla_tweaks": True,
+            "vanillafixes": True,
+            "dxvk": False,
+        },
+        "user_set_mods": ["vanilla_tweaks"],
+        "installed_mods": {"nampower": {"version_display": "x"}},
+    }
+    merged, _ = Settings.__new__(Settings)._merge_loaded(loaded)
+    assert merged["game_path"] == r"D:\Games\RavenCraft"
+    assert merged["desired_mods"]["vanilla_tweaks"] is True
+    assert merged["desired_mods"]["vanilla_tweaks_old"] is False
+    assert merged["desired_mods"]["vanillafixes"] is True
+    assert merged["installed_mods"].get("nampower")
+
+    poisoned = {
+        "game_path": r"D:\Games\RavenCraft",
+        "desired_mods": {"vanilla_tweaks": True, "vanilla_tweaks_old": True},
+        "user_set_mods": ["vanilla_tweaks"],
+        "installed_mods": {"vanilla_tweaks": {"version_display": "v1.6.0"}},
+    }
+    merged2, changed = Settings.__new__(Settings)._merge_loaded(poisoned)
+    assert changed is True
+    assert merged2["game_path"] == r"D:\Games\RavenCraft"
+    assert merged2["desired_mods"]["vanilla_tweaks"] is True
+    assert merged2["desired_mods"]["vanilla_tweaks_old"] is False
+
+    chosen = {
+        "game_path": r"D:\Games\RavenCraft",
+        "desired_mods": {"vanilla_tweaks": False, "vanilla_tweaks_old": True},
+        "user_set_mods": ["vanilla_tweaks_old"],
+    }
+    merged3, _ = Settings.__new__(Settings)._merge_loaded(chosen)
+    assert merged3["desired_mods"]["vanilla_tweaks_old"] is True
+    assert merged3["desired_mods"]["vanilla_tweaks"] is False
+
+    with tempfile.TemporaryDirectory() as td:
+        fake = Path(td) / "settings.json"
+        orig_path = settings_mod.settings_path
+        settings_mod.settings_path = lambda: fake
+        try:
+            fake.write_text(json.dumps(loaded), encoding="utf-8")
+            s = Settings()
+            assert s.game_path.replace("\\", "/") == "D:/Games/RavenCraft"
+            assert s.desired_mods.get("vanilla_tweaks") is True
+            assert s.desired_mods.get("vanilla_tweaks_old") is False
+        finally:
+            settings_mod.settings_path = orig_path
+    print("OK settings merge keeps game path and Tweaks V2")
+
+
 def test_launcher_release_cache():
     from ichalaunch.config.settings import settings
     from ichalaunch.core.self_update import (
@@ -7650,9 +7772,14 @@ def test_client_pending_plan_row_badge_and_apply_pulse():
 
     app = QApplication.instance() or QApplication([])
     del app
-    page = ClientPage()
+    with patch("ichalaunch.ui.pages.client.plan_changes", return_value=[]):
+        page = ClientPage()
     row = page.rows.get("vanilla_tweaks")
-    other = next(r for mid, r in page.rows.items() if mid != "vanilla_tweaks")
+    other = next(
+        r
+        for mid, r in page.rows.items()
+        if mid not in ("vanilla_tweaks", "vanilla_tweaks_old")
+    )
     assert row is not None
     assert row.pending_badge.isHidden()
     assert page.apply_btn.property("flashHighlight") in (False, "false", None)
@@ -7819,8 +7946,405 @@ def test_mod_check_row_tweaks_cog():
     tweaks_row = page.rows.get("vanilla_tweaks")
     assert tweaks_row is not None
     assert tweaks_row.settings_btn is not None
+    assert tweaks_row._name_lbl.text() == "Vanilla Tweaks V2"
+    old_row = page.rows.get("vanilla_tweaks_old")
+    assert old_row is not None
+    assert old_row.settings_btn is not None
+    assert old_row._name_lbl.text() == "Vanilla Tweaks (Old)"
     page.deleteLater()
     print("OK ModCheckRow tweaks cog")
+
+
+def test_vanilla_tweaks_old_catalog_schema_and_mutex():
+    """Old is pinned brndd 1.6.0; schema/argv ≠ V2; only one Tweaks can apply."""
+    import tempfile
+    from pathlib import Path
+
+    from ichalaunch.mods.installer import get_mod, plan_changes
+    from ichalaunch.mods.vanilla_tweaks import (
+        TUBTUBS_ONLY_FLAGS,
+        TWEAKS_OLD_PIN_URL,
+        VANILLA_TWEAKS_DEFAULTS,
+        VANILLA_TWEAKS_OLD_DEFAULTS,
+        normalize_vanilla_tweaks_old_options,
+        normalize_vanilla_tweaks_options,
+        tweaks_patch_command,
+        vanilla_tweaks_argv,
+        vanilla_tweaks_infile,
+        vanilla_tweaks_old_argv,
+    )
+    from ichalaunch.ui.widgets.common import mod_git_url
+
+    v2 = get_mod("vanilla_tweaks")
+    old = get_mod("vanilla_tweaks_old")
+    assert v2 is not None and old is not None
+    assert v2.get("name") == "Vanilla Tweaks V2"
+    assert old.get("name") == "Vanilla Tweaks (Old)"
+    v2_src = v2.get("source") or {}
+    old_src = old.get("source") or {}
+    assert v2_src.get("type") == "github_release_latest"
+    assert v2_src.get("repo") == "tubtubs/vanilla-tweaks"
+    assert "brndd" not in str(v2_src).lower()
+    assert old_src.get("type") == "github_release"
+    assert old_src.get("url") == TWEAKS_OLD_PIN_URL
+    assert "brndd/vanilla-tweaks" in str(old_src.get("url") or "")
+    assert "tubtubs" not in str(old_src).lower()
+    assert "vanilla_tweaks_old" in (v2.get("conflicts") or [])
+    assert "vanilla_tweaks" in (old.get("conflicts") or [])
+    assert mod_git_url(old) == "https://github.com/brndd/vanilla-tweaks"
+
+    v2_keys = set(normalize_vanilla_tweaks_options(None))
+    old_keys = set(normalize_vanilla_tweaks_old_options(None))
+    assert "customglues" in v2_keys and "customglues" not in old_keys
+    assert "bluemoon" in v2_keys and "bluemoon" not in old_keys
+    assert "crossfactionresfix" in v2_keys and "crossfactionresfix" not in old_keys
+    assert VANILLA_TWEAKS_DEFAULTS["farclip_value"] == 777
+    assert VANILLA_TWEAKS_OLD_DEFAULTS["farclip_value"] == 777
+    assert VANILLA_TWEAKS_OLD_DEFAULTS["fov_patch"] is True
+    assert VANILLA_TWEAKS_DEFAULTS["fov_patch"] is False
+    from ichalaunch.config.settings import DEFAULTS
+
+    assert DEFAULTS["desired_mods"]["vanilla_tweaks"] is True
+    assert DEFAULTS["desired_mods"]["vanilla_tweaks_old"] is False
+
+    v2_argv = vanilla_tweaks_argv(None)
+    old_argv = vanilla_tweaks_old_argv(None)
+    assert "--fov-patch" not in v2_argv
+    assert "--no-fov" not in old_argv
+    assert "--fov" in old_argv
+    assert "--farclip" in old_argv
+    assert old_argv[old_argv.index("--farclip") + 1] == "777"
+    for flag in TUBTUBS_ONLY_FLAGS:
+        assert flag not in old_argv, flag
+    assert "--no-customgluespatch" in vanilla_tweaks_argv(
+        {**VANILLA_TWEAKS_DEFAULTS, "customglues": False}
+    )
+
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+
+    keys = (
+        "desired_mods",
+        "user_set_mods",
+        "installed_mods",
+        "user_mods",
+        "game_path",
+        "addons_path",
+    )
+    saved = {k: s.get(k) for k in keys}
+    stock = b"MZ" + b"\0" * 64
+    patched = b"MZ" + b"\x01" * 64
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            wow = game / "WoW.exe"
+            wow.write_bytes(patched)
+            backup = game / "WoW-OriginalBackup.exe"
+            backup.write_bytes(stock)
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("user_mods", [])
+            s.set(
+                "desired_mods",
+                {"vanilla_tweaks": True, "vanilla_tweaks_old": True},
+            )
+            s.set("user_set_mods", ["vanilla_tweaks", "vanilla_tweaks_old"])
+            s.set("installed_mods", {})
+            clear_fs_caches()
+            plan = plan_changes()
+            installs = [
+                c["id"]
+                for c in plan
+                if c.get("action") == "install"
+                and c.get("id") in ("vanilla_tweaks", "vanilla_tweaks_old")
+            ]
+            assert len(installs) == 1, plan
+            assert installs[0] == "vanilla_tweaks_old"
+
+            infile = vanilla_tweaks_infile(game, wow)
+            assert infile == backup
+            cmd_old = tweaks_patch_command(
+                "vanilla_tweaks_old", "vanilla-tweaks.exe", infile, None
+            )
+            cmd_v2 = tweaks_patch_command(
+                "vanilla_tweaks", "vanilla-tweaks.exe", infile, None
+            )
+            assert cmd_old[-1] == str(backup)
+            assert cmd_v2[-1] == str(backup)
+            for flag in TUBTUBS_ONLY_FLAGS:
+                assert flag not in cmd_old, flag
+            assert "--farclip" in cmd_v2
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK vanilla tweaks old catalog schema and mutex")
+
+
+def test_vanilla_tweaks_old_force_migrate_and_switch():
+    """Leftover brndd upgrades only when V2 is desired; switch plans the other tool."""
+    import tempfile
+    from pathlib import Path
+
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import detect_actual_state, plan_changes
+    from ichalaunch.mods.vanilla_tweaks import (
+        tweaks_install_stamp,
+        tweaks_old_install_stamp,
+        vanilla_tweaks_needs_repatch,
+    )
+
+    leftover = {
+        "version_display": "v1.6.0",
+        "url": (
+            "https://github.com/brndd/vanilla-tweaks/"
+            "releases/download/v1.6.0/vanilla-tweaks.zip"
+        ),
+    }
+    assert vanilla_tweaks_needs_repatch(leftover) is True
+
+    keys = (
+        "desired_mods",
+        "user_set_mods",
+        "installed_mods",
+        "user_mods",
+        "game_path",
+        "addons_path",
+    )
+    saved = {k: s.get(k) for k in keys}
+    stock = b"MZ" + b"\0" * 64
+    patched = b"MZ" + b"\x01" * 64
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(patched)
+            (game / "WoW-OriginalBackup.exe").write_bytes(stock)
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("user_mods", [])
+
+            s.set("desired_mods", {"vanilla_tweaks": True, "vanilla_tweaks_old": False})
+            s.set("user_set_mods", ["vanilla_tweaks"])
+            s.set("installed_mods", {"vanilla_tweaks": leftover})
+            clear_fs_caches()
+            actual = detect_actual_state(game)
+            assert actual.get("vanilla_tweaks") is True
+            assert actual.get("vanilla_tweaks_old") is not True
+            assert any(
+                c["action"] == "install" and c["id"] == "vanilla_tweaks"
+                for c in plan_changes()
+            )
+            assert not any(c.get("id") == "vanilla_tweaks_old" for c in plan_changes())
+
+            s.set(
+                "desired_mods",
+                {"vanilla_tweaks": False, "vanilla_tweaks_old": True},
+            )
+            s.set("user_set_mods", ["vanilla_tweaks_old"])
+            s.set("installed_mods", {"vanilla_tweaks": leftover})
+            clear_fs_caches()
+            actual = detect_actual_state(game)
+            assert actual.get("vanilla_tweaks_old") is True
+            assert actual.get("vanilla_tweaks") is not True
+            plan = plan_changes()
+            assert not any(
+                c["action"] == "install" and c["id"] == "vanilla_tweaks"
+                for c in plan
+            ), plan
+
+            s.set(
+                "desired_mods",
+                {"vanilla_tweaks": False, "vanilla_tweaks_old": True},
+            )
+            s.set("user_set_mods", ["vanilla_tweaks_old"])
+            s.set(
+                "installed_mods",
+                {"vanilla_tweaks": tweaks_install_stamp(s.vanilla_tweaks_options)},
+            )
+            clear_fs_caches()
+            actual = detect_actual_state(game)
+            assert actual.get("vanilla_tweaks") is True
+            assert actual.get("vanilla_tweaks_old") is not True
+            plan = plan_changes()
+            assert any(
+                c["action"] == "install" and c["id"] == "vanilla_tweaks_old"
+                for c in plan
+            ), plan
+            assert not any(
+                c["action"] == "install" and c["id"] == "vanilla_tweaks"
+                for c in plan
+            )
+
+            s.set("desired_mods", {"vanilla_tweaks": True, "vanilla_tweaks_old": False})
+            s.set("user_set_mods", ["vanilla_tweaks"])
+            s.set("installed_mods", {"vanilla_tweaks": {"version_display": "detected"}})
+            clear_fs_caches()
+            actual = detect_actual_state(game)
+            assert actual.get("vanilla_tweaks") is True
+            assert actual.get("vanilla_tweaks_old") is not True
+
+            s.set(
+                "desired_mods",
+                {"vanilla_tweaks": True, "vanilla_tweaks_old": False},
+            )
+            s.set("user_set_mods", ["vanilla_tweaks"])
+            s.set(
+                "installed_mods",
+                {
+                    "vanilla_tweaks_old": tweaks_old_install_stamp(
+                        s.vanilla_tweaks_old_options
+                    )
+                },
+            )
+            clear_fs_caches()
+            actual = detect_actual_state(game)
+            assert actual.get("vanilla_tweaks_old") is True
+            assert actual.get("vanilla_tweaks") is not True
+            plan = plan_changes()
+            assert any(
+                c["action"] == "install" and c["id"] == "vanilla_tweaks"
+                for c in plan
+            ), plan
+            assert not any(
+                c["action"] == "install" and c["id"] == "vanilla_tweaks_old"
+                for c in plan
+            )
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK vanilla tweaks old force-migrate and switch")
+
+
+def test_vanilla_tweaks_old_settings_dialog_and_warning():
+    """Old modal is brndd-only; enable warns, cancel leaves unchecked, first enable opens Old."""
+    import tempfile
+    from pathlib import Path
+    from unittest.mock import patch
+
+    from PySide6.QtWidgets import QApplication, QScrollArea
+
+    from ichalaunch.config import settings as settings_mod
+    from ichalaunch.config.settings import Settings
+    from ichalaunch.mods.vanilla_tweaks import (
+        TUBTUBS_ONLY_FLAGS,
+        vanilla_tweaks_old_argv,
+    )
+    from ichalaunch.ui.pages.client import ClientPage
+    from ichalaunch.ui.widgets.dialogs import VanillaTweaksOldSettingsDialog
+
+    app = QApplication.instance() or QApplication([])
+    with tempfile.TemporaryDirectory() as td:
+        fake = Path(td) / "settings.json"
+        orig_path = settings_mod.settings_path
+        orig = settings_mod.settings
+        settings_mod.settings_path = lambda: fake
+        settings_mod.settings = Settings()
+        try:
+            dlg = VanillaTweaksOldSettingsDialog(None)
+            assert set(dlg._checks) == {
+                "farclip",
+                "frilldistance",
+                "nameplatedistance",
+                "largeaddressaware",
+                "cameraskipfix",
+                "quickloot",
+                "fov_patch",
+                "sound_in_background",
+                "soundchannels_patch",
+                "maxcameradistance_patch",
+            }
+            assert "customglues" not in dlg._checks
+            assert "bluemoon" not in dlg._checks
+            assert "crossfactionresfix" not in dlg._checks
+            assert dlg.findChildren(QScrollArea) == []
+            assert dlg._range_hints["farclip_value"].text() == "(100-10000)"
+            assert dlg._range_hints["nameplatedistance_value"].text() == "(1-41)"
+            assert dlg._range_hints["maxcameradistance"].text() == "(1-50)"
+            assert dlg._sliders["nameplatedistance_value"].maximum() == 41
+            assert dlg._combos["soundchannels"].minimumWidth() >= 160
+            opts = dlg.collect_options()
+            assert opts["farclip_value"] == 777
+            assert opts["frilldistance_value"] == 300
+            assert opts["fov_patch"] is True
+            assert opts["quickloot"] is True
+            argv = vanilla_tweaks_old_argv(opts)
+            for flag in TUBTUBS_ONLY_FLAGS:
+                assert flag not in argv, flag
+            settings_mod.settings.set("desired_mods", {"superwow": True})
+            locked = VanillaTweaksOldSettingsDialog(None)
+            assert locked._superwow_locks_optional is False
+            assert locked._checks["fov_patch"].isEnabled()
+            assert locked._checks["quickloot"].isEnabled()
+            locked.deleteLater()
+            dlg.deleteLater()
+        finally:
+            settings_mod.settings_path = orig_path
+            settings_mod.settings = orig
+
+    from ichalaunch.config.settings import settings as s
+
+    opened: list[str] = []
+
+    def _fake_old(parent):  # noqa: ANN001
+        opened.append("old")
+        return None
+
+    def _fake_v2(parent):  # noqa: ANN001
+        opened.append("v2")
+        return None
+
+    keys = ("desired_mods", "user_set_mods")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        s.set(
+            "desired_mods",
+            {**s.desired_mods, "vanilla_tweaks": False, "vanilla_tweaks_old": False},
+        )
+        page = ClientPage()
+        v2_row = page.rows.get("vanilla_tweaks")
+        old_row = page.rows.get("vanilla_tweaks_old")
+        assert v2_row is not None and old_row is not None
+        with patch(
+            "ichalaunch.ui.pages.client.confirm_vanilla_tweaks_old",
+            return_value=False,
+        ):
+            page._on_toggle("vanilla_tweaks_old", True)
+            app.processEvents()
+            assert not s.desired_mods.get("vanilla_tweaks_old")
+            assert old_row.cb.isChecked() is False
+
+        with (
+            patch(
+                "ichalaunch.ui.pages.client.confirm_vanilla_tweaks_old",
+                return_value=True,
+            ),
+            patch(
+                "ichalaunch.ui.widgets.dialogs.vanilla_tweaks_old_settings_dialog",
+                side_effect=_fake_old,
+            ),
+            patch(
+                "ichalaunch.ui.widgets.dialogs.vanilla_tweaks_settings_dialog",
+                side_effect=_fake_v2,
+            ),
+        ):
+            s.set_desired_mod("vanilla_tweaks", True)
+            page.refresh_from_settings()
+            page._on_toggle("vanilla_tweaks_old", True)
+            app.processEvents()
+            assert s.desired_mods.get("vanilla_tweaks_old") is True
+            assert s.desired_mods.get("vanilla_tweaks") is not True
+            assert not v2_row.cb.isChecked()
+            assert opened == ["old"], opened
+            page.refresh_from_settings()
+            app.processEvents()
+            assert opened == ["old"], opened
+        page.deleteLater()
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+    print("OK vanilla tweaks old settings dialog and warning")
 
 
 def test_superwow_tracks_dll_release_not_patch_mpq():
@@ -11455,6 +11979,7 @@ def _run_smoke_tests():
     test_catalog_mpq_letters_unique()
     test_pretty_night_sky_migrates_off_fog_y()
     test_stock_patch9_reacquire_detect()
+    test_stock_patch9_prompt_requires_wow_exe()
     test_darker_nights_migration()
     test_mod_toggle_resolution()
     test_hd_patch_e_includes_caption()
@@ -11488,6 +12013,7 @@ def _run_smoke_tests():
     test_plan_changes_hd_env_set_no_recursion()
     test_vanilla_helpers_hd_dependency()
     test_discover_game_path_near_launcher()
+    test_ensure_game_path_keeps_saved_folder()
     test_addons_path_defaults()
     test_status_progress_bytes()
     test_multi_folder_pack_grouping()
@@ -11539,6 +12065,7 @@ def _run_smoke_tests():
     test_linux_appdata_uses_xdg_and_migrates()
     test_settings_paths_survive_load_cycle()
     test_settings_paths_recover_from_backup()
+    test_settings_merge_keeps_game_path_and_tweaks_v2()
     test_bagshui_catalog_pin()
     test_never_update_persists()
     test_reinstall_clears_never_update()
@@ -11589,6 +12116,9 @@ def _run_smoke_tests():
     test_vanilla_tweaks_force_tubtubs_repatch()
     test_vanilla_tweaks_enable_opens_config_once()
     test_mod_check_row_tweaks_cog()
+    test_vanilla_tweaks_old_catalog_schema_and_mutex()
+    test_vanilla_tweaks_old_force_migrate_and_switch()
+    test_vanilla_tweaks_old_settings_dialog_and_warning()
     test_superwow_tracks_dll_release_not_patch_mpq()
     test_superwow_issue_detection()
     test_themed_dialog_flags_and_close()

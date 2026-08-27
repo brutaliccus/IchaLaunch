@@ -2547,15 +2547,16 @@ class VanillaTweaksSettingsDialog(QDialog):
     """tubtubs/vanilla-tweaks patch options — themed card matching other modals."""
 
     _GIT = "https://github.com/tubtubs/vanilla-tweaks"
+    _TITLE = "Vanilla Tweaks V2"
+    _MOD_ID = "vanilla_tweaks"
+    _DEFAULTS_TIP = "Restore tubtubs V2 defaults"
+    _BLURB = (
+        "These flags are applied by tubtubs/vanilla-tweaks when it patches "
+        "WoW.exe. Saving while Tweaks is installed re-patches from "
+        "WoW-OriginalBackup.exe so changes do not stack."
+    )
 
     def __init__(self, parent: QWidget | None = None):
-        from ichalaunch.config.settings import settings
-        from ichalaunch.mods.vanilla_tweaks import (
-            SOUND_CHANNEL_CHOICES,
-            VANILLA_TWEAKS_DEFAULTS,
-            normalize_vanilla_tweaks_options,
-        )
-
         super().__init__(parent)
         self.setObjectName("ThemedDialog")
         self.setWindowFlags(_themed_dialog_flags())
@@ -2563,8 +2564,7 @@ class VanillaTweaksSettingsDialog(QDialog):
         self.setMinimumSize(860, 500)
         self.resize(900, 540)
         self._result: dict | None = None
-        self._defaults = dict(VANILLA_TWEAKS_DEFAULTS)
-        self._initial = normalize_vanilla_tweaks_options(settings.vanilla_tweaks_options)
+        self._defaults, self._initial = self._load_option_state()
         self._installed = self._tweaks_are_installed()
 
         root = QVBoxLayout(self)
@@ -2577,14 +2577,10 @@ class VanillaTweaksSettingsDialog(QDialog):
         body.setSpacing(12)
 
         open_git = _addon_open_git_button(card, self, self._GIT)
-        title_row, _title = _addon_dialog_title_row("Vanilla Tweaks", open_git)
+        title_row, _title = _addon_dialog_title_row(self._TITLE, open_git)
         body.addLayout(title_row)
 
-        blurb = QLabel(
-            "These flags are applied by tubtubs/vanilla-tweaks when it patches "
-            "WoW.exe. Saving while Tweaks is installed re-patches from "
-            "WoW-OriginalBackup.exe so changes do not stack."
-        )
+        blurb = QLabel(self._BLURB)
         blurb.setObjectName("ThemedDialogBody")
         blurb.setWordWrap(True)
         body.addWidget(blurb)
@@ -2612,6 +2608,69 @@ class VanillaTweaksSettingsDialog(QDialog):
         right = QVBoxLayout(right_host)
         right.setContentsMargins(0, 0, 0, 0)
         right.setSpacing(8)
+
+        self._build_option_rows(left, right, left_host, right_host)
+        left.addStretch(1)
+        right.addStretch(1)
+        cols.addWidget(left_host, 1)
+        cols.addWidget(right_host, 1)
+        body.addLayout(cols)
+
+        if self._installed:
+            note = QLabel("Tweaks is installed — Save will re-patch WoW.exe.")
+        else:
+            note = QLabel("Options are saved for the next Vanilla Tweaks install.")
+        note.setObjectName("ThemedDialogHint")
+        note.setWordWrap(True)
+        body.addWidget(note)
+
+        row = QHBoxLayout()
+        row.setSpacing(10)
+        defaults_btn = _dialog_glue_button("Defaults", card, primary=False)
+        defaults_btn.setToolTip(self._DEFAULTS_TIP)
+        defaults_btn.clicked.connect(self._reset_defaults)
+        row.addWidget(defaults_btn)
+        row.addStretch(1)
+        cancel_btn = _dialog_glue_button("Cancel", card, primary=False)
+        cancel_btn.clicked.connect(self.reject)
+        save_btn = _dialog_glue_button("Save", card, primary=True)
+        save_btn.clicked.connect(self._accept_save)
+        row.addWidget(cancel_btn)
+        row.addWidget(save_btn)
+        body.addLayout(row)
+
+        root.addWidget(card)
+        self.setStyleSheet(
+            "QDialog#ThemedDialog { background: transparent; }"
+            "QWidget#ThemedDialogCard {"
+            "  background-color: #100d0c;"
+            "  border: 1px solid rgba(150, 131, 158, 0.22);"
+            "  border-top: 3px solid #F1C22D;"
+            "  border-radius: 10px;"
+            "}"
+        )
+        self._apply_options(self._initial)
+
+    def _load_option_state(self) -> tuple[dict, dict]:
+        from ichalaunch.config.settings import settings
+        from ichalaunch.mods.vanilla_tweaks import (
+            VANILLA_TWEAKS_DEFAULTS,
+            normalize_vanilla_tweaks_options,
+        )
+
+        return (
+            dict(VANILLA_TWEAKS_DEFAULTS),
+            normalize_vanilla_tweaks_options(settings.vanilla_tweaks_options),
+        )
+
+    def _build_option_rows(
+        self,
+        left: QVBoxLayout,
+        right: QVBoxLayout,
+        left_host: QWidget,
+        right_host: QWidget,
+    ) -> None:
+        from ichalaunch.mods.vanilla_tweaks import SOUND_CHANNEL_CHOICES
 
         left.addWidget(self._section("Applied by default"))
         self._add_toggle(
@@ -2681,7 +2740,6 @@ class VanillaTweaksSettingsDialog(QDialog):
             "Blue moon",
             "Shows the blue moon around 1am every other day or so. On by default in V2.",
         )
-        left.addStretch(1)
 
         right.addWidget(self._section("Optional (off in V2)"))
         extra = QLabel(
@@ -2746,62 +2804,22 @@ class VanillaTweaksSettingsDialog(QDialog):
             lo=1,
             hi=50,
         )
-        right.addStretch(1)
-        cols.addWidget(left_host, 1)
-        cols.addWidget(right_host, 1)
-        body.addLayout(cols)
 
-        if self._installed:
-            note = QLabel("Tweaks is installed — Save will re-patch WoW.exe.")
-        else:
-            note = QLabel("Options are saved for the next Vanilla Tweaks install.")
-        note.setObjectName("ThemedDialogHint")
-        note.setWordWrap(True)
-        body.addWidget(note)
-
-        row = QHBoxLayout()
-        row.setSpacing(10)
-        defaults_btn = _dialog_glue_button("Defaults", card, primary=False)
-        defaults_btn.setToolTip("Restore tubtubs V2 defaults")
-        defaults_btn.clicked.connect(self._reset_defaults)
-        row.addWidget(defaults_btn)
-        row.addStretch(1)
-        cancel_btn = _dialog_glue_button("Cancel", card, primary=False)
-        cancel_btn.clicked.connect(self.reject)
-        save_btn = _dialog_glue_button("Save", card, primary=True)
-        save_btn.clicked.connect(self._accept_save)
-        row.addWidget(cancel_btn)
-        row.addWidget(save_btn)
-        body.addLayout(row)
-
-        root.addWidget(card)
-        self.setStyleSheet(
-            "QDialog#ThemedDialog { background: transparent; }"
-            "QWidget#ThemedDialogCard {"
-            "  background-color: #100d0c;"
-            "  border: 1px solid rgba(150, 131, 158, 0.22);"
-            "  border-top: 3px solid #F1C22D;"
-            "  border-radius: 10px;"
-            "}"
-        )
-        self._apply_options(self._initial)
-
-    @staticmethod
-    def _tweaks_are_installed() -> bool:
+    def _tweaks_are_installed(self) -> bool:
         from ichalaunch.config.settings import settings
         from ichalaunch.game.launcher import detect_game
         from ichalaunch.mods.installer import detect_actual_state
 
+        mid = self._MOD_ID
         game = detect_game()
         if game:
             try:
-                if detect_actual_state(game).get("vanilla_tweaks"):
+                if detect_actual_state(game).get(mid):
                     return True
             except Exception:  # noqa: BLE001
                 pass
         return bool(
-            settings.installed_mods.get("vanilla_tweaks")
-            and settings.desired_mods.get("vanilla_tweaks")
+            settings.installed_mods.get(mid) and settings.desired_mods.get(mid)
         )
 
     @staticmethod
@@ -3009,9 +3027,12 @@ class VanillaTweaksSettingsDialog(QDialog):
     def _reset_defaults(self) -> None:
         self._apply_options(self._defaults)
 
-    def collect_options(self) -> dict:
+    def _normalize_collected(self, raw: dict) -> dict:
         from ichalaunch.mods.vanilla_tweaks import normalize_vanilla_tweaks_options
 
+        return normalize_vanilla_tweaks_options(raw)
+
+    def collect_options(self) -> dict:
         raw = dict(self._defaults)
         for key, cb in self._checks.items():
             raw[key] = cb.isChecked()
@@ -3022,15 +3043,22 @@ class VanillaTweaksSettingsDialog(QDialog):
         for key, combo in self._combos.items():
             data = combo.currentData()
             raw[key] = int(data) if data is not None else raw.get(key)
-        return normalize_vanilla_tweaks_options(raw)
+        return self._normalize_collected(raw)
 
-    def _accept_save(self) -> None:
+    def _persist_options(self, options: dict) -> None:
         from ichalaunch.config.settings import settings
+
+        settings.set_vanilla_tweaks_options(options)
+
+    def _options_equal(self, left: dict, right: dict) -> bool:
         from ichalaunch.mods.vanilla_tweaks import options_equal
 
+        return options_equal(left, right)
+
+    def _accept_save(self) -> None:
         options = self.collect_options()
-        changed = not options_equal(options, self._initial)
-        settings.set_vanilla_tweaks_options(options)
+        changed = not self._options_equal(options, self._initial)
+        self._persist_options(options)
         self._result = {"options": options, "repatch": bool(changed and self._installed)}
         self.accept()
 
@@ -3039,11 +3067,196 @@ class VanillaTweaksSettingsDialog(QDialog):
 
 
 def vanilla_tweaks_settings_dialog(parent: QWidget | None) -> dict | None:
-    """Blocking Vanilla Tweaks options modal. None if cancelled."""
+    """Blocking Vanilla Tweaks V2 options modal. None if cancelled."""
     dlg = VanillaTweaksSettingsDialog(parent)
     if dlg.exec() != QDialog.DialogCode.Accepted:
         return None
     return dlg.result_data()
+
+
+class VanillaTweaksOldSettingsDialog(VanillaTweaksSettingsDialog):
+    """brndd/vanilla-tweaks 1.6.0 options — same chrome as V2, Old schema only."""
+
+    _GIT = "https://github.com/brndd/vanilla-tweaks"
+    _TITLE = "Vanilla Tweaks (Old)"
+    _MOD_ID = "vanilla_tweaks_old"
+    _DEFAULTS_TIP = "Restore brndd 1.6.0 defaults"
+    _BLURB = (
+        "These flags are applied by brndd/vanilla-tweaks 1.6.0 when it patches "
+        "WoW.exe. Saving while Tweaks is installed re-patches from "
+        "WoW-OriginalBackup.exe so changes do not stack."
+    )
+
+    def _load_option_state(self) -> tuple[dict, dict]:
+        from ichalaunch.config.settings import settings
+        from ichalaunch.mods.vanilla_tweaks import (
+            VANILLA_TWEAKS_OLD_DEFAULTS,
+            normalize_vanilla_tweaks_old_options,
+        )
+
+        return (
+            dict(VANILLA_TWEAKS_OLD_DEFAULTS),
+            normalize_vanilla_tweaks_old_options(settings.vanilla_tweaks_old_options),
+        )
+
+    def _build_option_rows(
+        self,
+        left: QVBoxLayout,
+        right: QVBoxLayout,
+        left_host: QWidget,
+        right_host: QWidget,
+    ) -> None:
+        from ichalaunch.mods.vanilla_tweaks import SOUND_CHANNEL_CHOICES
+
+        left.addWidget(self._section("Applied by default"))
+        self._add_toggle(
+            left,
+            left_host,
+            "farclip",
+            "Farclip (terrain distance)",
+            "Stock maximum is 777. After patching, set with /console farclip 1000. "
+            "The patcher allows up to 10000; values that high can crash.",
+            spin_key="farclip_value",
+            spin_kind="float",
+            decimals=0,
+            lo=100,
+            hi=10000,
+            step=100,
+        )
+        self._add_toggle(
+            left,
+            left_host,
+            "frilldistance",
+            "Grass / frill distance",
+            "Grass render distance (game default 70, brndd default 300). "
+            "Density is still /console frilldensity.",
+            spin_key="frilldistance_value",
+            spin_kind="float",
+            decimals=0,
+            lo=1,
+            hi=2000,
+            step=10,
+        )
+        self._add_toggle(
+            left,
+            left_host,
+            "nameplatedistance",
+            "Nameplate range",
+            "Nameplate distance in yards (game default 20, cap 41).",
+            slider_key="nameplatedistance_value",
+            lo=1,
+            hi=41,
+        )
+        self._add_toggle(
+            left,
+            left_host,
+            "largeaddressaware",
+            "Large Address Aware (4 GB)",
+            "Lets the 32-bit client use more than 2 GB of RAM. Leave on "
+            "unless the machine has under 3 GB.",
+        )
+        self._add_toggle(
+            left,
+            left_host,
+            "cameraskipfix",
+            "Camera skip glitch fix",
+            "Stops the camera from jumping to a random direction when rotated.",
+        )
+        self._add_toggle(
+            left,
+            left_host,
+            "quickloot",
+            "Quickloot reverse (hold Shift)",
+            "Loot automatically; hold Shift for the loot window. On by default in 1.6.0.",
+        )
+
+        right.addWidget(self._section("Also applied by default"))
+        extra = QLabel(
+            "brndd 1.6.0 enables FoV, background sound, and extra channels by default."
+        )
+        extra.setObjectName("ThemedDialogHint")
+        extra.setWordWrap(True)
+        right.addWidget(extra)
+        self._add_toggle(
+            right,
+            right_host,
+            "fov_patch",
+            "Widescreen FoV",
+            "Game default is 1.5708 radians. brndd default widescreen value is 1.925.",
+            spin_key="fov",
+            spin_kind="float",
+            decimals=4,
+            lo=0.5,
+            hi=3.0,
+            step=0.025,
+        )
+        self._add_toggle(
+            right,
+            right_host,
+            "sound_in_background",
+            "Sound in background",
+            "Keep game audio playing when the client is not focused.",
+        )
+        self._add_toggle(
+            right,
+            right_host,
+            "soundchannels_patch",
+            "Sound channel count",
+            "Persists /console SoundSoftwareChannels. Vanilla 12, TBC 32, "
+            "or modern 64. Those are the only values offered.",
+            choice_key="soundchannels",
+            choices=SOUND_CHANNEL_CHOICES,
+            choice_labels=("12 — Vanilla", "32 — TBC", "64 — Modern"),
+        )
+        right.addWidget(self._section("Optional (off by default)"))
+        self._add_toggle(
+            right,
+            right_host,
+            "maxcameradistance_patch",
+            "Camera distance limit",
+            "Stock maximum is 50. After patching, use /console CameraDistanceMax.",
+            slider_key="maxcameradistance",
+            lo=1,
+            hi=50,
+        )
+
+    def _apply_superwow_optional_lock(self) -> None:
+        # SuperWoW warning is the enable popup — do not grey Old options.
+        self._superwow_locks_optional = False
+
+    def _normalize_collected(self, raw: dict) -> dict:
+        from ichalaunch.mods.vanilla_tweaks import normalize_vanilla_tweaks_old_options
+
+        return normalize_vanilla_tweaks_old_options(raw)
+
+    def _persist_options(self, options: dict) -> None:
+        from ichalaunch.config.settings import settings
+
+        settings.set_vanilla_tweaks_old_options(options)
+
+    def _options_equal(self, left: dict, right: dict) -> bool:
+        from ichalaunch.mods.vanilla_tweaks import old_options_equal
+
+        return old_options_equal(left, right)
+
+
+def vanilla_tweaks_old_settings_dialog(parent: QWidget | None) -> dict | None:
+    """Blocking Vanilla Tweaks (Old) options modal. None if cancelled."""
+    dlg = VanillaTweaksOldSettingsDialog(parent)
+    if dlg.exec() != QDialog.DialogCode.Accepted:
+        return None
+    return dlg.result_data()
+
+
+def confirm_vanilla_tweaks_old(parent: QWidget | None) -> bool:
+    """Warn that Old may conflict with SuperWoW. False leaves Old unchecked."""
+    return confirm(
+        parent,
+        "Vanilla Tweaks (Old)",
+        "Vanilla Tweaks (Old) may conflict with SuperWoW.\n\n"
+        "Only use this version if Vanilla Tweaks V2 causes poor performance.\n\n"
+        "Continue?",
+    )
 
 
 def _run(

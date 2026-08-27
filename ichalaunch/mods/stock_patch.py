@@ -29,7 +29,7 @@ from ichalaunch.core.filesystem import (
 from ichalaunch.core.logging_setup import log
 from ichalaunch.core.paths import data_file
 from ichalaunch.core.process import status_only
-from ichalaunch.game.launcher import detect_game
+from ichalaunch.game.launcher import detect_game, has_wow_exe
 
 ProgressCb = Callable[[str], None]
 
@@ -149,9 +149,11 @@ def inspect_stock_patch9(
 ) -> StockPatch9Status:
     expected = STOCK_PATCH9_EXPECTED_SIZE if expected_size is None else int(expected_size)
     floor = STOCK_PATCH9_MIN_BYTES if min_bytes is None else int(min_bytes)
-    if game_path is None:
+    if game_path is None or not str(game_path).strip():
         return StockPatch9Status("no_game", None, 0, expected, floor)
     game = Path(game_path)
+    if not has_wow_exe(game):
+        return StockPatch9Status("no_game", None, 0, expected, floor)
     found = stock_patch9_path(game)
     dest = found if found is not None else game / STOCK_PATCH9_REL
     if found is None:
@@ -230,11 +232,13 @@ def reacquire_stock_patch9(
     from ichalaunch.mods.installer import _download_source
 
     game = Path(game_path) if game_path else detect_game()
-    if not game:
+    if not game or not has_wow_exe(game):
         raise FileNotFoundError("Game not installed / path not set")
     expected = STOCK_PATCH9_EXPECTED_SIZE if expected_size is None else int(expected_size)
     floor = STOCK_PATCH9_MIN_BYTES if min_bytes is None else int(min_bytes)
     status = inspect_stock_patch9(game, expected_size=expected, min_bytes=floor)
+    if status.state == "no_game":
+        raise FileNotFoundError("Game not installed / path not set")
     if status.state == "ok" and not force:
         raise RuntimeError("patch-9.mpq is already present and complete")
     dest = status.path if status.path is not None else game / STOCK_PATCH9_REL

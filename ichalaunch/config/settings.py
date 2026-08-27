@@ -171,7 +171,8 @@ DEFAULTS: dict[str, Any] = {
     # Persisted unauthenticated addon update-scan queue (folders + hour budget).
     "addon_update_scan_queue": None,
     "desired_mods": {
-        "vanilla_tweaks": False,
+        "vanilla_tweaks": True,
+        "vanilla_tweaks_old": False,
         "vanillafixes": True,
         "dxvk": False,
         "superwow": False,
@@ -191,6 +192,8 @@ DEFAULTS: dict[str, Any] = {
     "dismissed_mpq_patch_warning": False,
     # tubtubs/vanilla-tweaks CLI options. Empty dict uses V2 defaults.
     "vanilla_tweaks_options": {},
+    # brndd/vanilla-tweaks 1.6.0 CLI options. Empty dict uses Old defaults.
+    "vanilla_tweaks_old_options": {},
 }
 
 
@@ -295,6 +298,27 @@ def migrate_addon_no_token_startup(data: dict[str, Any]) -> bool:
     return True
 
 
+def migrate_unsolicited_vanilla_tweaks_old(data: dict[str, Any]) -> bool:
+    """Turn off Old unless the user explicitly chose it.
+
+    A prior ``vanilla_tweaks_old: True`` default merged into existing
+    ``desired_mods`` and flipped Tweaks to Old on upgrade. Users who only
+    had V2 (or never touched Old) stay on V2.
+    """
+    dm = dict(data.get("desired_mods") or {})
+    if not dm.get("vanilla_tweaks_old"):
+        return False
+    usm = {str(x) for x in (data.get("user_set_mods") or []) if x}
+    if "vanilla_tweaks_old" in usm:
+        return False
+    dm["vanilla_tweaks_old"] = False
+    im = data.get("installed_mods") or {}
+    if dm.get("vanilla_tweaks") or (isinstance(im, dict) and im.get("vanilla_tweaks")):
+        dm["vanilla_tweaks"] = True
+    data["desired_mods"] = dm
+    return True
+
+
 class Settings:
     def __init__(self) -> None:
         self._data: dict[str, Any] = dict(DEFAULTS)
@@ -306,14 +330,24 @@ class Settings:
         merged.update(loaded)
         _preserve_loaded_paths(merged, loaded)
         # deep-merge desired_mods / installed_addons / installed_mods
+        # Never replace a saved dict wholesale — new catalog keys fill from
+        # defaults, then the file wins. Old stays off unless the file said so.
         dm = dict(DEFAULTS["desired_mods"])
-        dm.update(loaded.get("desired_mods") or {})
+        loaded_dm = loaded.get("desired_mods")
+        if isinstance(loaded_dm, dict):
+            dm.update(loaded_dm)
+            if "vanilla_tweaks_old" not in loaded_dm:
+                dm["vanilla_tweaks_old"] = False
         merged["desired_mods"] = dm
         ia = dict(DEFAULTS["installed_addons"])
-        ia.update(loaded.get("installed_addons") or {})
+        loaded_ia = loaded.get("installed_addons")
+        if isinstance(loaded_ia, dict):
+            ia.update(loaded_ia)
         merged["installed_addons"] = ia
         im = dict(DEFAULTS.get("installed_mods") or {})
-        im.update(loaded.get("installed_mods") or {})
+        loaded_im = loaded.get("installed_mods")
+        if isinstance(loaded_im, dict):
+            im.update(loaded_im)
         merged["installed_mods"] = im
         um = loaded.get("user_mods")
         if isinstance(um, list):
@@ -326,6 +360,10 @@ class Settings:
         )
         vto = loaded.get("vanilla_tweaks_options")
         merged["vanilla_tweaks_options"] = dict(vto) if isinstance(vto, dict) else {}
+        vto_old = loaded.get("vanilla_tweaks_old_options")
+        merged["vanilla_tweaks_old_options"] = (
+            dict(vto_old) if isinstance(vto_old, dict) else {}
+        )
         # Migrate older dual startup toggles into one setting.
         if "check_updates_on_startup" not in loaded:
             addon_on = bool(loaded.get("check_addon_updates_on_startup", True))
@@ -334,6 +372,7 @@ class Settings:
         changed = migrate_legacy_mod_ids(merged)
         changed = migrate_stock_patch9_collision(merged) or changed
         changed = migrate_addon_no_token_startup(merged) or changed
+        changed = migrate_unsolicited_vanilla_tweaks_old(merged) or changed
         _preserve_loaded_paths(merged, loaded)
         return merged, changed
 
@@ -705,6 +744,22 @@ class Settings:
         from ichalaunch.mods.vanilla_tweaks import normalize_vanilla_tweaks_options
 
         self.set("vanilla_tweaks_options", normalize_vanilla_tweaks_options(options))
+
+    @property
+    def vanilla_tweaks_old_options(self) -> dict[str, Any]:
+        from ichalaunch.mods.vanilla_tweaks import normalize_vanilla_tweaks_old_options
+
+        return normalize_vanilla_tweaks_old_options(
+            self._data.get("vanilla_tweaks_old_options")
+        )
+
+    def set_vanilla_tweaks_old_options(self, options: dict[str, Any]) -> None:
+        from ichalaunch.mods.vanilla_tweaks import normalize_vanilla_tweaks_old_options
+
+        self.set(
+            "vanilla_tweaks_old_options",
+            normalize_vanilla_tweaks_old_options(options),
+        )
 
     def reset_to_defaults(self) -> None:
         """Reset all persisted settings to factory defaults and save."""

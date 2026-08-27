@@ -3031,7 +3031,7 @@ class MainWindow(QMainWindow):
         if getattr(self, "_patch9_prompted", False):
             return
         game = detect_game()
-        if not game:
+        if not game or not has_wow_exe(game):
             return
         from ichalaunch.mods.stock_patch import (
             inspect_stock_patch9,
