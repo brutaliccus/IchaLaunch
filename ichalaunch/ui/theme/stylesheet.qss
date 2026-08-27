@@ -592,6 +592,18 @@ QAbstractButton#ThemeCheckBox {
     spacing: 0;
 }
 
+/* ThemeRadioButton / preset radios — same paint-owned indicator pattern. */
+QAbstractButton#ThemeRadioButton,
+QAbstractButton#ThemePresetRadio {
+    background: transparent;
+    border: none;
+    color: #e6e0ee;
+    min-height: 28px;
+    padding: 0;
+    margin: 0;
+    spacing: 0;
+}
+
 /* Legacy QCheckBox rules kept harmless if any remain. */
 QCheckBox {
     spacing: 10px;

@@ -211,6 +211,10 @@ DEFAULTS: dict[str, Any] = {
     "vanilla_tweaks_options": {},
     # brndd/vanilla-tweaks 1.6.0 CLI options. Empty dict uses Old defaults.
     "vanilla_tweaks_old_options": {},
+    # Client page preset (none | basic | basic_plus | hd_aio | custom).
+    "client_preset": "none",
+    # HD AIO preset: use Patch-T ultra base + Patch-U instead of standard Patch-T.
+    "client_preset_hd_ultra": False,
 }
 
 

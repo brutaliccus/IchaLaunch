@@ -5,6 +5,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QHideEvent, QShowEvent
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QHBoxLayout,
     QLabel,
     QProgressBar,
@@ -20,6 +21,14 @@ from ichalaunch.game.launcher import detect_game, sync_vanillafixes_enabled_from
 from ichalaunch.mods.client_mod_hints import (
     is_dll_injection_mod,
     should_show_mpq_patch_warning,
+)
+from ichalaunch.mods.client_presets import (
+    APPLYABLE_PRESETS,
+    PRESET_CUSTOM,
+    PRESET_HD_AIO,
+    apply_client_preset,
+    detect_matching_preset,
+    mark_custom_preset,
 )
 from ichalaunch.mods.installer import (
     apply_mod_toggle,
@@ -69,11 +78,15 @@ from ichalaunch.ui.widgets.dialogs import (
 from ichalaunch.ui.widgets.glue_panel_button import GLUE_BTN_H, GluePanelButton
 from ichalaunch.ui.widgets.launch_settings import LaunchSettingsPanel
 from ichalaunch.ui.widgets.marble_bg import MarblePanel, MarbleScrollArea
+from ichalaunch.ui.widgets.theme_checkbox import ThemeCheckBox
+from ichalaunch.ui.widgets.theme_radio import ThemeRadioButton
 from ichalaunch.ui.widgets.update_alert_badge import BadgeNavButton
 
 LAUNCH_CATEGORY = "Launch"
+PRESETS_CATEGORY = "Presets"
 
 CATEGORY_ORDER = [
+    PRESETS_CATEGORY,
     "Performance & Fixes",
     "Client Enhancements",
     "HD Graphics",
@@ -199,6 +212,10 @@ class ClientPage(QWidget):
         self._search_q = ""
         self._vf_dxvk_prompted = False
         self._dxvk_gpu_warned = False
+        self._applying_preset = False
+        self._preset_radios: dict[str, ThemeRadioButton] = {}
+        self._preset_hd_ultra_cb: ThemeCheckBox | None = None
+        self._preset_button_group: QButtonGroup | None = None
 
         by_cat: dict[str, list] = {}
         for mod in load_mod_catalog():
@@ -215,13 +232,17 @@ class ClientPage(QWidget):
         by_cat.setdefault("Custom", [])
         # Launch is settings, not a catalog list — keep the tab even with no mods.
         by_cat.setdefault(LAUNCH_CATEGORY, [])
+        by_cat.setdefault(PRESETS_CATEGORY, [])
         cats = [c for c in CATEGORY_ORDER if c in by_cat] + [
             c for c in by_cat if c not in CATEGORY_ORDER
         ]
 
         for i, cat in enumerate(cats):
-            mods = [] if cat == LAUNCH_CATEGORY else by_cat[cat]
-            self._add_category_page(cat, mods, i)
+            if cat == PRESETS_CATEGORY:
+                self._add_presets_page(i)
+            else:
+                mods = [] if cat == LAUNCH_CATEGORY else by_cat[cat]
+                self._add_category_page(cat, mods, i)
 
         self.launch_settings = LaunchSettingsPanel(self)
         launch_host = self._cat_hosts.get(LAUNCH_CATEGORY)
@@ -342,6 +363,176 @@ class ClientPage(QWidget):
         scroll.setWidget(host)
         page_l.addWidget(scroll, 1)
         self.cat_stack.addWidget(page)
+
+    def _add_presets_page(self, index: int) -> None:
+        btn = BadgeNavButton(PRESETS_CATEGORY)
+        btn.setObjectName("CatNavButton")
+        btn.setCheckable(True)
+        apply_open_hand(btn)
+        btn.clicked.connect(lambda checked=False, idx=index: self._show_cat(idx))
+        if self._side_stretch_added:
+            self._side_layout.insertWidget(self._side_layout.count() - 1, btn)
+        else:
+            self._side_layout.addWidget(btn)
+        self.cat_btns.append(btn)
+        self._cat_index[PRESETS_CATEGORY] = index
+
+        page = QWidget()
+        page.setObjectName("ClientCatPanel")
+        page.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        page.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        page_l = QVBoxLayout(page)
+        page_l.setContentsMargins(0, 0, 0, 0)
+        scroll = MarbleScrollArea()
+        scroll.setObjectName("ClientCatScroll")
+        scroll.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        host = QWidget()
+        host.setObjectName("ClientCatHost")
+        host.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        host.setMinimumWidth(0)
+        host_l = QVBoxLayout(host)
+        host_l.setContentsMargins(8, 8, 8, 8)
+        host_l.setSpacing(10)
+        self._cat_hosts[PRESETS_CATEGORY] = host_l
+        self._cat_scrolls[PRESETS_CATEGORY] = scroll
+
+        intro = QLabel(
+            "Choose a preset to configure client mods automatically. "
+            "Manual changes switch to Custom — use Apply Changes to install."
+        )
+        intro.setObjectName("Muted")
+        intro.setWordWrap(True)
+        host_l.addWidget(intro)
+
+        self._preset_button_group = QButtonGroup(self)
+        self._preset_button_group.setExclusive(True)
+
+        preset_rows: list[tuple[str, str, str]] = [
+            ("none", "None", "Client only — no preset-managed mods enabled."),
+            (
+                "basic",
+                "Basic",
+                "Core client DLLs, Vanilla Tweaks V2, VanillaFixes + DXVK, "
+                "Auction Query, no1600, WDB cache block, Addon Script Memory = 0.",
+            ),
+            (
+                "basic_plus",
+                "Basic +",
+                "Everything in Basic, plus PerfBoost, Patch-O, Pretty Night Sky, "
+                "Epoch Water, Fog Pushback, DXVK 2.7.1, VanillaHelpers, HD Patches I, M, P.",
+            ),
+            (
+                "hd_aio",
+                "HD AIO",
+                "Fog Pushback plus Reforged HD Patches A, B, C, D, E, G, S, T "
+                "(standard textures by default).",
+            ),
+            (
+                "custom",
+                "Custom",
+                "Your mod selection no longer matches a preset. Pick None, Basic, "
+                "Basic +, or HD AIO above to re-apply a profile.",
+            ),
+        ]
+        for preset_id, title, blurb in preset_rows:
+            row = QWidget()
+            row_l = QVBoxLayout(row)
+            row_l.setContentsMargins(0, 0, 0, 0)
+            row_l.setSpacing(4)
+            head = QHBoxLayout()
+            head.setContentsMargins(0, 0, 0, 0)
+            head.setSpacing(8)
+            radio = ThemeRadioButton(title, row)
+            radio.setObjectName("ThemePresetRadio")
+            self._preset_radios[preset_id] = radio
+            self._preset_button_group.addButton(radio)
+            head.addWidget(radio, 0)
+            if preset_id == PRESET_HD_AIO:
+                ultra = ThemeCheckBox("Ultra versions", row)
+                ultra.setToolTip(
+                    "Use Patch-T ultra base + Patch-U instead of standard Patch-T."
+                )
+                ultra.toggled.connect(self._on_preset_hd_ultra_toggled)
+                self._preset_hd_ultra_cb = ultra
+                head.addWidget(ultra, 0)
+            head.addStretch(1)
+            row_l.addLayout(head)
+            desc = QLabel(blurb)
+            desc.setObjectName("Muted")
+            desc.setWordWrap(True)
+            desc.setContentsMargins(28, 0, 0, 0)
+            row_l.addWidget(desc)
+            host_l.addWidget(row)
+            if preset_id == PRESET_CUSTOM:
+                radio.setEnabled(False)
+            else:
+                radio.toggled.connect(
+                    lambda checked, pid=preset_id: self._on_preset_radio(pid, checked)
+                )
+
+        host_l.addStretch(1)
+        scroll.setWidget(host)
+        page_l.addWidget(scroll, 1)
+        self.cat_stack.addWidget(page)
+        self._sync_preset_radios()
+
+    def _sync_preset_radios(self) -> None:
+        preset_id = str(settings.get("client_preset") or PRESET_CUSTOM)
+        hd_ultra = bool(settings.get("client_preset_hd_ultra"))
+        if preset_id not in self._preset_radios:
+            detected, detected_ultra = detect_matching_preset()
+            preset_id = detected
+            hd_ultra = detected_ultra
+            if preset_id != PRESET_CUSTOM:
+                settings.set("client_preset", preset_id)
+                settings.set("client_preset_hd_ultra", hd_ultra)
+        for pid, radio in self._preset_radios.items():
+            radio.blockSignals(True)
+            radio.setChecked(pid == preset_id)
+            radio.blockSignals(False)
+        if self._preset_hd_ultra_cb is not None:
+            self._preset_hd_ultra_cb.blockSignals(True)
+            self._preset_hd_ultra_cb.setChecked(hd_ultra)
+            active_hd = preset_id == PRESET_HD_AIO and not self._game_edit_locked
+            self._preset_hd_ultra_cb.setEnabled(active_hd)
+            self._preset_hd_ultra_cb.blockSignals(False)
+
+    def _on_preset_radio(self, preset_id: str, checked: bool) -> None:
+        if not checked or self._game_edit_locked or self._applying_preset:
+            return
+        if preset_id not in APPLYABLE_PRESETS:
+            return
+        hd_ultra = False
+        if preset_id == PRESET_HD_AIO and self._preset_hd_ultra_cb is not None:
+            hd_ultra = self._preset_hd_ultra_cb.isChecked()
+        self._apply_preset_choice(preset_id, hd_ultra=hd_ultra)
+
+    def _on_preset_hd_ultra_toggled(self, checked: bool) -> None:
+        del checked
+        if self._game_edit_locked or self._applying_preset:
+            return
+        custom_radio = self._preset_radios.get(PRESET_HD_AIO)
+        if custom_radio is None or not custom_radio.isChecked():
+            return
+        hd_ultra = (
+            self._preset_hd_ultra_cb.isChecked()
+            if self._preset_hd_ultra_cb is not None
+            else False
+        )
+        self._apply_preset_choice(PRESET_HD_AIO, hd_ultra=hd_ultra)
+
+    def _apply_preset_choice(self, preset_id: str, *, hd_ultra: bool) -> None:
+        self._applying_preset = True
+        try:
+            apply_client_preset(preset_id, hd_ultra=hd_ultra)
+            self.refresh_from_settings()
+            self._sync_preset_radios()
+        finally:
+            self._applying_preset = False
 
     @staticmethod
     def _insert_row_before_stretch(layout: QVBoxLayout, row: QWidget) -> None:
@@ -645,6 +836,11 @@ class ClientPage(QWidget):
         self._game_edit_locked = bool(locked)
         for row in self.rows.values():
             row.set_editing_locked(self._game_edit_locked)
+        for pid, radio in self._preset_radios.items():
+            if pid == PRESET_CUSTOM:
+                continue
+            radio.setEnabled(not self._game_edit_locked)
+        self._sync_preset_radios()
         self._sync_game_lock_actions()
 
     def _sync_game_lock_actions(self) -> None:
@@ -832,6 +1028,9 @@ class ClientPage(QWidget):
             QTimer.singleShot(0, self._maybe_superwow_enable_check)
         if enabled and mod_id in ("vanilla_tweaks", "vanilla_tweaks_old"):
             QTimer.singleShot(0, lambda mid=mod_id: self._open_mod_config(mid))
+        if not self._applying_preset:
+            mark_custom_preset()
+            self._sync_preset_radios()
         self.refresh_plan()
 
     def _confirm_disable_cascade(self, mod_id: str, cascade_ids: list[str]) -> bool:
@@ -983,6 +1182,20 @@ class ClientPage(QWidget):
         QTimer.singleShot(0, self._maybe_superwow_client_drift)
         self._refresh_patch9_banner()
         self._refresh_cat_badges()
+        if not self._applying_preset:
+            detected, ultra = detect_matching_preset(desired)
+            stored = str(settings.get("client_preset") or "")
+            if stored == PRESET_CUSTOM:
+                pass
+            elif detected == PRESET_CUSTOM:
+                settings.set("client_preset", PRESET_CUSTOM)
+            elif detected != stored or (
+                detected == PRESET_HD_AIO
+                and bool(settings.get("client_preset_hd_ultra")) != ultra
+            ):
+                settings.set("client_preset", detected)
+                settings.set("client_preset_hd_ultra", ultra)
+            self._sync_preset_radios()
 
     @staticmethod
     def _set_status_style(lbl: QLabel, object_name: str) -> None:

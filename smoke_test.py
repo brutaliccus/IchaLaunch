@@ -1300,6 +1300,120 @@ def test_mod_toggle_resolution():
     print("OK mod toggle deps/conflicts")
 
 
+def test_client_preset_catalog_ids():
+    """Every mod id referenced by client presets exists in mods.json."""
+    from ichalaunch.mods.client_presets import validate_preset_catalog_ids
+
+    missing = validate_preset_catalog_ids()
+    assert not missing, f"missing preset mod ids: {missing}"
+    print("OK client preset catalog ids")
+
+
+def test_client_preset_apply_basic():
+    """Applying Basic enables the expected desired_mods keys."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.mods.client_presets import PRESET_BASIC, apply_client_preset, preset_mod_ids_for_tests
+
+    keys = ("desired_mods", "user_set_mods", "client_preset", "client_preset_hd_ultra")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        s.set("desired_mods", {})
+        s.set("user_set_mods", [])
+        apply_client_preset(PRESET_BASIC)
+        expected = preset_mod_ids_for_tests(PRESET_BASIC)
+        for mid in expected:
+            assert s.desired_mods.get(mid), mid
+        assert not s.desired_mods.get("vanillafixes")
+        assert not s.desired_mods.get("hd_dxvk")
+        assert s.get("client_preset") == PRESET_BASIC
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+    print("OK client preset apply basic")
+
+
+def test_client_preset_downgrade_basic_plus_to_basic():
+    """Downgrading Basic+ to Basic disables the extra mods."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.mods.client_presets import (
+        PRESET_BASIC,
+        PRESET_BASIC_PLUS,
+        apply_client_preset,
+        downgrade_extra_mods,
+    )
+
+    keys = ("desired_mods", "user_set_mods", "client_preset", "client_preset_hd_ultra")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        s.set("desired_mods", {})
+        s.set("user_set_mods", [])
+        apply_client_preset(PRESET_BASIC_PLUS)
+        extras = set(downgrade_extra_mods(PRESET_BASIC_PLUS, PRESET_BASIC))
+        assert "perfboost" in extras
+        assert "hd_patch_i" in extras
+        apply_client_preset(PRESET_BASIC)
+        for mid in extras:
+            assert not s.desired_mods.get(mid), mid
+        assert s.desired_mods.get("dxvk")
+        assert not s.desired_mods.get("hd_dxvk")
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+    print("OK client preset downgrade basic+ to basic")
+
+
+def test_client_preset_manual_toggle_custom():
+    """Manual mod toggle marks preset as Custom."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.mods.client_presets import PRESET_BASIC, PRESET_CUSTOM, apply_client_preset, mark_custom_preset
+    from ichalaunch.mods.installer import apply_mod_toggle
+
+    keys = ("desired_mods", "user_set_mods", "client_preset", "client_preset_hd_ultra")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        s.set("desired_mods", {})
+        s.set("user_set_mods", [])
+        apply_client_preset(PRESET_BASIC)
+        assert s.get("client_preset") == PRESET_BASIC
+        apply_mod_toggle("perfboost", True)
+        mark_custom_preset()
+        assert s.get("client_preset") == PRESET_CUSTOM
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+    print("OK client preset manual toggle custom")
+
+
+def test_client_preset_tweaks_cog_not_custom():
+    """Editing vanilla-tweaks options alone does not force Custom preset."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.mods.client_presets import PRESET_BASIC, apply_client_preset, detect_matching_preset
+
+    keys = (
+        "desired_mods",
+        "user_set_mods",
+        "client_preset",
+        "client_preset_hd_ultra",
+        "vanilla_tweaks_options",
+    )
+    saved = {k: s.get(k) for k in keys}
+    try:
+        s.set("desired_mods", {})
+        s.set("user_set_mods", [])
+        apply_client_preset(PRESET_BASIC)
+        assert s.get("client_preset") == PRESET_BASIC
+        opts = dict(s.get("vanilla_tweaks_options") or {})
+        opts["widescreen_fov"] = True
+        s.set("vanilla_tweaks_options", opts)
+        preset, _ultra = detect_matching_preset()
+        assert preset == PRESET_BASIC
+        assert s.get("client_preset") == PRESET_BASIC
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+    print("OK client preset tweaks cog not custom")
+
+
 def test_hd_patch_e_includes_caption():
     """Patch-E advertises Fog Pushback; Pretty Night Sky must not claim Patch-E."""
     from ichalaunch.mods.installer import get_mod, mod_contains_caption, mod_includes_caption
@@ -8827,6 +8941,96 @@ def test_theme_checkbox_disabled_uses_grey_check_art():
     print("OK theme checkbox disabled grey check art")
 
 
+def test_theme_radio_uses_wow_art():
+    """ThemeRadioButton loads UI-RadioButton art and works in exclusive QButtonGroup."""
+    from PySide6.QtWidgets import QApplication, QButtonGroup, QWidget
+
+    from ichalaunch.core.paths import theme_file
+    from ichalaunch.ui.widgets.theme_radio import ThemeRadioButton, _assets
+
+    app = QApplication.instance() or QApplication([])
+    del app
+
+    for name in (
+        "UI-RadioButton-Off.PNG",
+        "UI-RadioButton-On.PNG",
+        "UI-RadioButton-Hover.PNG",
+        "UI-RadioButton-Disabled.PNG",
+    ):
+        assert theme_file("radios", name).is_file(), theme_file("radios", name)
+
+    off, hover, on, on_disabled = _assets()
+    assert not off.isNull()
+    assert not on.isNull()
+    assert not on_disabled.isNull()
+    assert off.toImage() != on.toImage()
+    assert on.toImage() != on_disabled.toImage()
+
+    def _indicator_tone(img, side=22, inset=0):
+        """Score gold vs grey in the indicator; inset focuses on the inner fill."""
+        gold = grey = 0
+        y0 = max(0, (img.height() - side) // 2)
+        for y in range(y0 + inset, min(y0 + side - inset, img.height())):
+            for x in range(inset, min(side - inset, img.width())):
+                c = img.pixelColor(x, y)
+                if c.alpha() < 30:
+                    continue
+                luma = (c.red() + c.green() + c.blue()) / 3
+                if luma < 18 or luma > 240:
+                    continue
+                if c.red() > c.blue() + 15 and c.green() > c.blue() + 5:
+                    gold += 1
+                elif abs(c.red() - c.green()) < 18 and abs(c.green() - c.blue()) < 18:
+                    grey += 1
+        return gold, grey
+
+    on_gold, on_grey = _indicator_tone(on.toImage(), max(on.width(), on.height()))
+    dis_gold, dis_grey = _indicator_tone(
+        on_disabled.toImage(), max(on_disabled.width(), on_disabled.height())
+    )
+    assert on_gold > on_grey, (on_gold, on_grey)
+    assert dis_grey > dis_gold, (dis_gold, dis_grey)
+
+    host = QWidget()
+    group = QButtonGroup(host)
+    group.setExclusive(True)
+    a = ThemeRadioButton("Alpha", host)
+    b = ThemeRadioButton("Beta", host)
+    a.setObjectName("ThemePresetRadio")
+    b.setObjectName("ThemePresetRadio")
+    group.addButton(a)
+    group.addButton(b)
+
+    toggled: list[bool] = []
+    a.toggled.connect(toggled.append)
+    a.setChecked(True)
+    assert a.isChecked() and not b.isChecked()
+    b.setChecked(True)
+    assert b.isChecked() and not a.isChecked()
+    assert toggled == [True, False]
+
+    a.setFixedSize(120, 28)
+    a.setChecked(False)
+    off_img = a.grab().toImage()
+    a.setChecked(True)
+    on_img = a.grab().toImage()
+    assert off_img != on_img
+
+    # Inner fill only: the Off ring is grey by design; selected must read gold.
+    off_gold, off_grey = _indicator_tone(off_img, inset=5)
+    chk_gold, chk_grey = _indicator_tone(on_img, inset=5)
+    assert chk_gold > chk_grey, (chk_gold, chk_grey)
+    assert chk_gold > off_gold, (chk_gold, off_gold)
+
+    a.setEnabled(False)
+    dis_img = a.grab().toImage()
+    dis_chk_gold, dis_chk_grey = _indicator_tone(dis_img, inset=5)
+    assert dis_chk_grey > dis_chk_gold, (dis_chk_gold, dis_chk_grey)
+
+    host.deleteLater()
+    print("OK theme radio uses wow art")
+
+
 def test_client_page_does_not_poll_game_lock_until_shown():
     """Constructing ClientPage must not tasklist; WoW running on the dev box cannot lock tests."""
     from unittest.mock import patch
@@ -13159,6 +13363,11 @@ def _run_smoke_tests():
     test_config_wtf_restore()
     test_darker_nights_migration()
     test_mod_toggle_resolution()
+    test_client_preset_catalog_ids()
+    test_client_preset_apply_basic()
+    test_client_preset_downgrade_basic_plus_to_basic()
+    test_client_preset_manual_toggle_custom()
+    test_client_preset_tweaks_cog_not_custom()
     test_hd_patch_e_includes_caption()
     test_hd_dxvk_catalog_and_patch_v()
     test_hd_dxvk_disable_restores_vf_layer()
@@ -13301,6 +13510,7 @@ def _run_smoke_tests():
     test_vanilla_tweaks_optional_greyed_when_superwow()
     test_client_pending_plan_row_badge_and_apply_pulse()
     test_theme_checkbox_disabled_uses_grey_check_art()
+    test_theme_radio_uses_wow_art()
     test_client_page_does_not_poll_game_lock_until_shown()
     test_client_page_locks_mod_edits_when_wow_running()
     test_wow_exe_running_matches_game_directory()
