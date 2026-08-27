@@ -47,10 +47,9 @@ _BASIC_PLUS_EXTRA: frozenset[str] = frozenset(
     }
 )
 
-_HD_AIO_STANDARD: frozenset[str] = frozenset(
+# Lettered HD patches added on top of Basic+ (not a replacement set).
+_HD_AIO_EXTRA: frozenset[str] = frozenset(
     {
-        "fog_pushback",
-        "vanilla_helpers",
         "hd_patch_a",
         "hd_patch_b",
         "hd_patch_c",
@@ -83,7 +82,7 @@ def preset_managed_mod_ids() -> frozenset[str]:
     return (
         _BASIC_CORE
         | _BASIC_PLUS_EXTRA
-        | _HD_AIO_STANDARD
+        | _HD_AIO_EXTRA
         | _HD_AIO_ULTRA
         | _EXPLICIT_OFF
         | _catalog_hd_patch_ids()
@@ -105,7 +104,8 @@ def preset_desired_mods(preset_id: str, *, hd_ultra: bool = False) -> dict[str, 
             out[mid] = True
         return out
     if preset_id == PRESET_HD_AIO:
-        for mid in _HD_AIO_STANDARD:
+        enabled = _BASIC_CORE | _BASIC_PLUS_EXTRA | _HD_AIO_EXTRA
+        for mid in enabled:
             if mid == "hd_patch_t" and hd_ultra:
                 continue
             out[mid] = True

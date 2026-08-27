@@ -428,7 +428,7 @@ class ClientPage(QWidget):
             (
                 "hd_aio",
                 "HD AIO",
-                "Fog Pushback plus Reforged HD Patches A, B, C, D, E, G, S, T "
+                "Everything in Basic +, plus Reforged HD Patches A, B, C, D, E, G, S, T "
                 "(standard textures by default).",
             ),
             (
