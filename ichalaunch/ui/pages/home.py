@@ -19,7 +19,7 @@ from ichalaunch.core.paths import theme_file
 from ichalaunch.game.launcher import detect_game, is_installed
 from ichalaunch.mods.installer import detect_actual_state, load_mod_catalog
 from ichalaunch.ui.widgets.common import open_url_in_browser
-from ichalaunch.ui.widgets.launch_button import LaunchButton
+from ichalaunch.ui.widgets.glue_panel_button import GLUE_BTN_H, GluePanelButton
 from ichalaunch.ui.widgets.mods_forest_bg import HomeModsCard
 from ichalaunch.ui.widgets.talent_bg import TalentFrameBackground
 
@@ -32,15 +32,26 @@ CATEGORY_ORDER = [
     "Visual / QoL",
 ]
 
-DRAWER_MIN_W = 260
+# Wide enough for three title-case glue buttons ("Bug Report" on one line)
+# between the left metal rail and the home art — uses the leftover strip.
+DRAWER_MIN_W = 320
 DRAWER_MAX_W = 320
 # Near-touch mods drawer / right content edge; feather softens into the gap.
 _SIDE_PAD_PX = 16
 # Gap between mods Card bottom border and NavBottomBanner diamond strip.
 _MODS_BANNER_GAP_PX = 16
-# Gap above Register Here — clear the metal top rail (20px at ContentPanel y=0)
-# plus a few px so the button sits below the top art, not under it.
+# Gap above the Home link row — clear the metal top rail (20px at ContentPanel y=0)
+# plus a few px so the buttons sit below the top art, not under it.
 _HOME_TOP_PAD = 26
+# Standard toolbar chrome (same plate / type as Rescan Disk), equal widths.
+_HOME_LINK_H = GLUE_BTN_H
+_HOME_LINK_GAP = 8
+_HOME_LINK_W = (DRAWER_MIN_W - 2 * _HOME_LINK_GAP) // 3
+_HOME_LINK_ROW_W = _HOME_LINK_W * 3 + 2 * _HOME_LINK_GAP
+
+REGISTER_URL = "https://ravencraft.io/register"
+DATABASE_URL = "https://database.ravencraft.io/"
+BUG_REPORT_URL = "https://ravencraft.io/bug-tracker"
 # Small inset from ContentPanel top / side when filling the brand rect.
 # Must clear the purple shelf stroke (1px) so art never paints into the tab strip.
 _ART_TOP_PAD_PX = 8
@@ -55,6 +66,14 @@ _MOA_ART_LOGO_W = 190  # ~5% under prior 200px prefer width
 _BRAND_BOTTOM_PAD_PX = 8
 # Extra MoA sit-down toward art bottom (above diamond strip).
 _MOA_BOTTOM_NUDGE_PX = 4
+
+
+def _home_link_button(text: str, url: str, tip: str) -> GluePanelButton:
+    """Equal-sized Home-row glue button that opens ``url`` in the browser."""
+    btn = GluePanelButton(text, width=_HOME_LINK_W, height=_HOME_LINK_H)
+    btn.setToolTip(tip)
+    btn.clicked.connect(lambda _checked=False, u=url: open_url_in_browser(u))
+    return btn
 
 
 class HomePage(QWidget):
@@ -81,7 +100,7 @@ class HomePage(QWidget):
         body.setStyleSheet("background: transparent;")
         root = QHBoxLayout(body)
         root.setSpacing(24)
-        # No body top pad — only the left drawer insets Register (right stays flush).
+        # No body top pad — only the left drawer insets the Home links (right stays flush).
         root.setContentsMargins(28, 0, 28, 0)
 
         # --- Left: fixed-ish side drawer of categorized mods ---
@@ -92,17 +111,30 @@ class HomePage(QWidget):
         left.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         self._mods_drawer = left
         left_l = QVBoxLayout(left)
-        # Top = Register clearance; bottom lifts Card off NavBottomBanner.
+        # Top = Home-link clearance; bottom lifts Card off NavBottomBanner.
         left_l.setContentsMargins(0, _HOME_TOP_PAD, 0, _MODS_BANNER_GAP_PX)
         left_l.setSpacing(10)
 
-        self.register_btn = LaunchButton("REGISTER HERE")
-        self.register_btn.setFixedSize(248, 56)
-        self.register_btn.setToolTip("Create a RavenCraft account")
-        self.register_btn.clicked.connect(
-            lambda: open_url_in_browser("https://ravencraft.io/register")
+        links = QWidget()
+        links.setObjectName("HomeLinkRow")
+        links.setFixedWidth(_HOME_LINK_ROW_W)
+        self._home_link_row = links
+        links_l = QHBoxLayout(links)
+        links_l.setContentsMargins(0, 0, 0, 0)
+        links_l.setSpacing(_HOME_LINK_GAP)
+
+        self.register_btn = _home_link_button(
+            "Register", REGISTER_URL, "Create a RavenCraft account"
         )
-        left_l.addWidget(self.register_btn, 0, Qt.AlignmentFlag.AlignHCenter)
+        self.database_btn = _home_link_button(
+            "Database", DATABASE_URL, "Open the RavenCraft database"
+        )
+        self.bug_report_btn = _home_link_button(
+            "Bug Report", BUG_REPORT_URL, "Report a RavenCraft bug"
+        )
+        for btn in (self.register_btn, self.database_btn, self.bug_report_btn):
+            links_l.addWidget(btn)
+        left_l.addWidget(links, 0, Qt.AlignmentFlag.AlignHCenter)
 
         self.summary = HomeModsCard()
         self.summary.setSizePolicy(

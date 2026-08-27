@@ -10267,6 +10267,73 @@ def test_launch_buttons_use_glue_panel_chrome():
     print("OK launch buttons use glue-panel chrome")
 
 
+def test_home_page_has_three_equal_link_buttons():
+    """Home replaces REGISTER HERE with Register / Database / Bug Report."""
+    from unittest.mock import patch
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QFont, QFontMetrics
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.pages.home import (
+        BUG_REPORT_URL,
+        DATABASE_URL,
+        DRAWER_MIN_W,
+        REGISTER_URL,
+        _HOME_LINK_GAP,
+        _HOME_LINK_H,
+        _HOME_LINK_ROW_W,
+        HomePage,
+    )
+    from ichalaunch.ui.widgets.glue_panel_button import GLUE_BTN_H, GluePanelButton
+
+    app = QApplication.instance() or QApplication([])
+    page = HomePage()
+    page.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    page.resize(900, 600)
+    page._mods_drawer.resize(DRAWER_MIN_W, 480)
+    page._mods_drawer.layout().activate()
+    app.processEvents()
+
+    buttons = (page.register_btn, page.database_btn, page.bug_report_btn)
+    labels = [b.text() for b in buttons]
+    assert labels == ["Register", "Database", "Bug Report"], labels
+    assert all(isinstance(b, GluePanelButton) for b in buttons)
+    assert _HOME_LINK_H == GLUE_BTN_H
+    sizes = {(b.width(), b.height()) for b in buttons}
+    assert len(sizes) == 1, sizes
+    w, h = next(iter(sizes))
+    assert w > 0 and h == _HOME_LINK_H
+    assert w * 3 + 2 * _HOME_LINK_GAP <= _HOME_LINK_ROW_W
+    assert page._home_link_row.width() == _HOME_LINK_ROW_W
+    assert page._home_link_row.width() <= DRAWER_MIN_W
+    assert page._home_link_row.height() == _HOME_LINK_H
+    # Title-case labels stay on one line (standard glue type, no wrap / all-caps).
+    font = QFont("Segoe UI")
+    font.setBold(True)
+    font.setPixelSize(13)
+    longest = max(QFontMetrics(font).horizontalAdvance(t) for t in labels)
+    assert longest + 20 <= w, (longest, w)
+    # Row sits in the drawer strip, not clipped by the mods card.
+    assert page._home_link_row.geometry().bottom() <= page.summary.geometry().top()
+
+    opened: list[str] = []
+    with patch(
+        "ichalaunch.ui.pages.home.open_url_in_browser",
+        side_effect=lambda url: opened.append(url) or True,
+    ):
+        page.register_btn.click()
+        page.database_btn.click()
+        page.bug_report_btn.click()
+    assert opened == [REGISTER_URL, DATABASE_URL, BUG_REPORT_URL], opened
+    assert REGISTER_URL == "https://ravencraft.io/register"
+    assert DATABASE_URL == "https://database.ravencraft.io/"
+    assert BUG_REPORT_URL == "https://ravencraft.io/bug-tracker"
+
+    page.close()
+    print("OK home page has three equal Register/Database/Bug Report buttons")
+
+
 def test_addon_check_updates_gates_until_list_ready():
     """Check Updates stays disabled until lists are built and revealed."""
     from PySide6.QtCore import Qt
