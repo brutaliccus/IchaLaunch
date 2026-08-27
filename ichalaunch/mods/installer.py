@@ -212,6 +212,64 @@ def migrate_legacy_pretty_night_sky_y(game_path: Path) -> bool:
     return True
 
 
+def tweaked_exe_snapshot(game: Path) -> dict[Path, tuple[int, float]]:
+    """Every ``*_tweaked.exe`` beside the client, with size and mtime.
+
+    Taken before the patcher runs so its output can be identified by what
+    actually changed rather than by guessing the filename it chose.
+    """
+    out: dict[Path, tuple[int, float]] = {}
+    try:
+        children = list(game.iterdir())
+    except OSError:
+        return out
+    for child in children:
+        if not child.name.lower().endswith("_tweaked.exe"):
+            continue
+        try:
+            if not child.is_file():
+                continue
+            st = child.stat()
+        except OSError:
+            continue
+        out[child] = (st.st_size, st.st_mtime)
+    return out
+
+
+def patched_exe_from_run(
+    game: Path,
+    infile: Path,
+    wow: Path,
+    before: dict[Path, tuple[int, float]],
+) -> Path | None:
+    """The executable the patcher just wrote, or None if it wrote nothing.
+
+    The patcher takes an input path and no output flag, so the name of its
+    output is whatever it derives from that input. Feeding it the stock backup,
+    which is what stops option changes from stacking, means the name follows the
+    backup and not the client. Named candidates are tried in that order first.
+
+    Only files that appeared or changed during this run are eligible. A
+    ``WoW_tweaked.exe`` left behind by an earlier run carries that run's
+    options, so installing it would quietly apply the wrong settings.
+
+    Anything else fresh is accepted as a last resort, so a filename change
+    upstream degrades into a working install rather than a silent no-op.
+    """
+    after = tweaked_exe_snapshot(game)
+    fresh = {path for path, meta in after.items() if before.get(path) != meta}
+    if not fresh:
+        return None
+    for candidate in (
+        game / f"{Path(infile).stem}_tweaked.exe",
+        game / f"{Path(wow).stem}_tweaked.exe",
+        game / "WoW_tweaked.exe",
+    ):
+        if candidate in fresh:
+            return candidate
+    return max(fresh, key=lambda path: after[path][1])
+
+
 def swap_patched_client_exe(tweaked: Path, wow: Path) -> None:
     """Put the patcher's output in place of the client binary, in one step.
 
@@ -2971,12 +3029,16 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 )
                 cmd = tweaks_patch_command(mod_id, vt, infile, opts)
                 status_only(progress, "Patching WoW.exe with Vanilla Tweaks...")
+                before_tweaked = tweaked_exe_snapshot(game)
                 subprocess.run(cmd, cwd=str(game), check=True)
-                tweaked = game / f"{wow.stem}_tweaked.exe"
-                if not tweaked.exists() and wow.stem != "WoW":
-                    tweaked = game / "WoW_tweaked.exe"
-                if tweaked.exists():
-                    swap_patched_client_exe(tweaked, wow)
+                tweaked = patched_exe_from_run(game, infile, wow, before_tweaked)
+                if tweaked is None:
+                    raise FileNotFoundError(
+                        "Vanilla Tweaks exited successfully but wrote no patched "
+                        f"executable beside {infile.name}, so the client is "
+                        "unchanged."
+                    )
+                swap_patched_client_exe(tweaked, wow)
                 soft: list[str] = []
                 try:
                     if not validate_pe_binary(wow, min_size=_DLL_PE_MIN_BYTES):
