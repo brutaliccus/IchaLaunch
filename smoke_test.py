@@ -113,6 +113,54 @@ def test_tls_ca_env_sanitizer():
     print("OK tls ca env sanitizer")
 
 
+def test_bundle_pins_charset_normalizer_and_excludes_chardet():
+    """The build pins one character-detection library, and requests works with it."""
+    import subprocess
+
+    spec = (ROOT / "IchaLaunch.spec").read_text(encoding="utf-8")
+    assert '"chardet"' in spec and "excludes=" in spec, "chardet must be excluded"
+    assert 'collect_all("charset_normalizer")' in spec, (
+        "requests resolves its detector through importlib, which PyInstaller "
+        "cannot see, so charset_normalizer has to be collected explicitly"
+    )
+
+    # requests hard-requires charset_normalizer; chardet is only the optional
+    # use-chardet-on-py3 extra. Excluding chardet is therefore safe, but only if
+    # the fallback really works, so check it rather than assume it. Run in a
+    # subprocess: blocking an import in-process would leak into later tests.
+    probe = (
+        "import sys, io\n"
+        "class B:\n"
+        "    def find_spec(self, name, path=None, target=None):\n"
+        "        if name == 'chardet' or name.startswith('chardet.'):\n"
+        "            raise ImportError('excluded from the bundle')\n"
+        "        return None\n"
+        "sys.meta_path.insert(0, B())\n"
+        "import requests, requests.compat\n"
+        "det = requests.compat.chardet\n"
+        "assert det is not None, 'no detector: Response.text would raise'\n"
+        "assert det.__name__ == 'charset_normalizer', det.__name__\n"
+        "from requests.models import Response\n"
+        "from urllib3 import HTTPResponse\n"
+        "r = Response()\n"
+        "r.raw = HTTPResponse(body=io.BytesIO('h\\u00e9llo w\\u00f6rld'.encode('utf-8')),\n"
+        "                     preload_content=False, status=200)\n"
+        "r.status_code = 200; r.headers = {}; r.encoding = None\n"
+        "assert r.apparent_encoding\n"
+        "assert r.text == 'h\\u00e9llo w\\u00f6rld', r.text\n"
+        "print('ok')\n"
+    )
+    out = subprocess.run(
+        [sys.executable, "-c", probe], capture_output=True, text=True, timeout=120
+    )
+    assert out.returncode == 0, (
+        "requests must still decode an undeclared charset with chardet absent:\n"
+        + (out.stderr or "")[-800:]
+    )
+    assert out.stdout.strip().endswith("ok")
+    print("OK bundle pins charset_normalizer and excludes chardet")
+
+
 def test_github_parse():
     assert parse_github_url("https://github.com/shagu/ShaguTweaks") == (
         "shagu",
@@ -12386,6 +12434,7 @@ def main():
 def _run_smoke_tests():
     test_catalogs()
     test_tls_ca_env_sanitizer()
+    test_bundle_pins_charset_normalizer_and_excludes_chardet()
     test_github_parse()
     test_gitlab_parse_and_install_url()
     test_gitlab_preview_does_not_use_github_api()
