@@ -39,6 +39,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
+from ichalaunch.addons.catalog import is_turtle_wow_custom_addon
 from ichalaunch.config.settings import appdata_root
 from ichalaunch.core.logging_setup import log
 
@@ -245,19 +246,24 @@ def _format_scaled(n: int, unit: int, suffix: str) -> str:
 
 
 def popularity_sort_key(entry: dict[str, Any] | None) -> tuple:
-    """Known counts first (high → low), then none/zero, unknown last; name tie-break."""
+    """Raven-marked first, then by latest-release downloads (high → low).
+
+    Within each raven / non-raven tier: known counts, then none/zero, unknown
+    last; name tie-break.
+    """
     entry = entry if isinstance(entry, dict) else {}
     name = str(entry.get("name") or entry.get("folder") or "").lower()
+    raven_tier = 0 if is_turtle_wow_custom_addon(entry) else 1
     state = str(entry.get(STATE_FIELD) or "").strip().lower()
     raw = entry.get(COUNT_FIELD)
     if state == STATE_OK:
         try:
-            return (0, -int(raw), name)
+            return (raven_tier, 0, -int(raw), name)
         except (TypeError, ValueError):
-            return (0, 0, name)
+            return (raven_tier, 0, 0, name)
     if state == STATE_NONE:
-        return (0, 0, name)
-    return (1, 0, name)
+        return (raven_tier, 0, 0, name)
+    return (raven_tier, 1, 0, name)
 
 
 def sort_addons_by_popularity(entries: list[dict[str, Any]] | None) -> list[dict[str, Any]]:

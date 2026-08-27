@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ichalaunch.addons.catalog import is_turtle_wow_custom_addon
 from ichalaunch.core.paths import theme_file
 from ichalaunch.ui.widgets.cursors import apply_open_hand
 from ichalaunch.ui.widgets.glue_panel_button import (
@@ -915,62 +916,10 @@ AddonRowUpdateSplit = AddonRowUpdateButton
 
 
 # Turtle WoW custom-addon badge (splash raven / ichalaunch icon).
+# Mark detection lives in ``ichalaunch.addons.catalog`` (``turtle_custom``).
 _TURTLE_BADGE_PX = 18
 _TURTLE_BADGE_TIP = "Turtle WoW custom addon"
-_TURTLE_CUSTOM_FLAGS = frozenset(
-    {"turtle_custom", "turtle_wow_custom", "custom_turtle"}
-)
-# Name/folder: Turtle WoW, TWoW, word-boundary TW, TW-prefixed compounds, "Turtle…".
-# Avoid bare "tw" inside words (e.g. Between / Network).
-_TURTLE_CUSTOM_NAME_RE = re.compile(
-    r"(?:"
-    r"Turtle\s*WoW|"
-    r"TurtleWoW|"
-    r"TWoW|"
-    r"\(TW\)|"
-    r"\[TW\]|"
-    r"(?<![A-Za-z0-9])TW(?![A-Za-z])|"
-    r"(?:^|[\-_/\s])TW(?=[A-Z0-9_\-]|$)|"
-    r"Turtle"
-    r")",
-    re.IGNORECASE,
-)
-# Description: strong custom phrases only (not “Turtle WoW version” ports).
-_TURTLE_CUSTOM_DESC_RE = re.compile(
-    r"(?:"
-    r"custom[\-\s]?made for turtle|"
-    r"custom for turtle|"
-    r"built for Turtle\s*WoW|"
-    r"built for TurtleWoW|"
-    r"Made for TWoW|"
-    r"Made for Turtle\s*WoW|"
-    r"Made for TurtleWoW"
-    r")",
-    re.IGNORECASE,
-)
 _turtle_badge_pm: QPixmap | None = None
-
-
-def is_turtle_wow_custom_addon(entry: dict[str, Any] | None) -> bool:
-    """True when catalog marks or name/folder heuristics say Turtle-custom."""
-    if not entry:
-        return False
-    for key in _TURTLE_CUSTOM_FLAGS:
-        if entry.get(key) is True:
-            return True
-    tags = entry.get("tags")
-    if isinstance(tags, (list, tuple, set)):
-        for tag in tags:
-            if str(tag).strip().lower() in _TURTLE_CUSTOM_FLAGS:
-                return True
-    for field in ("name", "folder"):
-        text = str(entry.get(field) or "").strip()
-        if text and _TURTLE_CUSTOM_NAME_RE.search(text):
-            return True
-    desc = str(entry.get("description") or "")
-    if desc and _TURTLE_CUSTOM_DESC_RE.search(desc):
-        return True
-    return False
 
 
 def _turtle_wow_badge_pixmap() -> QPixmap:

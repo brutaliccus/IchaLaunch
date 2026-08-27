@@ -6148,6 +6148,204 @@ def test_release_download_sort_order():
     print("OK release download sort order")
 
 
+def test_release_download_sort_raven_first():
+    """Raven-marked addons sort above non-raven even with fewer downloads."""
+    from ichalaunch.addons.release_downloads import sort_addons_by_popularity
+
+    rows = [
+        {
+            "name": "PopularVanilla",
+            "release_downloads": 9000,
+            "release_downloads_state": "ok",
+        },
+        {
+            "name": "RavenLow",
+            "turtle_custom": True,
+            "release_downloads": 10,
+            "release_downloads_state": "ok",
+        },
+        {
+            "name": "RavenHigh",
+            "turtle_custom": True,
+            "release_downloads": 500,
+            "release_downloads_state": "ok",
+        },
+        {
+            "name": "QuietVanilla",
+            "release_downloads": 100,
+            "release_downloads_state": "ok",
+        },
+        {
+            "name": "RavenNone",
+            "description": "Made for Turtle WoW",
+            "release_downloads_state": "none",
+        },
+    ]
+    names = [e["name"] for e in sort_addons_by_popularity(rows)]
+    assert names == [
+        "RavenHigh",
+        "RavenLow",
+        "RavenNone",
+        "PopularVanilla",
+        "QuietVanilla",
+    ]
+    print("OK release download sort raven-first two-tier")
+
+
+def test_ravencraft_category_filter():
+    """Ravencraft category option matches raven-marked addons only."""
+    from ichalaunch.addons.catalog import (
+        RAVENCRAFT_CATEGORY,
+        entry_matches_category,
+        is_turtle_wow_custom_addon,
+    )
+
+    assert RAVENCRAFT_CATEGORY == "Ravencraft"
+    raven = {
+        "name": "RallyHelper",
+        "folder": "RallyHelper",
+        "category": "UI",
+        "turtle_custom": True,
+        "repo": "https://github.com/example/rally",
+    }
+    mention = {
+        "name": "SortBags",
+        "folder": "SortBags-vanilla",
+        "category": "Bags",
+        "description": "Fixed version for Turtle WoW",
+        "repo": "https://github.com/example/sortbags",
+    }
+    plain = {
+        "name": "Bagnon",
+        "folder": "Bagnon",
+        "category": "Bags",
+        "description": "inventory",
+        "repo": "https://github.com/example/bagnon",
+    }
+    assert is_turtle_wow_custom_addon(raven)
+    assert is_turtle_wow_custom_addon(mention)
+    assert not is_turtle_wow_custom_addon(plain)
+    assert entry_matches_category(raven, RAVENCRAFT_CATEGORY)
+    assert entry_matches_category(mention, "RavenCraft")
+    assert not entry_matches_category(plain, RAVENCRAFT_CATEGORY)
+    assert entry_matches_category(plain, "Bags")
+    assert not entry_matches_category(raven, "Bags")
+    assert entry_matches_category(plain, "All categories")
+    print("OK Ravencraft category filter matches raven-marked addons")
+
+
+def test_catalog_turtle_custom_annotation():
+    """Mentions of Turtle/TWoW get turtle_custom; existing flags stay."""
+    from ichalaunch.addons.catalog import (
+        annotate_turtle_custom_flags,
+        load_bundled_catalog,
+        mentions_turtle_wow,
+    )
+
+    rows = [
+        {
+            "name": "AlreadyMarked",
+            "folder": "AlreadyMarked",
+            "description": "generic bags",
+            "turtle_custom": True,
+        },
+        {
+            "name": "NeedsMark",
+            "folder": "NeedsMark",
+            "description": "Fixed version for Turtle WoW",
+        },
+        {
+            "name": "PlainBags",
+            "folder": "PlainBags",
+            "description": "just bags",
+        },
+        {
+            "name": "TWoWName",
+            "folder": "AttackBar-TWoW",
+            "description": "swing timer",
+        },
+    ]
+    newly = annotate_turtle_custom_flags(rows)
+    assert newly == 2
+    assert rows[0]["turtle_custom"] is True
+    assert rows[1]["turtle_custom"] is True
+    assert rows[2].get("turtle_custom") is not True
+    assert rows[3]["turtle_custom"] is True
+
+    bundled = load_bundled_catalog()
+    sortbags = next(
+        (e for e in bundled if e.get("folder") == "SortBags-vanilla"),
+        None,
+    )
+    assert sortbags is not None, "SortBags-vanilla missing from bundled catalog"
+    assert mentions_turtle_wow(sortbags)
+    assert sortbags.get("turtle_custom") is True
+    mentioned = [e for e in bundled if mentions_turtle_wow(e)]
+    assert mentioned, "expected Turtle/TWoW mentions in bundled catalog"
+    assert all(e.get("turtle_custom") is True for e in mentioned)
+    print(
+        f"OK catalog turtle_custom annotation "
+        f"({len(mentioned)} mention rows flagged; SortBags-vanilla newly marked)"
+    )
+
+
+def test_addons_page_ravencraft_category_option():
+    """Category dropdown includes Ravencraft and filters the Available list."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.addons.catalog import RAVENCRAFT_CATEGORY
+    from ichalaunch.ui.pages.addons import AddonsPage
+
+    app = QApplication.instance() or QApplication([])
+    page = AddonsPage()
+    page.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    labels = [page.cat_box.itemText(i) for i in range(page.cat_box.count())]
+    assert labels[0] == "All categories"
+    assert RAVENCRAFT_CATEGORY in labels
+    assert labels[1] == RAVENCRAFT_CATEGORY
+
+    page._catalog_cache = [
+        {
+            "name": "RavenOne",
+            "folder": "RavenOne",
+            "category": "UI",
+            "turtle_custom": True,
+            "repo": "https://github.com/example/ravenone",
+            "release_downloads": 5,
+            "release_downloads_state": "ok",
+        },
+        {
+            "name": "HotVanilla",
+            "folder": "HotVanilla",
+            "category": "Bags",
+            "repo": "https://github.com/example/hotvanilla",
+            "release_downloads": 9000,
+            "release_downloads_state": "ok",
+        },
+        {
+            "name": "RavenTwo",
+            "folder": "RavenTwo",
+            "category": "Bags",
+            "description": "t wow swing timer",
+            "repo": "https://github.com/example/raventwo",
+            "release_downloads": 50,
+            "release_downloads_state": "ok",
+        },
+    ]
+    page._installed_lower = set()
+    page.cat_box.blockSignals(True)
+    page.cat_box.setCurrentText(RAVENCRAFT_CATEGORY)
+    page.cat_box.blockSignals(False)
+    page._available_base_ready = False
+    page._ensure_available_base(force=True)
+    names = [e["name"] for e in page._available_base]
+    assert names == ["RavenTwo", "RavenOne"], names
+    page.close()
+    app.processEvents()
+    print("OK addons page Ravencraft category option filters Available")
+
+
 def test_release_download_fork_vs_main_repo():
     from ichalaunch.addons.release_downloads import (
         addon_release_repo,
@@ -6241,7 +6439,9 @@ def test_apply_published_fork_does_not_inherit_main_count():
         "Quiet",
         "Unknown",
     ]
-    assert popularity_sort_key(rows[0])[0] == 0
+    # Hot is not raven-marked; key is (raven_tier, download_tier, -count, name).
+    assert popularity_sort_key(rows[0])[0] == 1
+    assert popularity_sort_key(rows[0])[1] == 0
     print("OK apply published fork does not inherit main count")
 
 
@@ -14612,6 +14812,10 @@ def _run_smoke_tests():
     test_release_download_count_format()
     test_release_download_fetch_queue_prefers_missing_then_oldest()
     test_release_download_sort_order()
+    test_release_download_sort_raven_first()
+    test_ravencraft_category_filter()
+    test_catalog_turtle_custom_annotation()
+    test_addons_page_ravencraft_category_option()
     test_release_download_fork_vs_main_repo()
     test_apply_published_fork_does_not_inherit_main_count()
     test_release_download_missing_release_handling()

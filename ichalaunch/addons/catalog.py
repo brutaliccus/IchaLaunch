@@ -17,6 +17,7 @@ refreshed on the same periodic update-check cadence.
 from __future__ import annotations
 
 import json
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -232,3 +233,180 @@ def _apply_published_release_downloads(entries: list[dict[str, Any]]) -> None:
 def clear_catalog_cache() -> None:
     global _loaded
     _loaded = None
+
+
+# ---------------------------------------------------------------------------
+# Raven / Turtle-approved mark (addon-row raven icon + Ravencraft filter)
+# ---------------------------------------------------------------------------
+# Catalog boolean (preferred). Aliases kept for older rows / tags.
+TURTLE_CUSTOM_FLAG = "turtle_custom"
+TURTLE_CUSTOM_FLAGS = frozenset(
+    {"turtle_custom", "turtle_wow_custom", "custom_turtle"}
+)
+RAVENCRAFT_CATEGORY = "Ravencraft"
+ALL_CATEGORIES_LABEL = "All categories"
+
+# Name/folder: Turtle WoW, TWoW, word-boundary TW, TW-prefixed compounds, "Turtle…".
+# Avoid bare "tw" inside words (e.g. Between / Network).
+_TURTLE_CUSTOM_NAME_RE = re.compile(
+    r"(?:"
+    r"Turtle\s*WoW|"
+    r"TurtleWoW|"
+    r"TWoW|"
+    r"\(TW\)|"
+    r"\[TW\]|"
+    r"(?<![A-Za-z0-9])TW(?![A-Za-z])|"
+    r"(?:^|[\-_/\s])TW(?=[A-Z0-9_\-]|$)|"
+    r"Turtle"
+    r")",
+    re.IGNORECASE,
+)
+# Strong custom phrases (original badge heuristic).
+_TURTLE_CUSTOM_DESC_RE = re.compile(
+    r"(?:"
+    r"custom[\-\s]?made for turtle|"
+    r"custom for turtle|"
+    r"built for Turtle\s*WoW|"
+    r"built for TurtleWoW|"
+    r"Made for TWoW|"
+    r"Made for Turtle\s*WoW|"
+    r"Made for TurtleWoW"
+    r")",
+    re.IGNORECASE,
+)
+# Explicit Turtle WoW / TWoW mentions (name, description, notes, tags).
+_TURTLE_WOW_MENTION_RE = re.compile(
+    r"(?:turtle[\s\-]*wow|\btwow\b|\bt[\s\-]+wow\b)",
+    re.IGNORECASE,
+)
+_MENTION_TEXT_FIELDS = ("name", "folder", "description", "notes")
+
+
+def catalog_has_turtle_custom_flag(entry: dict[str, Any] | None) -> bool:
+    """True when the catalog boolean or tag already marks this row."""
+    if not isinstance(entry, dict):
+        return False
+    for key in TURTLE_CUSTOM_FLAGS:
+        if entry.get(key) is True:
+            return True
+    tags = entry.get("tags")
+    if isinstance(tags, (list, tuple, set)):
+        for tag in tags:
+            if str(tag).strip().lower() in TURTLE_CUSTOM_FLAGS:
+                return True
+    return False
+
+
+def mentions_turtle_wow(entry: dict[str, Any] | None) -> bool:
+    """True when name, folder, description, notes, or tags mention Turtle WoW / TWoW."""
+    if not isinstance(entry, dict):
+        return False
+    for field in _MENTION_TEXT_FIELDS:
+        text = str(entry.get(field) or "")
+        if text and _TURTLE_WOW_MENTION_RE.search(text):
+            return True
+    tags = entry.get("tags")
+    if isinstance(tags, (list, tuple, set)):
+        for tag in tags:
+            if tag is None:
+                continue
+            if _TURTLE_WOW_MENTION_RE.search(str(tag)):
+                return True
+    return False
+
+
+def is_turtle_wow_custom_addon(entry: dict[str, Any] | None) -> bool:
+    """True when the raven icon should show (flag, name heuristic, or Turtle WoW mention)."""
+    if not isinstance(entry, dict):
+        return False
+    if catalog_has_turtle_custom_flag(entry):
+        return True
+    for field in ("name", "folder"):
+        text = str(entry.get(field) or "").strip()
+        if text and _TURTLE_CUSTOM_NAME_RE.search(text):
+            return True
+    desc = str(entry.get("description") or "")
+    if desc and _TURTLE_CUSTOM_DESC_RE.search(desc):
+        return True
+    return mentions_turtle_wow(entry)
+
+
+def apply_turtle_custom_flags(
+    dest: dict[str, Any] | None,
+    source: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Copy catalog raven-mark booleans onto *dest* (installed row construction)."""
+    if not isinstance(dest, dict) or not isinstance(source, dict):
+        return dest
+    for key in TURTLE_CUSTOM_FLAGS:
+        if source.get(key) is True:
+            dest[key] = True
+    return dest
+
+
+def _insert_turtle_custom_flag(entry: dict[str, Any]) -> None:
+    """Set ``turtle_custom: true`` after ``source`` when that key exists."""
+    if entry.get(TURTLE_CUSTOM_FLAG) is True:
+        return
+    if "source" not in entry:
+        entry[TURTLE_CUSTOM_FLAG] = True
+        return
+    rebuilt: dict[str, Any] = {}
+    inserted = False
+    for key, value in entry.items():
+        rebuilt[key] = value
+        if key == "source" and TURTLE_CUSTOM_FLAG not in rebuilt:
+            rebuilt[TURTLE_CUSTOM_FLAG] = True
+            inserted = True
+    if not inserted:
+        rebuilt[TURTLE_CUSTOM_FLAG] = True
+    entry.clear()
+    entry.update(rebuilt)
+
+
+def annotate_turtle_custom_flags(entries: list[dict[str, Any]] | None) -> int:
+    """Set ``turtle_custom`` on entries that mention Turtle WoW / TWoW.
+
+    Existing True flags / alias tags are left in place. Returns how many rows
+    were newly marked.
+    """
+    if not entries:
+        return 0
+    newly = 0
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        if catalog_has_turtle_custom_flag(entry):
+            continue
+        if mentions_turtle_wow(entry):
+            _insert_turtle_custom_flag(entry)
+            newly += 1
+    return newly
+
+
+def is_ravencraft_category(cat_filter: str | None) -> bool:
+    text = str(cat_filter or "").strip().lower().replace(" ", "")
+    return text == "ravencraft"
+
+
+def entry_matches_category(
+    entry: dict[str, Any] | None,
+    cat_filter: str | None,
+    *extras: dict[str, Any] | None,
+) -> bool:
+    """Match a catalog/installed row against the category dropdown.
+
+    ``Ravencraft`` is a virtual filter for raven-marked addons, not a catalog
+    ``category`` value.
+    """
+    if not cat_filter or cat_filter == ALL_CATEGORIES_LABEL:
+        return True
+    if is_ravencraft_category(cat_filter):
+        if is_turtle_wow_custom_addon(entry):
+            return True
+        for extra in extras:
+            if is_turtle_wow_custom_addon(extra):
+                return True
+        return False
+    cat = str((entry or {}).get("category") or "General")
+    return cat == cat_filter

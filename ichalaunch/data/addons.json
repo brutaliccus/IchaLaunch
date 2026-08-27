@@ -590,6 +590,7 @@
     "category": "Bags",
     "description": "Bag sorting. Fixed version for Turtle WoW to not cause grayed out items. https://github.com/Magues17/SortBags Alt",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "SortBags-vanilla",
     "forks": [
       {
@@ -788,6 +789,7 @@
     "category": "Combat",
     "description": "automatically reapply buffs to yourself. Patched for TWoW's new shaman shield spells.",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "AutoBuff-Turtle",
     "release_downloads_repo": "Nikoichu/AutoBuff-Turtle",
     "release_downloads_state": "none",
@@ -1462,6 +1464,7 @@
     "category": "Combat",
     "description": "Mobs resist, damage and speed for Turtle-WoW, update from MobResist.",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "MobResistAndDmg",
     "release_downloads_repo": "leenux/MobResistAndDmg",
     "release_downloads_state": "none",
@@ -1654,6 +1657,7 @@
     "category": "Combat",
     "description": "Turtle WoW World Buff Tracker (Ony/Nef/ZG/Rend/DMF) with verified Timestamps, clean UI, and no Server‑time manipulation.",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "RallyHelper",
     "forks": [
       {
@@ -2006,6 +2010,7 @@
     "category": "Combat",
     "description": "WCM is a lightweight timeline helper for TurtleWoW (SuperWoW supported setups) that helps you plan and execute cooldown stacking on boss fights. [Img1] [Img2]",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "WarriorCombatManager",
     "release_downloads_repo": "Faraso/WarriorCombatManager",
     "release_downloads_state": "ok",
@@ -2060,6 +2065,7 @@
     "category": "Economy",
     "description": "Shagu addon to filter out goldsellers and Moo spammers on Turtle WoW",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "antispam",
     "forks": [
       {
@@ -2703,6 +2709,7 @@
     "category": "Economy",
     "description": "a Turtle WoW auction house addon built for one job: posting batches of auctions quickly without dragging the same item over and over.",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "Vizput",
     "release_downloads_repo": "gregdeichler/Vizput",
     "release_downloads_state": "none",
@@ -2727,6 +2734,7 @@
     "category": "Economy",
     "description": "Search the Turtle WoW Auction House from web (not actually an addon, just a useful resource)",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "www.wowauctions.net",
     "installable": false
   },
@@ -2879,6 +2887,7 @@
     "category": "General",
     "description": "Provides information about your alts. Turtle WoW version, supports cross-faction alts. [Img1]",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "Altoholic_Vanilla",
     "forks": [
       {
@@ -2943,6 +2952,7 @@
     "category": "General",
     "description": "Manages Mage spells and items, including Turtle WoW Mage spells and items",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "Arcanum",
     "forks": [
       {
@@ -3033,6 +3043,7 @@
     "category": "General",
     "description": "Player and Enemy Swing Timer addon [Img1] + Turtle WoW's Holy Strike support.",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "AttackBar-TWoW",
     "forks": [
       {
@@ -3385,6 +3396,7 @@
     "category": "General",
     "description": "An improved replacement for TurtleWow's built-in Everlook Broadcasting Co radio addon.",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "BetterEverlookBroadcastingCo",
     "forks": [
       {
@@ -3507,6 +3519,7 @@
     "category": "General",
     "description": "A lightweight TurtleWoW addon that shows you your total block value",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "blockvalue",
     "release_downloads_repo": "sondli/blockvalue",
     "release_downloads_state": "ok",
@@ -3577,6 +3590,7 @@
     "category": "General",
     "description": "Modern Brainwasher interface with custom icons and naming for Turtle WoW https://i.postimg.cc/QMs70jMs/Brainwasher-Pro.jpg Img1",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "BrainwasherPro",
     "release_downloads_repo": "Cinecom/BrainwasherPro",
     "release_downloads_state": "none",
@@ -3711,6 +3725,7 @@
     "category": "General",
     "description": "Tool for measuring cast times in twow",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "CastTimer",
     "release_downloads_repo": "pepopo978/CastTimer",
     "release_downloads_state": "none",
@@ -3755,6 +3770,7 @@
     "category": "General",
     "description": "Collects and displays census information for Turtle WoW. [Img1]",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "CensusPlusTurtle",
     "forks": [
       {
@@ -4019,6 +4035,7 @@
     "category": "General",
     "description": "Colorize names, shows level, shortens channel names and more. Turtle WoW version, can show players factions in chat.",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "CleanChat",
     "release_downloads_repo": "refaim/CleanChat",
     "release_downloads_state": "none",
@@ -5881,6 +5898,7 @@
     "category": "General",
     "description": "a standalone achievement system for Turtle WoW",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "KeijinAchievementMonitor",
     "release_downloads_repo": "KeijinDE/KeijinAchievementMonitor",
     "release_downloads_state": "ok",
@@ -6703,6 +6721,7 @@
     "category": "General",
     "description": "is a tool designed to help warlock players manage various aspects of their gameplay. [2]",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "necrosis-twow",
     "forks": [
       {
@@ -7196,6 +7215,7 @@
     "category": "General",
     "description": "Radial action menus for TurtleWoW. A simplified OPie clone. [Gif1]",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "PizzaSlices",
     "forks": [
       {
@@ -7596,6 +7616,7 @@
     "category": "General",
     "description": "Rested XP Tracker for Turtle Wow",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "Rested",
     "forks": [
       {
@@ -7900,6 +7921,7 @@
     "category": "General",
     "description": "fixes the original 'SafeShift' addon by allowing direct form switching (e.g., cat form to bear form) without needing to shift out first.",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "SafeShift-TWoW",
     "release_downloads_repo": "DeterminedPanda/SafeShift-TWoW",
     "release_downloads_state": "none",
@@ -8068,6 +8090,7 @@
     "category": "General",
     "description": "A despawn timer for Turtle-WoW Fishing Boats.",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "ShaguBoat",
     "forks": [
       {
@@ -9072,6 +9095,7 @@
     "category": "General",
     "description": "is a simple Out of Mana announcer addon for Turtle WoW",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "T-OoM",
     "forks": [
       {
@@ -9094,6 +9118,7 @@
     "category": "General",
     "description": "is a simple addon for tracking 0% and 100% rested XP in Turtle WoW",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "T-RestedXP",
     "forks": [
       {
@@ -9310,6 +9335,7 @@
     "category": "General",
     "description": "Allows you to toggle between Find Herbs and Find Minerals with a single key press, updated for Turtle WoW (Svarrog). Original upstream version (FrostShock)",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "ToggleGather-by-Svarrog",
     "release_downloads_repo": "maxcodk/ToggleGather-by-Svarrog",
     "release_downloads_state": "none",
@@ -9322,6 +9348,7 @@
     "category": "General",
     "description": "A comprehensive totem management addon for Shaman in Turtle WoW",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "TotemNesia",
     "forks": [
       {
@@ -9340,6 +9367,7 @@
     "category": "General",
     "description": "a polished Turtle WoW addon that gives shamans a fast, readable totem bar with timers, flyout selection, scale controls, and a built-in twist warning helper.",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "TotemTimers",
     "release_downloads_repo": "gregdeichler/TotemTimers",
     "release_downloads_state": "none",
@@ -9462,6 +9490,7 @@
     "category": "General",
     "description": "A simple addon for Turtle WoW to summon a random mount or pet.",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "TurtleMenagerie",
     "forks": [
       {
@@ -9484,6 +9513,7 @@
     "category": "General",
     "description": "An addon designed for Turtle WoW to search through your spellbook for companion pets.",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "TurtlePetSearch",
     "release_downloads_repo": "Avery1337/TurtlePetSearch",
     "release_downloads_state": "none",
@@ -10158,6 +10188,7 @@
     "category": "General",
     "description": "Riding Equipment Autoequipper for TWoW",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "XiaoMount",
     "forks": [
       {
@@ -10200,6 +10231,7 @@
     "category": "General",
     "description": "Yet another Hunter Timer. TWoW Trueshot support [Img1] [Img2]",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "YaHT-TurtleWoWSteady",
     "forks": [
       {
@@ -10268,6 +10300,7 @@
     "category": "Hardcore",
     "description": "An addon for Turtle WoW that announces in guild how you died if you're doing the hardcore challenge.",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "HardcoreDeath",
     "forks": [
       {
@@ -10294,6 +10327,7 @@
     "category": "Hardcore",
     "description": "Displays and logs hardcore deaths on Turtle WoW https://user-images.githubusercontent.com/107083057/239706238-f12e7732-d9e2-433c-b987-bc880ef186ed.png Img1 https://user-images.githubusercontent.com/107083057/239706235-58",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "HCDeaths",
     "release_downloads_repo": "neimad-mp/HCDeaths",
     "release_downloads_state": "none",
@@ -10328,6 +10362,7 @@
     "category": "Hardcore",
     "description": "Adds Turtle WoW hardcore death information to the tooltip for dangerous mobs and players.",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "HCRank",
     "release_downloads_repo": "neimad-mp/HCRank",
     "release_downloads_state": "none",
@@ -10398,6 +10433,7 @@
     "category": "Maps",
     "description": "A modular, lightweight, and efficient framework for manipulation of the world map",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "Cartographer",
     "forks": [
       {
@@ -10538,6 +10574,7 @@
     "category": "Maps",
     "description": "Yet another atlas; does NOT show or support Custom Turtle WoW Maps/Content!",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "EM_Yatlas",
     "forks": [
       {
@@ -10916,6 +10953,7 @@
     "category": "Maps",
     "description": "Collects Turtle Wow's wayward minimap buttons. [Img1]",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "TurtleSnacks",
     "forks": [
       {
@@ -10970,6 +11008,7 @@
     "category": "Maps",
     "description": "A lightweight Turtle WoW addon that displays the mouse hovered zone's level under its title on the world map. [Img1]",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "ZonesLevel",
     "forks": [
       {
@@ -11161,6 +11200,7 @@
     "category": "Professions",
     "description": "Improves the default character and inspect panel by adding enchants effects and more! Made for TWoW [Img1] [Img2]",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "BetterCharacterPanel",
     "forks": [
       {
@@ -11179,6 +11219,7 @@
     "category": "Professions",
     "description": "Easily track and manage your consumables, food buffs, and more across your inventory, bank, and mail, while supporting multiple characters and accounts. Created with ♥ by Horyoshi for World of Warcraft 1.12 Turtle WoW ht",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "ConsumesManager",
     "forks": [
       {
@@ -11285,6 +11326,7 @@
     "category": "Professions",
     "description": "A reimagining of World of Warcraft's original Encounter Journal, built for TurtleWoW! [Img1] [Img2] [Img3] [Img4]",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "InstanceJournal",
     "forks": [
       {
@@ -11451,6 +11493,7 @@
     "category": "Professions",
     "description": "Shows the missing crafts for your crafting professions and how to obtain them. Contains all Turtle WoW recipes including Jewelcrafting. [Img1] [Img2] [Img3]",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "MissingCrafts",
     "forks": [
       {
@@ -11489,6 +11532,7 @@
     "category": "Professions",
     "description": "Shows the missing recipes/skills for a tradeskill and where to get them. Classic 1.13 version, backported for 1.12.1 and updated for Turtle WoW, contains many Turtle WoW recipes. Does not contain Jewelcrafting. Requires ",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "MissingTradeSkillsList",
     "forks": [
       {
@@ -11549,6 +11593,7 @@
     "category": "Professions",
     "description": "A profession tracking addon frame for Turtle WoW.",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "ProfessionLevels",
     "release_downloads_repo": "gregdeichler/ProfessionLevels",
     "release_downloads_state": "ok",
@@ -12034,6 +12079,7 @@
     "category": "Questing",
     "description": "see a list of vanilla and TurtleWOW quests related to each dungeon.",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "AtlasQuestTurtle",
     "installable": false
   },
@@ -12043,6 +12089,7 @@
     "category": "Questing",
     "description": "automatically adds potions, water, food, quest and other items you specify into buttons for easy use [Img1]",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "AutoBar-for-Turtle-WoW",
     "forks": [
       {
@@ -12474,6 +12521,7 @@
     "category": "Questing",
     "description": "A TurtleWoW DB extension for pfQuest. You need base pfQuest for this to work!",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "pfQuest-turtle",
     "forks": [
       {
@@ -12764,6 +12812,7 @@
     "category": "Questing",
     "description": "A fun in-game trivia bot with TurtleWoW questions.",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "TriviaBot-TurtleWow",
     "forks": [
       {
@@ -12782,6 +12831,7 @@
     "category": "Questing",
     "description": "AI-generated voice lines for NPC quest text, books, and world objects in Turtle WoW",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "TurtlesEpoch"
   },
   {
@@ -14208,6 +14258,7 @@
     "category": "Raiding",
     "description": "Automatically buff self/party/raid. Highly customisable https://github.com/livinlicious/Smartbuff-TWOW Alt",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "SmartBuff",
     "forks": [
       {
@@ -14298,6 +14349,7 @@
     "category": "Raiding",
     "description": "2.0 - adds a Character and Inspection Pane for raid gear checks or to compare gear to your target's. Updates including TurtleWoW specific spells and enchants). https://raw.githubusercontent.com/grimfiendish/StatCompare/1",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "StatCompare",
     "forks": [
       {
@@ -14554,6 +14606,7 @@
     "category": "Raiding",
     "description": "Threat Meter for Turtle WoW",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "TWThreat",
     "forks": [
       {
@@ -14790,6 +14843,7 @@
     "category": "Roleplay",
     "description": "Enhanced version of the original RPHelper addon with new flavor text and TWoW's custom races (High Elf and Goblin).",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "TurtleRoleplayingHelper",
     "forks": [
       {
@@ -15490,6 +15544,7 @@
     "category": "SuperWoW",
     "description": "Quick NPC search in the Turtle WoW database",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "QuickTurtleDBLookUp",
     "release_downloads_repo": "Taeko-ar/QuickTurtleDBLookUp",
     "release_downloads_state": "none",
@@ -16482,6 +16537,7 @@
     "category": "SuperWoW",
     "description": "Improved combatlogger for TurtleWoW (for LegacyPlayers/Monkeylogs)",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "SuperWowCombatLogger",
     "forks": [
       {
@@ -17575,6 +17631,7 @@
     "category": "UI",
     "description": "Save action bars as sets that can be swapped out; forked by Pepopo with updates for Turtle WoW Goblin Brainwashing Device compatibility",
     "source": "turtle_wiki",
+    "turtle_custom": true,
     "folder": "SimpleActionSets(SAS)",
     "installable": false
   },
@@ -17948,6 +18005,7 @@
     "repo": "https://github.com/leokem/pfQuest-turtle",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "pfQuest-turtle",
     "description": "A TurtleWoW DB extension for pfQuest",
     "release_downloads_repo": "leokem/pfQuest-turtle",
@@ -17960,6 +18018,7 @@
     "repo": "https://github.com/Bennylavaa/pfQuest-turtle",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "pfQuest-turtle",
     "description": "# pfQuest (turtle)\nThis AddOn is a [pfQuest](https://github.com/shagu/pfQuest) extension, which adds support for the [TurtleWoW](https://turtle-wow.org/) Private Server. In order to run this extension, the latest version of [pfQuest](https://github.com/shagu/pfQuest) is always required and only enUS-Gameclients are supported.\n\n*Notice: Issues and bugs like \"please add quest XYZ\" and all other content requests will be silently ignored. This is, because the data is not manually added, but depends on the Turtle-WoW team to release their database to a trusted person that can produce pfQuest-turtle builds.*\n\nIf you wish to contribute, please feel free to send a [Pull Requests](https://github.com/bennylava/pfQuest-turtle/pulls).\n\n## Install\n*The latest version of [pfQuest](https://shagu.org/pfQuest) is required for this module to work.*\n\n1. Download **[pfQuest-turtle](https://github.com/bennylava/pfQuest-turtle/archive/master.zip)**\n2. Unpack the Zip file\n3. Rename the folder \"pfQuest-turtle-master\" to \"pfQuest-turtle\"\n4. Copy \"pfQuest-turtle\" into Wow-Directory\\Interface\\AddOns\n5. Restart Wow",
     "release_downloads_repo": "Bennylavaa/pfQuest-turtle",
@@ -17972,6 +18031,7 @@
     "repo": "https://github.com/shagu/pfQuest-turtle",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "pfQuest-turtle",
     "description": "A TurtleWoW DB extension for pfQuest",
     "release_downloads_repo": "shagu/pfQuest-turtle",
@@ -17984,6 +18044,7 @@
     "repo": "https://github.com/vill8/pfQuest-octo",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "pfQuest-octo",
     "description": "A TurtleWoW DB extension for pfQuest (Moonwhisper70%)",
     "release_downloads_repo": "vill8/pfQuest-octo",
@@ -17996,6 +18057,7 @@
     "repo": "https://github.com/talex00/pfQuest-turtle",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "pfQuest-turtle",
     "description": "A TurtleWoW DB extension for pfQuest",
     "release_downloads_repo": "talex00/pfQuest-turtle",
@@ -18020,6 +18082,7 @@
     "repo": "https://github.com/superyoung9208/pfQuest-turtle",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "pfQuest-turtle",
     "description": "A TurtleWoW DB extension for pfQuest",
     "release_downloads_repo": "superyoung9208/pfQuest-turtle",
@@ -18032,6 +18095,7 @@
     "repo": "https://github.com/tomek7667/pfQuest-turtle",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "pfQuest-turtle",
     "description": "A TurtleWoW DB extension for pfQuest",
     "release_downloads_repo": "tomek7667/pfQuest-turtle",
@@ -18056,6 +18120,7 @@
     "repo": "https://github.com/Haaxor1689/pfQuest-turtle",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "pfQuest-turtle",
     "description": "A TurtleWoW DB extension for pfQuest",
     "release_downloads_repo": "Haaxor1689/pfQuest-turtle",
@@ -18068,6 +18133,7 @@
     "repo": "https://github.com/hat3ph/pfQuest-turtle",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "pfQuest-turtle",
     "description": "A TurtleWoW DB extension for pfQuest",
     "release_downloads_repo": "hat3ph/pfQuest-turtle",
@@ -18080,6 +18146,7 @@
     "repo": "https://github.com/EVANnnn1996/pfQuest-turtle",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "pfQuest-turtle",
     "description": "A TurtleWoW DB extension for pfQuest",
     "release_downloads_repo": "EVANnnn1996/pfQuest-turtle",
@@ -18092,6 +18159,7 @@
     "repo": "https://github.com/jemadux/pfQuest-turtle",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "pfQuest-turtle",
     "description": "A TurtleWoW DB extension for pfQuest",
     "release_downloads_repo": "jemadux/pfQuest-turtle",
@@ -18104,6 +18172,7 @@
     "repo": "https://github.com/krlosbf/pfQuest-turtle",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "pfQuest-turtle",
     "description": "A TurtleWoW DB extension for pfQuest",
     "release_downloads_repo": "krlosbf/pfQuest-turtle",
@@ -18116,6 +18185,7 @@
     "repo": "https://github.com/samahee/pfQuest-turtle",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "pfQuest-turtle",
     "description": "A TurtleWoW DB extension for pfQuest",
     "release_downloads_repo": "samahee/pfQuest-turtle",
@@ -18128,6 +18198,7 @@
     "repo": "https://github.com/USS-Enterprise-Guild/pfQuest-turtle",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "pfQuest-turtle",
     "description": "A TurtleWoW DB extension for pfQuest",
     "release_downloads_repo": "USS-Enterprise-Guild/pfQuest-turtle",
@@ -18140,6 +18211,7 @@
     "repo": "https://github.com/19XXX/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "19XXX/AtlasLoot",
@@ -18152,6 +18224,7 @@
     "repo": "https://github.com/dayewozhuangfeng/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "dayewozhuangfeng/AtlasLoot",
@@ -18164,6 +18237,7 @@
     "repo": "https://github.com/Alfartuna/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "Alfartuna/AtlasLoot",
@@ -18176,6 +18250,7 @@
     "repo": "https://github.com/Artur91425/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "Artur91425/AtlasLoot",
@@ -18200,6 +18275,7 @@
     "repo": "https://github.com/Haaxor1689/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "Haaxor1689/AtlasLoot",
@@ -18212,6 +18288,7 @@
     "repo": "https://github.com/GidraBW/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "GidraBW/AtlasLoot",
@@ -18224,6 +18301,7 @@
     "repo": "https://github.com/a06555/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "a06555/AtlasLoot",
@@ -18236,6 +18314,7 @@
     "repo": "https://github.com/cyaohiri/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "cyaohiri/AtlasLoot",
@@ -18248,6 +18327,7 @@
     "repo": "https://github.com/Destroses5100/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "Destroses5100/AtlasLoot",
@@ -18260,6 +18340,7 @@
     "repo": "https://github.com/CamA-dev/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "CamA-dev/AtlasLoot",
@@ -18272,6 +18353,7 @@
     "repo": "https://github.com/Floppysq/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "Floppysq/AtlasLoot",
@@ -18284,6 +18366,7 @@
     "repo": "https://github.com/envidance/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "envidance/AtlasLoot",
@@ -18308,6 +18391,7 @@
     "repo": "https://github.com/Gescht/AtlasLoot-Turtle-WoW",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot-Turtle-WoW",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "Gescht/AtlasLoot-Turtle-WoW",
@@ -18320,6 +18404,7 @@
     "repo": "https://github.com/Divinosa/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "Divinosa/AtlasLoot",
@@ -18332,6 +18417,7 @@
     "repo": "https://github.com/AiAshtu94/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "AiAshtu94/AtlasLoot",
@@ -18344,6 +18430,7 @@
     "repo": "https://github.com/shek2787/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "shek2787/AtlasLoot",
@@ -18356,6 +18443,7 @@
     "repo": "https://github.com/neoxyte/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "neoxyte/AtlasLoot",
@@ -18368,6 +18456,7 @@
     "repo": "https://github.com/Vantron21/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "Vantron21/AtlasLoot",
@@ -18380,6 +18469,7 @@
     "repo": "https://github.com/SixShoot/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "SixShoot/AtlasLoot",
@@ -18392,6 +18482,7 @@
     "repo": "https://github.com/tativen/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "tativen/AtlasLoot",
@@ -18404,6 +18495,7 @@
     "repo": "https://github.com/kazmin007/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "kazmin007/AtlasLoot",
@@ -18416,6 +18508,7 @@
     "repo": "https://github.com/Teaboy2227/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "Teaboy2227/AtlasLoot",
@@ -18428,6 +18521,7 @@
     "repo": "https://github.com/Thorben-Petersen/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "Thorben-Petersen/AtlasLoot",
@@ -18440,6 +18534,7 @@
     "repo": "https://github.com/neoleg70/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "neoleg70/AtlasLoot",
@@ -18452,6 +18547,7 @@
     "repo": "https://github.com/Xsears/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "Xsears/AtlasLoot",
@@ -18464,6 +18560,7 @@
     "repo": "https://github.com/Zaruth/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "Zaruth/AtlasLoot",
@@ -18476,6 +18573,7 @@
     "repo": "https://github.com/Sobeq/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "Sobeq/AtlasLoot",
@@ -18488,6 +18586,7 @@
     "repo": "https://github.com/vaniron/TourGuide-Turtle",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "TourGuide-Turtle",
     "description": "# For TurtleWoW launcher\nClick Addons - Add new addon - paste this url there: https://github.com/vaniron/TourGuide-Turtle.git\n\n# Contact & Donations\nYou can add me on discord: **vanironcz**\n\nIf you wanna support this fork, you can do so via https://www.paypal.com/donate/?hosted_button_id=FSQQQGRSBDA58\n\n# TourGuide-Turtle\nTekkub's TourGuide Addon backported for WoW 1.12 *with tweaks for TurtleWoW*\n\nRecommended Downloads: \n\n[**TomTom-TWOW**](https://github.com/laytya/TomTom-TWOW)\n* **Arrow to navigate you to next guide point**\n* you have to disable arrow from pfQuest as its showing closest quest, not optimal path - TomTom is integrated directly to TourGuide and shoudl be used instead\n\n[**pfQuest**](https://github.com/shagu/pfQuest) + [**pfQuest-turtle**](https://github.com/shagu/pfQuest-turtle)\n* pfQuest adds many features like tracking, map icons etc.\n\n[**pfUI**](https://github.com/shagu/pfUI)\n* pfUI provides so much more, overall UI overhaul but all features can be tweaked and disabled if you dont like them\n\nOptional addon: [TourGuide_Professions](https://github.com/Lorwik/TourGuide_Professions)\n\n\n**Features**\n* Automatic detection of objective completion\n  * Detect quest accept, completion and turnin\n  * Detect travel (by foot, flight, boat and stone)\n  * Detection of flight point discovery\n  * Detection of Hearth point change\n* Conditionals based on player’s class and item possession (only tell the player to accept the quest if they have the item that starts the quest)\n* Small “lego block” style frame shows current objective, detailed tooltips on hover\n* “Use item” frame, for those annoying quests where you have to use an item on a mob before you kill it, or you have to equip something, or you have to use an item to start a quest\n* Pop out frame for detailed view of quest sequence\n* Automatic mapping of coordinates with TomTom and questgiver locations from pfQuest if installed\n\nGuides list, plus few others didnt make it into the screenshot (Plaguelands, Silithus, Winterspring), too many for one screen xD\n![image](https://github.com/user-attachments/assets/7d655a07-d8b9-48ad-b514-b95fcefb81a8)\n\n\n**Contributors**\n* Tekkub\n* Cralor\n* Road-block\n* Rsheep\n* Azgaardian\n* Kyliexx\n* laytya\n* jb6357\n* Ez-mode\n* Gescht\n* Vaniron\n* Trus3683\n* Ravenhost",
     "release_downloads_repo": "vaniron/TourGuide-Turtle",
@@ -18512,6 +18611,7 @@
     "repo": "https://github.com/Blueager2/TourGuideTurtle",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "TourGuideTurtle",
     "description": "Tekkub's TourGuide Addon backported for WoW 1.12  modified for Turtle WoW",
     "release_downloads_repo": "Blueager2/TourGuideTurtle",
@@ -18584,6 +18684,7 @@
     "repo": "https://github.com/vatichild/GudaPlates",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "GudaPlates",
     "description": "# GudaPlates\n\nA customizable nameplate addon for World of Warcraft 1.12.1 (Vanilla) and Turtle WoW.\n\n## Features\n\n- **Debuff Tracking** - Shows debuffs on enemy nameplates with countdown timers\n- **Rank-Aware Durations** - Correctly tracks debuff durations based on spell rank\n- **Cast Bars** - Displays enemy cast bars on nameplates (requires SuperWoW)\n- **Threat Indication** - Visual threat indicators for tanks\n- **Health & Level Display** - Clean health bars with level and classification icons\n- **Raid Icons** - Shows raid target icons on nameplates\n- **Target Highlight** - Highlights your current target's nameplate\n\n## Requirements\n\n- World of Warcraft (Vanilla)\n- **SuperWoW is highly recommended** for full functionality\n\n## SuperWoW Support\n\nGudaPlates works best with [SuperWoW](https://github.com/balakethelock/SuperWoW) installed. SuperWoW provides:\n\n- **GUID-based tracking** - Accurate debuff tracking per mob, even with same-named enemies\n- **Cast bar detection** - See enemy spell casts on nameplates\n- **Enhanced nameplate matching** - Reliable nameplate-to-unit association\n\nWithout SuperWoW, GudaPlates will fall back to name-based tracking which may be less accurate with multiple enemies of the same name.\n\n## Installation\n\n1. Download the ZIP from GitHub (Code → Download ZIP)\n2. Extract the ZIP file\n3. Rename the extracted folder from `GudaPlates-main` to `GudaPlates`\n4. Move the `GudaPlates` folder to your `Interface\\AddOns\\` directory\n5. Final path should be: `Interface\\AddOns\\GudaPlates\\`\n6. Restart WoW or `/reload` if already in-game\n\n## Slash Commands\n\n- `/gp` or `/gudaplates` - Show available commands\n- `/gp role tank` - Set role to tank (shows threat loss indicators)\n- `/gp role dps` - Set role to DPS/healer (shows threat gain indicators)\n- `/gp overlap` - Toggle nameplate overlap mode\n- `/gp timers` - Toggle debuff countdown timers\n\n## Debuff Duration Database\n\nGudaPlates includes a comprehensive spell database with correct durations for all ranks of:\n\n- Warrior debuffs (Rend, Hamstring, Thunder Clap, etc.)\n- Rogue debuffs (Rupture, Garrote, Kidney Shot, etc.)\n- Mage debuffs (Frostbolt, Polymorph, etc.)\n- Warlock debuffs (Corruption, Curse of Agony, etc.)\n- Priest debuffs (Shadow Word: Pain, etc.)\n- Druid debuffs (Moonfire, Rake, etc.)\n- Hunter debuffs (Serpent Sting, etc.)\n- And many more...\n\n## Credits\n\nInspired by ShaguPlates and other classic nameplate addons.\n\n## License\n\nMIT License - Feel free to modify and distribute.",
     "release_downloads_repo": "vatichild/GudaPlates",
@@ -18596,6 +18697,7 @@
     "repo": "https://github.com/CosminPOP/TWThreat",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "TWThreat",
     "description": "# TWThreat v1.2.3\nThreat Meter for Turtle WoW\n<br>\nRequirements: in `party` or `raid`, attacking `elite` creatures or `bosses`.\n<br>\n## Changes\n\n### v1.2.3\n- Fixes for TW patch 16.0\n\n### v1.2.2\n- Bar animation fixes.\n- TankName bug fix.\n- Configurable aggro warning threshold.\n\n### v1.2.1\n- Scale TankMode window with main window.\n\n### v1.2.0\n- Threat api v4, older versions don't work anymore.\n- [pfUI](https://github.com/shagu/pfUI) integration for target frame glow and threat percentage.\n- tankMode is back !\n- New threat warning sound.\n- New icons for settings/lock/close buttons.\n\n\n### v1.1.0\n- Threat api v3, older versions don't work anymore.\n- Summoned creatures show the right threat values.\n- Settings for in and out of combat frame opacity.\n\n\n### v1.0.2\n- Revamped settings window with tabs.\n- New setting: frame scale.\n- Enabled bar animation.\n- Disabled Tankmode (still buggy).\n\n### v1.0.1\n- Faster way to get guid\n- Tankmode window is now movable and stickable to top/bottom/left/right of main window.\n- Tankmode window has test data in config mode.\n- Better colors for Tankmode targets and current target is highlighted.\n- Window title is more stable for healers.\n- Removed bar animation (maybe only temporary).\n- Clear bars if creature dies, for healers.\n- Fix potential bug where Pull Agro At bar was not shown.\n- Fix tankthreat bug when tank is not top in threat list.\n\n## Features\n- Threat, threat to pull aggro, TPS, % Max, % to pull\n- Target glow based on threat for default game target frame\n- Target threat percent indicator for default game target frame\n- Various options including bar height and font style\n- Full Screen Glow on high threat percentage\n- Aggro Warning Sound on high threat percentage\n- Customizable labels for TPS, Threat, Percent Max\n- Tankmode !\n\n## Slashcommands\n- `/twtshow`\n- `/twt show` \n- `/twt tankmode`\n\n## Settings\n![settings](https://imgur.com/xBUdh2C.png)\n![settings](https://imgur.com/MNdyp7w.png)\n![settings](https://imgur.com/IT9wFXp.png)\n\n### Glow\nShows a colored aura ranging from Green/Yellow/Red on the Default UI's unit frame.<br>\nThe color of the aura is based on your current threat threshold:<br>\n- green - yellow for 0% - 49%<Br>\n- yellow - red for 50% - 100%<br>\n\n![glow](https://imgur.com/7rZt20N.png)\n<br>\n\n### Full Screen Glow\nRed glowing screen edges when your threat is above 80%.<Br>\nThis feature is disabled in Tank Mode.<br>\n<br>\n\n### Aggro Warning Sound\nPlays a warning sound when you reach 99% threat.<br>\nThis feature is disabled in Tank Mode.<br>\n<br>\n\n### Percentages\nShows threat percentages on the default target frame.<Br>\n![percentages](https://imgur.com/jTlY6Gj.png)\n<br>\n\n### Combat Show\nAutomatically shows the window when combat begins.<br>\n<br>\n\n### Combat Hide\nAutomatically hides the window when combat begins.<br>\n<br>\n\n### Tank Mode\nShows an additional window with targets that you are currently tanking and the name and threat\npercent of the next player in threat list for quick target swap (this mode disables\nFull Screen Glow and Aggro Warning Sound).<br><br>\n![tankmode](https://imgur.com/3eR28Zp.png)\n<br>\n\n### Show Name/TPS/Threat/% Max Label Row\nShows or hides the row above the threat bars.\n<br>\n\n### Show TPS Column\nShows or hides the TPS column.\n<br>\n\n### Show Threat Column\nShows or hides the Threat column.\n<br>\n\n### Show Percent Column\nShows or hides the Percent Max column.\n<br>\n\n\n## Contributors and testers\n[Henry](https://armory.turtle-wow.org/#!/character/Henry), [Laughadin](https://armory.turtle-wow.org/#!/character/Laughadin), \n[Faralynn](https://armory.turtle-wow.org/#!/character/Faralynn), [Draxer](https://armory.turtle-wow.org/#!/character/Draxer) <BR><BR>\n\n## Support\nIf you like my work consider buying me a coffee !<br>\nhttps://ko-fi.com/xerron\n\n[![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://paypal.me/xerroner)",
     "release_downloads_repo": "CosminPOP/TWThreat",
@@ -18608,6 +18710,7 @@
     "repo": "https://github.com/eqomdx/EquadisThreatMeter",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "EquadisThreatMeter",
     "description": "Equadis' Fork of Turtle Wow's Threat Meter with far more customisability",
     "release_downloads_repo": "eqomdx/EquadisThreatMeter",
@@ -18620,6 +18723,7 @@
     "repo": "https://github.com/roby-brok/pfUI",
     "category": "UI",
     "source": "community",
+    "turtle_custom": true,
     "folder": "pfUI",
     "description": "# pfUI - OctoWoW Edition\n\n> ### About this fork\n>\n> **This fork is maintained for [OctoWoW](https://octowow.st).** Everything here was found and\n> fixed while running on that server; the fixes are not OctoWoW-specific and should apply to any\n> 1.12 client, but OctoWoW is the only place it has actually been tested.\n>\n> pfUI is the work of **[Shagu](https://github.com/shagu/pfUI)** (Eric Mauser), released under the\n> MIT licence, and this branch descends from **me0wg4ming's** Turtle WoW edition — which is why\n> parts of the documentation below still refer to Turtle WoW. All the credit belongs to them; this\n> fork only adds the fixes listed here, on top of their work.\n>\n> Note that the upstream repository this was cloned from\n> (`github.com/me0wg4ming/pfUI`) is no longer reachable, which is part of why this copy exists.\n> The full original commit history is preserved here.\n>\n> Fork maintained by **Roby_Brok**. Version bumped to **9.0.8** to distinguish it.\n>\n> ---\n>\n> #### UI scale / resolution\n>\n> - **`GetPerfectPixel` guards an unparseable `gxResolution`** (previously `768 / nil`, which killed\n>   every border on the UI).\n>\n>   ~~It also measured against `UIParent:GetEffectiveScale()` rather than the `uiScale` cvar.~~\n>   **Reverted 2026-08-10 — that was wrong.** The cvar's 1.0 cap looks like a bug but is\n>   load-bearing: the \"Huge\"/\"Large\" presets push `UIParent` to 1.42 / 1.14 via `SetScale`, and\n>   measuring that true scale makes `768 / screenheight / scale` fall below half a pixel, so border\n>   `edgeSize` rounds to zero and the borders vanish. Caught by\n>   [brues-code](https://github.com/brues-code) after the same change was merged and then reverted\n>   upstream.\n> - **`pixelperfect` loaded 55th, but sets the scale everything else is measured against.** That\n>   value is cached on first use, so every module loaded before it baked in the *previous* scale —\n>   the classic \"reload twice before it looks right\". It now loads first.\n> - The module only re-applies the scale when it actually changes, and drops the cached pixel and\n>   border sizes when it does.\n> - \"Enable UI-Scale\" now asks for a reload instead of applying live, since existing frames keep\n>   border sizes computed for the old scale.\n>\n> #### Features that silently did nothing\n>\n> pfUI runs each module inside a sandboxed environment that has `__index` but no `__newindex`, so\n> a bare global assignment inside a module never reaches `_G`. These all looked registered and\n> were not:\n>\n> | Where | What was dead |\n> |---|---|\n> | `modules/nampower.lua` | `/disenchantall`, `/dea` |\n> | `modules/superwow.lua` | `/clickthrough`, `/ct` |\n> | `modules/unitxp.lua` | `/pfunitxp`, and the battleground-pop notification |\n> | `modules/hdgraphic.lua` | `OptionsFrame_OnShow` — the extended world-detail slider never installed |\n> | `modules/raid.lua` | `GROUP_REPLACE_PARTY` |\n>\n> #### Other\n>\n> - `modules/loot.lua` — restored `local autoLoot = arg1`; `CloseLoot(not autoLoot)` was reading a\n>   nil global and always suppressing the server-side close notification.\n> - `api/ui-widgets.lua` — removed a dead fourth value in `SetHighlight`'s colour assignment.\n> - `init/skins.xml` — removed a duplicated block that loaded five Turtle WoW skins twice.\n> - Plus an earlier batch of fixes across the stutter-prone hot paths (nameplate debuff scanning,\n>   unit-frame aggro checks, throttle allocations, cooldown updates), a number of silently broken\n>   features, and a class-colour accent option.\n> - `modules/thirdparty-vanilla.lua` — [OWThreat](https://github.com/roby-brok/OWThreat) now docks\n>   into the right chat panel and takes the pfUI skin, exactly like the TWThreat it was forked\n>   from; both are driven by the same *TW/OW Threatmeter* checkboxes under *Thirdparty*.\n>\n> ---\n\n[![Version](https://img.shields.io/badge/version-9.0.8-blue.svg)](https://github.com/roby-brok/pfUI)\n[![OctoWoW](https://img.shields.io/badge/OctoWoW-supported-brightgreen.svg)](https://octowo\n\n… (truncated)",
     "release_downloads_repo": "roby-brok/pfUI",
@@ -18656,6 +18760,7 @@
     "repo": "https://github.com/IncSTK/Chronometer-Turtle",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "Chronometer-Turtle",
     "description": "Chronometer with modifications for Turtle WoW",
     "release_downloads_repo": "IncSTK/Chronometer-Turtle",
@@ -18668,6 +18773,7 @@
     "repo": "https://github.com/MrBoxie88/Chronometer-TWoW",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "Chronometer-TWoW",
     "description": "Updating for Turtle WoW",
     "release_downloads_repo": "MrBoxie88/Chronometer-TWoW",
@@ -18680,6 +18786,7 @@
     "repo": "https://github.com/jrc13245/_LazyPig",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "_LazyPig",
     "description": "# LazyPig\n\nA World of Warcraft 1.12 addon for Turtle WoW that automates repetitive tasks. Configure in-game with `/lp` or `/lazypig`.\n\n## Features\n\n### Passive (always active when enabled)\n\n| Feature | Description |\n|---------|-------------|\n| **Auto Dismount** | Dismounts when casting, interacting with flight masters, etc. Handles Turtle WoW expansion mounts and AQ40 mounts. |\n| **Auto Stance** | Automatically switches to the correct stance/form when a spell requires it. |\n| **Gossip Processing** | Auto-selects gossip options when talking to NPCs (taxi, battlemaster, innkeeper, vendor, banker). Hold Shift to bypass. |\n| **Loot at Cursor** | Positions the loot frame under your cursor. |\n| **Improved Right Click** | Right-clicking a bag item while trade, auction, or mail is open places it directly into that window. |\n| **Chat Spam Filter** | Hides repeated messages in say/yell/channel chat (70s cooldown per unique message). Also suppresses BigWigs cast spam and `#showtooltip` errors. |\n| **Loot Roll Messages** | Optionally hides green/blue roll messages and grey/white loot messages from chat. |\n| **World Chat Mute** | Mutes /world channel while in raids, dungeons, or battlegrounds. Automatically rejoins when you leave. |\n| **Auto Cancel Duels** | Instantly cancels incoming duel requests. |\n| **Auto Accept Invites** | Accepts group invites from guild members, friends, or everyone (configurable). Can be disabled while in BG or BG queue. |\n| **Auto Accept Summons** | Accepts summons 2 seconds before they expire. |\n| **Auto Accept Resurrections** | Accepts resurrections in instances/BGs when the resurrecter is out of combat. |\n| **Extended Camera** | Increases max camera distance to 50 yards. |\n\n### Battlegrounds\n\n| Feature | Description |\n|---------|-------------|\n| **Auto Queue** | Automatically queues for the battleground when the battlemaster window opens. |\n| **Auto Join** | Joins the battleground a few seconds before the invitation expires. |\n| **Auto Leave** | Leaves the battleground when a winner is declared. |\n| **Auto Release** | Releases spirit on death in battlegrounds. |\n| **Block Quest Sharing** | Blocks quest share popups while in battlegrounds. |\n| **Queue Announce** | Announces BG queue status to party/raid as leader. |\n| **WSG Flag Carrier Tracking** | Tracks the enemy flag carrier. Bind a key to target them or drop the flag. |\n\n### Loot Rolling\n\nAll roll options support 4 modes: Off, Need, Greed, Pass.\n\n| Feature | Items |\n|---------|-------|\n| **ZG** | Hakkari Bijous and Coins |\n| **MC** | Blood of the Mountain, Fiery Core, Lava Core |\n| **AQ** | Scarabs and Idols |\n| **Naxx** | Wartorn Scraps |\n| **Corrupted Sand** | Corrupted Sand (auto-need) |\n| **Dream Shards** | Dreamscale, Fading Dream Fragment, Small Dream Shard |\n| **Green Items** | All uncommon (green) quality items |\n| **BG Loot** | Auto-need on everything in Alterac Valley |\n\nNecrotic Runes are always auto-needed.\n\n### Buff Removal\n\n| Feature | Description |\n|---------|-------------|\n| **Remove Salvation** | Auto-removes Blessing of Salvation. Two modes: always, or only while tanking (warrior with shield, druid in bear form, paladin with Righteous Fury, shaman tank with Spirit Armor). |\n| **Remove Mana Buffs** | Auto-removes Blessing of Wisdom, Arcane Intellect/Brilliance, Divine Spirit/Prayer of Spirit. Disabled in battlegrounds. |\n\nWhen [SuperWoW](https://github.com/balakethelock/SuperWoW) or [Nampower](https://github.com/pepopo978/nampower) are installed, buff removal uses spell IDs instead of tooltip scanning for better performance.\n\n### Active (require modifier keys)\n\n| Keys | Action |\n|------|--------|\n| **Alt + Ctrl + Shift** | Logout (only if no keybind is set for Logout) |\n| **Ctrl + Shift** | Follow target |\n| **Alt + Shift** | Inspect target; bid on auction |\n| **Alt + Ctrl** | Initiate/accept trade; confirm popups (invite, BG entry, release spirit, corpse recovery, summon, etc.); click send mail / create auction / buyou\n\n… (truncated)",
     "release_downloads_repo": "jrc13245/_LazyPig",
@@ -18692,6 +18799,7 @@
     "repo": "https://github.com/Judo101/Chronometer",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "Chronometer",
     "description": "# Chronometer-TWoW\nChronometer with TWoW additions. Still WIP\n\nRemove the \"-master\" off the end of the folder, .TOC file should be in /Interface/Addons/Chronometer/Chronometer.toc",
     "release_downloads_repo": "Judo101/Chronometer",
@@ -18752,6 +18860,7 @@
     "repo": "https://github.com/SandreaSub/Questie-Octo",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "Questie-Octo",
     "description": "# Questie-Octo\n\nA lightweight quest helper for Turtle WoW / OctoWoW, focused on clear quest, objective, map, minimap, and tracker information.\n\n## Requirements\n\n**ClassicAPI.dll is required and is not included with Questie-Octo.**\n\n[Download the latest ClassicAPI release here.](https://github.com/brues-code/ClassicAPI/releases/latest)\n\n## Installation\n\n1. Download the latest Questie-Octo release.\n2. Extract the `Questie-Octo` folder into your WoW `Interface/AddOns` folder.\n3. Make sure the addon path ends like this:\n\n   `Interface/AddOns/Questie-Octo/Questie-Octo.toc`\n\n4. Install ClassicAPI separately using its release instructions.\n5. Restart the game if it was already running.\n\n## First Steps\n\n### Open Questie-Octo settings\n\nBy default, Questie-Octo adds a yellow **!** settings button.\n\n- **Left Click:** Open settings\n- **Drag:** Move the button around the minimap when it is not managed by a button panel\n\nTo disable it, open **Other → Interface** and uncheck **Show Minimap Button**.\n\nIf your UI provides a minimap-button panel, such as pfUI's **Addon Buttons** panel, the enabled Questie-Octo button can appear there with your other addon buttons.\n\nOn supported game menus, including Blizzard, Shagu Tweaks, pfUI and DragonflightUI-Reforged, you may also see a **Questie Options** button in the Escape menu.\n\nYou can also open the settings with either slash command:\n\n`/qo`\n\n`/questieocto`\n\n### Unlock and move the quest tracker\n\n1. Open the settings.\n2. Select the **Tracker** tab.\n3. Uncheck **Lock Tracker**.\n4. Left-click and drag the **top/header area of the tracker** to move it.\n5. Re-enable **Lock Tracker** when you are happy with its position.\n\nThe tracker is transparent by default, so the draggable header can be easy to miss.\n\nIf the tracker gets moved somewhere inconvenient, use **Tracker → Reset Tracker Position**.\n\n### Dark Theme\n\nQuestie-Octo uses its dark options theme by default.\n\nTo change it, open **Other → Interface** and toggle **Enable Dark Theme**. The theme only changes the Questie-Octo settings window.\n\n### Show Minimap Button\n\n**Changing this option requires `/reload`.** When disabled, Questie-Octo does not create the minimap-button frame at all; it is not merely hidden. This avoids issues with older Vanilla minimap-button collector addons.\n\nThe other settings access methods described above remain available when the minimap button is disabled.\n\n### Track quests manually\n\nQuestie-Octo can automatically track accepted quests.\n\nTo manually track or untrack a quest, use **Shift + Left Click** on the quest in the Quest Log.\n\n### Quest Browser\n\nThe **Quest Browser** button is available in the bottom-left corner of the Questie-Octo settings window. You can also open it with `/qo quests`.\n\n### Quest Automation\n\nQuest automation is optional and disabled by default. Open **Other → Quest Automation** to configure:\n\n- **Auto Accept Quests**\n- **Auto Turn In Quests**\n- **Auto Accept Gray Quests**\n- **Include Repeatable Quests**\n\nHold **Shift** while talking to an NPC to keep that conversation manual. Questie-Octo leaves multiple reward choices, money-cost turn-ins, and quest accept confirmations to the player.\n\n## Useful Commands\n\n- `/qo` or `/questieocto` — open or close Questie-Octo settings\n- `/qo quests` — open the quest browser\n- `/qo help` — show available Questie-Octo commands\n\n## Notes\n\nQuestie-Octo requires ClassicAPI as an external dependency. `ClassicAPI.dll` is intentionally not bundled with the addon.",
     "release_downloads_repo": "SandreaSub/Questie-Octo",
@@ -18776,6 +18885,7 @@
     "repo": "https://github.com/Excinerus/ExAutoCSHS",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "ExAutoCSHS",
     "description": "# ExAutoCSHS\nAn Addon for TurtleWoW for automatically alternating Crusader/Holy strike to maintain maximum uptime on the Zeal / Holy Might buffs \nThis relies on CombatLog entries and internal timers, so even if you break rotation it'll manage to keep up with buffs.\n\nAdditionally it will use lower ranks of CS/HS depending on mana availability.\n\nUsage : Create a macro with:\n/AutoCS [openCS/openHS/openAuto] [moreCS/moreHS/moreAuto] [prioZeal] [exorcism]\n\n- openCS opens with Crusader Strike,\n- openHS opens with Holy Strike,\n- openAuto opens with CS if using a 2h weapon, HS is 1h [default setting],\n\n- moreCS will do 2 crusader strikes to ever holy strike,\n- moreHS will only do CS when Zeal needs a refresh  so close to 3 HS per CS (for maximum threat tanking),\n- moreAuto will do moreCS  with a 2h weapon , moreHS  with one handed weapon  [default setting],\n\n- prioZeal will priorize getting zeal to 3 stacks regardless of rest of settings then proceed following them [disabled by default],\n\n- exorcism will attempt to cast Exorcism if CS/HS is on CD and the target is valid [disabled by default]\n\n\nExample: \n\n/AutoCS openHS prioZeal \n\nwill open with HS, priorize building zeal until 3 stacks , then proceeds only doing CS when Zeal needs a refresh \nthis results most of the time in :\nHS-CS-CS-HS-CS-HS-HS-HS-CS-HS-HS-HS-CS-HS-HS-HS...\n----1-2-----3--starts doing 3 HS to CS \n\n/AutoCS openHS prioZeal exorcism\nwill do the same interwoven with exorcism : \nHS-Exorcism-CS-CS-HS-Exorcism-CS-HS-HS-Exorcism-HS-CS-HS-Exorcism-HS-HS-CS-Exorcism ...",
     "release_downloads_repo": "Excinerus/ExAutoCSHS",
@@ -18812,6 +18922,7 @@
     "repo": "https://github.com/Otari98/Atlas",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "Atlas",
     "description": "# Atlas for Turtle WoW\nAtlas allows you to view dungeon maps/ battleground maps/dungeon locations/ flight paths and transport routes in game!\n\n## Important\nIf you want to use AtlasLoot and/or AtlasQuest with this fork of Atlas, download them from here:\n - [AtlasLoot](https://github.com/Otari98/AtlasLoot)\n - [AtlasQuest](https://github.com/Otari98/AtlasQuest)\n\nOtherwise you may encounter errors.\n\n## Preview\n<img width=\"1450\" height=\"771\" alt=\"image\" src=\"https://github.com/user-attachments/assets/b40c399d-5b48-440e-aeea-21e191e6aa08\" />",
     "release_downloads_repo": "Otari98/Atlas",
@@ -18836,6 +18947,7 @@
     "repo": "https://github.com/Buzzkill54/AtlasQuest",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasQuest",
     "description": "AtlasQuest TurtleWOW Edition",
     "release_downloads_repo": "Buzzkill54/AtlasQuest",
@@ -18848,6 +18960,7 @@
     "repo": "https://github.com/jrc13245/SuperMacro-turtle-SuperWoW",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "SuperMacro-turtle-SuperWoW",
     "description": "This fork changes FindBuff() to match the buff/debuff caps modified by Turtle WoW.\n*USE WITH SUPERWOW ONLY\n\n3.19 SuperWoW 511 character length macro support - Torio \n3.18 new improved user interface by Horu:\nAdd option to change macros window size (removed old background textures)\nAdd option to change window script font size\nAdd monospaced font\nMake macros window movable\nFix bug: new line on the end of editbox\nAdd tabulation handler for editboxes\nShow current line number on editbox panel\nFix bug: extend script can be removed on macros renaming\nFix bugs with renaming wow native macros and macros that have the same name.\n\n3.17.1 added \"mouseover\" can now be used as a unit identifier in the FindBuff() function\nadded SpellReady function. More details in funtions.txt\nIncreased the number of buffs counted when looking for a buff/debuff\n\nIf you want see tooltips and button text for spell in macros you should add line to top of your macro:\n/run -- CastSpellByName(\"Spell Name\")\n/script -- CastSpellByName(\"Spell Name\")\n/script if nil then CastSpellByName(\"SPELLNAME\"); end\n/run -- cast(\"Spell Name\")\n/script -- cast(\"Spell Name\")\n\n\n3.17 added DiscordBars support and TheoryCraft macro tooltip compatibility.\n\n3.16b Bongos support is fixed\n\n3.16a \nMain Menu icon edit\nbongos support improved\n\n3.16\nfixed compatibilty with Bongos Action Bars //Does not completely solve the problem\n\n3.15 beta 1 release\nfixed: FindFirstItem returns correct info for use( %d [,%d]) and /use %d [, %d]\nfixed: FindFirstSpell returns correct info for /cast\nfixed: /use item to show item's info\nfixed: /cast spell to show spell's info for (minor) etc.\nfixed: GetSpellCooldown error popup for SM_Channel()\noption to hide menu button\noption to wrap long sentences (won't work until they add EditBox:SetNonSpaceWrap() )\nslash command to run super macro /smacro\nregister events to run macros. see functions.txt for RegisterEventMacro and UnregisterEventMacro.\nEx. RegisterEventMacro( \"ding\", 1, \"PLAYER_LEVEL_UP\"); -- do something whenever you level up\nViewEventMacro() prints the events table\nremove virtual templates from toc (Fonts.xml, UIPanelTemplates.xml, ClassTrainerFrameTemplates.xml)\n\n\n\nSuperMacro v3.15b1 by Aquendyn\n\nInstalling SuperMacro:\nBefore you unzip, backup your old Bindings.xml and SM_Extend.lua that are in the SuperMacro folder (if you have on older version of SuperMacro).\nUnzip the files into WoW/Interface/Addons . A new directory called SuperMacro will be automatically created, and the files will be extracted there.\nThen, copy your backup Bindings.xml into SuperMacro folder, if you have one.\nYou may also create a text file called SM_Extend.lua and put extra long codes in there.\n\nThis addon provides a very much improved interface for macros. Its special functions includes the following, and probably more:\nNew SuperMacro frame shows all 18 global and 18 character macros. *\nWork around the maximum macro character length of 256 characters (system limit).**\nRun macros through keybinds*** and call other macros with RunMacro()****.\nSome convenient slash commands and functions*****.\nPut an item link or tradeskill recipe into the macro***** *.\nIngame extended LUA code editor***** **.\nOptions frame***** ***.\nAlso see functions.txt for user-friendly functions and slash commands that can be used in your macros.\n\n* The new SuperMacro interface displays 18 (global) account macros on the left and 18 character-specific macros on the right. Buttons at the top create new macros for each category. Buttons on the bottom are, in order, delete macro; save macro; open SuperMacro options frame; delete extend; save extend; exit frame. Enter your macro in the left editbox, and your extended LUA codes and functions in the right editbox.\n\n** The letter limit for the entire macro is 256. However, you can get around that if you use call it through another macro, or put long functions in SM_Extend.lua file, or use the in-game extend editor (explained further down in this docu\n\n… (truncated)",
     "release_downloads_repo": "jrc13245/SuperMacro-turtle-SuperWoW",
@@ -18860,6 +18973,7 @@
     "repo": "https://github.com/RetroCro/unitscan-turtle-hc",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "unitscan-turtle-hc",
     "description": "# UnitScan-Turtle (Hardcore Version)\n\n## Description\nThis fork extends [unitscan-turtle](https://github.com/GryllsAddons/unitscan-turtle) by provinding a prepopulated list of  dangerous elite mobs, rares, and other units. This version is especially useful if you're playing Turtle WoW's hardcore mode.\n\n## Download\nIf using the launcher use this url: https://github.com/RetroCro/unitscan-turtle-hc.git\n\nDownload: [https://github.com/RetroCro/unitscan-turtle-hc/archive/refs/heads/master.zip](https://github.com/RetroCro/unitscan-turtle-hc/archive/refs/heads/master.zip)\n\nCopy folder to your Turtle WoW Addons folder ex: twmoa_1171\\Interface\\AddOns\\unitscan-turtle-hc\n\nPath should look like this:\n```\n....\\TWMOA_1171\\\n├───Interface\\\n│   └───AddOns\\\n│       ├───unitscan-turtle-hc\\\n│       │       Event_wardrum_ogre.ogg\n│       │       gruntling_horn_bb.ogg\n│       │       README.md\n│       │       scourge_horn.ogg\n│       │       UI-Achievement-Alert-Glow.blp\n│       │       UI-Achievement-Parchment-Horizontal.blp\n│       │       UI-Achievement-Title.blp\n│       │       unitscan-turtle-hc.toc\n│       │       unitscan.lua\n│       │       zonetargets.lua\n```\n\n## Preview\n<video src=\"https://github.com/user-attachments/assets/835e06ea-c42f-464c-b2fb-cb5800e48db0\" controls=\"controls\" style=\"max-width: 730px;\">\n</video>\n\n![Example1](https://raw.githubusercontent.com/RetroCro/unitscan-turtle-hc/refs/heads/master/preview/unitscan1.jpg)\n\n![Example2](https://raw.githubusercontent.com/RetroCro/unitscan-turtle-hc/refs/heads/master/preview/unitscan2.jpg)\n\n![Example3](https://raw.githubusercontent.com/RetroCro/unitscan-turtle-hc/refs/heads/master/preview/unitscan3.jpg)\n\n\n\n\n\nThe list of units can be found in [zone targets.lua](https://raw.githubusercontent.com/RetroCro/unitscan-turtle-hc/refs/heads/master/zonetargets.lua).\n\n\n - Unitscan will only look for zone targets specific to your current\n   zone. The target list is reloaded when you change zones.\n   \n-   Zone targets will be reloaded 90 seconds after you have found a\n   target (to re-detect roaming targets).\n   \n-   Unitscan will alert you of NPC targets that you can attack and are\n   alive.\n   \n-   **Unitscan will pause scanning when in combat or when auto attack, auto shoot and wanding are active.**  \n-   **Please note unitscan will not auto target the target when it is found.**    \n   **Click the target in the unitscan window or use the macro /unitscantarget to target the mob.**\n\n## Commands / Use\n**You can move the unitscan frame by holding CTRL+SHIFT+LEFT CLICK dragging.**\n\n\n**/unitscan** *lists the active scan targets*    \n**/unitscan name** *adds/removes **name** to/from the active scan targets*    \n**/unitscantarget** *targets the most recently found target*    \n\nYou can add custom targets to find players or targets not included in the zone targets list by using the command /unitscan *name*. \n\nPlease Note: Targets added using /unitscan *name* will be removed from active scan targets after they are found. For a permanenet solution, edit [zone targets.lua](https://raw.githubusercontent.com/RetroCro/unitscan-turtle-hc/refs/heads/master/zonetargets.lua) and add a line entry for that unit.\n\n## Complementary Addons\n[**SoloRaidTargetIcons**](https://github.com/refaim/SoloRaidTargetIcons) - This addon lets you put raid markers on units without being in a party (see video).\n\n[Codex](https://github.com/nakda/codex/tree/main) - To see target abilities in the tooltip.\n\n## Addon Compatibility\nUnitscan uses the [TargetByName](https://wowpedia.fandom.com/wiki/API_TargetByName) function to scan through the list of targets to find an exact match. This causes the game to switch targets if the named target is nearby. Unitscan will immediately restore your original target however if you are using addons that do something when you switch targets (such as issue an alert if targets are PvP flagged) then they may trigger for the found target.",
     "release_downloads_repo": "RetroCro/unitscan-turtle-hc",
@@ -18884,6 +18998,7 @@
     "repo": "https://github.com/Redbu11dev/UnitPlates",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "UnitPlates",
     "description": "# UnitPlates\nNameplates for twow/octowow/capycraft\n\nContinuation of https://github.com/Redbu11dev/ShaguPlates-extra (Complete rewrite based on kui nameplates, no more shaguplates dependencies, no kui dependencies either, no third party libraries, much better code, etc.)\n\nREQUIRES SUPERWOW https://github.com/balakethelock/SuperWoW (and preferably UnitXP-SP3 https://codeberg.org/konaka/UnitXP_SP3/releases) \n\n(!) If you are using ShaguTweaks - make sure to disable \"Nameplate scale\" in advanced settings (and any other napeplate setting that you may have) (!)\n\n(!) Rename folder to \"UnitPlates\" (!)\n\n(!) I do not and do not plan to support non-english locales (!)\n\nConfiguration window - /up or /unitplates (or click the minimap button)\n- (NOTE: I do not wish to clutter the addon logic with many config options, I will only be keeping minimal amount of options)\n\nTODO list:\n- More buffs/debuffs and correct(mostly) aura durations data (can only show as much as there are in local library, but the library is based on shaguplates - so at the very least no less than shaguplates can show). Please report incorrect durations found.\n- More range indicators?\n- Did not bother with critter nameplates yet (just turn them off in UnitXP-SP3 for now, and it will be preferable mostly anyways)\n- Maybe add something complex with threat, like showing threat percentage, but it would be super difficult to do, not sure if I will be able to (I could probably do TWThreat, but beyound that - there is no accurate data)\n\nFeatures:\n\n- Power bars (mana, rage, energy) for nameplates\n- NPC faction names (like \"\\<Argent Dawn\\>\" or \"\\<Trade goods\\>\") under their names\n- NPC type icons\n- Elite dragons on the sides\n- Player race icons\n- Player class icons\n- Right clicking a nameplate allows moving camera\n- PVP flag indicator\n- Hunter pet happines indicator (only for your own pet, and only if not happy)\n- \"in combat\" indicator on an NPC/player nameplate\n- Totem icons\n- Combo points\n- Cast bar\n- Buffs/Debuffs (auras)\n- Shooting range indicator (works only if you have \"Auto Shot\" or \"Throw\" or \"Shoot Bow\" or \"Shoot Gun\" or \"Shoot Crossbow\" or \"Shoot\" somewhere on the action bars), will check against first found action on the action bars, in that order\n- \"Tapped\" state indicator - when an NPC is tapped by another player (when the kill would not be yours - when you get no loot or xp for killing it)\n- Indicates if a mob is attacking you (the mob name becomes red, the health statusbar changes color to brighter red and changes texture)\n- Party/raid colors - party and raid members will have different healthbar and name/guild text colors\n- \n- pfquest integration (shows icons for quest mobs)\n- MobHealth integration https://github.com/kc8pnd/MobHealth\n- ShaguTweaks health estimation integration\n- WoWTranslate support https://github.com/paokkerkir/wow-translate\n- and more\n\n\n<img width=\"851\" height=\"435\" alt=\"image\" src=\"https://github.com/user-attachments/assets/dfe94b52-5dfe-4cd7-9e4f-2af2b01ce172\" />\n\n<img width=\"1386\" height=\"432\" alt=\"image\" src=\"https://github.com/user-attachments/assets/3737733b-c134-4691-a403-4f5f3ddb4f8e\" />\n\n<img width=\"485\" height=\"327\" alt=\"image\" src=\"https://github.com/user-attachments/assets/976a0bc5-a31f-400e-90f3-4b6bf80329de\" />\n\n<img width=\"321\" height=\"124\" alt=\"image\" src=\"https://github.com/user-attachments/assets/6351e5b1-b9e4-496f-8039-53d8309a0dda\" />",
     "release_downloads_repo": "Redbu11dev/UnitPlates",
@@ -18896,6 +19011,7 @@
     "repo": "https://github.com/pylebecq/necrosis-twow",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "necrosis-twow",
     "description": "# Necrosis TurtleWoW 🐢\n\nThis is fork of version 1.5.2a of the Necrosis LdC addon for Turtle WoW server.\n\n## Changes\n\n### 1.8.0\n\n#### Changes\n\n- Added a new graphical option: \"Use fixed button positions\" (enabled by default). When enabled, spell icons take fixed positions around the sphere, keeping the spells menu, summons menu, and curses menu always on the right. This creates gaps between buttons when you haven't learned certain spells yet, but it prevents icons from shifting as you progress, which could hide some menus behind the sphere or require constant setting adjustments. This improves muscle memory and provides a better experience for new players.\n- The \"Put stone menu on the left\" option is now enabled by default to position the stones menu properly when using the new \"Use fixed button positions\" option.\n\n#### Bug fixes\n\n- Fixed a bug making all buttons cast a wrong spell after learning some new spells.\n- The summons menu button will now be hidden for players who do not know any summons yet.\n- The curses menu button will now be hidden for players who do not know any curses yet.\n- The stones menu button will now be hidden for players who do not know any stones yet.\n- Fixed the shadow trance and fear immunity indicators which were not working.\n\n### 1.7.0\n\n#### ✨ New feature: Ritual of Souls on Healthstone button\n\nAdded a convenient Shift+Click action to the Healthstone button for casting Ritual of Souls:\n\n- **Shift+Click** the Healthstone button to cast Ritual of Souls (when you know the spell and it's not on cooldown)\n- The tooltip on the Healthstone button now shows the Shift+Click option with the mana cost\n- When Ritual of Souls is on cooldown, the tooltip displays a grayed-out message instead\n\n### 1.6.0\n\n#### ✨ New feature: Stones menu\n\nWith the recent additions of exciting new stones like Felstone, Wrathstone, and Voidstone, we needed a better way to manage them all. The old Firestone button has evolved into a smart Stone menu that puts all your stones at your fingertips.\n\n- **Left-click** to open the menu and select any stone (Firestone, Felstone, Wrathstone, or Voidstone).\n- **Right-click** to open the menu and keep it open while you decide\n- **Middle-click** for quick access—instantly creates or uses your most recent stone without opening the menu\n\nWhen left-clicking on a specific stone, or when middle-clicking the Stones menu button, Necrosis will create the select stone if you don't have one, or will use the selected stone if you already have one in your bags.\n\n#### Changes\n\n- Updated the icons of the Healthstone, Spellstone, and Soulstone.\n\n### 1.5.2a\n\n#### Oct 11, 2025\n\n- Fix a repeating error being displayed when using a Soulstone, Spellstone, or Healthstone, when graphical timers are enabled\n\n#### Oct 10, 2025\n\n- Fully removed support for French and German languages.\n\n#### Sep 24, 2025\n\n- Drastically reduced memory allocation in the Necrosis_OnUpdate function.\n\n#### Sep 18, 2025\n\n- Updated the Spellstone button:\n\t- When there is a Spellstone in the player's bags, the button will use it.\n\t- When there is no Spellstone in the player's bags, the button will create one.\n- Using a Healthstone or a Spellstone will now add a cooldown timer for both Healthstone and Spellstone since they share their cooldown since Turtle WoW 1.18.\n- Changed the Healthstone and Spellstone timer duration to 2 minutes (down from 3 minutes).\n\n#### Sep 17, 2025\n\n- Fixed the error being displayed every second as soon as the player learn the Demonic Sacrifice.\n\n#### Aug 24, 2025\n\n- Updated the name of the addon in the TOC file to mention it is specific to TurtleWoW.\n- Updated the Firestone button:\n\t- When there is a Firestone in the player's bags, the button will use it.\n\t- When there is no Firestone in the player's bags, the button will create one.\n\n#### Feb 9, 2025\n\n- Updated shard counting and Fel Domination CD tracking.\n\n#### May 14, 2024\n\n- Removed init dialog options. English is now the only supported language.",
     "release_downloads_repo": "pylebecq/necrosis-twow",
@@ -18908,6 +19024,7 @@
     "repo": "https://github.com/BlackHobbiT/necrosis-twow",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "necrosis-twow",
     "description": "1.5.2a fork of Necrosis addon for Turtle WoW",
     "release_downloads_repo": "BlackHobbiT/necrosis-twow",
@@ -18920,6 +19037,7 @@
     "repo": "https://github.com/Otari98/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "# AtlasLoot\nAtlasLoot Turtle WoW Edition allows you to view loot from bosses/ enchants/ crafted items/ reputation rewards/ PvP rewards in game!\n## Features of this fork\n - Option to show source and drop rate on item tooltips.\n - All professions sorted by slot/purpose.\n - New menus for dungeons/raids and world bosses.\n - Reworked menus for crafting/reputations/collections/pvp.\n - Reworked dropdown menus.\n - Keybinds, and many bugfixes.\n\n## Recommended addons to use with AtlasLoot\n  - [Atlas](https://github.com/Otari98/Atlas)\n  - [AtlasQuest](https://github.com/Otari98/AtlasQuest)\n\n## Preview\n![123](https://github.com/user-attachments/assets/69f48fbf-c9a0-42d6-a907-24b7f2f1d81c)\n\n\n\n\n![2222](https://github.com/user-attachments/assets/a7d86059-0b1d-461a-aab1-e0aef0863cad)\n\n\n\n\n![333](https://github.com/user-attachments/assets/1d3164bf-438a-4268-85c4-35782e59ec46)\n# Thanks to original author and all contributors\n - Daviesh (original author)\n - Pompa (Turtle WoW World Bosses)\n - Xerron (Turtle WoW World Bosses)\n - Gurky (Turtle WoW 1.16/1.16.1 Dungeons)\n - Shagu (pfUI update code)\n - Lexie (Turtle WoW fixes/updates)\n - Otari (overhaul/revamp, menu changes, bugfixes/updates)",
     "release_downloads_repo": "Otari98/AtlasLoot",
@@ -18932,6 +19050,7 @@
     "repo": "https://github.com/ashigaru/AtlasLoot",
     "category": "General",
     "source": "community",
+    "turtle_custom": true,
     "folder": "AtlasLoot",
     "description": "AtlasLoot Turtle WoW Edition",
     "release_downloads_repo": "ashigaru/AtlasLoot",

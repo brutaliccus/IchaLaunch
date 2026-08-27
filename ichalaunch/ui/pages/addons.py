@@ -17,6 +17,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ichalaunch.addons.catalog import (
+    RAVENCRAFT_CATEGORY,
+    apply_turtle_custom_flags,
+    entry_matches_category,
+)
 from ichalaunch.addons.github import (
     catalog_locks_updates,
     catalog_pin_tag,
@@ -444,11 +449,7 @@ class AddonsPage(QWidget):
         self._applied_filter_mode = ""
         self._applied_cat_filter = ""
 
-        cats = sorted({e.get("category") or "General" for e in self._catalog_cache})
-        self.cat_box.blockSignals(True)
-        for c in cats:
-            self.cat_box.addItem(c)
-        self.cat_box.blockSignals(False)
+        self._fill_cat_box("All categories")
         # Keep Check Updates off until the first list build + reveal finish —
         # early-launch clicks into a half-built list abort Qt with no traceback.
         self.set_checking(False)
@@ -726,6 +727,36 @@ class AddonsPage(QWidget):
         )
         return cats
 
+    def _category_filter_options(self) -> list[str]:
+        """Pinned Ravencraft filter, then catalog categories (no duplicate)."""
+        cats = sorted(
+            {e.get("category") or "General" for e in (self._catalog_cache or [])}
+        )
+        rest = [
+            c
+            for c in cats
+            if str(c).strip().lower() != RAVENCRAFT_CATEGORY.lower()
+        ]
+        return [RAVENCRAFT_CATEGORY, *rest]
+
+    def _fill_cat_box(self, current: str | None = None) -> None:
+        if current is None:
+            try:
+                current = self.cat_box.currentText()
+            except RuntimeError:
+                current = "All categories"
+        self.cat_box.blockSignals(True)
+        try:
+            while self.cat_box.count() > 1:
+                self.cat_box.removeItem(1)
+            for c in self._category_filter_options():
+                self.cat_box.addItem(c)
+            idx = self.cat_box.findText(current)
+            if idx >= 0:
+                self.cat_box.setCurrentIndex(idx)
+        finally:
+            self.cat_box.blockSignals(False)
+
     def _open_catalog_suggest_dialog(self) -> None:
         catalog_suggest_dialog(
             self,
@@ -887,6 +918,15 @@ class AddonsPage(QWidget):
             return
         if src is self.cat_box:
             self._available_base_ready = False
+            try:
+                mode = self.filter_box.currentText()
+            except RuntimeError:
+                mode = "All"
+            # Installed rows omit other categories at build time — rebuild.
+            if mode in ("Installed", "Update Available", "All"):
+                self._request_list_work("refresh")
+                self._pending_list_work.discard("mode")
+                return
         if (
             self._combo_popup_open()
             or time.monotonic() < self._list_freeze_until
@@ -1004,11 +1044,10 @@ class AddonsPage(QWidget):
                 continue
             if not entry.get("repo"):
                 continue
-            cat = entry.get("category") or "General"
-            if cat_filter and cat_filter != "All categories" and cat != cat_filter:
+            if not entry_matches_category(entry, cat_filter):
                 continue
             base.append(entry)
-        # Latest-release downloads high → low; unknown last; name tie-break.
+        # Raven-marked first, then latest-release downloads high → low.
         base.sort(key=popularity_sort_key)
         self._available_base = base
         self._available_base_ready = True
@@ -1539,18 +1578,7 @@ class AddonsPage(QWidget):
             current = self.cat_box.currentText()
         except RuntimeError:
             current = "All categories"
-        cats = sorted({e.get("category") or "General" for e in self._catalog_cache})
-        self.cat_box.blockSignals(True)
-        try:
-            while self.cat_box.count() > 1:
-                self.cat_box.removeItem(1)
-            for c in cats:
-                self.cat_box.addItem(c)
-            idx = self.cat_box.findText(current)
-            if idx >= 0:
-                self.cat_box.setCurrentIndex(idx)
-        finally:
-            self.cat_box.blockSignals(False)
+        self._fill_cat_box(current)
         self.refresh()
 
     def _pagination_blocked(self) -> bool:
@@ -1886,8 +1914,6 @@ class AddonsPage(QWidget):
                     category = meta.get("category") or "Installed"
                     # Prefer merged meta (includes .git origin override); catalog only as last resort.
                     repo_url = meta.get("url") or (cat or {}).get("repo") or ""
-                    if cat_filter and cat_filter != "All categories" and category != cat_filter:
-                        continue
                     loaded = addon_is_loaded(folder, addons_dir=addons_dir)
                     if "loaded" in meta:
                         loaded = bool(meta.get("loaded")) if disk is None else loaded
@@ -1903,6 +1929,10 @@ class AddonsPage(QWidget):
                         "tag": meta.get("tag") or catalog_pin_tag(cat) or "",
                         "loaded": loaded,
                     }
+                    apply_turtle_custom_flags(entry, cat)
+                    apply_turtle_custom_flags(entry, meta)
+                    if not entry_matches_category(entry, cat_filter, cat, meta):
+                        continue
                     never_u = bool(meta.get("never_update")) or settings.is_addon_never_update(folder)
                     if kind == "exact" and catalog_locks_updates(cat):
                         never_u = True
