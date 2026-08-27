@@ -791,6 +791,60 @@ def test_vanilla_tweaks_exe_swap_is_atomic():
     print("OK vanilla tweaks exe swap is atomic")
 
 
+def test_vanilla_tweaks_patcher_output_is_identified_or_fails():
+    """The patched exe is found by what the run wrote, and a no-op run is not success."""
+    import time as _time
+
+    from ichalaunch.mods.installer import patched_exe_from_run, tweaked_exe_snapshot
+
+    with tempfile.TemporaryDirectory() as td:
+        game = Path(td)
+        wow = game / "WoW.exe"
+        backup = game / "WoW-OriginalBackup.exe"
+        wow.write_bytes(b"MZ" + b"client" * 32)
+        backup.write_bytes(b"MZ" + b"stock" * 32)
+
+        # The real case. The patcher is fed the stock backup so option changes do
+        # not stack, so it names its output after the backup, not after WoW.exe.
+        before = tweaked_exe_snapshot(game)
+        out = game / "WoW-OriginalBackup_tweaked.exe"
+        out.write_bytes(b"MZ" + b"patched" * 32)
+        assert patched_exe_from_run(game, backup, wow, before) == out
+        out.unlink()
+
+        # A patcher that names its output after the client is also handled.
+        before = tweaked_exe_snapshot(game)
+        alt = game / "WoW_tweaked.exe"
+        alt.write_bytes(b"MZ" + b"patched" * 32)
+        assert patched_exe_from_run(game, backup, wow, before) == alt
+
+        # A stale file from an earlier run carries that run's options. A run that
+        # writes nothing must report nothing rather than reinstalling it.
+        before = tweaked_exe_snapshot(game)
+        assert patched_exe_from_run(game, backup, wow, before) is None
+
+        # Stale present and a fresh one written: the fresh one wins.
+        before = tweaked_exe_snapshot(game)
+        _time.sleep(0.01)
+        fresh = game / "WoW-OriginalBackup_tweaked.exe"
+        fresh.write_bytes(b"MZ" + b"newer" * 32)
+        assert patched_exe_from_run(game, backup, wow, before) == fresh
+        fresh.unlink()
+
+        # A name nobody predicted is still accepted, so an upstream rename
+        # degrades to a working install instead of a silent no-op.
+        before = tweaked_exe_snapshot(game)
+        odd = game / "vanillatweaks-output_tweaked.exe"
+        odd.write_bytes(b"MZ" + b"odd" * 32)
+        assert patched_exe_from_run(game, backup, wow, before) == odd
+        odd.unlink()
+
+        # An empty game folder is not a crash.
+        assert patched_exe_from_run(game, backup, wow, tweaked_exe_snapshot(game)) is None
+        assert tweaked_exe_snapshot(game / "does-not-exist") == {}
+    print("OK vanilla tweaks patcher output is identified or fails")
+
+
 def test_hand_patched_wow_exe_is_not_vanilla_tweaks():
     """Play must not restore stock WoW.exe over a hand-patched client (#280)."""
     from ichalaunch.config.settings import settings as s
@@ -13889,6 +13943,7 @@ def _run_smoke_tests():
     test_detect_state()
     test_vanilla_tweaks_disable_clears_pending()
     test_vanilla_tweaks_exe_swap_is_atomic()
+    test_vanilla_tweaks_patcher_output_is_identified_or_fails()
     test_hand_patched_wow_exe_is_not_vanilla_tweaks()
     test_apply_desired_state_guard()
     test_mod_remove_desired_state()
