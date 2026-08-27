@@ -3424,11 +3424,77 @@ def test_review_queue_only_root_and_requested_fork():
         encoding="utf-8"
     )
     assert "close_pr_if_open" in workflow
-    assert "${GITHUB_REPOSITORY_OWNER}:${BRANCH}" in workflow
     assert "gh pr close" in workflow
     assert "|| true" not in workflow.split("gh pr close")[1][:200]
+    # Current gh does not accept --head owner:branch or --jq --arg; those
+    # abort the job after the branch push and never create the PR.
+    assert "${GITHUB_REPOSITORY_OWNER}:${BRANCH}" not in workflow
+    assert "${GITHUB_REPOSITORY_OWNER}:${branch}" not in workflow
+    assert "--jq --arg" not in workflow
+    assert "--pick-pr-head" in workflow
+    assert '--head "$branch"' in workflow or '--head "$BRANCH"' in workflow
 
     print("OK review queue is root + requested fork only")
+
+
+def test_catalog_approve_pr_lookup():
+    """PR head lookup must work without gh --jq --arg / owner:branch syntax."""
+    from tools.catalog_approve_from_issue import pick_pr_url_for_head
+
+    prs = [
+        {
+            "url": "https://github.com/brutaliccus/IchaLaunch/pull/1",
+            "headRefName": "other",
+        },
+        {
+            "url": "https://github.com/brutaliccus/IchaLaunch/pull/2",
+            "headRefName": "catalog/issue-335-pfui",
+        },
+    ]
+    assert (
+        pick_pr_url_for_head(prs, "catalog/issue-335-pfui")
+        == "https://github.com/brutaliccus/IchaLaunch/pull/2"
+    )
+    assert pick_pr_url_for_head(prs, "missing") == ""
+    assert pick_pr_url_for_head([], "catalog/issue-335-pfui") == ""
+    assert pick_pr_url_for_head(None, "x") == ""
+    assert pick_pr_url_for_head(prs, "") == ""
+    assert pick_pr_url_for_head(prs, "  catalog/issue-335-pfui  ") == (
+        "https://github.com/brutaliccus/IchaLaunch/pull/2"
+    )
+
+    import subprocess
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "tools" / "catalog_approve_from_issue.py"),
+            "--pick-pr-head",
+            "catalog/issue-335-pfui",
+        ],
+        input=json.dumps(prs),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip() == "https://github.com/brutaliccus/IchaLaunch/pull/2"
+
+    empty = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "tools" / "catalog_approve_from_issue.py"),
+            "--pick-pr-head",
+            "catalog/issue-335-pfui",
+        ],
+        input="",
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert empty.returncode == 0, empty.stderr
+    assert empty.stdout.strip() == ""
+    print("OK catalog approve PR head lookup")
 
 
 def test_addon_settings_uncatalogued_fork_triggers_submit():
@@ -12028,6 +12094,7 @@ def _run_smoke_tests():
     test_mod_catalog_repos_in_tip_index_builder()
     test_nested_catalog_forks_in_submit_duplicate_check()
     test_review_queue_only_root_and_requested_fork()
+    test_catalog_approve_pr_lookup()
     test_addon_settings_uncatalogued_fork_triggers_submit()
     test_fork_ahead_compare_helper()
     test_crash_report_opt_in_and_redaction()

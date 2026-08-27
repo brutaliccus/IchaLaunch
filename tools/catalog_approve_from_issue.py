@@ -132,6 +132,24 @@ def build_entry(fields: dict[str, str]) -> dict[str, Any]:
     return entry
 
 
+def pick_pr_url_for_head(prs: Any, branch: str) -> str:
+    """Return the first PR URL whose ``headRefName`` matches *branch*.
+
+    Used by the catalog-approve Action after ``gh pr list --json url,headRefName``.
+    ``gh --jq`` does not accept ``--arg``, and current ``gh`` rejects
+    ``--head owner:branch``.
+    """
+    want = (branch or "").strip()
+    if not want or not isinstance(prs, list):
+        return ""
+    for pr in prs:
+        if not isinstance(pr, dict):
+            continue
+        if str(pr.get("headRefName") or "") == want:
+            return str(pr.get("url") or "").strip()
+    return ""
+
+
 def repo_already_present(catalog: list[Any], repo_url: str) -> bool:
     want = normalize_repo(repo_url)
     if not want:
@@ -154,7 +172,7 @@ def repo_already_present(catalog: list[Any], repo_url: str) -> bool:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--body-file", required=True, help="Path to issue body text")
+    ap.add_argument("--body-file", help="Path to issue body text")
     ap.add_argument(
         "--catalog",
         type=Path,
@@ -166,7 +184,28 @@ def main() -> int:
         action="store_true",
         help="Parse and report without writing addons.json",
     )
+    ap.add_argument(
+        "--pick-pr-head",
+        metavar="BRANCH",
+        help="Read `gh pr list --json url,headRefName` from stdin; print matching PR URL",
+    )
     args = ap.parse_args()
+
+    if args.pick_pr_head is not None:
+        raw = sys.stdin.read().strip()
+        if not raw:
+            return 0
+        try:
+            prs = json.loads(raw)
+        except json.JSONDecodeError:
+            return 0
+        url = pick_pr_url_for_head(prs, args.pick_pr_head)
+        if url:
+            print(url)
+        return 0
+
+    if not args.body_file:
+        ap.error("--body-file is required unless --pick-pr-head is set")
 
     body = Path(args.body_file).read_text(encoding="utf-8")
     fields = parse_issue_body(body)

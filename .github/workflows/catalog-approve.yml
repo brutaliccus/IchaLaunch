@@ -14,6 +14,10 @@ name: Catalog approve → PR
 # Batch labeling: do NOT use a shared concurrency group — with cancel-in-progress
 # false, GitHub still cancels *pending* runs when a newer one queues. Instead
 # rebuild from latest master and retry squash-merge on conflict.
+#
+# gh pr list: current CLI rejects owner:branch for --head and does not
+# forward extra args to jq. Look up by --head "$branch", then Python
+# --pick-pr-head on the JSON list.
 
 on:
   issues:
@@ -74,9 +78,10 @@ jobs:
           find_open_pr() {
             local branch="$1"
             local url=""
-            url=$(gh pr list --repo "${GITHUB_REPOSITORY}" --state open --head "${GITHUB_REPOSITORY_OWNER}:${branch}" --json url --jq '.[0].url // empty' || echo "")
+            # Current gh: --head is the branch name only (owner:branch is rejected).
+            url=$(gh pr list --repo "${GITHUB_REPOSITORY}" --state open --head "$branch" --json url --jq '.[0].url // empty' || echo "")
             if [ -z "$url" ]; then
-              url=$(gh pr list --repo "${GITHUB_REPOSITORY}" --state open --limit 100 --json url,headRefName --jq --arg b "$branch" '[.[] | select(.headRefName == $b)] | .[0].url // empty' || echo "")
+              url=$(gh pr list --repo "${GITHUB_REPOSITORY}" --state open --limit 100 --json url,headRefName | python tools/catalog_approve_from_issue.py --pick-pr-head "$branch" || echo "")
             fi
             printf '%s' "$url"
           }
@@ -160,10 +165,16 @@ jobs:
           fi
           echo "skipped=false" >> "$GITHUB_OUTPUT"
 
-          EXISTING=$(gh pr list --repo "${GITHUB_REPOSITORY}" --state open --head "${GITHUB_REPOSITORY_OWNER}:${BRANCH}" --json url --jq '.[0].url // empty')
-          if [ -z "$EXISTING" ]; then
-            EXISTING=$(gh pr list --repo "${GITHUB_REPOSITORY}" --state open --limit 100 --json url,headRefName --jq --arg b "$BRANCH" '[.[] | select(.headRefName == $b)] | .[0].url // empty')
-          fi
+          find_open_pr() {
+            local branch="$1"
+            local url=""
+            url=$(gh pr list --repo "${GITHUB_REPOSITORY}" --state open --head "$branch" --json url --jq '.[0].url // empty' || echo "")
+            if [ -z "$url" ]; then
+              url=$(gh pr list --repo "${GITHUB_REPOSITORY}" --state open --limit 100 --json url,headRefName | python tools/catalog_approve_from_issue.py --pick-pr-head "$branch" || echo "")
+            fi
+            printf '%s' "$url"
+          }
+          EXISTING=$(find_open_pr "$BRANCH")
           if [ -n "$EXISTING" ]; then
             echo "pr_url=$EXISTING" >> "$GITHUB_OUTPUT"
             exit 0
@@ -204,9 +215,10 @@ jobs:
           find_open_pr() {
             local branch="$1"
             local url=""
-            url=$(gh pr list --repo "${GITHUB_REPOSITORY}" --state open --head "${GITHUB_REPOSITORY_OWNER}:${branch}" --json url --jq '.[0].url // empty' || echo "")
+            # Current gh: --head is the branch name only (owner:branch is rejected).
+            url=$(gh pr list --repo "${GITHUB_REPOSITORY}" --state open --head "$branch" --json url --jq '.[0].url // empty' || echo "")
             if [ -z "$url" ]; then
-              url=$(gh pr list --repo "${GITHUB_REPOSITORY}" --state open --limit 100 --json url,headRefName --jq --arg b "$branch" '[.[] | select(.headRefName == $b)] | .[0].url // empty' || echo "")
+              url=$(gh pr list --repo "${GITHUB_REPOSITORY}" --state open --limit 100 --json url,headRefName | python tools/catalog_approve_from_issue.py --pick-pr-head "$branch" || echo "")
             fi
             printf '%s' "$url"
           }
