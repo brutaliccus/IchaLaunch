@@ -392,6 +392,11 @@ def _collect_mod_dependencies(
 
 
 _HD_PATCH_PREFIX = "hd_patch_"
+_HD_PATCH_E_ID = "hd_patch_e"
+_FOG_PUSHBACK_ID = "fog_pushback"
+# Catalog ``includes`` that already ship inside the parent HD MPQ — do not
+# enable the standalone companion (Patch-E bundles fog; patch-Y stays off).
+_BUNDLED_IN_PARENT_MPQ: frozenset[str] = frozenset({_FOG_PUSHBACK_ID})
 _VANILLA_HELPERS_ID = "vanilla_helpers"
 _VANILLAFIXES_ID = "vanillafixes"
 _VANILLA_TWEAKS_ID = "vanilla_tweaks"
@@ -669,6 +674,8 @@ def reconcile_exclusive_desired_mods(
                     continue
             winner = _pick_exclusive_detect_winner(a, b, out)
             out[b if winner == a else a] = False
+    if out.get(_HD_PATCH_E_ID):
+        out[_FOG_PUSHBACK_ID] = False
     return out
 
 
@@ -842,6 +849,8 @@ def resolve_mod_toggle(mod_id: str, enabled: bool) -> dict[str, bool]:
 
     def enable_includes_for(mid: str) -> None:
         for inc in _collect_mod_includes(mid, catalog):
+            if inc in _BUNDLED_IN_PARENT_MPQ:
+                continue
             enable_with_deps(inc)
 
     def disable_branch(mid: str, seen: set[str]) -> None:
@@ -856,7 +865,7 @@ def resolve_mod_toggle(mod_id: str, enabled: bool) -> dict[str, bool]:
 
     if enabled:
         enable_with_deps(mod_id)
-        # Bundled companions (e.g. Fog Pushback with Patch-E) — not hard deps.
+        # Catalog includes that still need a standalone install (not HD-MPQ bundles).
         for mid in list(changes):
             if changes.get(mid):
                 enable_includes_for(mid)
@@ -882,6 +891,9 @@ def resolve_mod_toggle(mod_id: str, enabled: bool) -> dict[str, bool]:
         ):
             return {}
         disable_branch(mod_id, set())
+
+    if effective(_HD_PATCH_E_ID):
+        changes[_FOG_PUSHBACK_ID] = False
 
     return {
         mid: state

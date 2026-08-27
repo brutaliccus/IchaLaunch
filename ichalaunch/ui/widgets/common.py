@@ -2069,6 +2069,8 @@ class ModCheckRow(QWidget):
         self._git_url: str | None = None
         self._open_url: str | None = None
         self._editing_locked = False
+        self._feature_locked = False
+        self._feature_lock_tip = ""
         self._update_detail = ""
         self.setObjectName("ModCheckRow")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -2258,18 +2260,30 @@ class ModCheckRow(QWidget):
         self._editing_locked = bool(locked)
         self._sync_editing_lock()
 
+    def set_feature_locked(self, locked: bool, tip: str = "") -> None:
+        """Grey the checkbox for a feature-level lock (does not disable Apply actions)."""
+        self._feature_locked = bool(locked)
+        self._feature_lock_tip = tip if locked else ""
+        self._sync_editing_lock()
+
     def _sync_editing_lock(self) -> None:
-        locked = self._editing_locked
-        self.cb.setEnabled(not locked)
-        self.cb.setToolTip(MOD_EDIT_LOCKED_TIP if locked else "")
-        self.update_btn.setEnabled(not locked)
-        self.reinstall_btn.setEnabled(not locked)
+        game_locked = self._editing_locked
+        feature_locked = self._feature_locked
+        self.cb.setEnabled(not (game_locked or feature_locked))
+        if game_locked:
+            self.cb.setToolTip(MOD_EDIT_LOCKED_TIP)
+        elif feature_locked:
+            self.cb.setToolTip(self._feature_lock_tip)
+        else:
+            self.cb.setToolTip("")
+        self.update_btn.setEnabled(not game_locked)
+        self.reinstall_btn.setEnabled(not game_locked)
         if self.settings_btn is not None:
-            self.settings_btn.setEnabled(not locked)
+            self.settings_btn.setEnabled(not game_locked)
             self.settings_btn.setToolTip(
-                MOD_EDIT_LOCKED_TIP if locked else "Configure Vanilla Tweaks patches"
+                MOD_EDIT_LOCKED_TIP if game_locked else "Configure Vanilla Tweaks patches"
             )
-        if locked:
+        if game_locked:
             self.update_btn.setToolTip(MOD_EDIT_LOCKED_TIP)
             self.reinstall_btn.setToolTip(MOD_EDIT_LOCKED_TIP)
             return

@@ -24,10 +24,12 @@ from ichalaunch.mods.client_mod_hints import (
 )
 from ichalaunch.mods.client_presets import (
     APPLYABLE_PRESETS,
+    FOG_PUSHBACK_ID,
     PRESET_CUSTOM,
     PRESET_HD_AIO,
     apply_client_preset,
     detect_matching_preset,
+    fog_pushback_locked,
     mark_custom_preset,
 )
 from ichalaunch.mods.installer import (
@@ -78,6 +80,9 @@ from ichalaunch.ui.widgets.theme_radio import ThemeRadioButton
 from ichalaunch.ui.widgets.update_alert_badge import BadgeNavButton
 
 LAUNCH_CATEGORY = "Launch"
+FOG_BUNDLED_IN_HD_E_TIP = (
+    "Fog Pushback is already included in Reforged HD Patch-E."
+)
 PRESETS_CATEGORY = "Presets"
 
 CATEGORY_ORDER = [
@@ -418,13 +423,13 @@ class ClientPage(QWidget):
                 "basic_plus",
                 "Basic +",
                 "Everything in Basic, plus PerfBoost, Patch-O, Pretty Night Sky, "
-                "Epoch Water, Fog Pushback, DXVK 2.7.1, VanillaHelpers, HD Patches I, M, P.",
+                "Epoch Water, DXVK 2.7.1, VanillaHelpers, HD Patches I, M, P.",
             ),
             (
                 "hd_aio",
                 "HD AIO",
                 "Everything in Basic +, plus Reforged HD Patches A, B, C, D, E, G, S, T "
-                "(standard textures by default).",
+                "(standard textures by default). Fog Pushback is included via Patch E.",
             ),
             (
                 "custom",
@@ -593,6 +598,8 @@ class ClientPage(QWidget):
         row.show()
         row.set_editing_locked(self._game_edit_locked)
         self.rows[mid] = row
+        if mid == FOG_PUSHBACK_ID:
+            self._sync_fog_pushback_lock()
         return row
 
     def _open_mod_link(self, mod_id: str) -> None:
@@ -836,7 +843,23 @@ class ClientPage(QWidget):
                 continue
             radio.setEnabled(not self._game_edit_locked)
         self._sync_preset_radios()
+        self._sync_fog_pushback_lock()
         self._sync_game_lock_actions()
+
+    def _sync_fog_pushback_lock(self) -> None:
+        locked = fog_pushback_locked()
+        if locked and settings.desired_mods.get(FOG_PUSHBACK_ID):
+            settings.set_desired_mod(FOG_PUSHBACK_ID, False)
+        row = self.rows.get(FOG_PUSHBACK_ID)
+        if row is None:
+            return
+        row.set_feature_locked(
+            locked, FOG_BUNDLED_IN_HD_E_TIP if locked else ""
+        )
+        if locked:
+            row.cb.blockSignals(True)
+            row.cb.setChecked(False)
+            row.cb.blockSignals(False)
 
     def _sync_game_lock_actions(self) -> None:
         locked = self._game_edit_locked
@@ -972,6 +995,13 @@ class ClientPage(QWidget):
                 row.cb.setChecked(not enabled)
                 row.cb.blockSignals(False)
             return
+        if mod_id == FOG_PUSHBACK_ID and fog_pushback_locked():
+            row = self.rows.get(mod_id)
+            if row is not None:
+                row.cb.blockSignals(True)
+                row.cb.setChecked(False)
+                row.cb.blockSignals(False)
+            return
         if enabled and mod_id == "vanilla_tweaks_old":
             if not confirm_vanilla_tweaks_old(self):
                 row = self.rows.get(mod_id)
@@ -1024,6 +1054,7 @@ class ClientPage(QWidget):
         if not self._applying_preset:
             mark_custom_preset()
             self._sync_preset_radios()
+        self._sync_fog_pushback_lock()
         self.refresh_plan()
 
     def _confirm_disable_cascade(self, mod_id: str, cascade_ids: list[str]) -> bool:

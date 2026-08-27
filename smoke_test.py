@@ -1569,14 +1569,18 @@ def test_mod_toggle_resolution():
         s.set("user_set_mods", [])
         env = resolve_mod_toggle("hd_patch_b", True)
         assert env.get("hd_patch_d") and env.get("hd_patch_e") and env.get("vanilla_helpers")
-        # Patch-E lists Fog Pushback as an include — not Pretty Night Sky / Epoch Water.
-        assert env.get("fog_pushback") is True
-        assert env.get("vanilla_tweaks") is True  # fog dependency
+        # Patch-E lists Fog Pushback as an include, but fog ships in the HD MPQ —
+        # standalone patch-Y stays off (Pretty Night Sky / Epoch Water are unrelated).
+        assert env.get("fog_pushback") is not True
         assert env.get("pretty_night_sky") is not True
         assert env.get("epoch_water") is not True
         e_only = resolve_mod_toggle("hd_patch_e", True)
-        assert e_only.get("fog_pushback") is True
+        assert e_only.get("fog_pushback") is not True
         assert e_only.get("pretty_night_sky") is not True
+        s.set("desired_mods", {"fog_pushback": True, "vanilla_tweaks": True})
+        e_clears_fog = resolve_mod_toggle("hd_patch_e", True)
+        assert e_clears_fog.get("fog_pushback") is False
+        assert e_clears_fog.get("hd_patch_e") is True
         apply_mod_toggle("hd_patch_l", True)
         swap_l = resolve_mod_toggle("hd_patch_l_less_thicc", True)
         assert swap_l.get("hd_patch_l") is False and swap_l.get("hd_patch_l_less_thicc") is True
@@ -1623,6 +1627,7 @@ def test_client_preset_apply_basic():
             assert s.desired_mods.get(mid), mid
         assert not s.desired_mods.get("vanillafixes")
         assert not s.desired_mods.get("hd_dxvk")
+        assert not s.desired_mods.get("fog_pushback")
         assert s.get("client_preset") == PRESET_BASIC
     finally:
         for k in keys:
@@ -1654,6 +1659,7 @@ def test_client_preset_downgrade_basic_plus_to_basic():
             assert not s.desired_mods.get(mid), mid
         assert s.desired_mods.get("dxvk")
         assert not s.desired_mods.get("hd_dxvk")
+        assert not s.desired_mods.get("fog_pushback")
     finally:
         for k in keys:
             s.set(k, saved[k])
@@ -1686,9 +1692,11 @@ def test_client_preset_apply_hd_aio():
         assert s.desired_mods.get("perfboost")
         assert s.desired_mods.get("hd_dxvk")
         assert s.desired_mods.get("hd_patch_i")
+        assert s.desired_mods.get("hd_patch_e")
         assert s.desired_mods.get("hd_patch_t")
         assert not s.desired_mods.get("hd_patch_t_ultra")
         assert not s.desired_mods.get("hd_patch_u")
+        assert not s.desired_mods.get("fog_pushback")
         assert s.get("client_preset") == PRESET_HD_AIO
 
         apply_client_preset(PRESET_HD_AIO, hd_ultra=True)
@@ -1701,6 +1709,7 @@ def test_client_preset_apply_hd_aio():
         assert not s.desired_mods.get("hd_patch_t")
         assert s.desired_mods.get("perfboost")
         assert s.desired_mods.get("hd_patch_a")
+        assert not s.desired_mods.get("fog_pushback")
     finally:
         for k in keys:
             s.set(k, saved[k])
@@ -1735,7 +1744,8 @@ def test_client_preset_downgrade_hd_aio_to_basic_plus():
             assert s.desired_mods.get(mid), mid
         assert s.desired_mods.get("perfboost")
         assert s.desired_mods.get("hd_patch_i")
-        assert s.desired_mods.get("fog_pushback")
+        assert not s.desired_mods.get("hd_patch_e")
+        assert not s.desired_mods.get("fog_pushback")
         assert s.get("client_preset") == PRESET_BASIC_PLUS
 
         apply_client_preset(PRESET_HD_AIO, hd_ultra=True)
@@ -1803,7 +1813,7 @@ def test_client_preset_tweaks_cog_not_custom():
 
 
 def test_hd_patch_e_includes_caption():
-    """Patch-E advertises Fog Pushback; Pretty Night Sky must not claim Patch-E."""
+    """Patch-E advertises Fog Pushback; I/M/P and Pretty Night Sky do not."""
     from ichalaunch.mods.installer import get_mod, mod_contains_caption, mod_includes_caption
 
     e = get_mod("hd_patch_e")
@@ -1816,6 +1826,11 @@ def test_hd_patch_e_includes_caption():
     contains = mod_contains_caption(e)
     assert "Environment" in contains
     assert "Fog Pushback" in contains
+    for mid in ("hd_patch_i", "hd_patch_m", "hd_patch_p"):
+        mod = get_mod(mid)
+        assert mod is not None, mid
+        assert "fog_pushback" not in (mod.get("includes") or []), mid
+        assert "Fog Pushback" not in (mod.get("description") or ""), mid
 
     a = get_mod("hd_patch_a")
     assert "Characters & NPCs" in mod_contains_caption(a)
@@ -1834,6 +1849,115 @@ def test_hd_patch_e_includes_caption():
     assert "also included" not in wdesc
     assert "standalone" in wdesc
     print("OK hd patch-e includes caption")
+
+
+def test_client_preset_fog_off_when_patch_e():
+    """HD AIO / Patch-E force standalone fog off; Basic+ does not enable or lock it."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.mods.client_presets import (
+        PRESET_BASIC_PLUS,
+        PRESET_HD_AIO,
+        apply_client_preset,
+        fog_pushback_locked,
+        preset_mod_ids_for_tests,
+    )
+    from ichalaunch.mods.installer import apply_mod_toggle
+
+    keys = ("desired_mods", "user_set_mods", "client_preset", "client_preset_hd_ultra")
+    saved = {k: s.get(k) for k in keys}
+    plus = preset_mod_ids_for_tests(PRESET_BASIC_PLUS)
+    try:
+        s.set("desired_mods", {"fog_pushback": True, "vanilla_tweaks": True})
+        s.set("user_set_mods", [])
+        apply_client_preset(PRESET_BASIC_PLUS)
+        assert "fog_pushback" not in plus
+        assert not s.desired_mods.get("fog_pushback")
+        assert not s.desired_mods.get("hd_patch_e")
+        assert fog_pushback_locked() is False
+
+        apply_mod_toggle("fog_pushback", True)
+        assert s.desired_mods.get("fog_pushback") is True
+        apply_client_preset(PRESET_HD_AIO)
+        assert s.desired_mods.get("hd_patch_e")
+        assert not s.desired_mods.get("fog_pushback")
+        assert fog_pushback_locked() is True
+
+        apply_client_preset(PRESET_BASIC_PLUS)
+        assert not s.desired_mods.get("hd_patch_e")
+        assert not s.desired_mods.get("fog_pushback")
+        assert fog_pushback_locked() is False
+
+        apply_mod_toggle("hd_patch_e", True)
+        assert s.desired_mods.get("hd_patch_e")
+        assert not s.desired_mods.get("fog_pushback")
+        assert fog_pushback_locked() is True
+        apply_mod_toggle("fog_pushback", True)
+        assert not s.desired_mods.get("fog_pushback")
+        apply_mod_toggle("hd_patch_e", False)
+        assert not s.desired_mods.get("hd_patch_e")
+        assert fog_pushback_locked() is False
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+    print("OK client preset fog off when patch e")
+
+
+def test_client_page_locks_fog_when_patch_e():
+    """Client Fog Pushback checkbox is greyed only while Patch-E is desired."""
+    from unittest.mock import patch
+
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.mods.client_presets import (
+        PRESET_BASIC_PLUS,
+        PRESET_HD_AIO,
+        apply_client_preset,
+    )
+    from ichalaunch.ui.pages.client import FOG_BUNDLED_IN_HD_E_TIP, ClientPage
+    from ichalaunch.ui.widgets.common import MOD_EDIT_LOCKED_TIP
+
+    app = QApplication.instance() or QApplication([])
+    del app
+    keys = ("desired_mods", "user_set_mods", "client_preset", "client_preset_hd_ultra")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        s.set("desired_mods", {})
+        s.set("user_set_mods", [])
+        apply_client_preset(PRESET_BASIC_PLUS)
+        with patch("ichalaunch.ui.pages.client.plan_changes", return_value=[]):
+            page = ClientPage()
+        fog = page.rows.get("fog_pushback")
+        assert fog is not None
+        assert fog.cb.isEnabled()
+        assert fog.cb.toolTip() == ""
+
+        apply_client_preset(PRESET_HD_AIO)
+        with patch("ichalaunch.ui.pages.client.plan_changes", return_value=[]):
+            page.refresh_from_settings()
+        assert not fog.cb.isEnabled()
+        assert not fog.cb.isChecked()
+        assert fog.cb.toolTip() == FOG_BUNDLED_IN_HD_E_TIP
+
+        with patch("ichalaunch.ui.pages.client.wow_exe_running", return_value=True):
+            page._poll_game_edit_lock()
+        assert not fog.cb.isEnabled()
+        assert fog.cb.toolTip() == MOD_EDIT_LOCKED_TIP
+        with patch("ichalaunch.ui.pages.client.wow_exe_running", return_value=False):
+            page._poll_game_edit_lock()
+        assert not fog.cb.isEnabled()
+        assert fog.cb.toolTip() == FOG_BUNDLED_IN_HD_E_TIP
+
+        apply_client_preset(PRESET_BASIC_PLUS)
+        with patch("ichalaunch.ui.pages.client.plan_changes", return_value=[]):
+            page.refresh_from_settings()
+        assert fog.cb.isEnabled()
+        assert fog.cb.toolTip() == ""
+        page.deleteLater()
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+    print("OK client page locks fog when patch e")
 
 
 def test_hd_dxvk_catalog_and_patch_v():
@@ -14356,7 +14480,9 @@ def _run_smoke_tests():
     test_client_preset_downgrade_hd_aio_to_basic_plus()
     test_client_preset_manual_toggle_custom()
     test_client_preset_tweaks_cog_not_custom()
+    test_client_preset_fog_off_when_patch_e()
     test_hd_patch_e_includes_caption()
+    test_client_page_locks_fog_when_patch_e()
     test_hd_dxvk_catalog_and_patch_v()
     test_hd_dxvk_disable_restores_vf_layer()
     test_dxvk_layers_detect_dll_not_conf_comment()

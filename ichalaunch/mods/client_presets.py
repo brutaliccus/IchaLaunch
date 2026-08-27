@@ -38,7 +38,6 @@ _BASIC_PLUS_EXTRA: frozenset[str] = frozenset(
         "raid_visuals",
         "pretty_night_sky",
         "epoch_water",
-        "fog_pushback",
         "hd_dxvk",
         "vanilla_helpers",
         "hd_patch_i",
@@ -46,6 +45,13 @@ _BASIC_PLUS_EXTRA: frozenset[str] = frozenset(
         "hd_patch_p",
     }
 )
+
+# Standalone patch-Y. Never enabled by a preset — Patch-E already ships fog
+# in its HD MPQ. Kept in the managed set so HD AIO apply can force it off.
+FOG_PUSHBACK_ID = "fog_pushback"
+HD_PATCH_E_ID = "hd_patch_e"
+HD_MPQ_BUNDLES_FOG: frozenset[str] = frozenset({HD_PATCH_E_ID})
+_STANDALONE_FOG_PUSHBACK: frozenset[str] = frozenset({FOG_PUSHBACK_ID})
 
 # Lettered HD patches added on top of Basic+ (not a replacement set).
 _HD_AIO_EXTRA: frozenset[str] = frozenset(
@@ -85,6 +91,7 @@ def preset_managed_mod_ids() -> frozenset[str]:
         | _HD_AIO_EXTRA
         | _HD_AIO_ULTRA
         | _EXPLICIT_OFF
+        | _STANDALONE_FOG_PUSHBACK
         | _catalog_hd_patch_ids()
     )
 
@@ -125,6 +132,12 @@ def _matches_preset(
         if bool(desired.get(mid, False)) != bool(target.get(mid, False)):
             return False
     return True
+
+
+def fog_pushback_locked(desired: dict[str, bool] | None = None) -> bool:
+    """True when standalone Fog Pushback is redundant (Patch-E is on)."""
+    d = desired if desired is not None else settings.desired_mods
+    return any(bool(d.get(mid)) for mid in HD_MPQ_BUNDLES_FOG)
 
 
 def detect_matching_preset(
