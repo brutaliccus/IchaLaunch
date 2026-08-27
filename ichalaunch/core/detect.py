@@ -30,7 +30,6 @@ from ichalaunch.mods.installer import (
     enforce_vanilla_helpers_for_hd_desired,
     load_mod_catalog,
     reconcile_exclusive_desired_mods,
-    reconcile_vanillafixes_dxvk,
 )
 
 

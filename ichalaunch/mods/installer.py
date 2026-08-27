@@ -27,7 +27,6 @@ from ichalaunch.addons.github import (
     GitHubRateLimitError,
     fetch_repo_readme,
     github_get,
-    github_latest_commit,
     github_latest_version_tag,
     github_remote_tip,
     parse_github_url,
@@ -38,7 +37,6 @@ from ichalaunch.core.filesystem import (
     LOCK_AV_VERIFY_MESSAGE,
     LOCK_AV_VERIFY_TITLE,
     copy_file_tolerant,
-    copy_tree,
     ensure_data_writable,
     extract_tar,
     extract_zip,
@@ -78,7 +76,6 @@ from ichalaunch.core.process import (
 from ichalaunch.game.launcher import (
     detect_game,
     detect_vf_disk_mode,
-    ensure_addons_dir,
     resolve_addons_dir,
     sync_vanillafixes_enabled_from_desired,
     vf_mode_display,

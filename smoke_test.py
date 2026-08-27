@@ -12383,6 +12383,50 @@ def main():
             settings_mod.settings.load()
 
 
+def test_detect_and_installer_drop_unused_imports():
+    """Removed F401 names stay gone and both modules still work without them."""
+    import tempfile
+    from pathlib import Path
+
+    import ichalaunch.core.detect as detect
+    import ichalaunch.mods.installer as installer
+
+    # Each name below was bound at module scope and never referenced, and
+    # nothing in the tree imports it FROM these modules, so the binding was
+    # pure dead weight. Guard against it drifting back in.
+    assert not hasattr(detect, "reconcile_vanillafixes_dxvk")
+    for name in ("github_latest_commit", "copy_tree", "ensure_addons_dir"):
+        assert not hasattr(installer, name), name
+
+    # The modules that actually define them still export them, so callers that
+    # want these functions have an unchanged place to get them from.
+    from ichalaunch.addons.github import github_latest_commit
+    from ichalaunch.core.filesystem import copy_tree
+    from ichalaunch.game.launcher import ensure_addons_dir
+    from ichalaunch.mods.installer import reconcile_vanillafixes_dxvk
+
+    for fn in (github_latest_commit, copy_tree, ensure_addons_dir, reconcile_vanillafixes_dxvk):
+        assert callable(fn)
+
+    # The public surface that sat next to the removed imports still behaves.
+    both = {"vanillafixes": True, "dxvk": True}
+    fixed = reconcile_vanillafixes_dxvk(dict(both), prefer="dxvk")
+    assert fixed.get("dxvk") is True
+    assert fixed.get("vanillafixes") is False
+    assert isinstance(installer.load_mod_catalog(), list)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        addons = Path(tmp) / "AddOns"
+        good = addons / "Atlas-CFM"
+        good.mkdir(parents=True)
+        (good / "Atlas-CFM.toc").write_text("## Title: Atlas\n", encoding="utf-8")
+        valid, mismatched = detect._classify_toc_dir(addons, skip_blizzard=True)
+        assert valid == ["Atlas-CFM"]
+        assert mismatched == []
+
+    print("OK detect/installer carry no unused module-level imports")
+
+
 def _run_smoke_tests():
     test_catalogs()
     test_tls_ca_env_sanitizer()
@@ -12593,6 +12637,7 @@ def _run_smoke_tests():
     test_chrome_buttons_clear_metal_tr()
     test_play_stays_right_when_progress_hidden()
     test_wayland_window_move_and_resize_handoff()
+    test_detect_and_installer_drop_unused_imports()
     print("\nAll smoke tests passed.")
 
 

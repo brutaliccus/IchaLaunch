@@ -50,6 +50,17 @@ STOCK_PATCH9_EXPECTED_SIZE = 506_642_995
 STOCK_PATCH9_MIN_BYTES = 400 * 1024 * 1024
 STOCK_PATCH9_BANNER_TEXT = "Patch-9 is missing or incomplete."
 
+# Only github.com is pinned to this repo's path prefix. The two
+# githubusercontent CDN hosts are accepted on ANY path, because a release
+# asset redirect lands on an opaque, signed, per-download path that we cannot
+# predict or match. That is safe today for one reason only: the catalog
+# (ichalaunch/data/stock_patch9.json) is bundled with the app, so the URL this
+# check guards is always one we shipped. If the catalog ever moves to a network
+# fetch, a hostile response could name any file on GitHub and these two entries
+# would wave it through. Two details would make that worse: the href match in
+# patch9_url_from_index_html is a substring test, so a name like
+# patch-9.mpq.exe passes it, and the ~483 MiB result is checked against a size
+# floor only, never a hash. Tighten this before that happens, do not loosen it.
 _GITHUB_ASSET_HOSTS = (
     "github.com",
     "objects.githubusercontent.com",
