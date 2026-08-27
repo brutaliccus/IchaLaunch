@@ -155,7 +155,11 @@ def detect_matching_preset(
 
 
 def apply_client_preset(preset_id: str, *, hd_ultra: bool = False) -> dict[str, bool]:
-    """Apply *preset_id* to desired_mods for preset-managed mods. Returns changes."""
+    """Apply *preset_id* to desired_mods for preset-managed mods. Returns changes.
+
+    HD AIO also sets Launch-tab ``frame_cap_from_refresh`` and
+    ``pin_to_vcache_ccd`` to True. Other presets do not touch those keys.
+    """
     if preset_id not in APPLYABLE_PRESETS:
         return {}
     target = preset_desired_mods(preset_id, hd_ultra=hd_ultra)
@@ -176,6 +180,11 @@ def apply_client_preset(preset_id: str, *, hd_ultra: bool = False) -> dict[str, 
         "client_preset_hd_ultra",
         bool(hd_ultra) if preset_id == PRESET_HD_AIO else False,
     )
+    if preset_id == PRESET_HD_AIO:
+        # Recommended Launch-tab settings, not mods. Explicit True (not None).
+        # Other presets leave whatever the user already has.
+        settings.set("frame_cap_from_refresh", True)
+        settings.set("pin_to_vcache_ccd", True)
     sync_vanillafixes_enabled_from_desired(desired)
     return changes
 

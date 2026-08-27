@@ -1676,12 +1676,21 @@ def test_client_preset_apply_hd_aio():
         preset_mod_ids_for_tests,
     )
 
-    keys = ("desired_mods", "user_set_mods", "client_preset", "client_preset_hd_ultra")
+    keys = (
+        "desired_mods",
+        "user_set_mods",
+        "client_preset",
+        "client_preset_hd_ultra",
+        "frame_cap_from_refresh",
+        "pin_to_vcache_ccd",
+    )
     saved = {k: s.get(k) for k in keys}
     letters = {f"hd_patch_{letter}" for letter in "abcdegst"}
     try:
         s.set("desired_mods", {})
         s.set("user_set_mods", [])
+        s.set("frame_cap_from_refresh", False)
+        s.set("pin_to_vcache_ccd", False)
         apply_client_preset(PRESET_HD_AIO)
         expected = preset_mod_ids_for_tests(PRESET_HD_AIO)
         plus = preset_mod_ids_for_tests(PRESET_BASIC_PLUS)
@@ -1698,7 +1707,11 @@ def test_client_preset_apply_hd_aio():
         assert not s.desired_mods.get("hd_patch_u")
         assert not s.desired_mods.get("fog_pushback")
         assert s.get("client_preset") == PRESET_HD_AIO
+        assert s.get("frame_cap_from_refresh") is True
+        assert s.get("pin_to_vcache_ccd") is True
 
+        s.set("frame_cap_from_refresh", False)
+        s.set("pin_to_vcache_ccd", False)
         apply_client_preset(PRESET_HD_AIO, hd_ultra=True)
         ultra = preset_mod_ids_for_tests(PRESET_HD_AIO, hd_ultra=True)
         assert plus <= ultra
@@ -1710,6 +1723,8 @@ def test_client_preset_apply_hd_aio():
         assert s.desired_mods.get("perfboost")
         assert s.desired_mods.get("hd_patch_a")
         assert not s.desired_mods.get("fog_pushback")
+        assert s.get("frame_cap_from_refresh") is True
+        assert s.get("pin_to_vcache_ccd") is True
     finally:
         for k in keys:
             s.set(k, saved[k])
@@ -1810,6 +1825,50 @@ def test_client_preset_tweaks_cog_not_custom():
         for k in keys:
             s.set(k, saved[k])
     print("OK client preset tweaks cog not custom")
+
+
+def test_client_preset_launch_settings_not_custom():
+    """Toggling HD AIO launch checkboxes alone does not force Custom."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.mods.client_presets import (
+        PRESET_BASIC_PLUS,
+        PRESET_HD_AIO,
+        apply_client_preset,
+        detect_matching_preset,
+    )
+
+    keys = (
+        "desired_mods",
+        "user_set_mods",
+        "client_preset",
+        "client_preset_hd_ultra",
+        "frame_cap_from_refresh",
+        "pin_to_vcache_ccd",
+    )
+    saved = {k: s.get(k) for k in keys}
+    try:
+        s.set("desired_mods", {})
+        s.set("user_set_mods", [])
+        s.set("frame_cap_from_refresh", None)
+        s.set("pin_to_vcache_ccd", None)
+        apply_client_preset(PRESET_HD_AIO)
+        assert s.get("client_preset") == PRESET_HD_AIO
+        assert s.get("frame_cap_from_refresh") is True
+        assert s.get("pin_to_vcache_ccd") is True
+        # Same write path as LaunchSettingsPanel checkboxes.
+        s.set("frame_cap_from_refresh", False)
+        s.set("pin_to_vcache_ccd", False)
+        preset, _ultra = detect_matching_preset()
+        assert preset == PRESET_HD_AIO
+        assert s.get("client_preset") == PRESET_HD_AIO
+        apply_client_preset(PRESET_BASIC_PLUS)
+        assert s.get("client_preset") == PRESET_BASIC_PLUS
+        assert s.get("frame_cap_from_refresh") is False
+        assert s.get("pin_to_vcache_ccd") is False
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+    print("OK client preset launch settings not custom")
 
 
 def test_hd_patch_e_includes_caption():
@@ -14480,6 +14539,7 @@ def _run_smoke_tests():
     test_client_preset_downgrade_hd_aio_to_basic_plus()
     test_client_preset_manual_toggle_custom()
     test_client_preset_tweaks_cog_not_custom()
+    test_client_preset_launch_settings_not_custom()
     test_client_preset_fog_off_when_patch_e()
     test_hd_patch_e_includes_caption()
     test_client_page_locks_fog_when_patch_e()
