@@ -2984,6 +2984,18 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                     if dest.name.lower() == "dlls.txt" and dlls_txt.is_file():
                         log.info("Preserving existing dlls.txt while installing %s", mod_id)
                         return
+                    # Hardening: upstream zips do not ship WTF today, but a bundle
+                    # must never clobber user configs if a future one does.
+                    rel_parts = dest.relative_to(game).parts
+                    if (
+                        rel_parts and rel_parts[0].lower() == "wtf"
+                    ) or dest.name.lower() == "config.wtf":
+                        log.info(
+                            "Skipping archive config entry %s while installing %s",
+                            "/".join(rel_parts),
+                            mod_id,
+                        )
+                        return
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     _install_copy(src, dest, game_path=game)
 

@@ -7083,6 +7083,57 @@ def test_vanillafixes_preserves_dlls_txt():
     print("OK vanillafixes preserves dlls.txt")
 
 
+def test_zip_root_never_writes_wtf_config():
+    """A zip_root bundle shipping WTF/ or Config.wtf must not touch user configs."""
+    import io
+    import tempfile
+    import zipfile
+    from unittest.mock import patch
+
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.mods.installer import install_mod
+
+    # Minimal PE stubs: MZ header + enough padding to pass validate_pe_binary.
+    pe = b"MZ" + b"\0" * 4096
+    payload = io.BytesIO()
+    with zipfile.ZipFile(payload, "w") as zf:
+        zf.writestr("VanillaFixes.exe", pe)
+        zf.writestr("VfPatcher.dll", pe)
+        zf.writestr("dlls.txt", "VfPatcher.dll\n")
+        zf.writestr("WTF/Config.wtf", 'SET farclip "9999"\n')
+        zf.writestr("wtf/realmlist.wtf", "set realmlist evil.example.com\n")
+        zf.writestr("Config.wtf", 'SET farclip "9999"\n')
+
+    keys = ("desired_mods", "user_set_mods", "installed_mods", "user_mods", "game_path", "addons_path")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            wtf = game / "WTF"
+            wtf.mkdir()
+            user_cfg = 'SET farclip "777"\n'
+            (wtf / "Config.wtf").write_text(user_cfg, encoding="utf-8")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            with patch(
+                "ichalaunch.mods.installer._download_source",
+                return_value=payload.getvalue(),
+            ):
+                install_mod("vanillafixes")
+            # Normal payload landed…
+            assert (game / "VanillaFixes.exe").is_file()
+            assert (game / "VfPatcher.dll").is_file()
+            # …but nothing from the archive reached WTF/ or Config.wtf.
+            assert (wtf / "Config.wtf").read_text(encoding="utf-8") == user_cfg
+            assert not (wtf / "realmlist.wtf").exists()
+            assert not (game / "Config.wtf").exists()
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+    print("OK zip_root skips WTF and Config.wtf entries")
+
+
 def test_apply_desired_state_restores_dlls_txt():
     """Apply after a template overwrite should re-add DLLs for desired mods."""
     import tempfile
@@ -13212,6 +13263,7 @@ def _run_smoke_tests():
     test_install_clears_readonly_data_mpqs()
     test_vanillafixes_zip_in_memory()
     test_vanillafixes_preserves_dlls_txt()
+    test_zip_root_never_writes_wtf_config()
     test_apply_desired_state_restores_dlls_txt()
     test_prepare_for_launch_syncs_dlls_txt()
     test_owned_paths_are_comparison_keys_not_filenames()
