@@ -19057,5 +19057,13 @@
     "release_downloads_state": "none",
     "release_downloads": 0,
     "release_downloads_at": "2026-08-27T13:39:38Z"
+  },
+  {
+    "name": "pfQuest",
+    "repo": "https://github.com/shagu/pfQuest",
+    "category": "General",
+    "source": "community",
+    "folder": "pfQuest",
+    "description": "A Questhelper and Database Addon for World of Warcraft: Vanilla & TBC"
   }
 ]
