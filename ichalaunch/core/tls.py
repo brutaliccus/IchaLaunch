@@ -17,7 +17,7 @@ from __future__ import annotations
 import os
 import ssl
 import sys
-from typing import Iterable
+from typing import Iterable, MutableMapping
 
 # File-valued CA env vars read by OpenSSL, requests, curl, git, pip, or Node.
 CA_FILE_ENV_VARS: tuple[str, ...] = (
@@ -150,6 +150,43 @@ def _apply_requests_defaults(cafile: str) -> None:
                 setattr(urllib3_ssl, attr, cafile)
             except Exception:  # noqa: BLE001
                 pass
+
+
+def strip_launcher_ca_env(env: MutableMapping[str, str]) -> list[str]:
+    """Drop CA variables that point at this launcher's own bundled certifi.
+
+    sanitize_tls_ca_env() pins this process to a readable CA bundle, and where
+    nothing valid was inherited that bundle is the copy of certifi inside the
+    frozen build. It lives under the PyInstaller extraction directory, which is
+    removed when the launcher exits.
+
+    A launched child outlives the launcher. That is the whole point of the game,
+    and closing the launcher when the game starts is a shipped setting. Handing
+    that child a CA path which is about to disappear recreates, one process
+    along, the exact failure this module exists to repair. umu fetches its own
+    runtime over HTTPS, so this breaks a real thing rather than a hypothetical
+    one, and it does so only on the machines where the runtime was not already
+    cached, which is what makes it hard to reproduce.
+
+    A CA file the user set themselves is deliberately left in place: it is
+    readable, it is theirs, and a corporate prefix may well need it. Only the
+    launcher's own bundled copy is removed.
+
+    Returns the variable names removed, so the launch log can say so.
+    """
+    bundled = bundled_ca_file()
+    if not bundled:
+        return []
+    owned = os.path.normcase(os.path.normpath(bundled))
+    removed: list[str] = []
+    for name in CA_FILE_ENV_VARS:
+        raw = env.get(name)
+        if not raw:
+            continue
+        if os.path.normcase(os.path.normpath(raw.strip())) == owned:
+            env.pop(name, None)
+            removed.append(name)
+    return removed
 
 
 def sanitize_tls_ca_env() -> str | None:
