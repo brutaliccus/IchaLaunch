@@ -817,6 +817,7 @@ class ClientPage(QWidget):
         self._reveal_rows()
         if getattr(self, "launch_settings", None) is not None:
             self.launch_settings.refresh()
+        # File-in-use on this folder's exe — no Restart Manager, no AddOns walk.
         self._poll_game_edit_lock()
         if not self._game_lock_timer.isActive():
             self._game_lock_timer.start()
@@ -830,19 +831,30 @@ class ClientPage(QWidget):
         super().hideEvent(event)
 
     def _poll_game_edit_lock(self) -> None:
-        self._set_game_edit_locked(
-            wow_exe_running(detect_game() or settings.game_path or None)
-        )
+        """Grey Client edits when this folder's WoW.exe / VanillaFixes.exe is in use.
 
-    def _set_game_edit_locked(self, locked: bool) -> None:
-        self._game_edit_locked = bool(locked)
+        Exclusive CreateFileW on those two paths only. Never Restart Manager.
+        """
+        running = wow_exe_running(detect_game() or settings.game_path or None)
+        self._set_game_edit_locked(bool(running))
+
+    def _set_game_edit_locked(self, locked: bool, *, force: bool = False) -> None:
+        """Grey / un-grey rows only. Must not refresh settings or walk AddOns."""
+        locked = bool(locked)
+        if not force and locked == self._game_edit_locked:
+            return
+        self._game_edit_locked = locked
         for row in self.rows.values():
-            row.set_editing_locked(self._game_edit_locked)
+            row.set_editing_locked(locked)
         for pid, radio in self._preset_radios.items():
             if pid == PRESET_CUSTOM:
                 continue
-            radio.setEnabled(not self._game_edit_locked)
-        self._sync_preset_radios()
+            radio.setEnabled(not locked)
+        if self._preset_hd_ultra_cb is not None:
+            preset_id = str(settings.get("client_preset") or PRESET_CUSTOM)
+            self._preset_hd_ultra_cb.setEnabled(
+                preset_id == PRESET_HD_AIO and not locked
+            )
         self._sync_fog_pushback_lock()
         self._sync_game_lock_actions()
 
@@ -1111,12 +1123,14 @@ class ClientPage(QWidget):
         if self._game_edit_locked:
             return
         win = self.window()
+        if win is None or win is self:
+            return
         stack = getattr(win, "stack", None)
         if stack is not None and stack.currentWidget() is not self:
             return
-        fn = getattr(win, "_maybe_prompt_high_farclip", None)
-        if callable(fn):
-            fn()
+        fn = getattr(type(win), "_maybe_prompt_high_farclip", None)
+        if callable(fn) and fn is not ClientPage._maybe_prompt_high_farclip:
+            fn(win)
 
     @staticmethod
     def _mod_can_reinstall(mod: dict) -> bool:
@@ -1127,6 +1141,10 @@ class ClientPage(QWidget):
         return bool(mod.get("source"))
 
     def refresh_from_settings(self) -> None:
+        from ichalaunch.addons.tip_index import ensure_local_index
+
+        # One parse for the whole row loop — never json.loads addon_tips per row.
+        ensure_local_index()
         self.sync_catalog_rows()
         if getattr(self, "launch_settings", None) is not None:
             self.launch_settings.refresh()
@@ -1188,7 +1206,7 @@ class ClientPage(QWidget):
         if self._search_q:
             self._apply_search()
         self.refresh_plan()
-        self._set_game_edit_locked(self._game_edit_locked)
+        self._set_game_edit_locked(self._game_edit_locked, force=True)
         if vanillafixes_dxvk_both_enabled():
             QTimer.singleShot(0, self._maybe_prompt_vf_dxvk_conflict)
         self._refresh_patch9_banner()

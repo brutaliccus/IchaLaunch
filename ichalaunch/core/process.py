@@ -542,7 +542,7 @@ def _locker_is_game_exe(name: str) -> bool:
 
 
 def _game_dir_exe_paths(game_dir: Path | str) -> list[Path]:
-    """WoW.exe / VanillaFixes.exe that actually live in *game_dir*."""
+    """This folder's WoW.exe / VanillaFixes.exe only — no tree walk, no RM."""
     root = Path(game_dir)
     found: list[Path] = []
     seen: set[str] = set()
@@ -550,74 +550,141 @@ def _game_dir_exe_paths(game_dir: Path | str) -> list[Path]:
     def _add(path: Path | None) -> None:
         if path is None:
             return
-        try:
-            key = os.path.normcase(str(path.resolve() if path.exists() else path))
-        except OSError:
-            key = os.path.normcase(str(path))
+        key = os.path.normcase(os.fspath(path))
         if key in seen:
             return
         seen.add(key)
         found.append(path)
 
     try:
-        from ichalaunch.game.launcher import resolve_vanilla_fixes_exe, wow_exe_in
+        from ichalaunch.game.launcher import wow_exe_in
 
         _add(wow_exe_in(root))
-        _add(resolve_vanilla_fixes_exe(root))
     except Exception:  # noqa: BLE001
         pass
-    if found:
-        return found
-    try:
-        for item in root.iterdir():
-            if item.is_file() and item.name.lower() in _GAME_IMAGE_NAMES:
-                _add(item)
-    except OSError:
-        pass
+    for name in ("WoW.exe", "VanillaFixes.exe"):
+        _add(root / name)
     return found
 
 
-def _wow_exe_locked_in_dir(game_dir: Path | str) -> bool | None:
-    """True when this folder's client exe is open. None if Restart Manager cannot say."""
-    paths = _game_dir_exe_paths(game_dir)
-    if not paths:
-        # No WoW.exe / VanillaFixes.exe in this folder, so the running process
-        # is some other client.
-        return False
-    lockers = _restart_manager_lockers(paths)
-    if lockers is None:
-        return None
-    return any(_locker_is_game_exe(name) for name in lockers)
+def _win_exe_in_use(path: Path | str) -> bool:
+    """True when *path* is mapped/locked (exclusive CreateFileW fails).
 
-
-def wow_exe_running(game_dir: Path | str | None = None) -> bool:
-    """True when WoW.exe or VanillaFixes.exe is running for this install.
-
-    When *game_dir* is set, only that folder's client counts. If it is omitted,
-    ``detect_game()`` is used on Linux so the answer stays scoped to this
-    install. Windows uses Toolhelp plus QueryFullProcessImageName, then
-    Restart Manager when a client denies OpenProcess (WinError 5). If the
-    name is seen but neither path nor Restart Manager can be read, this
-    stays True. Linux reads ``/proc/<pid>/cmdline`` because Wine loads
-    WoW.exe as data, so the kernel never sets ETXTBSY on a live swap.
+    Does not use Restart Manager. OpenProcess ACCESS_DENIED is irrelevant —
+    this opens the file, not the process. Missing files are not in use.
     """
     if sys.platform != "win32":
-        root = game_dir
-        if root is None or not str(root).strip():
-            root = _configured_game_dir()
-        return _proc_client_running(root)
+        return False
+    text = os.fspath(path)
+    if not text:
+        return False
+    try:
+        import ctypes
+        from ctypes import wintypes
+    except ImportError:
+        return False
+
+    generic_read_write = 0x80000000 | 0x40000000
+    open_existing = 3
+    file_attribute_normal = 0x80
+    error_sharing_violation = 32
+    error_lock_violation = 33
+    invalid_handle = wintypes.HANDLE(-1).value
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateFileW.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    ]
+    kernel32.CreateFileW.restype = wintypes.HANDLE
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+
+    handle = kernel32.CreateFileW(
+        text,
+        generic_read_write,
+        0,
+        None,
+        open_existing,
+        file_attribute_normal,
+        None,
+    )
+    if handle == invalid_handle or not handle:
+        err = int(ctypes.get_last_error() or 0)
+        return err in (error_sharing_violation, error_lock_violation)
+    kernel32.CloseHandle(handle)
+    return False
+
+
+def _wow_exe_locked_in_dir(game_dir: Path | str) -> bool:
+    """True when this folder's WoW.exe or VanillaFixes.exe is mapped/locked."""
+    if sys.platform != "win32":
+        return False
+    root = str(game_dir or "").strip()
+    if not root:
+        return False
+    return any(_win_exe_in_use(path) for path in _game_dir_exe_paths(root))
+
+
+def _wow_process_match(game_dir: Path | str | None) -> bool | None:
+    """Toolhelp + image path only. Never Restart Manager.
+
+    ``True`` / ``False`` when we can tell. ``None`` when a client name is
+    running but the image path is unreadable (OpenProcess ACCESS_DENIED) —
+    scoping that case to *game_dir* would need Restart Manager.
+    """
     name_seen, images = _wow_process_images()
     if not name_seen:
         return False
     root = str(game_dir or "").strip()
     if not root:
+        # No folder to scope to — a locker check is not needed.
         return True
     if images:
         return any(_path_is_under(image, root) for image in images)
-    locked = _wow_exe_locked_in_dir(root)
-    if locked is None:
-        return True
-    return bool(locked)
+    return None
+
+
+def wow_exe_running(
+    game_dir: Path | str | None = None,
+    *,
+    allow_restart_manager: bool = True,
+) -> bool:
+    """True when WoW.exe or VanillaFixes.exe is running for this install.
+
+    When *game_dir* is set, only that folder's ``WoW.exe`` / ``VanillaFixes.exe``
+    count — exclusive ``CreateFileW`` (sharing violation = mapped/locked).
+    OpenProcess ACCESS_DENIED does not matter; this never uses Restart Manager
+    (*allow_restart_manager* is ignored). If *game_dir* is omitted, Linux uses
+    ``detect_game()`` and ``/proc``; Windows uses Toolhelp for any client name.
+
+    Linux reads ``/proc/<pid>/cmdline`` because Wine loads WoW.exe as data, so
+    the kernel never sets ETXTBSY on a live swap.
+    """
+    del allow_restart_manager  # never Restart Manager — ctypes RM AVs in-process
+    if sys.platform != "win32":
+        root = game_dir
+        if root is None or not str(root).strip():
+            root = _configured_game_dir()
+        return _proc_client_running(root)
+    root = str(game_dir or "").strip()
+    if root:
+        return _wow_exe_locked_in_dir(root)
+    match = _wow_process_match(None)
+    return bool(match)
+
+
+def wow_exe_may_be_running(game_dir: Path | str | None = None) -> bool:
+    """True when this install's client exe is locked. Never Restart Manager.
+
+    Use on the UI thread before walking AddOns or Config.wtf (farclip / TOC).
+    """
+    return wow_exe_running(game_dir)
 
 
 def processes_locking_paths(paths: list[Path | str], *, limit: int = 6) -> list[str]:

@@ -222,7 +222,17 @@ def scan_installed_addon_folders(game_path: Path | None = None) -> list[str]:
 def scan_mismatched_toc_addon_folders(
     game_path: Path | None = None,
 ) -> list[AddonTocMismatch]:
-    """Folders that have a ``.toc`` whose name does not match the folder."""
+    """Folders that have a ``.toc`` whose name does not match the folder.
+
+    Skipped while this folder's WoW.exe / VanillaFixes.exe is in use —
+    walking AddOns while the client has those files open ACCESS_VIOLATIONs
+    on Windows 11.
+    """
+    from ichalaunch.core.process import wow_exe_may_be_running
+
+    game = game_path if game_path is not None else detect_game()
+    if wow_exe_may_be_running(game):
+        return []
     addons_dir, unloaded_dir = _addon_scan_dirs(game_path)
     out: list[AddonTocMismatch] = []
     seen: set[str] = set()

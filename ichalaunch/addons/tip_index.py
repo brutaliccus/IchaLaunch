@@ -11,6 +11,7 @@ by ``ichalaunch.addons.catalog`` on the same periodic update-check cadence.
 from __future__ import annotations
 
 import json
+import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -33,6 +34,8 @@ _UA = {"User-Agent": "IchaLaunch/0.1", "Accept": "application/json"}
 
 # In-process snapshot: (monotonic_loaded_at, index_dict)
 _loaded: tuple[float, dict[str, Any]] | None = None
+# Parsed bundled / appdata files: path → (mtime_ns, size, index)
+_file_index_cache: dict[str, tuple[int, int, dict[str, Any]]] = {}
 
 
 def tips_cache_path() -> Path:
@@ -89,10 +92,35 @@ def parse_index_text(text: str) -> dict[str, Any]:
 
 
 def load_index_file(path: Path) -> dict[str, Any]:
+    """Read and parse *path*, reusing the last parse while mtime/size match.
+
+    Client ``refresh_from_settings`` asks for a version label per mod row.
+    Without this, each row ``json.loads`` the ~17k-line bundled index.
+    """
     try:
-        return parse_index_text(path.read_text(encoding="utf-8"))
+        st = path.stat()
+        key = os.path.normcase(os.path.abspath(str(path)))
+        hit = _file_index_cache.get(key)
+        if hit is not None and hit[0] == st.st_mtime_ns and hit[1] == st.st_size:
+            return hit[2]
+        index = parse_index_text(path.read_text(encoding="utf-8"))
+        _file_index_cache[key] = (st.st_mtime_ns, st.st_size, index)
+        return index
     except OSError:
         return empty_index()
+
+
+def ensure_local_index() -> dict[str, Any]:
+    """Memory → appdata cache → bundled file. No network, no per-row re-parse."""
+    if _loaded is not None and index_repo_count(_loaded[1]) > 0:
+        return _loaded[1]
+    cached = load_index_file(tips_cache_path())
+    if index_repo_count(cached) > 0:
+        return _remember(cached)
+    bundled = load_index_file(bundled_tips_path())
+    if index_repo_count(bundled) > 0:
+        return _remember(bundled)
+    return empty_index()
 
 
 def index_repo_count(index: dict[str, Any] | None) -> int:
@@ -219,15 +247,14 @@ def lookup_display_version(owner: str, repo: str) -> str:
 
     key = repo_cache_key(owner, repo)
     entry: dict[str, Any] | None = None
-    repos = current_index().get("repos")
+    index = current_index()
+    if index_repo_count(index) == 0:
+        index = ensure_local_index()
+    repos = index.get("repos")
     if isinstance(repos, dict):
         hit = repos.get(key)
         if isinstance(hit, dict) and hit:
             entry = hit
-    if entry is None:
-        bundled = load_index_file(bundled_tips_path()).get("repos") or {}
-        hit = bundled.get(key) if isinstance(bundled, dict) else None
-        entry = hit if isinstance(hit, dict) else None
     if not entry:
         return ""
     for raw in (entry.get("display_version"), entry.get("latest_tag")):
@@ -292,3 +319,4 @@ def refresh_tip_index(*, force: bool = False) -> dict[str, Any]:
 def clear_tip_index_cache() -> None:
     global _loaded
     _loaded = None
+    _file_index_cache.clear()

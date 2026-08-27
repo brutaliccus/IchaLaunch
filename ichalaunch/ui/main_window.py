@@ -318,7 +318,11 @@ from ichalaunch.core.filesystem import (
     take_pending_toc_mismatches,
 )
 from ichalaunch.core.logging_setup import log
-from ichalaunch.core.process import StatusProgress, status_only, wow_exe_running
+from ichalaunch.core.process import (
+    StatusProgress,
+    status_only,
+    wow_exe_may_be_running,
+)
 from ichalaunch.core.self_update import (
     LauncherReleaseInfo,
     apply_windows_self_replace,
@@ -3007,6 +3011,8 @@ class MainWindow(QMainWindow):
             return []
         if getattr(self, "_toc_mismatch_prompting", False):
             return []
+        if wow_exe_may_be_running(detect_game()):
+            return []
         self._toc_mismatch_prompting = True
         try:
             return self._prompt_addon_toc_renames(scan_mismatched_toc_addon_folders())
@@ -3087,7 +3093,7 @@ class MainWindow(QMainWindow):
         game = detect_game()
         if not game or not has_wow_exe(game):
             return
-        if wow_exe_running(game):
+        if wow_exe_may_be_running(game):
             return
         from ichalaunch.game.config_wtf import farclip_too_high, set_farclip
 

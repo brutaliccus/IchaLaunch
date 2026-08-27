@@ -3101,7 +3101,7 @@ class VanillaTweaksSettingsDialog(QDialog):
         self._apply_options(self._defaults)
 
     def _regenerate_config_wtf(self) -> None:
-        from ichalaunch.core.process import wow_exe_running
+        from ichalaunch.core.process import wow_exe_may_be_running
         from ichalaunch.game.config_wtf import backup_and_remove_config
         from ichalaunch.game.launcher import detect_game
 
@@ -3110,7 +3110,7 @@ class VanillaTweaksSettingsDialog(QDialog):
         if not game:
             warning(self, title, "No game folder detected.")
             return
-        if wow_exe_running(game):
+        if wow_exe_may_be_running(game):
             # The client rewrites Config.wtf on exit, so removing it now
             # would be silently undone.
             warning(
@@ -3180,7 +3180,7 @@ class VanillaTweaksSettingsDialog(QDialog):
         combo.blockSignals(False)
 
     def _on_restore_backup_activated(self, index: int) -> None:
-        from ichalaunch.core.process import wow_exe_running
+        from ichalaunch.core.process import wow_exe_may_be_running
         from ichalaunch.game.config_wtf import restore_config_backup
         from ichalaunch.game.launcher import detect_game
 
@@ -3195,7 +3195,7 @@ class VanillaTweaksSettingsDialog(QDialog):
         if not game:
             warning(self, title, "No game folder detected.")
             return
-        if wow_exe_running(game):
+        if wow_exe_may_be_running(game):
             warning(
                 self,
                 title,

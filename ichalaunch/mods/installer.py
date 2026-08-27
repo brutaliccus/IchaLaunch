@@ -2293,21 +2293,18 @@ def _displayable_mod_version(raw: str | None) -> str:
 
 def _tips_repo_entry(owner: str, name: str) -> dict[str, Any]:
     from ichalaunch.addons.git_refs import repo_cache_key
-    from ichalaunch.addons.tip_index import (
-        bundled_tips_path,
-        current_index,
-        load_index_file,
-    )
+    from ichalaunch.addons.tip_index import current_index, ensure_local_index, index_repo_count
 
     key = repo_cache_key(owner, name)
-    repos = current_index().get("repos")
+    index = current_index()
+    if index_repo_count(index) == 0:
+        index = ensure_local_index()
+    repos = index.get("repos")
     if isinstance(repos, dict):
         entry = repos.get(key)
         if isinstance(entry, dict) and entry:
             return entry
-    bundled = load_index_file(bundled_tips_path()).get("repos") or {}
-    entry = bundled.get(key)
-    return entry if isinstance(entry, dict) else {}
+    return {}
 
 
 def mod_version_label(

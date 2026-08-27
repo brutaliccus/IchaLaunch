@@ -1973,8 +1973,12 @@ def test_client_page_locks_fog_when_patch_e():
         PRESET_HD_AIO,
         apply_client_preset,
     )
+    from ichalaunch.mods.installer import get_mod
     from ichalaunch.ui.pages.client import FOG_BUNDLED_IN_HD_E_TIP, ClientPage
     from ichalaunch.ui.widgets.common import MOD_EDIT_LOCKED_TIP
+
+    assert get_mod("fog_pushback") is not None
+    assert get_mod("hd_patch_e") is not None
 
     app = QApplication.instance() or QApplication([])
     del app
@@ -3863,20 +3867,20 @@ def test_robust_move_tree_and_lock_message():
     denied.winerror = 5  # type: ignore[attr-defined]
     import ichalaunch.addons.loadstate as ls
 
-    orig_wow = ls.wow_exe_running
-    ls.wow_exe_running = lambda *_a, **_k: True
+    orig_wow = ls.wow_exe_may_be_running
+    ls.wow_exe_may_be_running = lambda *_a, **_k: True
     try:
         assert addon_move_error_text(denied) == GAME_LOCK_MESSAGE
     finally:
-        ls.wow_exe_running = orig_wow
-    ls.wow_exe_running = lambda *_a, **_k: False
+        ls.wow_exe_may_be_running = orig_wow
+    ls.wow_exe_may_be_running = lambda *_a, **_k: False
     try:
         text = addon_move_error_text(denied)
         assert text == GENERIC_LOCK_MESSAGE
         assert "WinError" not in text
         assert "Access is denied" not in text
     finally:
-        ls.wow_exe_running = orig_wow
+        ls.wow_exe_may_be_running = orig_wow
     print("OK robust move tree and lock message")
 
 
@@ -9946,7 +9950,9 @@ def test_client_page_locks_mod_edits_when_wow_running():
     assert row.cb.isEnabled()
 
     with patch("ichalaunch.ui.pages.client.wow_exe_running", return_value=True):
-        page._poll_game_edit_lock()
+        with patch.object(page, "refresh_from_settings") as refresh:
+            page._poll_game_edit_lock()
+            refresh.assert_not_called()
     assert page._game_edit_locked
     assert not row.cb.isEnabled()
     assert row.cb.toolTip() == MOD_EDIT_LOCKED_TIP
@@ -10005,30 +10011,155 @@ def test_wow_exe_running_matches_game_directory():
     if sys.platform == "win32":
         with patch.object(proc, "_wow_process_images", return_value=(True, [wow_b])):
             assert proc.wow_exe_running() is True
-            assert proc.wow_exe_running(game_a) is False
-            assert proc.wow_exe_running(game_b) is True
-        with patch.object(proc, "_wow_process_images", return_value=(True, [vf_a])):
+        with patch.object(proc, "_wow_exe_locked_in_dir", return_value=True):
             assert proc.wow_exe_running(game_a) is True
+            assert proc.wow_exe_running(game_b) is True
+        with patch.object(proc, "_wow_exe_locked_in_dir", return_value=False):
+            assert proc.wow_exe_running(game_a) is False
             assert proc.wow_exe_running(game_b) is False
-        with patch.object(proc, "_wow_process_images", return_value=(True, [])):
-            with patch.object(proc, "_wow_exe_locked_in_dir", return_value=True):
-                assert proc.wow_exe_running(game_a) is True
-            with patch.object(proc, "_wow_exe_locked_in_dir", return_value=False):
-                assert proc.wow_exe_running(game_a) is False
-            with patch.object(proc, "_wow_exe_locked_in_dir", return_value=None):
-                assert proc.wow_exe_running(game_a) is True
-            assert proc.wow_exe_running() is True
         with patch.object(proc, "_wow_process_images", return_value=(False, [])):
             assert proc.wow_exe_running() is False
-            assert proc.wow_exe_running(game_a) is False
 
     with tempfile.TemporaryDirectory() as tmp:
         empty = Path(tmp)
         assert proc._wow_exe_locked_in_dir(empty) is False
         (empty / "WoW.exe").write_bytes(b"MZ")
-        unlocked = proc._wow_exe_locked_in_dir(empty)
-        assert unlocked in (False, None)
+        assert proc._wow_exe_locked_in_dir(empty) is False
     print("OK wow_exe_running matches game directory")
+
+
+def _hold_exclusive_win_file(path: Path):
+    """Open *path* with share-mode 0 so CreateFileW exclusive fails for others."""
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateFileW.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    ]
+    kernel32.CreateFileW.restype = wintypes.HANDLE
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    handle = kernel32.CreateFileW(
+        os.fspath(path),
+        0x80000000 | 0x40000000,
+        0,
+        None,
+        3,
+        0x80,
+        None,
+    )
+    invalid = wintypes.HANDLE(-1).value
+    if handle == invalid or not handle:
+        raise OSError(ctypes.get_last_error(), "CreateFileW exclusive open failed")
+    return handle, kernel32
+
+
+def test_wow_exe_running_file_in_use_scoped():
+    """This folder's locked exe is running; another folder's exe is not."""
+    from pathlib import Path
+
+    from ichalaunch.core import process as proc
+
+    if sys.platform != "win32":
+        print("OK wow_exe_running file-in-use scoped (skipped non-Windows)")
+        return
+
+    with tempfile.TemporaryDirectory() as tmp:
+        game_a = Path(tmp) / "ClientA"
+        game_b = Path(tmp) / "ClientB"
+        game_a.mkdir()
+        game_b.mkdir()
+        wow_a = game_a / "WoW.exe"
+        wow_b = game_b / "WoW.exe"
+        wow_a.write_bytes(b"MZ")
+        wow_b.write_bytes(b"MZ")
+        assert proc.wow_exe_running(game_a) is False
+        assert proc.wow_exe_running(game_b) is False
+        handle, kernel32 = _hold_exclusive_win_file(wow_b)
+        try:
+            assert proc.wow_exe_running(game_a) is False
+            assert proc.wow_exe_running(game_b) is True
+            assert proc.wow_exe_may_be_running(game_a) is False
+            assert proc.wow_exe_may_be_running(game_b) is True
+        finally:
+            kernel32.CloseHandle(handle)
+        assert proc.wow_exe_running(game_b) is False
+    print("OK wow_exe_running file-in-use scoped")
+
+
+def test_wow_exe_running_never_calls_restart_manager():
+    """Lock detection must not import or call Restart Manager."""
+    import inspect
+    from pathlib import Path
+    from unittest.mock import patch
+
+    from ichalaunch.core import process as proc
+    from ichalaunch.ui.pages.client import ClientPage
+
+    src = inspect.getsource(proc.wow_exe_running) + inspect.getsource(
+        proc._wow_exe_locked_in_dir
+    ) + inspect.getsource(proc._win_exe_in_use) + inspect.getsource(
+        ClientPage._poll_game_edit_lock
+    )
+    assert "rstrtmgr" not in src
+    assert "_restart_manager_lockers" not in src
+    assert "RmStartSession" not in src
+    assert "RmGetList" not in src
+
+    game = Path("D:/Games/RavenCraft")
+    with patch.object(proc, "_restart_manager_lockers") as rm:
+        with patch.object(proc, "_win_exe_in_use", return_value=True):
+            if sys.platform == "win32":
+                assert proc.wow_exe_running(game) is True
+                assert proc.wow_exe_may_be_running(game) is True
+        rm.assert_not_called()
+    print("OK wow_exe_running never calls restart manager")
+
+
+def test_tip_index_load_index_file_caches():
+    """Second load_index_file of the same path must not re-read the JSON."""
+    from pathlib import Path
+    from unittest.mock import patch
+
+    from ichalaunch.addons import tip_index as tips
+
+    tips.clear_tip_index_cache()
+    path = tips.bundled_tips_path()
+    text = path.read_text(encoding="utf-8")
+    with patch.object(Path, "read_text", return_value=text) as reader:
+        first = tips.load_index_file(path)
+        second = tips.load_index_file(path)
+    assert first == second
+    assert tips.index_repo_count(first) > 0
+    assert reader.call_count == 1
+    tips.clear_tip_index_cache()
+    print("OK tip index load_index_file caches")
+
+
+def test_toc_mismatch_scan_skipped_when_wow_running():
+    """Do not walk AddOns for TOC mismatches while this client is running."""
+    from pathlib import Path
+    from unittest.mock import patch
+
+    from ichalaunch.core import detect
+
+    game = Path("D:/Games/RavenCraft")
+    with patch("ichalaunch.core.process.wow_exe_may_be_running", return_value=True):
+        with patch.object(detect, "_classify_toc_dir") as classify:
+            assert detect.scan_mismatched_toc_addon_folders(game) == []
+            classify.assert_not_called()
+    with patch("ichalaunch.core.process.wow_exe_may_be_running", return_value=False):
+        with patch.object(detect, "_addon_scan_dirs", return_value=(None, None)):
+            with patch.object(detect, "_classify_toc_dir", return_value=([], [])) as classify:
+                assert detect.scan_mismatched_toc_addon_folders(game) == []
+                assert classify.call_count == 2
+    print("OK toc mismatch scan skipped when wow running")
 
 
 def test_client_page_lock_uses_configured_game_dir():
@@ -10051,6 +10182,48 @@ def test_client_page_lock_uses_configured_game_dir():
     probe.assert_called_once_with(game)
     page.deleteLater()
     print("OK client page lock uses configured game dir")
+
+
+def test_client_page_showevent_has_no_rm_or_toc():
+    """Client show / poll must not start RM or walk AddOns."""
+    import inspect
+
+    from ichalaunch.ui.pages.client import ClientPage
+    from ichalaunch.ui import main_window as mw
+
+    show = inspect.getsource(ClientPage.showEvent)
+    poll = inspect.getsource(ClientPage._poll_game_edit_lock)
+    combined = show + poll + inspect.getsource(mw.MainWindow.showEvent)
+    assert "schedule_rm_game_lock_check" not in combined
+    assert "_GameLockRmThread" not in combined
+    assert "allow_restart_manager" not in poll
+    assert "scan_mismatched_toc" not in show
+    assert "_maybe_prompt_toc" not in show
+    print("OK client page showEvent has no RM or TOC")
+
+
+def test_client_refresh_uses_cached_tip_index():
+    """Client nav refresh must not re-parse addon_tips.json per row."""
+    from pathlib import Path
+    from unittest.mock import patch
+
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.addons import tip_index as tips
+    from ichalaunch.ui.pages.client import ClientPage
+
+    app = QApplication.instance() or QApplication([])
+    del app
+    tips.ensure_local_index()
+    assert tips.index_repo_count(tips.current_index()) > 0
+    with patch("ichalaunch.ui.pages.client.plan_changes", return_value=[]):
+        page = ClientPage()
+    with patch.object(tips, "parse_index_text", side_effect=AssertionError("re-parse")):
+        with patch.object(tips, "load_index_file", side_effect=AssertionError("re-read tips")):
+            with patch("ichalaunch.ui.pages.client.detect_actual_state", return_value={}):
+                page.refresh_from_settings()
+    page.deleteLater()
+    print("OK client refresh uses cached tip index")
 
 
 def test_vanilla_tweaks_force_tubtubs_repatch():
@@ -14896,7 +15069,13 @@ def _run_smoke_tests():
     test_client_page_does_not_poll_game_lock_until_shown()
     test_client_page_locks_mod_edits_when_wow_running()
     test_wow_exe_running_matches_game_directory()
+    test_wow_exe_running_file_in_use_scoped()
+    test_wow_exe_running_never_calls_restart_manager()
+    test_tip_index_load_index_file_caches()
+    test_toc_mismatch_scan_skipped_when_wow_running()
     test_client_page_lock_uses_configured_game_dir()
+    test_client_page_showevent_has_no_rm_or_toc()
+    test_client_refresh_uses_cached_tip_index()
     test_vanilla_tweaks_force_tubtubs_repatch()
     test_vanilla_tweaks_enable_opens_config_once()
     test_mod_check_row_tweaks_cog()
