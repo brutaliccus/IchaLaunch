@@ -6,7 +6,6 @@ import json
 import re
 import shutil
 import stat
-import subprocess
 import tempfile
 import time
 from dataclasses import dataclass, field
@@ -72,6 +71,7 @@ from ichalaunch.core.process import (
     download_file,
     file_in_use_hint,
     google_drive_url,
+    run_windows_exe,
     status_only,
     wow_exe_running,
 )
@@ -3030,7 +3030,11 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 cmd = tweaks_patch_command(mod_id, vt, infile, opts)
                 status_only(progress, "Patching WoW.exe with Vanilla Tweaks...")
                 before_tweaked = tweaked_exe_snapshot(game)
-                subprocess.run(cmd, cwd=str(game), check=True)
+                # vanilla-tweaks.exe is a Windows PE, so off Windows this has to
+                # go through Proton. Running it directly raised OSError at exec
+                # time, which meant the headline feature of 1.3.0 could not work
+                # on Linux at all.
+                run_windows_exe(cmd, game)
                 tweaked = patched_exe_from_run(game, infile, wow, before_tweaked)
                 if tweaked is None:
                     raise FileNotFoundError(

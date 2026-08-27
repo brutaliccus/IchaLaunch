@@ -18,6 +18,7 @@ import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 from ichalaunch.config.settings import appdata_root, settings
@@ -190,8 +191,51 @@ def wineprefix_for(game_dir: Path) -> Path:
     return appdata_root() / "prefixes" / game_dir.name
 
 
-def build_launch_command(exe: Path, cwd: Path) -> tuple[list[str], dict[str, str]]:
-    """argv and environment for running *exe* under umu. Raises if unusable."""
+def wine_arg(arg: str) -> str:
+    """One argument as the Windows program should see it.
+
+    Wine hands argv through untouched, so a POSIX path like
+    /home/me/WoW/WoW.exe arrives as a rooted path with no drive letter and gets
+    resolved against whatever drive the working directory happened to land on.
+    That is Z: today only because Z: is the default mapping for /, which makes a
+    working patch depend on a detail no code here controls. Naming Z: outright
+    removes the dependency.
+
+    Only an absolute path to something that already exists is rewritten, so
+    flags ("--farclip") and values ("777") are passed through untouched. A path
+    the tool is being asked to create would not survive that test, which is why
+    this is a helper for inputs and not a general argv filter.
+    """
+    if sys.platform == "win32" or not arg.startswith("/"):
+        return arg
+    try:
+        if not Path(arg).exists():
+            return arg
+    except OSError:
+        return arg
+    return "Z:" + arg.replace("/", "\\")
+
+
+def build_launch_command(
+    exe: Path,
+    cwd: Path,
+    args: Sequence[str] = (),
+    *,
+    for_game: bool = True,
+) -> tuple[list[str], dict[str, str]]:
+    """argv and environment for running *exe* under umu. Raises if unusable.
+
+    *args* are extra arguments for the Windows program itself, which is how a
+    command-line tool such as the Vanilla Tweaks patcher gets its flags.
+
+    *for_game* separates a real game session from a short-lived tool run, and
+    governs the two things that belong to the session rather than to Proton.
+    A tool is not pinned to the V-Cache CCD, because that pin is a frame rate
+    measure and narrowing a patcher's affinity only makes it slower. A tool
+    also never receives WOW_ENCRYPTION_KEY: only the client reads it, and a
+    third-party binary that prints its environment on failure would put it
+    somewhere a user can paste.
+    """
     umu = find_umu_run()
     if umu is None:
         raise FileNotFoundError(UMU_MISSING_MSG)
@@ -267,14 +311,19 @@ def build_launch_command(exe: Path, cwd: Path) -> tuple[list[str], dict[str, str
         # loader ran costs a round trip to find out.
         log.info("Launch mode: default (new WoW64 turned off in Settings)")
 
-    from ichalaunch.game.nampower_encrypt import apply_wow_encryption_env
+    from ichalaunch.game.nampower_encrypt import WOW_ENCRYPTION_ENV, apply_wow_encryption_env
 
-    apply_wow_encryption_env(env)
+    if for_game:
+        apply_wow_encryption_env(env)
+    else:
+        # Popped rather than simply not added, so an inherited value cannot ride
+        # along into a tool either.
+        env.pop(WOW_ENCRYPTION_ENV, None)
 
-    cmd = [str(umu), str(exe)]
+    cmd = [str(umu), str(exe), *(wine_arg(a) for a in args)]
     from ichalaunch.game.cpu_topology import vcache_pin_enabled
 
-    if vcache_pin_enabled():
+    if for_game and vcache_pin_enabled():
         from ichalaunch.game.cpu_topology import taskset_prefix
 
         affinity_argv = taskset_prefix()
@@ -332,6 +381,76 @@ def launch_windows_exe(exe: Path, cwd: Path) -> subprocess.Popen:
         if sink is not None:
             # The child holds its own descriptor; this one has done its job.
             sink.close()
+
+
+# umu builds the Wine prefix on first use and may fetch the Steam Linux Runtime
+# before it runs anything, so a patcher whose own work takes a second can sit
+# behind minutes of setup on a cold prefix. Generous on purpose: the point of
+# the limit is that a wedged run ends in a message instead of a spinner that
+# never stops, not that it ends quickly.
+WINDOWS_EXE_TIMEOUT = 900
+
+
+def run_windows_exe(
+    exe: Path,
+    cwd: Path,
+    args: Sequence[str] = (),
+    timeout: float = WINDOWS_EXE_TIMEOUT,
+) -> subprocess.CompletedProcess:
+    """Run *exe* to completion under umu, raising unless it exits cleanly.
+
+    The counterpart to launch_windows_exe, which starts the game and returns.
+    A command-line tool has to be waited for instead, because the caller's next
+    step reads what the tool wrote, and a non-zero exit has to be an exception
+    for the same reason: carrying on would inspect the state before the run.
+
+    Output is captured rather than sent to the launch log, so the exception can
+    quote what the tool complained about. Capturing also drains the pipes, which
+    matters because umu is chatty enough on a first run to fill one.
+    """
+    argv, env = build_launch_command(exe, cwd, args, for_game=False)
+    log.info("Running via umu: %s (proton=%s)", exe, env.get("PROTONPATH"))
+    try:
+        proc = subprocess.run(
+            argv,
+            cwd=str(cwd),
+            env=env,
+            shell=False,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        # subprocess kills umu itself, but Proton's own children outlive it, so
+        # say what was left behind rather than implying the machine is clean.
+        raise RuntimeError(
+            f"{exe.name} did not finish within {int(timeout)} seconds under "
+            "Proton and was stopped. Wine processes may still be running; "
+            "the client has not been changed."
+        ) from exc
+
+    if proc.returncode != 0:
+        from ichalaunch.game.nampower_encrypt import redact_encryption_secrets
+
+        # This text reaches a user dialog and the app log, and umu or the tool
+        # may echo its environment on failure. Every other path that carries
+        # this stream is redacted; so is this one.
+        detail = redact_encryption_secrets(
+            _last_lines(proc.stderr) or _last_lines(proc.stdout)
+        )
+        suffix = f"\n\n{detail}" if detail else ""
+        raise RuntimeError(
+            f"{exe.name} failed under Proton with exit code "
+            f"{proc.returncode}.{suffix}"
+        )
+    return proc
+
+
+def _last_lines(text: str | None, limit: int = 12) -> str:
+    """The tail of a captured stream, for putting inside an error message."""
+    lines = [ln.rstrip() for ln in (text or "").splitlines() if ln.strip()]
+    return "\n".join(lines[-limit:])
 
 
 def is_linux() -> bool:

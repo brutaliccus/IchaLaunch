@@ -11400,6 +11400,155 @@ def test_linux_proton_launch_resolution():
     print("OK linux proton launch resolution")
 
 
+def test_windows_exe_runs_through_proton_and_blocks():
+    """The Vanilla Tweaks patcher is a PE, so off Windows it must go via Proton.
+
+    Runs a stand-in for umu-run (a shell script, never wine) to prove the call
+    passes the patcher's flags through, waits for the exit, turns a non-zero
+    exit and a hang into errors, and does not pin a patcher to the V-Cache CCD.
+    """
+    import inspect
+    import os
+    import stat as _stat
+
+    from ichalaunch.core.process import run_windows_exe as dispatch
+    from ichalaunch.game import proton
+    from ichalaunch.mods import installer
+
+    # The installer must call the dispatcher, not exec the PE itself.
+    src = inspect.getsource(installer.install_mod)
+    assert "run_windows_exe(cmd, game)" in src, "exe_patch does not dispatch"
+    assert "subprocess.run(cmd" not in src, "exe_patch still execs the PE directly"
+    # The Windows branch of the dispatcher stays a direct, checked run.
+    dsrc = inspect.getsource(dispatch)
+    assert 'sys.platform == "win32"' in dsrc, dsrc
+    assert "subprocess.run(argv, cwd=str(cwd), check=True)" in dsrc, dsrc
+
+    if sys.platform == "win32":
+        print("OK windows exe runs through proton and blocks (skipped on Windows)")
+        return
+
+    class _Stub:
+        def __init__(self, d):
+            self.d = dict(d)
+
+        def get(self, k, default=None):
+            return self.d.get(k, default)
+
+        def set(self, k, v):
+            self.d[k] = v
+
+    def _script(path, body):
+        path.write_text("#!/bin/sh\n" + body)
+        path.chmod(path.stat().st_mode | _stat.S_IXUSR)
+        return path
+
+    real = proton.settings
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            game = root / "WoW"
+            game.mkdir()
+            infile = game / "WoW-OriginalBackup.exe"
+            infile.write_bytes(b"MZ" + b"\0" * 64)
+            patcher = root / "vanilla-tweaks.exe"
+            patcher.write_bytes(b"MZ" + b"\0" * 64)
+            build = root / "GE-Proton10-34"
+            build.mkdir()
+            (build / "toolmanifest.vdf").write_text("x")
+
+            seen = root / "argv.txt"
+            ok = _script(root / "umu-ok", f"printf '%s\\n' \"$@\" > {seen}\nexit 0\n")
+            bad = _script(root / "umu-bad", "echo 'boom: bad prefix' 1>&2\nexit 3\n")
+            slow = _script(root / "umu-slow", "exec sleep 30\n")
+
+            def _use(umu):
+                proton.settings = _Stub({
+                    "linux_umu_path": str(umu),
+                    "linux_proton_path": str(build),
+                    "linux_use_latest_proton": False,
+                    "linux_wineprefix": str(root / "prefix"),
+                })
+
+            # A clean run blocks, so its output is already on disk on return.
+            _use(ok)
+            argv = ["--farclip", "777", str(infile)]
+            proc = proton.run_windows_exe(patcher, game, argv)
+            assert proc.returncode == 0
+            passed = seen.read_text().splitlines()
+            assert passed[0] == str(patcher), passed
+            assert passed[1:3] == ["--farclip", "777"], passed
+            # The infile is named on the drive Wine always maps to /, rather
+            # than left to resolve against whatever drive the cwd landed on.
+            assert passed[3] == "Z:" + str(infile).replace("/", "\\"), passed
+
+            # Nothing is pinned: narrowing a patcher's affinity only slows it.
+            cmd, env = proton.build_launch_command(patcher, game, argv, for_game=False)
+
+            # A tool never carries the client's encryption key, even when the
+            # setting is on and even when one is already in this environment.
+            import ichalaunch.game.nampower_encrypt as ne
+
+            os.environ[ne.WOW_ENCRYPTION_ENV] = "inherited-secret-value"
+            try:
+                _, tool_env = proton.build_launch_command(patcher, game, argv, for_game=False)
+                assert ne.WOW_ENCRYPTION_ENV not in tool_env, tool_env.get(ne.WOW_ENCRYPTION_ENV)
+            finally:
+                os.environ.pop(ne.WOW_ENCRYPTION_ENV, None)
+
+            # Captured tool output reaches a dialog and the log, so it goes
+            # through the same redactor every other path for this stream uses.
+            assert "redact_encryption_secrets" in inspect.getsource(proton.run_windows_exe)
+            assert cmd[0] == str(ok), cmd
+            assert env["PROTONPATH"] == str(build)
+
+            # A failed patch is an error, and says what the tool complained of.
+            _use(bad)
+            try:
+                proton.run_windows_exe(patcher, game, argv)
+                raise AssertionError("expected RuntimeError on non-zero exit")
+            except RuntimeError as exc:
+                assert "exit code 3" in str(exc), str(exc)
+                assert "boom: bad prefix" in str(exc), str(exc)
+
+            # A hang ends in a message, never a silent success.
+            _use(slow)
+            try:
+                proton.run_windows_exe(patcher, game, argv, timeout=2)
+                raise AssertionError("expected RuntimeError on timeout")
+            except RuntimeError as exc:
+                assert "did not finish" in str(exc), str(exc)
+                assert "has not been changed" in str(exc), str(exc)
+
+            # And the dispatcher routes here rather than exec'ing the PE.
+            _use(ok)
+            os.remove(seen)
+            dispatch([str(patcher), *argv], game)
+            assert seen.read_text().splitlines()[0] == str(patcher)
+
+            # Windows is untouched: the same argv, the same cwd string and the
+            # same check=True that the call site used before Proton entered it,
+            # and proton.py is never imported there.
+            import subprocess as _sp
+
+            calls = []
+            real_run = _sp.run
+            real_platform = sys.platform
+            try:
+                _sp.run = lambda *a, **kw: calls.append((a, kw))
+                sys.platform = "win32"
+                dispatch([str(patcher), *argv], game)
+            finally:
+                _sp.run = real_run
+                sys.platform = real_platform
+            assert calls == [(([str(patcher), *argv],),
+                             {"cwd": str(game), "check": True})], calls
+    finally:
+        proton.settings = real
+
+    print("OK windows exe runs through proton and blocks")
+
+
 def test_linux_wow64_default_on_when_supported():
     """New WoW64 is on by default, probed per build, and never set blind.
 
@@ -12613,6 +12762,7 @@ def _run_smoke_tests():
     test_owned_paths_are_comparison_keys_not_filenames()
     test_client_exe_probe_is_case_insensitive()
     test_linux_proton_launch_resolution()
+    test_windows_exe_runs_through_proton_and_blocks()
     test_linux_wow64_default_on_when_supported()
     test_linux_wow64_settings_checkbox()
     test_x3d_vcache_ccd_selection()
