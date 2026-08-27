@@ -312,10 +312,101 @@ def google_drive_url(file_id: str) -> str:
         f"?id={file_id}&export=download&confirm=t"
     )
 
-def wow_exe_running() -> bool:
-    """True when WoW.exe (or VanillaFixes.exe) is running. Windows-only; no admin."""
-    if sys.platform != "win32":
+CLIENT_PROCESS_NAMES = ("wow.exe", "vanillafixes.exe")
+
+
+def _norm_cmdline(text: str) -> str:
+    """Lowercase, forward slashes, NULs as spaces.
+
+    Wine hands the client its own path as ``Z:\\home\\you\\Games\\...\\WoW.exe``.
+    Normalising both sides lets the unix game directory be found in that string
+    as a plain substring, with no drive-letter or separator special-casing.
+    """
+    return (text or "").replace("\x00", " ").replace("\\", "/").lower()
+
+
+def _arg_names_client(arg: str, needle: str) -> bool:
+    """True when one normalised argv entry names a client exe we care about.
+
+    The exe name has to sit behind a separator, so an argument that merely
+    mentions WoW.exe in prose (a shell command, an editor buffer, a log line)
+    cannot trip the guard. With a known game directory the same argument must
+    also carry that directory, which is the scoping guarantee.
+    """
+    if not any(arg == name or arg.endswith(f"/{name}") for name in CLIENT_PROCESS_NAMES):
+        # The argument has to END with the exe name. Requiring only that it
+        # appears leaves "/games/wow/wow.exe.bak" and a log line quoting the
+        # path matching just as well as the client itself.
         return False
+    return needle in arg if needle else True
+
+
+def _configured_game_dir() -> Path | None:
+    """Configured game folder, or None. Imported here, not at module scope.
+
+    ``ichalaunch.game.launcher`` imports from this module, so a top-level import
+    would be a cycle. Every other ichalaunch import in this file is deferred the
+    same way.
+    """
+    try:
+        from ichalaunch.game.launcher import detect_game
+
+        return detect_game()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _proc_client_running(game_dir: Path | str | None) -> bool:
+    """True when some ``/proc/<pid>/cmdline`` names a client exe under *game_dir*.
+
+    Matching is on the client PATH rather than the process name. That scopes the
+    answer to the install this launcher is tied to, still catches a client the
+    user started outside the launcher, and sidesteps ``/proc/<pid>/comm``, which
+    truncates at 15 characters and so never holds "VanillaFixes.exe".
+
+    When the game directory is unknown this returns False rather than guessing,
+    because an unscoped match would block work on one install because a client
+    for a different one is running.
+    """
+    needle = _norm_cmdline(str(game_dir or "")).rstrip("/")
+    if not needle:
+        # Without a configured install there is nothing to scope to, and an
+        # unscoped answer is a guess: any WoW.exe anywhere on the machine would
+        # block work on an install it has nothing to do with. install_mod
+        # resolves the game before it reaches this guard, so the only callers
+        # that land here are diagnostic ones, which are better off saying
+        # nothing than saying something false.
+        return False
+    try:
+        pids = [entry for entry in os.listdir("/proc") if entry.isdigit()]
+    except OSError:
+        return False
+    for pid in pids:
+        try:
+            with open(f"/proc/{pid}/cmdline", "rb") as fh:
+                raw = fh.read()
+        except (OSError, ValueError):
+            # A pid can exit between the listing and the read, and processes
+            # owned by other users can be unreadable. Both are normal, not errors.
+            continue
+        if not raw:
+            continue
+        text = raw.decode("utf-8", "replace")
+        for arg in text.split("\x00"):
+            if arg and _arg_names_client(_norm_cmdline(arg), needle):
+                return True
+    return False
+
+
+def wow_exe_running() -> bool:
+    """True when WoW.exe (or VanillaFixes.exe) is running. No admin needed.
+
+    Windows asks tasklist. Linux reads ``/proc``, and needs the answer more:
+    Wine loads WoW.exe as data instead of exec'ing it, so the kernel never sets
+    ETXTBSY on it and a DLL or exe swap under a live client can quietly succeed.
+    """
+    if sys.platform != "win32":
+        return _proc_client_running(_configured_game_dir())
     names = ("WoW.exe", "VanillaFixes.exe")
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     try:
@@ -342,6 +433,10 @@ def processes_locking_paths(paths: list[Path | str], *, limit: int = 6) -> list[
 
     Returns ``[]`` when unavailable (non-Windows, API failure, or no lockers found).
     Never raises. Does not require admin.
+
+    Deliberately still Windows-only. The Linux equivalent means walking
+    ``/proc/<pid>/maps`` and ``/proc/<pid>/fd`` for every process, which is a
+    separate change; ``wow_exe_running`` already covers the case that matters.
     """
     if sys.platform != "win32" or not paths:
         return []
@@ -447,25 +542,32 @@ def file_in_use_hint(*paths: Path | str) -> str:
     """Short user-facing diagnosis when a game-tree file cannot be replaced.
 
     Prefers detecting WoW/VanillaFixes, then Restart Manager lockers, then a
-    generic "another process" note (not antivirus-first). Always includes
-    Task Manager End-task steps for WoW.exe / VanillaFixes.exe.
+    generic "another process" note (not antivirus-first). Always includes the
+    steps for ending WoW.exe / VanillaFixes.exe on this platform.
     """
-    from ichalaunch.core.filesystem import TASK_MANAGER_END_GAME_HINT
+    from ichalaunch.core.filesystem import END_GAME_PROCESS_HINT
 
-    end_tasks = f"{TASK_MANAGER_END_GAME_HINT} Then retry Apply."
+    end_tasks = f"{END_GAME_PROCESS_HINT} Then retry Apply."
     if wow_exe_running():
-        return (
-            "WoW.exe or VanillaFixes.exe is still running "
-            "(the game window can be closed while the process stays in Task Manager). "
-            + end_tasks
+        lingers = (
+            "the game window can be closed while the process stays in Task Manager"
+            if sys.platform == "win32"
+            else "closing the game window does not always end the Wine process"
         )
+        return f"WoW.exe or VanillaFixes.exe is still running ({lingers}). " + end_tasks
     lockers = processes_locking_paths([p for p in paths if p])
     if lockers:
         return f"In use by: {', '.join(lockers)}. {end_tasks}"
+    if sys.platform == "win32":
+        return (
+            "Another process still has the file open "
+            "(overlays, Explorer preview, backup/sync, or antivirus — "
+            "including non-Defender products). "
+            + end_tasks
+        )
     return (
         "Another process still has the file open "
-        "(overlays, Explorer preview, backup/sync, or antivirus — "
-        "including non-Defender products). "
+        "(a Wine process, an overlay, a file manager preview, or backup/sync). "
         + end_tasks
     )
 

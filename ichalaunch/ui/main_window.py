@@ -387,16 +387,15 @@ def _client_mod_failure_dialog_body(
     *,
     lead: str = "These changes could not be applied:",
 ) -> str:
-    """Build Apply/sync failure dialog text; ensure Task Manager End-task guidance."""
-    from ichalaunch.core.filesystem import TASK_MANAGER_END_GAME_HINT
+    """Build Apply/sync failure dialog text; ensure end-the-game guidance."""
+    from ichalaunch.core.filesystem import END_GAME_PROCESS_HINT, has_end_game_guidance
 
     parts = [ln for ln in failures if isinstance(ln, str) and ln.strip()]
     body = f"{lead}\n\n" + "\n\n".join(parts) if parts else lead
-    low = body.lower()
-    if "task manager" in low and "wow.exe" in low:
+    if has_end_game_guidance(body, strict=False):
         return body
     return (
-        f"{body}\n\n{TASK_MANAGER_END_GAME_HINT} Then retry Apply."
+        f"{body}\n\n{END_GAME_PROCESS_HINT} Then retry Apply."
     )
 
 

@@ -6,6 +6,7 @@ Unloaded packs live beside that folder at ``Interface/AddOnsUnloaded/<Folder>``.
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -25,9 +26,18 @@ GAME_LOCK_MESSAGE = (
     "Close World of Warcraft and try again. "
     "The game still has this addon folder open."
 )
-GENERIC_LOCK_MESSAGE = (
+_GENERIC_LOCK_LEAD = (
     "Could not move the addon folder. Close World of Warcraft if it is running, "
-    "then retry. Explorer, antivirus, or Git may also be locking files."
+    "then retry. "
+)
+# Explorer and antivirus mean nothing on Linux, and now that wow_exe_running
+# actually answers there, this text reaches those users.
+_WIN_GENERIC_LOCK_TAIL = "Explorer, antivirus, or Git may also be locking files."
+_POSIX_GENERIC_LOCK_TAIL = (
+    "Your file manager, a backup tool, or Git may also be locking files."
+)
+GENERIC_LOCK_MESSAGE = _GENERIC_LOCK_LEAD + (
+    _WIN_GENERIC_LOCK_TAIL if sys.platform == "win32" else _POSIX_GENERIC_LOCK_TAIL
 )
 
 
