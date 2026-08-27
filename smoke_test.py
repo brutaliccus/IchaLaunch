@@ -560,6 +560,52 @@ def test_vanilla_tweaks_disable_clears_pending():
     print("OK vanilla tweaks disable clears pending")
 
 
+def test_vanilla_tweaks_exe_swap_is_atomic():
+    """A failed patched-exe swap leaves the client binary in place, not missing."""
+    from ichalaunch.mods.installer import swap_patched_client_exe
+
+    with tempfile.TemporaryDirectory() as td:
+        game = Path(td)
+        wow = game / "WoW.exe"
+        tweaked = game / "WoW_tweaked.exe"
+
+        wow.write_bytes(b"MZ" + b"old" * 64)
+        tweaked.write_bytes(b"MZ" + b"new" * 64)
+        original = wow.read_bytes()
+
+        # Happy path: the patched build lands and the scratch file is consumed.
+        swap_patched_client_exe(tweaked, wow)
+        assert wow.is_file()
+        assert wow.read_bytes().startswith(b"MZ" + b"new")
+        assert not tweaked.exists()
+
+        # Failure path, which is the regression this guards. Unlinking first
+        # left the game with no WoW.exe whenever the rename afterwards failed.
+        # A one-step replace cannot produce that state.
+        wow.write_bytes(original)
+        tweaked.write_bytes(b"MZ" + b"new" * 64)
+        real_replace = Path.replace
+
+        def refuse(self, target):
+            raise OSError(32, "The process cannot access the file")
+
+        Path.replace = refuse
+        try:
+            failed = False
+            try:
+                swap_patched_client_exe(tweaked, wow)
+            except OSError:
+                failed = True
+            assert failed, "a swap that cannot complete must raise, not pass silently"
+        finally:
+            Path.replace = real_replace
+
+        assert wow.is_file(), "WoW.exe must survive a swap that could not complete"
+        assert wow.read_bytes() == original, "the surviving WoW.exe must be the old build"
+        assert tweaked.is_file(), "the patched build must survive for a retry"
+    print("OK vanilla tweaks exe swap is atomic")
+
+
 def test_hand_patched_wow_exe_is_not_vanilla_tweaks():
     """Play must not restore stock WoW.exe over a hand-patched client (#280)."""
     from ichalaunch.config.settings import settings as s
@@ -12393,6 +12439,7 @@ def _run_smoke_tests():
     test_dlls_txt()
     test_detect_state()
     test_vanilla_tweaks_disable_clears_pending()
+    test_vanilla_tweaks_exe_swap_is_atomic()
     test_hand_patched_wow_exe_is_not_vanilla_tweaks()
     test_apply_desired_state_guard()
     test_mod_remove_desired_state()

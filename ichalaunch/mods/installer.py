@@ -212,6 +212,23 @@ def migrate_legacy_pretty_night_sky_y(game_path: Path) -> bool:
     return True
 
 
+def swap_patched_client_exe(tweaked: Path, wow: Path) -> None:
+    """Put the patcher's output in place of the client binary, in one step.
+
+    Unlinking the client first meant that a rename which then failed left the
+    game with no client binary at all. That window is not theoretical: the
+    patched exe has just been written by an unsigned third-party patcher, which
+    is the single most likely moment for antivirus to hold it open, and the
+    unlink had already happened by then.
+
+    Path.replace is atomic within a directory on both Windows and Linux, so
+    WoW.exe is either the old build or the new one and never absent. A failure
+    now raises with the original still in place, which install_mod already
+    knows how to roll back.
+    """
+    tweaked.replace(wow)
+
+
 def _install_copy(src: Path, dest: Path, game_path: Path | None = None) -> None:
     """Copy into the game tree. DLLs/EXEs are never LoadLibrary'd; lock/AV → OSError skip."""
     if is_stock_data_mpq(dest):
@@ -2959,8 +2976,7 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 if not tweaked.exists() and wow.stem != "WoW":
                     tweaked = game / "WoW_tweaked.exe"
                 if tweaked.exists():
-                    wow.unlink(missing_ok=True)
-                    tweaked.rename(wow)
+                    swap_patched_client_exe(tweaked, wow)
                 soft: list[str] = []
                 try:
                     if not validate_pe_binary(wow, min_size=_DLL_PE_MIN_BYTES):
