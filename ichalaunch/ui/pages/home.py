@@ -26,7 +26,7 @@ from ichalaunch.ui.widgets.talent_bg import TalentFrameBackground
 log = logging.getLogger("ichalaunch")
 
 CATEGORY_ORDER = [
-    "Performance & Fixes",
+    "Performance / Fixes",
     "Client Enhancements",
     "HD Graphics",
     "Visual / QoL",

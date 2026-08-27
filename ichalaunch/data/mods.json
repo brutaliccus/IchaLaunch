@@ -2,7 +2,7 @@
   {
     "id": "vanilla_tweaks",
     "name": "Vanilla Tweaks V2",
-    "category": "Performance & Fixes",
+    "category": "Performance / Fixes",
     "description": "Patches WoW.exe (not a DLL). Farclip, grass, nameplates, 4GB LAA, camera skip fix, custom glues, and blue moon on by default. Widescreen FoV, sound, and quickloot are optional — use the cog to configure.",
     "detect": {
       "exe_differs_from": "WoW-OriginalBackup.exe"
@@ -24,7 +24,7 @@
   {
     "id": "vanilla_tweaks_old",
     "name": "Vanilla Tweaks (Old)",
-    "category": "Performance & Fixes",
+    "category": "Performance / Fixes",
     "description": "Pinned brndd 1.6.0 (the pre-tubtubs catalog). May conflict with SuperWoW — only use if Vanilla Tweaks V2 causes poor performance. Patches WoW.exe (not a DLL).",
     "detect": {
       "exe_differs_from": "WoW-OriginalBackup.exe"
@@ -44,7 +44,7 @@
   {
     "id": "vanillafixes",
     "name": "VanillaFixes",
-    "category": "Performance & Fixes",
+    "category": "Performance / Fixes",
     "description": "Modern launcher that loads DLL mods and reduces stutter / animation lag. Use this to start the game.",
     "detect": {
       "any_files": [
@@ -67,7 +67,7 @@
   {
     "id": "dxvk",
     "name": "VanillaFixes + DXVK (Vulkan)",
-    "category": "Performance & Fixes",
+    "category": "Performance / Fixes",
     "description": "Vulkan backend via DXVK. Needs a capable GPU. May conflict with overlays / some Nvidia 50-series setups.",
     "detect": {
       "all_files": [
@@ -201,7 +201,7 @@
   {
     "id": "auction_query_throttle",
     "name": "Auction Query Throttle",
-    "category": "Performance & Fixes",
+    "category": "Performance / Fixes",
     "description": "Throttles auction-house queries to reduce client freezes when browsing the AH.",
     "detect": {
       "any_files": [
@@ -263,7 +263,7 @@
   {
     "id": "perfboost",
     "name": "PerfBoost",
-    "category": "Performance & Fixes",
+    "category": "Performance / Fixes",
     "description": "Selective unit rendering to improve FPS in cities and raids.",
     "detect": {
       "any_files": [
@@ -293,7 +293,7 @@
   {
     "id": "no1600x1200",
     "name": "no1600x1200",
-    "category": "Performance & Fixes",
+    "category": "Performance / Fixes",
     "description": "Unlocks modern / widescreen resolutions in video options.",
     "detect": {
       "any_files": [
@@ -318,7 +318,7 @@
   {
     "id": "wdb_block",
     "name": "Auto-clear WDB cache",
-    "category": "Performance & Fixes",
+    "category": "Performance / Fixes",
     "description": "Replaces the WDB folder with an empty file so stale cache cannot build up.",
     "detect": {
       "wdb_file": true
@@ -330,7 +330,7 @@
   {
     "id": "script_memory",
     "name": "Addon Script Memory = 0",
-    "category": "Performance & Fixes",
+    "category": "Performance / Fixes",
     "description": "Sets Config.wtf scriptMemory to 0 so addons can use as much memory as needed.",
     "detect": {
       "config_contains": "SET scriptMemory \"0\""

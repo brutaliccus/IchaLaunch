@@ -87,7 +87,7 @@ PRESETS_CATEGORY = "Presets"
 
 CATEGORY_ORDER = [
     PRESETS_CATEGORY,
-    "Performance & Fixes",
+    "Performance / Fixes",
     "Client Enhancements",
     "HD Graphics",
     "Visual / QoL",

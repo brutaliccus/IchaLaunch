@@ -21,7 +21,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QWidget
 
-_ICON_PX = 200
+_ICON_PX = 450
 # 2× previous smoke (~268 → 536); window grows so breathe scale never clips it.
 _SMOKE_PX = 536
 # Mid purple VFX layer — a bit smaller than the black Worgen smoke behind it.
@@ -43,7 +43,7 @@ def soft_edge_icon(source: QPixmap, size: int = _ICON_PX, feather: float = _EDGE
     """Scale icon to a square and feather alpha along the *square* edges only.
 
     Uses distance-to-nearest-edge falloff so the icon stays square (not a circular crop).
-    Source should already have a transparent backdrop (see ichalaunch_splash.png).
+    Source should already have a transparent backdrop (see ravencraft.png).
     """
     if source.isNull():
         return QPixmap()
@@ -256,14 +256,14 @@ class SplashScreen(QWidget):
 
 
 def load_splash_pixmap() -> QPixmap:
-    """Load splash art (transparent-backdrop PNG preferred)."""
+    """Load splash art (RavenCraft logo; not the Addons-tab ichalaunch icon)."""
     from ichalaunch.core.paths import theme_file
 
-    # ichalaunch_splash.png: same raven art with the baked-in dark square keyed out.
-    for name in ("ichalaunch_splash.png", "ichalaunch.png", "ichalaunch.ico"):
-        path = theme_file(name)
-        if path.exists():
-            pm = QPixmap(str(path))
-            if not pm.isNull():
-                return pm
+    # Home brand crest — already transparent. Do not fall back to
+    # ichalaunch.png / ichalaunch.ico (those stay the Addons-tab / window icon).
+    path = theme_file("ravencraft.png")
+    if path.exists():
+        pm = QPixmap(str(path))
+        if not pm.isNull():
+            return pm
     return QPixmap()

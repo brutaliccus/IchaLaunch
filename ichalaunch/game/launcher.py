@@ -247,7 +247,7 @@ VF_LAUNCH_ASK = "ask"
 def vanillafixes_launch_wanted(desired: dict[str, bool] | None = None) -> bool:
     """True when the Client VanillaFixes / DXVK checkbox wants VF launch.
 
-    The Client Performance & Fixes checkbox is the source of truth. DXVK also
+    The Client Performance / Fixes checkbox is the source of truth. DXVK also
     boots through VanillaFixes.exe, so either desired flag counts. A stale
     ``vanillafixes_enabled`` Launch-settings leftover is ignored.
     """

@@ -12980,7 +12980,7 @@ def test_client_cat_nav_update_alert_badge():
     # Pending update routes to the mod's category tab.
     page._pending_updates = {"vanillafixes": {"id": "vanillafixes", "local": "1", "remote": "2"}}
     cats = page._categories_with_pending_badge()
-    assert "Performance & Fixes" in cats
+    assert "Performance / Fixes" in cats
 
     page._pending_updates = {}
     page._apply_pending = False
@@ -13004,6 +13004,8 @@ def test_launch_settings_live_on_client_page():
     assert LAUNCH_CATEGORY == "Launch"
     assert CATEGORY_ORDER[-2:] == [LAUNCH_CATEGORY, "Custom"], CATEGORY_ORDER
     assert CATEGORY_ORDER[0] != LAUNCH_CATEGORY
+    assert "Performance / Fixes" in CATEGORY_ORDER
+    assert "Performance & Fixes" not in CATEGORY_ORDER
 
     settings_page = settings_page_mod.SettingsPage()
     for attr in (

@@ -3127,7 +3127,7 @@ class VanillaTweaksSettingsDialog(QDialog):
             self,
             title,
             "This resets ALL in-game settings stored in Config.wtf — video, "
-            "sound, and the keybinds kept there. The client writes a fresh "
+            "sound, graphics CVars, camera, etc. The client writes a fresh "
             "Config.wtf on the next launch.\n\n"
             "The current file is saved into the WTF/Backup folder first.",
             buttons=[
@@ -3210,7 +3210,7 @@ class VanillaTweaksSettingsDialog(QDialog):
             title,
             f"This replaces the current Config.wtf with the backup from "
             f"{label}. In-game settings stored there (video, sound, "
-            "keybinds) revert to that snapshot.\n\n"
+            "graphics CVars, camera, etc.) revert to that snapshot.\n\n"
             "The current file is saved into the WTF/Backup folder first.",
             buttons=[
                 ("Cancel", DialogResult.Cancel),
