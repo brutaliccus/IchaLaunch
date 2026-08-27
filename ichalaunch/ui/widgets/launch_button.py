@@ -6,7 +6,15 @@ import math
 from pathlib import Path
 
 from PySide6.QtCore import QRect, Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPainterPath, QPixmap
+from PySide6.QtGui import (
+    QColor,
+    QFont,
+    QFontMetrics,
+    QImage,
+    QPainter,
+    QPainterPath,
+    QPixmap,
+)
 from PySide6.QtWidgets import QPushButton, QSizePolicy
 
 from ichalaunch.core.paths import theme_file
@@ -222,7 +230,7 @@ class LaunchButton(QPushButton):
         font = QFont(self.font())
         font.setFamily("Segoe UI")
         font.setBold(True)
-        # Longer labels (e.g. REGISTER HERE) need a smaller size to fit chrome.
+        # Longer labels need a smaller size; compact Home links also shrink to width.
         n = len(text.replace(" ", ""))
         if n >= 12:
             px, spacing = 13, 1.0
@@ -230,8 +238,35 @@ class LaunchButton(QPushButton):
             px, spacing = 16, 1.6
         else:
             px, spacing = 20, 2.5
-        font.setPixelSize(px)
-        font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, spacing)
+        inner_w = max(8, rect.width() - 18)
+        words = text.split()
+        start_px, start_spacing = px, spacing
+        wrap = False
+
+        def _apply(size: int, track: float) -> None:
+            font.setPixelSize(size)
+            font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, track)
+
+        def _fits(sample: str, size: int, track: float) -> bool:
+            _apply(size, track)
+            return QFontMetrics(font).horizontalAdvance(sample) <= inner_w
+
+        while spacing > 0 and not _fits(text, px, spacing):
+            spacing = max(0.0, spacing - 0.25)
+        while px > 12 and not _fits(text, px, spacing):
+            px -= 1
+        if not _fits(text, px, spacing) and len(words) > 1:
+            wrap = True
+            px, spacing = start_px, start_spacing
+            longest = max(words, key=len)
+            while spacing > 0 and not _fits(longest, px, spacing):
+                spacing = max(0.0, spacing - 0.25)
+            while px >= 10 and not _fits(longest, px, spacing):
+                px -= 1
+        elif not _fits(text, px, spacing):
+            while px >= 8 and not _fits(text, px, spacing):
+                px -= 1
+        _apply(px, spacing)
         painter.setFont(font)
 
         if not self.isEnabled():
@@ -244,10 +279,14 @@ class LaunchButton(QPushButton):
         # Soft text shadow for recessed metal look
         text_rect = rect.adjusted(0, 0 if not self.isDown() else 1, 0, 0)
         shadow = QColor(0, 0, 0, 160)
+        flags = Qt.AlignmentFlag.AlignCenter
+        draw = "\n".join(words) if wrap else text
+        if wrap:
+            flags |= Qt.TextFlag.TextWordWrap
         painter.setPen(shadow)
-        painter.drawText(text_rect.adjusted(1, 2, 1, 2), Qt.AlignmentFlag.AlignCenter, text)
+        painter.drawText(text_rect.adjusted(1, 2, 1, 2), flags, draw)
         painter.setPen(color)
-        painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, text)
+        painter.drawText(text_rect, flags, draw)
 
     def enterEvent(self, event) -> None:
         super().enterEvent(event)
