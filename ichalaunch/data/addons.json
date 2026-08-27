@@ -19080,5 +19080,12 @@
     "category": "General",
     "source": "community",
     "folder": "AddOnOrganizer"
+  },
+  {
+    "name": "AddOnOrganizer",
+    "repo": "https://github.com/Monteo/AddOnOrganizer",
+    "category": "General",
+    "source": "community",
+    "folder": "AddOnOrganizer"
   }
 ]
