@@ -712,6 +712,29 @@ def child_launch_env(base: dict[str, str] | None = None) -> dict[str, str]:
     return env
 
 
+def run_windows_exe(argv: list[str], cwd: Path) -> None:
+    """Run a Windows command line to completion, raising unless it exits 0.
+
+    The blocking sibling of launch_exe, and it dispatches the same way. On
+    Windows the executable runs directly. Everywhere else argv[0] is a PE that
+    the kernel refuses to exec (ENOEXEC unless the user happens to have a
+    binfmt_misc wine registration), so it goes through Proton, which is the
+    same route the game itself takes.
+
+    Used for the tools the launcher drives rather than hands to the player, the
+    Vanilla Tweaks patcher among them. Those have to be waited for: the caller
+    reads their output the moment they return.
+    """
+    if not argv:
+        raise ValueError("run_windows_exe needs a command")
+    if sys.platform == "win32":
+        subprocess.run(argv, cwd=str(cwd), check=True)
+        return
+    from ichalaunch.game.proton import run_windows_exe as _run_under_proton
+
+    _run_under_proton(Path(argv[0]), cwd, argv[1:])
+
+
 def launch_exe(path: Path, cwd: Path | None = None) -> subprocess.Popen:
     if not path.exists():
         raise FileNotFoundError(str(path))
