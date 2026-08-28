@@ -458,13 +458,22 @@ class TalentFrameBackground(QWidget):
             nudge_x = int(slide.get("nudge_x") or 0)
             nudge_y = int(slide.get("nudge_y") or 0)
             if str(slide.get("fit") or "") == "width":
-                # Full width, no L/R crop — honor unusual AR; pin to banner.
+                # Full width, no L/R crop — honor unusual AR; centre the rest.
+                #
+                # A width-fit slide is wider in aspect than the brand rect, so
+                # scaling it to the width always leaves a vertical remainder:
+                # the featured 2:1 slide paints 542 tall in a 745 tall column.
+                # Pinning to the banner banked all 203px of that above the
+                # frame, which reads as a picture that has slipped down its
+                # wall. Splitting the remainder is the only option that does
+                # not crop: cover fills the rect but takes ~14% off each side,
+                # and the featured slide carries its caption out there.
                 dest_w = max(1, w - shrink_w) if shrink_w else w
                 scaled = src.scaledToWidth(
                     dest_w, Qt.TransformationMode.SmoothTransformation
                 )
                 x = (w - scaled.width()) // 2
-                y = h - scaled.height()
+                y = max(0, (h - scaled.height()) // 2)
             else:
                 # Cover the brand rect (center crop). Widget itself is
                 # bottom-tucked to the nav banner.
