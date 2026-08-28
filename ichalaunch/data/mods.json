@@ -515,7 +515,7 @@
     "id": "hd_patch_e",
     "name": "Reforged HD — Patch-E (Environment)",
     "category": "HD Graphics",
-    "description": "Environment textures and world visuals. Install with Patch-B and Patch-D. Includes Fog Pushback in the HD MPQ.",
+    "description": "Environment textures and world visuals. Install with Patch-B and Patch-D. Includes Fog Pushback in the HD MPQ; enable Fog Pushback (Patch-Y) for the better standalone patch.",
     "info_url": "https://projectreforged.github.io/vanilla/downloads/turtle/",
     "detect": {
       "data_mpq": [
@@ -905,9 +905,9 @@
   },
   {
     "id": "fog_pushback",
-    "name": "Fog Pushback",
+    "name": "Fog Pushback (Patch-Y)",
     "category": "Visual / QoL",
-    "description": "Pushes fog back for longer view distance (Data/patch-Y.mpq). Pair with Vanilla Tweaks farclip. Already included in Reforged Patch-E (HD MPQ); unused while Patch-E is on.",
+    "description": "Pushes fog back for longer view distance (Data/patch-Y.mpq). Pair with Vanilla Tweaks farclip. Loads after Patch-E, so this standalone patch overrides the fog bundled in Reforged Patch-E.",
     "detect": {
       "data_mpq": [
         "patch-Y.mpq",

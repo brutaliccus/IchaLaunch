@@ -2009,8 +2009,8 @@ class MainWindow(QMainWindow):
         max_h = max(480, avail.height() - 24)
         self.setMaximumSize(max_w, max_h)
         if initial or not self._fitted:
-            w = min(1080, max_w)
-            h = min(720, max_h)
+            w = min(1280, max_w)
+            h = min(853, max_h)
             self.resize(w, h)
             frame = self.frameGeometry()
             frame.moveCenter(avail.center())

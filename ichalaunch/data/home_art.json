@@ -1,0 +1,136 @@
+{
+  "slides": [
+    {
+      "id": "zaeya_first_60",
+      "image": "zaeya_first_60.jpg",
+      "url": "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/ichalaunch/ui/theme/zaeya_first_60.jpg",
+      "frame": "zaeya_first_60_frame.png",
+      "frame_url": "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/ichalaunch/ui/theme/zaeya_first_60_frame.png",
+      "hold": 2.0,
+      "fit": "width",
+      "nudge_x": -5,
+      "nudge_y": -5,
+      "shrink_w": 10
+    },
+    {
+      "id": "art_adventurers",
+      "image": "art_adventurers.jpg"
+    },
+    {
+      "id": "art_crescent_grove_no_logo",
+      "image": "art_crescent_grove_no_logo.jpg"
+    },
+    {
+      "id": "art_giln",
+      "image": "art_giln.jpg"
+    },
+    {
+      "id": "balor_illustration",
+      "image": "balor_illustration.jpg"
+    },
+    {
+      "id": "deep_in_the_green",
+      "image": "deep_in_the_green.jpg"
+    },
+    {
+      "id": "development_basement_artwork",
+      "image": "development_basement_artwork.jpg"
+    },
+    {
+      "id": "druid_tier_illustration_4k",
+      "image": "druid_tier_illustration_4k.jpg"
+    },
+    {
+      "id": "gm_artwork_2",
+      "image": "gm_artwork_2.jpg"
+    },
+    {
+      "id": "gnarlmoon2",
+      "image": "gnarlmoon2.jpg"
+    },
+    {
+      "id": "grim_illustration",
+      "image": "grim_illustration.jpg"
+    },
+    {
+      "id": "grim_reaches_illustration",
+      "image": "grim_reaches_illustration.jpg"
+    },
+    {
+      "id": "ironforge_music",
+      "image": "ironforge_music.jpg"
+    },
+    {
+      "id": "karazhan",
+      "image": "karazhan.jpg"
+    },
+    {
+      "id": "kruul_artwork",
+      "image": "kruul_artwork.jpg"
+    },
+    {
+      "id": "lava_boss_illustration",
+      "image": "lava_boss_illustration.jpg"
+    },
+    {
+      "id": "lvl1_lunatic_illustration",
+      "image": "lvl1_lunatic_illustration.jpg"
+    },
+    {
+      "id": "moonwhisper_coast",
+      "image": "moonwhisper_coast.jpg"
+    },
+    {
+      "id": "northwind_art",
+      "image": "northwind_art.jpg"
+    },
+    {
+      "id": "northwind_art_2",
+      "image": "northwind_art_2.jpg"
+    },
+    {
+      "id": "paladin_lock",
+      "image": "paladin_lock.jpg"
+    },
+    {
+      "id": "priest_t35",
+      "image": "priest_t35.jpg"
+    },
+    {
+      "id": "rogue_mage",
+      "image": "rogue_mage.jpg"
+    },
+    {
+      "id": "shaman_warrior_t35",
+      "image": "shaman_warrior_t35.jpg"
+    },
+    {
+      "id": "sorrowguard_keep",
+      "image": "sorrowguard_keep.jpg"
+    },
+    {
+      "id": "the_thalassian_council",
+      "image": "the_thalassian_council.jpg"
+    },
+    {
+      "id": "timbermaw_entrance",
+      "image": "timbermaw_entrance.jpg"
+    },
+    {
+      "id": "turtle_wow_anniversary_illustration",
+      "image": "turtle_wow_anniversary_illustration.jpg"
+    },
+    {
+      "id": "undead_hunter_tier35",
+      "image": "undead_hunter_tier35.jpg"
+    },
+    {
+      "id": "windhorn_canyon",
+      "image": "windhorn_canyon.jpg"
+    },
+    {
+      "id": "zulaman_war",
+      "image": "zulaman_war.jpg"
+    }
+  ]
+}

@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
 import math
 import os
 import re
@@ -54,6 +55,8 @@ from ichalaunch.ui.widgets.glue_panel_button import (
 from ichalaunch.ui.widgets.theme_checkbox import ThemeCheckBox
 from ichalaunch.ui.widgets.update_alert_badge import UpdateAlertBadge
 
+log = logging.getLogger("ichalaunch")
+
 _OPTIONS_COG = "UI-OptionsButton.PNG"
 _OPTIONS_COG_EXTERNAL = Path(r"F:\wow-ui-textures\Buttons") / _OPTIONS_COG
 _OPTIONS_COG_PX = 20
@@ -67,6 +70,8 @@ _PASS_ICON_PX = _OPTIONS_COG_PX  # match settings cog / reinstall icon size
 _REFRESH_BTN = "UI-RefreshButton.PNG"
 _REFRESH_EXTERNAL = Path(r"F:\wow-ui-textures\Buttons") / _REFRESH_BTN
 _REFRESH_CACHE: QPixmap | None = None
+_FOLDER_BTN = "folder.png"
+_FOLDER_CACHE: QPixmap | None = None
 _PASS_CACHE: dict[str, QPixmap] = {}
 # Nudge reinstall icon down so its visual bottom matches the delete/pass icon.
 # Refresh art is 1px shorter at the bottom than Pass; +1 aligns bottoms (was +3, overshot).
@@ -268,6 +273,83 @@ class RefreshReinstallButton(QPushButton):
             + _REINSTALL_ICON_Y_NUDGE
             + (1 if self.isDown() else 0)
         )
+        painter.drawPixmap(x, y, icon)
+        painter.end()
+
+
+def _folder_icon_pixmap() -> QPixmap:
+    """Bundled folder glyph, scaled to the same size as Reinstall / Remove."""
+    global _FOLDER_CACHE
+    if _FOLDER_CACHE is not None:
+        return _FOLDER_CACHE
+    path = theme_file(_FOLDER_BTN)
+    pm = QPixmap()
+    if path.is_file():
+        src = QPixmap(str(path))
+        if not src.isNull():
+            pm = src.scaled(
+                _OPTIONS_COG_PX,
+                _OPTIONS_COG_PX,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+    _FOLDER_CACHE = pm
+    return pm
+
+
+class FolderOpenButton(QPushButton):
+    """Addons-row control that opens the installed addon directory."""
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setObjectName("FolderOpenButton")
+        apply_open_hand(self)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.setFixedSize(GLUE_ROW_MENU_W, GLUE_ROW_H)
+        self.setFlat(True)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+        self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+        self.setStyleSheet(
+            "QPushButton#FolderOpenButton {"
+            "  background: transparent;"
+            "  border: none;"
+            "  padding: 0;"
+            "  margin: 0;"
+            "  color: transparent;"
+            "}"
+        )
+        self.setToolTip("Open addon folder")
+        self.setAccessibleName("Open addon folder")
+        self._icon = _folder_icon_pixmap()
+
+    def enterEvent(self, event) -> None:  # noqa: N802
+        super().enterEvent(event)
+        self.update()
+
+    def leaveEvent(self, event) -> None:  # noqa: N802
+        super().leaveEvent(event)
+        self.update()
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        del event
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        rect = self.rect()
+        icon = self._icon
+        if icon.isNull():
+            painter.setPen(Qt.GlobalColor.yellow)
+            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "[]")
+            painter.end()
+            return
+        if self.isDown():
+            painter.setOpacity(0.75)
+        elif self.underMouse():
+            painter.setOpacity(1.0)
+        else:
+            painter.setOpacity(0.92)
+        x = rect.center().x() - icon.width() // 2
+        y = rect.center().y() - icon.height() // 2 + (1 if self.isDown() else 0)
         painter.drawPixmap(x, y, icon)
         painter.end()
 
@@ -1389,6 +1471,31 @@ def open_url_in_browser(url: str) -> bool:
     return bool(QDesktopServices.openUrl(QUrl(text)))
 
 
+def open_local_path(path: Path | str) -> bool:
+    """Open a local file or folder in the OS file manager (Explorer / xdg-open / Finder)."""
+    try:
+        target = Path(path)
+    except (TypeError, ValueError):
+        return False
+    if not target.exists():
+        return False
+    resolved = str(target.resolve())
+    if QDesktopServices.openUrl(QUrl.fromLocalFile(resolved)):
+        return True
+    if sys.platform == "win32":
+        try:
+            os.startfile(resolved)  # type: ignore[attr-defined]
+            return True
+        except OSError:
+            return False
+    opener = "open" if sys.platform == "darwin" else "xdg-open"
+    try:
+        subprocess.Popen([opener, resolved], close_fds=True)
+        return True
+    except OSError:
+        return False
+
+
 # https://discord.com/users/<id>, discordapp.com, or discord://-/users/<id>
 _DISCORD_USER_RE = re.compile(
     r"(?:https?://(?:www\.)?discord(?:app)?\.com/users/|discord://-/users/)(\d+)",
@@ -2297,6 +2404,7 @@ class AddonRow(QWidget):
         self._update_available = status.startswith("Update")
         self._status_text = status
         self.open_git_btn: OpenGitButton | None = None
+        self.folder_btn: FolderOpenButton | None = None
         self.download_count: AddonDownloadCount | None = None
         self.settings_btn: OptionsCogButton | None = None
         self.load_cb: ThemeCheckBox | None = None
@@ -2387,12 +2495,15 @@ class AddonRow(QWidget):
             self._update_btn_widget.update_clicked.connect(self._on_update_clicked)
             self._update_btn_widget.setVisible(show_update)
             layout.addWidget(self._update_btn_widget, 0, Qt.AlignmentFlag.AlignVCenter)
+            self.folder_btn = FolderOpenButton(self)
+            self.folder_btn.clicked.connect(self._on_open_folder)
             self.reinstall_btn: RefreshReinstallButton | None = None
             action_host = QWidget(self)
             action_host.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             action_l = QHBoxLayout(action_host)
             action_l.setContentsMargins(0, 0, 0, 0)
             action_l.setSpacing(_ADDON_ROW_ACTION_GAP)
+            action_l.addWidget(self.folder_btn)
             if git_url or entry.get("source") == "github" or entry.get("tag"):
                 btn_ri = RefreshReinstallButton(self)
                 btn_ri.setToolTip(
@@ -2421,6 +2532,7 @@ class AddonRow(QWidget):
         else:
             self._update_btn_widget = None
             self._update_btn = None
+            self.folder_btn = None
             self.reinstall_btn = None
             btn = AddonRowInstallButton(self)
             btn.install_clicked.connect(lambda: self.install_clicked.emit(entry))
@@ -2451,6 +2563,17 @@ class AddonRow(QWidget):
 
     def _on_update_clicked(self) -> None:
         self.update_clicked.emit(self.entry)
+
+    def _on_open_folder(self) -> None:
+        from ichalaunch.addons.loadstate import addon_disk_path
+
+        folder = str(self.entry.get("folder") or self.entry.get("name") or "").strip()
+        dest = addon_disk_path(folder) if folder else None
+        if dest is None or not dest.is_dir():
+            log.warning("Addon folder missing for %s", folder or "?")
+            return
+        if not open_local_path(dest):
+            log.warning("Could not open addon folder: %s", dest)
 
     def _refresh_never_update_ui(self) -> None:
         show_update = self._update_available and not self._never_update

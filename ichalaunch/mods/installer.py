@@ -395,7 +395,8 @@ _HD_PATCH_PREFIX = "hd_patch_"
 _HD_PATCH_E_ID = "hd_patch_e"
 _FOG_PUSHBACK_ID = "fog_pushback"
 # Catalog ``includes`` that already ship inside the parent HD MPQ — do not
-# enable the standalone companion (Patch-E bundles fog; patch-Y stays off).
+# auto-enable the standalone companion. Patch-E bundles fog; patch-Y is
+# optional and applied only when the user enables Fog Pushback.
 _BUNDLED_IN_PARENT_MPQ: frozenset[str] = frozenset({_FOG_PUSHBACK_ID})
 _VANILLA_HELPERS_ID = "vanilla_helpers"
 _VANILLAFIXES_ID = "vanillafixes"
@@ -674,8 +675,6 @@ def reconcile_exclusive_desired_mods(
                     continue
             winner = _pick_exclusive_detect_winner(a, b, out)
             out[b if winner == a else a] = False
-    if out.get(_HD_PATCH_E_ID):
-        out[_FOG_PUSHBACK_ID] = False
     return out
 
 
@@ -891,9 +890,6 @@ def resolve_mod_toggle(mod_id: str, enabled: bool) -> dict[str, bool]:
         ):
             return {}
         disable_branch(mod_id, set())
-
-    if effective(_HD_PATCH_E_ID):
-        changes[_FOG_PUSHBACK_ID] = False
 
     return {
         mid: state
@@ -1431,6 +1427,15 @@ def _order_d3d9_layers(ordered: list[str]) -> list[str]:
     return rest + layers
 
 
+def _order_fog_after_patch_e(ordered: list[str]) -> list[str]:
+    """Install standalone Fog Pushback (patch-Y) after Patch-E when both apply."""
+    if _HD_PATCH_E_ID not in ordered or _FOG_PUSHBACK_ID not in ordered:
+        return ordered
+    out = [mid for mid in ordered if mid != _FOG_PUSHBACK_ID]
+    out.insert(out.index(_HD_PATCH_E_ID) + 1, _FOG_PUSHBACK_ID)
+    return out
+
+
 def _latest_backup_for(game: Path, label: str) -> Path | None:
     suffix = f"_{label}"
     for root in list_backups(game):
@@ -1907,7 +1912,7 @@ def plan_changes(desired: dict[str, bool] | None = None) -> list[dict[str, str]]
         ordered = [
             mid for mid in ordered if mid not in _TWEAKS_IDS or mid == keep_tweaks
         ]
-    ordered = _order_d3d9_layers(ordered)
+    ordered = _order_fog_after_patch_e(_order_d3d9_layers(ordered))
 
     if _any_hd_patch_desired(desired) and not _effective_mod_installed(
         _VANILLA_HELPERS_ID, actual

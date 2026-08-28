@@ -1696,6 +1696,13 @@ class AddonsPage(QWidget):
         if entry and entry.get("repo"):
             self.install_requested.emit(entry)
 
+    def _scroll_available_to_top(self) -> None:
+        """Jump the available catalog list to the top after its visible page changes."""
+        try:
+            self.list.verticalScrollBar().setValue(0)
+        except RuntimeError:
+            pass
+
     def _render_available_page(self, *, light: bool = False, page_turn: bool = False) -> None:
         """Mount at most PAGE_SIZE available rows.
 
@@ -1759,6 +1766,9 @@ class AddonsPage(QWidget):
             self.next_btn.setEnabled(self._page_index < max_page)
         except RuntimeError:
             pass
+        self._scroll_available_to_top()
+        # Hide/show + item mount may apply the old scrollbar value after layout.
+        QTimer.singleShot(0, self._scroll_available_to_top)
 
     def _clear_avail_page_light(self) -> None:
         """Remove on-screen rows item-by-item — avoid QListWidget.clear()."""

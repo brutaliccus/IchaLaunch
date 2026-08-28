@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
+from typing import Any
 
 from PySide6.QtCore import (
     Property,
     QEasingCurve,
+    QMetaObject,
     QParallelAnimationGroup,
     QPropertyAnimation,
     QRect,
     Qt,
     QTimer,
     Signal,
+    Slot,
 )
 from PySide6.QtGui import (
     QColor,
@@ -24,25 +28,21 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QWidget
 
+from ichalaunch.core.logging_setup import log
 from ichalaunch.core.paths import theme_file
+from ichalaunch.ui.home_art import (
+    fetch_missing_images,
+    load_home_art,
+    normalize_slide,
+    refresh_home_art,
+    resolve_image_path,
+    resolved_slides,
+)
 
 # Slow, tasteful rotation — hold then gentle crossfade (~2× prior pace).
 _HOLD_MS = 11_000
 _FADE_MS = 2_800
 _BASE_OPACITY = 0.82
-# Featured Home slide (theme root). First in rotation; 2× hold; fit-width.
-_FEATURED_ART = "zaeya_first_60.jpg"
-# Decorative border overlay for the featured slide only (transparent center).
-_FEATURED_FRAME = "zaeya_first_60_frame.png"
-_HOLD_MULT: dict[str, float] = {_FEATURED_ART: 2.0}
-_FIT_WIDTH: frozenset[str] = frozenset({_FEATURED_ART})
-_FRAME_OVERLAY: dict[str, str] = {_FEATURED_ART: _FEATURED_FRAME}
-# Keep the featured frame on-screen (photo + overlay share this dest nudge).
-_FEATURED_NUDGE_X = -5
-_FEATURED_NUDGE_Y = -5
-# Fit-width dest minus this after the -5x nudge so L/R frame stays on-canvas.
-# 2×|nudge| is the minimum that keeps the shifted center (x ends at 0).
-_FEATURED_SHRINK_W = 10
 # Soft L/R + top falloff. Bottom stays hard so art still sits flush on the
 # diamond strip (any bottom feather reads as a mid-page gap).
 _EDGE_FEATHER = 0.04
@@ -110,7 +110,14 @@ def _list_dir_images(folder: Path) -> list[str]:
     )
 
 
+def _plain_slide(name: str) -> dict[str, Any] | None:
+    return normalize_slide({"id": Path(name).stem, "image": name})
+
+
 def _resolve_path(name: str) -> Path | None:
+    cached_or_bundled = resolve_image_path(name)
+    if cached_or_bundled is not None:
+        return cached_or_bundled
     root = theme_file(name)
     if root.is_file():
         return root
@@ -124,8 +131,8 @@ def _resolve_path(name: str) -> Path | None:
     return None
 
 
-def _hold_ms_for(name: str) -> int:
-    return max(1, int(_HOLD_MS * _HOLD_MULT.get(name, 1.0)))
+def _hold_ms_for(slide: dict[str, Any]) -> int:
+    return max(1, int(_HOLD_MS * float(slide.get("hold") or 1.0)))
 
 
 def _load_raw(name: str) -> QPixmap:
@@ -254,7 +261,7 @@ class TalentFrameBackground(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setStyleSheet("background: transparent;")
 
-        self._paths: list[str] = []
+        self._slides: list[dict[str, Any]] = []
         self._cache: dict[str, QPixmap] = {}
         self._overlay_cache: dict[str, QPixmap] = {}
         self._index = 0
@@ -265,27 +272,76 @@ class TalentFrameBackground(QWidget):
         self._mask_w = 0
         self._mask_h = 0
         self._fade: QParallelAnimationGroup | None = None
+        self._refresh_started = False
 
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.timeout.connect(self._advance)
-
         self._discover()
+        QTimer.singleShot(0, self._kick_home_art_refresh)
 
     def _discover(self) -> None:
-        # Prefer official RavenCraft gallery (https://ravencraft.io/artworks).
-        names = _list_dir_images(theme_file(_ART_DIR))
-        if not names:
-            names = [n for n in TALENT_BG_NAMES if _resolve_path(n) is not None]
-        pinned = [
-            n for n in (_FEATURED_ART,) if _resolve_path(n) is not None
-        ]
-        pinned_l = {n.lower() for n in pinned}
-        rest = [n for n in names if n.lower() not in pinned_l]
-        self._paths = pinned + rest
+        # Local manifest only (memory / appdata / bundled). Network is later.
+        slides = list(resolved_slides(load_home_art()))
+        has_rest = any(
+            str(s.get("fit") or "") != "width" and not s.get("frame") for s in slides
+        )
+        # Empty official gallery → same talent-frame fallback as before.
+        if not has_rest:
+            names = _list_dir_images(theme_file(_ART_DIR))
+            if not names:
+                names = [n for n in TALENT_BG_NAMES if _resolve_path(n) is not None]
+            used = {str(s.get("image") or "").lower() for s in slides}
+            for name in names:
+                if name.lower() in used:
+                    continue
+                slide = _plain_slide(name)
+                if slide is not None and _resolve_path(name) is not None:
+                    slides.append(slide)
+        self._slides = slides
+
+    def _kick_home_art_refresh(self) -> None:
+        if self._refresh_started:
+            return
+        self._refresh_started = True
+
+        widget = self
+
+        def work() -> None:
+            try:
+                refresh_home_art()
+                fetch_missing_images()
+            except Exception as exc:  # noqa: BLE001
+                log.debug("Home art refresh skipped: %s", exc)
+            QMetaObject.invokeMethod(
+                widget, "_on_art_ready", Qt.ConnectionType.QueuedConnection
+            )
+
+        threading.Thread(
+            target=work, daemon=True, name="home-art-refresh"
+        ).start()
+
+    @Slot()
+    def _on_art_ready(self) -> None:
+        prev = [str(s.get("id") or "") for s in self._slides]
+        self._discover()
+        if [str(s.get("id") or "") for s in self._slides] == prev:
+            return
+        self._cache.clear()
+        self._overlay_cache.clear()
+        if self._index >= len(self._slides):
+            self._index = 0
+        self.update()
+        self.frame_changed.emit()
+
+    def _slide_at(self, index: int) -> dict[str, Any] | None:
+        if 0 <= index < len(self._slides):
+            return self._slides[index]
+        return None
 
     def _name_at(self, index: int) -> str:
-        return self._paths[index] if self._paths else ""
+        slide = self._slide_at(index)
+        return str(slide.get("image") or "") if slide else ""
 
     def _pixmap(self, name: str) -> QPixmap:
         cached = self._cache.get(name)
@@ -296,9 +352,8 @@ class TalentFrameBackground(QWidget):
             self._cache[name] = pm
         return pm
 
-    def _frame_overlay(self, name: str) -> QPixmap:
-        """Decorative border for the featured slide only; empty for all others."""
-        overlay_name = _FRAME_OVERLAY.get(name)
+    def _frame_overlay(self, slide: dict[str, Any]) -> QPixmap:
+        overlay_name = str(slide.get("frame") or "")
         if not overlay_name:
             return QPixmap()
         cached = self._overlay_cache.get(overlay_name)
@@ -311,9 +366,10 @@ class TalentFrameBackground(QWidget):
 
     def source_size(self) -> tuple[int, int]:
         """Native (src_w, src_h) after transparent-pad trim (widescreen frame)."""
-        if not self._paths:
+        slide = self._slide_at(self._index)
+        if slide is None:
             return (1, 1)
-        pm = self._pixmap(self._paths[self._index])
+        pm = self._pixmap(str(slide.get("image") or ""))
         if pm.isNull() or pm.width() <= 0 or pm.height() <= 0:
             return (1, 1)
         return (pm.width(), pm.height())
@@ -345,7 +401,7 @@ class TalentFrameBackground(QWidget):
         """Absolute frame in parent coords (caller sizes from source aspect)."""
         w = max(0, int(w))
         h = max(0, int(h))
-        if w <= 0 or h <= 0 or not self._paths:
+        if w <= 0 or h <= 0 or not self._slides:
             self.hide()
             return
         self.setGeometry(int(x), int(y), w, h)
@@ -365,18 +421,22 @@ class TalentFrameBackground(QWidget):
 
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)
-        if self._paths and not self._timer.isActive():
-            self._pixmap(self._paths[self._index])
-            if len(self._paths) > 1:
-                self._pixmap(self._paths[(self._index + 1) % len(self._paths)])
-            self._timer.start(_hold_ms_for(self._name_at(self._index)))
+        if self._slides and not self._timer.isActive():
+            first = self._slide_at(self._index)
+            if first is not None:
+                self._pixmap(str(first.get("image") or ""))
+            if len(self._slides) > 1:
+                nxt = self._slide_at((self._index + 1) % len(self._slides))
+                if nxt is not None:
+                    self._pixmap(str(nxt.get("image") or ""))
+            self._timer.start(_hold_ms_for(first or {"hold": 1.0}))
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
         self._ensure_mask(self.width(), self.height())
 
     def paintEvent(self, event) -> None:  # noqa: ANN001
-        if not self._paths:
+        if not self._slides:
             return
         w, h = self.width(), self.height()
         if w <= 0 or h <= 0:
@@ -387,17 +447,19 @@ class TalentFrameBackground(QWidget):
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
-        def _draw(name: str, opacity: float) -> None:
-            if opacity <= 0.01:
+        def _draw(slide: dict[str, Any] | None, opacity: float) -> None:
+            if slide is None or opacity <= 0.01:
                 return
+            name = str(slide.get("image") or "")
             src = self._pixmap(name)
             if src.isNull():
                 return
-            if name in _FIT_WIDTH:
+            shrink_w = int(slide.get("shrink_w") or 0)
+            nudge_x = int(slide.get("nudge_x") or 0)
+            nudge_y = int(slide.get("nudge_y") or 0)
+            if str(slide.get("fit") or "") == "width":
                 # Full width, no L/R crop — honor unusual AR; pin to banner.
-                dest_w = w
-                if name == _FEATURED_ART:
-                    dest_w = max(1, w - _FEATURED_SHRINK_W)
+                dest_w = max(1, w - shrink_w) if shrink_w else w
                 scaled = src.scaledToWidth(
                     dest_w, Qt.TransformationMode.SmoothTransformation
                 )
@@ -414,9 +476,8 @@ class TalentFrameBackground(QWidget):
                 )
                 x = (w - scaled.width()) // 2
                 y = (h - scaled.height()) // 2
-            if name == _FEATURED_ART:
-                x += _FEATURED_NUDGE_X
-                y += _FEATURED_NUDGE_Y
+            x += nudge_x
+            y += nudge_y
             layer = QPixmap(w, h)
             layer.fill(Qt.GlobalColor.transparent)
             lp = QPainter(layer)
@@ -425,7 +486,7 @@ class TalentFrameBackground(QWidget):
             if not self._mask.isNull():
                 lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
                 lp.drawPixmap(0, 0, self._mask)
-            overlay = self._frame_overlay(name)
+            overlay = self._frame_overlay(slide)
             if not overlay.isNull() and scaled.width() > 0 and scaled.height() > 0:
                 # Full-bleed border with transparent center — stretch to the
                 # painted photo dest (not the widget/letterbox).
@@ -441,20 +502,24 @@ class TalentFrameBackground(QWidget):
             painter.setOpacity(opacity)
             painter.drawPixmap(0, 0, layer)
 
-        _draw(self._paths[self._index], self._cur_opacity)
+        _draw(self._slide_at(self._index), self._cur_opacity)
         if self._nxt_opacity > 0.01:
-            _draw(self._paths[self._next_index], self._nxt_opacity)
+            _draw(self._slide_at(self._next_index), self._nxt_opacity)
         painter.end()
 
     def _advance(self) -> None:
-        if len(self._paths) < 2:
+        if len(self._slides) < 2:
             return
         if self._fade is not None and self._fade.state() == QParallelAnimationGroup.State.Running:
             return
 
-        self._next_index = (self._index + 1) % len(self._paths)
-        self._pixmap(self._paths[self._next_index])
-        self._pixmap(self._paths[(self._next_index + 1) % len(self._paths)])
+        self._next_index = (self._index + 1) % len(self._slides)
+        nxt = self._slide_at(self._next_index)
+        if nxt is not None:
+            self._pixmap(str(nxt.get("image") or ""))
+        after = self._slide_at((self._next_index + 1) % len(self._slides))
+        if after is not None:
+            self._pixmap(str(after.get("image") or ""))
 
         fade_out = QPropertyAnimation(self, b"curOpacity")
         fade_out.setDuration(_FADE_MS)
@@ -479,7 +544,8 @@ class TalentFrameBackground(QWidget):
             self._fade = None
             self.update()
             self.frame_changed.emit()
-            self._timer.start(_hold_ms_for(self._name_at(self._index)))
+            current = self._slide_at(self._index)
+            self._timer.start(_hold_ms_for(current or {"hold": 1.0}))
 
         group.finished.connect(_done)
         self._fade = group

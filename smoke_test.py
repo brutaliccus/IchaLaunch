@@ -1569,8 +1569,8 @@ def test_mod_toggle_resolution():
         s.set("user_set_mods", [])
         env = resolve_mod_toggle("hd_patch_b", True)
         assert env.get("hd_patch_d") and env.get("hd_patch_e") and env.get("vanilla_helpers")
-        # Patch-E lists Fog Pushback as an include, but fog ships in the HD MPQ —
-        # standalone patch-Y stays off (Pretty Night Sky / Epoch Water are unrelated).
+        # Patch-E lists Fog Pushback as an include, but that is the HD-MPQ copy —
+        # standalone patch-Y is not auto-enabled (Pretty Night Sky / Epoch Water too).
         assert env.get("fog_pushback") is not True
         assert env.get("pretty_night_sky") is not True
         assert env.get("epoch_water") is not True
@@ -1578,9 +1578,9 @@ def test_mod_toggle_resolution():
         assert e_only.get("fog_pushback") is not True
         assert e_only.get("pretty_night_sky") is not True
         s.set("desired_mods", {"fog_pushback": True, "vanilla_tweaks": True})
-        e_clears_fog = resolve_mod_toggle("hd_patch_e", True)
-        assert e_clears_fog.get("fog_pushback") is False
-        assert e_clears_fog.get("hd_patch_e") is True
+        e_keeps_fog = resolve_mod_toggle("hd_patch_e", True)
+        assert "fog_pushback" not in e_keeps_fog
+        assert e_keeps_fog.get("hd_patch_e") is True
         apply_mod_toggle("hd_patch_l", True)
         swap_l = resolve_mod_toggle("hd_patch_l_less_thicc", True)
         assert swap_l.get("hd_patch_l") is False and swap_l.get("hd_patch_l_less_thicc") is True
@@ -1885,6 +1885,10 @@ def test_hd_patch_e_includes_caption():
     contains = mod_contains_caption(e)
     assert "Environment" in contains
     assert "Fog Pushback" in contains
+    fog = get_mod("fog_pushback")
+    assert fog is not None
+    assert "Patch-Y" in (fog.get("name") or "")
+    assert (fog.get("destination") or "").replace("\\", "/").lower() == "data/patch-y.mpq"
     for mid in ("hd_patch_i", "hd_patch_m", "hd_patch_p"):
         mod = get_mod(mid)
         assert mod is not None, mid
@@ -1910,14 +1914,13 @@ def test_hd_patch_e_includes_caption():
     print("OK hd patch-e includes caption")
 
 
-def test_client_preset_fog_off_when_patch_e():
-    """HD AIO / Patch-E force standalone fog off; Basic+ does not enable or lock it."""
+def test_client_preset_fog_independent_of_patch_e():
+    """Presets default fog off; Patch-E does not lock or uncheck standalone Patch-Y."""
     from ichalaunch.config.settings import settings as s
     from ichalaunch.mods.client_presets import (
         PRESET_BASIC_PLUS,
         PRESET_HD_AIO,
         apply_client_preset,
-        fog_pushback_locked,
         preset_mod_ids_for_tests,
     )
     from ichalaunch.mods.installer import apply_mod_toggle
@@ -1932,37 +1935,38 @@ def test_client_preset_fog_off_when_patch_e():
         assert "fog_pushback" not in plus
         assert not s.desired_mods.get("fog_pushback")
         assert not s.desired_mods.get("hd_patch_e")
-        assert fog_pushback_locked() is False
 
         apply_mod_toggle("fog_pushback", True)
         assert s.desired_mods.get("fog_pushback") is True
         apply_client_preset(PRESET_HD_AIO)
         assert s.desired_mods.get("hd_patch_e")
         assert not s.desired_mods.get("fog_pushback")
-        assert fog_pushback_locked() is True
+
+        apply_mod_toggle("fog_pushback", True)
+        assert s.desired_mods.get("fog_pushback") is True
+        assert s.desired_mods.get("hd_patch_e")
 
         apply_client_preset(PRESET_BASIC_PLUS)
         assert not s.desired_mods.get("hd_patch_e")
         assert not s.desired_mods.get("fog_pushback")
-        assert fog_pushback_locked() is False
 
+        apply_mod_toggle("fog_pushback", True)
         apply_mod_toggle("hd_patch_e", True)
         assert s.desired_mods.get("hd_patch_e")
+        assert s.desired_mods.get("fog_pushback") is True
+        apply_mod_toggle("fog_pushback", False)
         assert not s.desired_mods.get("fog_pushback")
-        assert fog_pushback_locked() is True
-        apply_mod_toggle("fog_pushback", True)
-        assert not s.desired_mods.get("fog_pushback")
+        assert s.desired_mods.get("hd_patch_e")
         apply_mod_toggle("hd_patch_e", False)
         assert not s.desired_mods.get("hd_patch_e")
-        assert fog_pushback_locked() is False
     finally:
         for k in keys:
             s.set(k, saved[k])
-    print("OK client preset fog off when patch e")
+    print("OK client preset fog independent of patch e")
 
 
-def test_client_page_locks_fog_when_patch_e():
-    """Client Fog Pushback checkbox is greyed only while Patch-E is desired."""
+def test_client_page_fog_toggleable_with_patch_e():
+    """Client Fog Pushback (Patch-Y) stays enabled and checkable while Patch-E is on."""
     from unittest.mock import patch
 
     from PySide6.QtWidgets import QApplication
@@ -1974,11 +1978,13 @@ def test_client_page_locks_fog_when_patch_e():
         apply_client_preset,
     )
     from ichalaunch.mods.installer import get_mod
-    from ichalaunch.ui.pages.client import FOG_BUNDLED_IN_HD_E_TIP, ClientPage
+    from ichalaunch.ui.pages.client import ClientPage
     from ichalaunch.ui.widgets.common import MOD_EDIT_LOCKED_TIP
 
-    assert get_mod("fog_pushback") is not None
+    fog_mod = get_mod("fog_pushback")
+    assert fog_mod is not None
     assert get_mod("hd_patch_e") is not None
+    assert "Patch-Y" in (fog_mod.get("name") or "")
 
     app = QApplication.instance() or QApplication([])
     del app
@@ -1992,15 +1998,22 @@ def test_client_page_locks_fog_when_patch_e():
             page = ClientPage()
         fog = page.rows.get("fog_pushback")
         assert fog is not None
+        assert "Patch-Y" in fog._name_lbl.text()
         assert fog.cb.isEnabled()
         assert fog.cb.toolTip() == ""
 
         apply_client_preset(PRESET_HD_AIO)
         with patch("ichalaunch.ui.pages.client.plan_changes", return_value=[]):
             page.refresh_from_settings()
-        assert not fog.cb.isEnabled()
+        assert fog.cb.isEnabled()
         assert not fog.cb.isChecked()
-        assert fog.cb.toolTip() == FOG_BUNDLED_IN_HD_E_TIP
+        assert fog.cb.toolTip() == ""
+
+        with patch("ichalaunch.ui.pages.client.plan_changes", return_value=[]):
+            page._on_toggle("fog_pushback", True)
+        assert s.desired_mods.get("fog_pushback") is True
+        assert s.desired_mods.get("hd_patch_e")
+        assert fog.cb.isEnabled()
 
         with patch("ichalaunch.ui.pages.client.wow_exe_running", return_value=True):
             page._poll_game_edit_lock()
@@ -2008,8 +2021,8 @@ def test_client_page_locks_fog_when_patch_e():
         assert fog.cb.toolTip() == MOD_EDIT_LOCKED_TIP
         with patch("ichalaunch.ui.pages.client.wow_exe_running", return_value=False):
             page._poll_game_edit_lock()
-        assert not fog.cb.isEnabled()
-        assert fog.cb.toolTip() == FOG_BUNDLED_IN_HD_E_TIP
+        assert fog.cb.isEnabled()
+        assert fog.cb.toolTip() == ""
 
         apply_client_preset(PRESET_BASIC_PLUS)
         with patch("ichalaunch.ui.pages.client.plan_changes", return_value=[]):
@@ -2020,7 +2033,56 @@ def test_client_page_locks_fog_when_patch_e():
     finally:
         for k in keys:
             s.set(k, saved[k])
-    print("OK client page locks fog when patch e")
+    print("OK client page fog toggleable with patch e")
+
+
+def test_plan_installs_standalone_fog_with_patch_e():
+    """Apply installs standalone patch-Y even when Patch-E is also desired."""
+    import tempfile
+    from pathlib import Path
+
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import plan_changes
+
+    keys = (
+        "desired_mods",
+        "user_set_mods",
+        "installed_mods",
+        "user_mods",
+        "game_path",
+        "addons_path",
+    )
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            (game / "Data").mkdir()
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("desired_mods", {
+                "hd_patch_e": True,
+                "fog_pushback": True,
+                "vanilla_tweaks": True,
+                "vanilla_helpers": True,
+            })
+            s.set("user_set_mods", [])
+            s.set("installed_mods", {})
+            s.set("user_mods", [])
+            clear_fs_caches()
+            plan = plan_changes()
+            install_ids = [c["id"] for c in plan if c.get("action") == "install"]
+            assert "fog_pushback" in install_ids, plan
+            assert "hd_patch_e" in install_ids, plan
+            assert s.desired_mods.get("fog_pushback") is True
+            assert s.desired_mods.get("hd_patch_e") is True
+            assert install_ids.index("fog_pushback") > install_ids.index("hd_patch_e")
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK plan installs standalone fog with patch e")
 
 
 def test_hd_dxvk_catalog_and_patch_v():
@@ -6084,6 +6146,146 @@ def test_available_catalog_offline_keeps_cache():
     print("OK available catalog offline keeps cache")
 
 
+def test_home_art_allowlist_rejects_unknown_hosts():
+    from ichalaunch.ui.home_art import download_home_art_image, image_url_allowed
+
+    good_raw = (
+        "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/"
+        "ichalaunch/ui/theme/zaeya_first_60.jpg"
+    )
+    assert image_url_allowed(good_raw)
+    assert image_url_allowed("https://ravencraft.io/build/assets/art.jpg")
+    assert image_url_allowed("https://www.ravencraft.io/art.jpg")
+    assert not image_url_allowed("http://ravencraft.io/art.jpg")
+    assert not image_url_allowed("https://evil.example/art.jpg")
+    assert not image_url_allowed(
+        "https://raw.githubusercontent.com/not-us/IchaLaunch/master/x.jpg"
+    )
+    assert not image_url_allowed("https://github.com/brutaliccus/IchaLaunch/raw/x.jpg")
+    assert download_home_art_image("https://evil.example/art.jpg", "art.jpg") is None
+    print("OK home art allowlist rejects unknown hosts")
+
+
+def test_home_art_featured_field_parse():
+    from ichalaunch.ui.home_art import (
+        DEFAULT_HOME_ART_URL,
+        load_bundled_home_art,
+        normalize_slide,
+    )
+
+    assert DEFAULT_HOME_ART_URL.endswith("ichalaunch/data/home_art.json")
+    assert "raw.githubusercontent.com/brutaliccus/IchaLaunch/master/" in (
+        DEFAULT_HOME_ART_URL
+    )
+
+    slide = normalize_slide(
+        {
+            "id": "zaeya_first_60",
+            "image": "zaeya_first_60.jpg",
+            "frame": "zaeya_first_60_frame.png",
+            "hold": 2.0,
+            "fit": "width",
+            "nudge_x": -5,
+            "nudge_y": -5,
+            "shrink_w": 10,
+        }
+    )
+    assert slide is not None
+    assert slide["id"] == "zaeya_first_60"
+    assert slide["image"] == "zaeya_first_60.jpg"
+    assert slide["frame"] == "zaeya_first_60_frame.png"
+    assert slide["hold"] == 2.0
+    assert slide["fit"] == "width"
+    assert slide["nudge_x"] == -5
+    assert slide["nudge_y"] == -5
+    assert slide["shrink_w"] == 10
+    assert normalize_slide({"image": "../etc/passwd"}) is None
+    assert normalize_slide({"id": "x", "image": "ok.bmp"}) is None
+    assert normalize_slide({"id": "x", "fit": "diagonal", "image": "a.jpg"})["fit"] == (
+        "cover"
+    )
+
+    bundled = load_bundled_home_art()
+    assert bundled["slides"], "bundled home_art.json must list slides"
+    zaeya = next(s for s in bundled["slides"] if s["id"] == "zaeya_first_60")
+    assert zaeya["hold"] == 2.0
+    assert zaeya["fit"] == "width"
+    assert zaeya["frame"] == "zaeya_first_60_frame.png"
+    assert zaeya["nudge_x"] == -5
+    assert zaeya["nudge_y"] == -5
+    assert zaeya["shrink_w"] == 10
+    assert zaeya["image"] == "zaeya_first_60.jpg"
+    print("OK home art featured field parse")
+
+
+def test_home_art_fallback_remote_cache_bundled():
+    """Remote → appdata cache → bundled; failed fetch keeps stale cache."""
+    import tempfile
+    from pathlib import Path
+
+    from ichalaunch.ui import home_art as ha
+
+    remote = {
+        "slides": [
+            {
+                "id": "remote_only",
+                "image": "remote_only.jpg",
+                "hold": 1.5,
+                "fit": "width",
+            }
+        ]
+    }
+    cached = {
+        "slides": [
+            {"id": "cached_slide", "image": "cached_slide.jpg", "hold": 1.0}
+        ]
+    }
+    prev = ha._loaded
+    orig_fetch = ha.fetch_remote_home_art
+    orig_cache_path = ha.home_art_cache_path
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_file = Path(tmp) / "home_art.json"
+            ha.home_art_cache_path = lambda: cache_file
+            ha.clear_home_art_cache()
+
+            ha.fetch_remote_home_art = lambda url=None: dict(remote)
+            got = ha.refresh_home_art(force=True)
+            assert [s["id"] for s in got["slides"]] == ["remote_only"]
+            assert ha.current_home_art_source() == "remote"
+            assert cache_file.is_file()
+
+            ha.fetch_remote_home_art = lambda url=None: None
+            again = ha.refresh_home_art(force=False)
+            assert again == got
+
+            ha.clear_home_art_cache()
+            from_cache = ha.refresh_home_art(force=True)
+            assert from_cache["slides"][0]["id"] == "remote_only"
+            assert ha.current_home_art_source() == "cache"
+
+            cache_file.unlink()
+            ha.clear_home_art_cache()
+            fallback = ha.refresh_home_art(force=True)
+            assert ha.home_art_slide_count(fallback) >= 1
+            assert fallback["slides"][0]["id"] == "zaeya_first_60"
+            assert ha.current_home_art_source() == "bundled"
+
+            ha.write_home_art_file(cache_file, cached)
+            ha.clear_home_art_cache()
+            ha.fetch_remote_home_art = lambda url=None: None
+            stale = ha.refresh_home_art(force=True)
+            assert stale["slides"][0]["id"] == "cached_slide"
+            assert ha.current_home_art_source() == "cache"
+    finally:
+        ha.fetch_remote_home_art = orig_fetch
+        ha.home_art_cache_path = orig_cache_path
+        ha._loaded = prev
+        if prev is None:
+            ha.clear_home_art_cache()
+    print("OK home art fallback remote cache bundled")
+
+
 def test_release_download_count_parse():
     from ichalaunch.addons.release_downloads import parse_latest_release_download_count
 
@@ -7554,6 +7756,79 @@ def test_addon_row_reinstall_aligns_with_delete_bottom():
     )
     row.close()
     print("OK addon row reinstall art bottom aligns with delete circle")
+
+
+def test_addon_row_folder_button():
+    """Installed rows show a folder glyph left of Reinstall; catalog rows do not."""
+    from pathlib import Path
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication, QHBoxLayout
+
+    from ichalaunch.core.paths import theme_file
+    from ichalaunch.ui.widgets.common import (
+        AddonRow,
+        FolderOpenButton,
+        RefreshReinstallButton,
+        _folder_icon_pixmap,
+        open_local_path,
+    )
+    from ichalaunch.ui.widgets.glue_panel_button import GLUE_ROW_H, GLUE_ROW_MENU_W
+
+    app = QApplication.instance() or QApplication([])
+    assert theme_file("folder.png").is_file()
+    icon = _folder_icon_pixmap()
+    assert not icon.isNull()
+    assert icon.width() <= 20
+    assert icon.height() <= 20
+
+    entry = {
+        "name": "pfUI",
+        "folder": "pfUI",
+        "repo": "https://github.com/shagu/pfUI",
+        "repository": "shagu/pfUI",
+        "source": "github",
+    }
+    installed = AddonRow(entry, status="Installed")
+    installed.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    installed.resize(900, 64)
+    installed.show()
+    assert isinstance(installed.folder_btn, FolderOpenButton)
+    assert installed.folder_btn.toolTip() == "Open addon folder"
+    assert installed.folder_btn.width() == GLUE_ROW_MENU_W
+    assert installed.folder_btn.height() == GLUE_ROW_H
+    assert isinstance(installed.reinstall_btn, RefreshReinstallButton)
+    host = installed.reinstall_btn.parentWidget()
+    assert host is not None
+    lay = host.layout()
+    assert isinstance(lay, QHBoxLayout)
+    widgets = [lay.itemAt(i).widget() for i in range(lay.count())]
+    assert widgets[0] is installed.folder_btn
+    assert widgets[1] is installed.reinstall_btn
+
+    avail = AddonRow(entry, status="available")
+    avail.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    avail.show()
+    assert avail.folder_btn is None
+    assert avail.findChild(FolderOpenButton) is None
+
+    from ichalaunch.addons import loadstate as loadstate_mod
+
+    orig_disk = loadstate_mod.addon_disk_path
+
+    def _missing(_folder, **_kwargs):
+        return None
+
+    loadstate_mod.addon_disk_path = _missing
+    try:
+        installed._on_open_folder()
+    finally:
+        loadstate_mod.addon_disk_path = orig_disk
+    assert open_local_path(Path("Z:/definitely-not-an-addon-folder")) is False
+
+    installed.close()
+    avail.close()
+    print("OK addon row folder button left of Reinstall")
 
 
 def test_spellbook_page_buttons_use_wow_art():
@@ -11637,12 +11912,21 @@ def test_addons_available_pagination_after_reveal():
         assert first is not None
         assert not first.testAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
 
+        page.resize(900, 420)
+        page.list.setFixedHeight(200)
+        for _ in range(8):
+            app.processEvents()
+        bar = page.list.verticalScrollBar()
+        bar.setValue(bar.maximum())
+        assert bar.value() > 0
+
         page._page(1)
         for _ in range(20):
             app.processEvents()
 
         assert page._page_index == 1
         assert page.list.count() == 7
+        assert page.list.verticalScrollBar().value() == 0
         row = page.list.itemWidget(page.list.item(0))
         assert row is not None
         assert not row.testAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
@@ -11652,11 +11936,14 @@ def test_addons_available_pagination_after_reveal():
             app.processEvents()
         assert page._page_index == 1  # only 2 pages
 
+        page.list.verticalScrollBar().setValue(page.list.verticalScrollBar().maximum())
+        assert page.list.verticalScrollBar().value() > 0
         page._page(-1)
         for _ in range(20):
             app.processEvents()
         assert page._page_index == 0
         assert page.list.count() == PAGE_SIZE
+        assert page.list.verticalScrollBar().value() == 0
         page._cancel_all_git_probes()
         for _ in range(100):
             app.processEvents()
@@ -14915,9 +15202,10 @@ def _run_smoke_tests():
     test_client_preset_manual_toggle_custom()
     test_client_preset_tweaks_cog_not_custom()
     test_client_preset_launch_settings_not_custom()
-    test_client_preset_fog_off_when_patch_e()
+    test_client_preset_fog_independent_of_patch_e()
     test_hd_patch_e_includes_caption()
-    test_client_page_locks_fog_when_patch_e()
+    test_client_page_fog_toggleable_with_patch_e()
+    test_plan_installs_standalone_fog_with_patch_e()
     test_hd_dxvk_catalog_and_patch_v()
     test_hd_dxvk_disable_restores_vf_layer()
     test_dxvk_layers_detect_dll_not_conf_comment()
@@ -14983,6 +15271,9 @@ def _run_smoke_tests():
     test_update_to_tip_clears_stored_version_pin()
     test_available_catalog_remote_refresh_and_merge()
     test_available_catalog_offline_keeps_cache()
+    test_home_art_allowlist_rejects_unknown_hosts()
+    test_home_art_featured_field_parse()
+    test_home_art_fallback_remote_cache_bundled()
     test_release_download_count_parse()
     test_release_download_count_format()
     test_release_download_fetch_queue_prefers_missing_then_oldest()
@@ -15118,6 +15409,7 @@ def _run_smoke_tests():
     test_pass_remove_uses_wow_art()
     test_refresh_reinstall_uses_wow_art()
     test_addon_row_reinstall_aligns_with_delete_bottom()
+    test_addon_row_folder_button()
     test_spellbook_page_buttons_use_wow_art()
     test_contributor_wow_name_tooltip()
     test_floor_lighting_overlay()
