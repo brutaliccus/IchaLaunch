@@ -197,6 +197,7 @@ class HomePage(QWidget):
         # and when the manifest reloads with a different slide count.
         self.talent_bg.turn_started.connect(self._sync_gallery_dots)
         self.talent_bg.frame_changed.connect(self._sync_gallery_dots)
+        self.art_dots.dot_clicked.connect(self.talent_bg.go_to)
 
         self.logo = QLabel(self)
         self.logo.setAlignment(Qt.AlignmentFlag.AlignCenter)

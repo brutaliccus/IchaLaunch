@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import threading
 from pathlib import Path
 from typing import Any
@@ -25,6 +26,7 @@ from PySide6.QtGui import (
     QPixmap,
     QResizeEvent,
     QShowEvent,
+    QRadialGradient,
 )
 from PySide6.QtWidgets import QWidget
 
@@ -43,6 +45,11 @@ from ichalaunch.ui.home_art import (
 _HOLD_MS = 11_000
 _FADE_MS = 2_800
 _BASE_OPACITY = 0.82
+# Darkening at the edges of the picture itself, so a title laid over it reads
+# without a scrim behind the text. ravencraft.io does this to every art tile on
+# its front page, which is most of why those cards look like a set.
+_VIGNETTE_ALPHA = 150
+_VIGNETTE_CLEAR = 0.45   # fraction of the radius left untouched
 # Soft L/R + top falloff. Bottom stays hard so art still sits flush on the
 # diamond strip (any bottom feather reads as a mid-page gap).
 _EDGE_FEATHER = 0.04
@@ -489,6 +496,20 @@ class TalentFrameBackground(QWidget):
             lp = QPainter(layer)
             lp.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
             lp.drawPixmap(x, y, scaled)
+            # SourceAtop so only the picture darkens. The letterbox bands a
+            # width-fit slide leaves are transparent, and painting the gradient
+            # over them would turn the empty space into a black slab.
+            if _VIGNETTE_ALPHA > 0 and scaled.width() > 0 and scaled.height() > 0:
+                cx = x + scaled.width() / 2.0
+                cy = y + scaled.height() / 2.0
+                radius = math.hypot(scaled.width(), scaled.height()) / 2.0
+                grad = QRadialGradient(cx, cy, radius)
+                grad.setColorAt(0.0, QColor(0, 0, 0, 0))
+                grad.setColorAt(_VIGNETTE_CLEAR, QColor(0, 0, 0, 0))
+                grad.setColorAt(1.0, QColor(0, 0, 0, _VIGNETTE_ALPHA))
+                lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceAtop)
+                lp.fillRect(0, 0, w, h, grad)
+
             if not self._mask.isNull():
                 lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
                 lp.drawPixmap(0, 0, self._mask)
@@ -528,30 +549,45 @@ class TalentFrameBackground(QWidget):
     def step(self, delta: int) -> None:
         """Turn the gallery by hand, forwards or back.
 
-        Public because the Home page puts page arrows either side of the art.
-        A click during a crossfade is dropped rather than queued: the fade owns
-        _index until it finishes, and stacking turns on top of it reads as the
-        gallery lurching.
+        Lands immediately. The 2.8s crossfade is right for a gallery drifting on
+        its own; asked for the next slide, waiting three seconds to see it reads
+        as the click not registering. A hand turn also interrupts a drift
+        already in flight rather than being dropped behind it.
         """
         if delta:
-            self._turn(1 if delta > 0 else -1)
+            self._turn(1 if delta > 0 else -1, animate=False)
+
+    def go_to(self, index: int) -> None:
+        """Jump straight to a slide, for the position row."""
+        if 0 <= index < len(self._slides) and index != self._index:
+            self._show(index, step=1, animate=False)
 
     def _advance(self) -> None:
-        self._turn(1)
+        self._turn(1, animate=True)
 
-    def _turn(self, step: int) -> None:
+    def _turn(self, step: int, animate: bool = True) -> None:
         if len(self._slides) < 2:
             return
-        if self._fade is not None and self._fade.state() == QParallelAnimationGroup.State.Running:
-            return
+        self._show((self._index + step) % len(self._slides), step, animate)
+
+    def _show(self, target: int, step: int, animate: bool) -> None:
+        running = (
+            self._fade is not None
+            and self._fade.state() == QParallelAnimationGroup.State.Running
+        )
+        if running:
+            if animate:
+                return
+            self._fade.stop()
+            self._fade = None
 
         # Drop the pending auto-turn. Without this a hand-turned slide keeps
         # whatever was left of the previous slide's hold and can flip again
         # immediately, which looks like a double click registering.
         self._timer.stop()
 
-        self._next_index = (self._index + step) % len(self._slides)
-        self._display_index = self._next_index
+        self._next_index = target
+        self._display_index = target
         self.turn_started.emit()
         nxt = self._slide_at(self._next_index)
         if nxt is not None:
@@ -561,6 +597,15 @@ class TalentFrameBackground(QWidget):
         after = self._slide_at((self._next_index + step) % len(self._slides))
         if after is not None:
             self._pixmap(str(after.get("image") or ""))
+
+        if not animate:
+            self._index = self._next_index
+            self._cur_opacity = _BASE_OPACITY
+            self._nxt_opacity = 0.0
+            self.update()
+            self.frame_changed.emit()
+            self._timer.start(_hold_ms_for(self._slide_at(self._index) or {"hold": 1.0}))
+            return
 
         fade_out = QPropertyAnimation(self, b"curOpacity")
         fade_out.setDuration(_FADE_MS)
