@@ -14974,15 +14974,41 @@ def test_wayland_window_move_and_resize_handoff():
         def platformName():
             raise AssertionError("platformName must not be read without an instance")
 
+    class _FakeApp:
+        """An application exists and reports the platform it was given."""
+
+        def __init__(self, name):
+            self._name = name
+
+        def instance(self):
+            return self
+
+        def platformName(self):
+            return self._name
+
     try:
         mw._SYSTEM_WINDOW_MOVE = None
         mw.QGuiApplication = _NoApp
         assert mw._use_system_window_move() is False
         assert mw._SYSTEM_WINDOW_MOVE is None, "a pre-application answer must not be cached"
 
-        mw.QGuiApplication = real_qgui
-        assert mw._use_system_window_move() is False
-        assert mw._SYSTEM_WINDOW_MOVE is False
+        # Drive both branches from a stubbed platformName rather than from the
+        # real session. Asking the live QGuiApplication asserts that the machine
+        # running the suite is not on Wayland, which is a fact about the
+        # developer's desktop and not about the code: it passes on Windows, X11
+        # and the offscreen platform, and fails on a Wayland session, where this
+        # is the very feature under test.
+        for name, expected in (
+            ("windows", False),
+            ("xcb", False),
+            ("offscreen", False),
+            ("wayland", True),
+            ("wayland-egl", True),
+        ):
+            mw._SYSTEM_WINDOW_MOVE = None
+            mw.QGuiApplication = _FakeApp(name)
+            assert mw._use_system_window_move() is expected, name
+            assert mw._SYSTEM_WINDOW_MOVE is expected, name
     finally:
         mw.QGuiApplication = real_qgui
         mw._SYSTEM_WINDOW_MOVE = real_cache
