@@ -12032,7 +12032,7 @@ def test_addons_all_filter_pagination_fully_loaded():
 def test_cancel_git_url_checks_orphans_running_threads():
     """Cancel must keep running QThreads alive — GC mid-run aborts Qt."""
     import gc
-    import time
+    import threading
     from unittest.mock import patch
 
     from PySide6.QtCore import QObject
@@ -12047,8 +12047,17 @@ def test_cancel_git_url_checks_orphans_running_threads():
     app = QApplication.instance() or QApplication([])
     owner = QObject()
 
+    # Hold the probe open until this test releases it, rather than racing a
+    # sleep. Every assertion below is about a thread that is STILL RUNNING, so
+    # a fixed delay makes them depend on the test body finishing first, which a
+    # loaded machine does not guarantee. The event removes the race instead of
+    # widening it, and keeps the intended path exercised on every run.
+    release_probe = threading.Event()
+    probe_entered = threading.Event()
+
     def _slow_reachable(url: str, *, timeout: float = 2.5) -> bool:  # noqa: ARG001
-        time.sleep(0.25)
+        probe_entered.set()
+        release_probe.wait(30)
         return True
 
     with patch(
@@ -12061,18 +12070,31 @@ def test_cancel_git_url_checks_orphans_running_threads():
         setattr(owner, "_git_url_check_gen", 1)
         setattr(owner, "_git_url_pending", thread._url)
         thread.start()
+        # Wait until run() is INSIDE the mocked probe. It tests
+        # isInterruptionRequested() before calling it (common.py:1231), and
+        # cancel_git_url_checks sets that flag, so a main thread that reaches
+        # cancel first makes run() return at that check without ever blocking.
+        # The thread then finishes, is reaped, and the assertions below fail on
+        # scheduling rather than on behaviour.
+        assert probe_entered.wait(10), "probe thread never reached the mocked call"
         assert thread.isRunning()
         alive = thread
-        cancel_git_url_checks(owner)
-        assert getattr(owner, "_git_url_threads", []) == []
-        assert alive in common._ORPHAN_GIT_URL_THREADS
-        # Drop every other ref and force GC — must not destroy the running QThread.
-        del thread
-        gc.collect()
-        assert common._shiboken_is_valid(alive)
-        # Still running (or just finished but not yet reaped from the orphan list).
-        assert alive.isRunning() or alive in common._ORPHAN_GIT_URL_THREADS
-        drain_orphan_git_url_threads(wait_ms=2000)
+        try:
+            cancel_git_url_checks(owner)
+            assert getattr(owner, "_git_url_threads", []) == []
+            assert alive in common._ORPHAN_GIT_URL_THREADS
+            # Drop every other ref and force GC — must not destroy the running QThread.
+            del thread
+            gc.collect()
+            assert common._shiboken_is_valid(alive)
+            # The event holds run() open, so this is now guaranteed rather than raced.
+            assert alive.isRunning()
+        finally:
+            # Release and join on every path. An assertion failing above must not
+            # leave the probe blocked: a running QThread at interpreter exit makes
+            # Qt abort the process, turning a readable test failure into SIGABRT.
+            release_probe.set()
+            drain_orphan_git_url_threads(wait_ms=2000)
         for _ in range(40):
             app.processEvents()
         assert alive not in common._ORPHAN_GIT_URL_THREADS
