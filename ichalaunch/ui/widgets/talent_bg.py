@@ -507,17 +507,41 @@ class TalentFrameBackground(QWidget):
             _draw(self._slide_at(self._next_index), self._nxt_opacity)
         painter.end()
 
+    def slide_count(self) -> int:
+        return len(self._slides)
+
+    def step(self, delta: int) -> None:
+        """Turn the gallery by hand, forwards or back.
+
+        Public because the Home page puts page arrows either side of the art.
+        A click during a crossfade is dropped rather than queued: the fade owns
+        _index until it finishes, and stacking turns on top of it reads as the
+        gallery lurching.
+        """
+        if delta:
+            self._turn(1 if delta > 0 else -1)
+
     def _advance(self) -> None:
+        self._turn(1)
+
+    def _turn(self, step: int) -> None:
         if len(self._slides) < 2:
             return
         if self._fade is not None and self._fade.state() == QParallelAnimationGroup.State.Running:
             return
 
-        self._next_index = (self._index + 1) % len(self._slides)
+        # Drop the pending auto-turn. Without this a hand-turned slide keeps
+        # whatever was left of the previous slide's hold and can flip again
+        # immediately, which looks like a double click registering.
+        self._timer.stop()
+
+        self._next_index = (self._index + step) % len(self._slides)
         nxt = self._slide_at(self._next_index)
         if nxt is not None:
             self._pixmap(str(nxt.get("image") or ""))
-        after = self._slide_at((self._next_index + 1) % len(self._slides))
+        # Prefetch in the direction of travel, so paging back is as warm as
+        # paging forward.
+        after = self._slide_at((self._next_index + step) % len(self._slides))
         if after is not None:
             self._pixmap(str(after.get("image") or ""))
 
