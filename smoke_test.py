@@ -15207,6 +15207,41 @@ def test_home_gallery_page_arrows():
     print("OK home gallery page arrows turn and wrap")
 
 
+def test_home_gallery_position_dots():
+    """The position row sits above the wordmark and follows the turn at once."""
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.main_window import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    win = MainWindow()
+    win.resize(1500, 950)
+    win.show()
+    for _ in range(400):
+        app.processEvents()
+
+    home = win.home
+    art, dots, logo, nxt = home.talent_bg, home.art_dots, home.logo, home.art_next
+    count = art.slide_count()
+    assert dots.isVisible()
+
+    ag, dg, lg = art.geometry(), dots.geometry(), logo.geometry()
+    assert dg.width() <= ag.width(), "dot row wider than the art it sits on"
+    assert ag.left() <= dg.left() and dg.right() <= ag.right(), "dots outside the art"
+    assert dg.bottom() <= lg.top(), "dots collide with the wordmark"
+    assert abs(dg.center().x() - ag.center().x()) <= 2, "dots not centred"
+
+    # The lit dot must move with the click, not with the crossfade that follows
+    # it; a row that waits out the fade reads as a click that did not register.
+    start = art.display_index()
+    nxt.click()
+    assert art.display_index() == (start + 1) % count, "shown slide did not advance"
+    assert dots._index == art.display_index(), "lit dot lags the gallery"
+
+    win.hide()
+    print("OK home gallery position dots track the shown slide")
+
+
 def _run_smoke_tests():
     test_catalogs()
     test_tls_ca_env_sanitizer()
@@ -15466,6 +15501,7 @@ def _run_smoke_tests():
     test_linux_game_running_guard()
     test_detect_and_installer_drop_unused_imports()
     test_home_gallery_page_arrows()
+    test_home_gallery_position_dots()
     print("\nAll smoke tests passed.")
 
 
