@@ -14,14 +14,13 @@ both platforms agree instead of leaving it to what the machine happens to have.
 Why Cinzel
 ----------
 SIL Open Font License 1.1 (OFL-Cinzel.txt sits beside the files), which permits
-bundling inside an application, including one distributed commercially. That
-matters here: the face this replaces was donationware licensed for personal use,
-which an installed launcher is not.
+bundling inside an application, including one distributed commercially.
 
 It is used for chrome only - tabs, buttons, section headings. Body copy, mod and
 addon rows, tooltips and combo boxes stay in the sans they were, because an
 inscriptional Roman face is excellent at HOME ADDONS CLIENT SETTINGS and a
-readability tax on a list of thirty addon names at 12px.
+readability tax on a list of thirty addon names at 12px. The IchaLaunch crest
+caption is a separate LifeCraft face in main_window, not this family.
 """
 
 from __future__ import annotations

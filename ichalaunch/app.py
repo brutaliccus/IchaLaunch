@@ -35,7 +35,7 @@ def load_stylesheet(app: QApplication) -> None:
 
 
 def load_app_icon(app: QApplication) -> QIcon | None:
-    for name in ("ichalaunch.ico", "ichalaunch.png"):
+    for name in ("ravencraft_icon.ico", "ravencraft_icon.png"):
         path = theme_file(name)
         if path.exists():
             icon = QIcon(str(path))

@@ -62,8 +62,8 @@ _ART_BOTTOM_INSET_PX = 0
 # Hide the hard art / black fringe under the grey banner bar (not into spike valleys).
 # A few extra px closes the visible gap so rotating art meets the nav banner.
 _ART_BANNER_TUCK_PX = 12
-# Inset of the gallery page arrows from the art's own left/right edges.
-_ART_ARROW_PAD_PX = 10
+# Gap between a page arrow and the dots it hugs on the indicator row.
+_ART_ARROW_DOTS_GAP_PX = 4
 # Gap between the position row and the MoA wordmark it sits above.
 _ART_DOTS_GAP_PX = 6
 # MoA wordmark prefer width, centered along the art bottom.
@@ -183,11 +183,10 @@ class HomePage(QWidget):
         self.talent_bg = TalentFrameBackground(self)
         self.talent_bg.frame_changed.connect(self._sync_brand_layout)
 
-        # Page arrows for the gallery, same art and size the Addons catalog
-        # already pages with, so "turn to the next one" looks the same in both
-        # places.
-        self.art_prev = SpellbookPageButton("prev", self)
-        self.art_next = SpellbookPageButton("next", self)
+        # Page arrows hug the dots row. Disabled spellbook glyphs sit on the
+        # art wash at 80% idle / 100% hover (Addons catalog keeps gold Up/Down).
+        self.art_prev = SpellbookPageButton("prev", self, art="disabled")
+        self.art_next = SpellbookPageButton("next", self, art="disabled")
         self.art_prev.setToolTip("Previous")
         self.art_next.setToolTip("Next")
         self.art_prev.clicked.connect(lambda: self.talent_bg.step(-1))
@@ -294,6 +293,11 @@ class HomePage(QWidget):
             return False
         return True
 
+    def _gallery_dots_max_width(self, art_width: int) -> int:
+        """Dots share the indicator row with the page arrows; leave them room."""
+        arrow = self.art_prev.width() or GLUE_BTN_H
+        return max(1, art_width - 2 * arrow - 2 * _ART_ARROW_DOTS_GAP_PX)
+
     def _sync_gallery_dots(self) -> None:
         dots = getattr(self, "art_dots", None)
         if dots is None or not dots.isVisible():
@@ -301,7 +305,7 @@ class HomePage(QWidget):
         dots.set_state(
             self.talent_bg.slide_count(),
             self.talent_bg.display_index(),
-            max(1, self.talent_bg.width()),
+            self._gallery_dots_max_width(max(1, self.talent_bg.width())),
         )
 
     def _set_chrome_visible(self, visible: bool) -> None:
@@ -414,24 +418,24 @@ class HomePage(QWidget):
             logo_y = art.y()
         self.logo.setGeometry(logo_x, logo_y, logo_w, logo_h)
 
-        # --- gallery page arrows, centred on the picture's left/right edges ---
-        # Centred on paint_h, not on art.height(): the widget is the taller of
-        # the two (it tucks under the grey bar) and the picture centres inside
-        # the widget, so paint_h is what the arrows have to agree with.
-        arrow = self.art_prev.height() or GLUE_BTN_H
-        arrow_y = art.y() + (paint_h - arrow) // 2
-        self.art_prev.move(art.x() + _ART_ARROW_PAD_PX, arrow_y)
-        self.art_next.move(
-            art.x() + art.width() - arrow - _ART_ARROW_PAD_PX, arrow_y
-        )
-
-        # --- position row, centred above the MoA wordmark ---
+        # --- indicator row above the MoA wordmark: [ < ]  • • • •  [ > ] ---
+        arrow = self.art_prev.width() or GLUE_BTN_H
+        gap = _ART_ARROW_DOTS_GAP_PX
         self.art_dots.set_state(
-            self.talent_bg.slide_count(), self.talent_bg.display_index(), art.width()
+            self.talent_bg.slide_count(),
+            self.talent_bg.display_index(),
+            self._gallery_dots_max_width(art.width()),
         )
-        self.art_dots.move(
-            art.x() + (art.width() - self.art_dots.width()) // 2,
-            logo_y - self.art_dots.height() - _ART_DOTS_GAP_PX,
+        dots_w = self.art_dots.width()
+        dots_h = self.art_dots.height()
+        row_h = max(arrow, dots_h)
+        row_w = arrow + gap + dots_w + gap + arrow
+        row_x = art.x() + (art.width() - row_w) // 2
+        row_y = logo_y - row_h - _ART_DOTS_GAP_PX
+        self.art_prev.move(row_x, row_y + (row_h - arrow) // 2)
+        self.art_dots.move(row_x + arrow + gap, row_y + (row_h - dots_h) // 2)
+        self.art_next.move(
+            row_x + arrow + gap + dots_w + gap, row_y + (row_h - arrow) // 2
         )
 
         self._set_chrome_visible(True)

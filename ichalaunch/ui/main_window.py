@@ -12,6 +12,7 @@ from PySide6.QtGui import (
     QColor,
     QCursor,
     QFont,
+    QFontDatabase,
     QFontMetrics,
     QGuiApplication,
     QIcon,
@@ -193,19 +194,33 @@ from ichalaunch.ui.theme_fonts import (
 )
 from ichalaunch.ui.widgets.update_alert_badge import paint_update_alert_badge
 
+_RC_CAPTION_FONT_PATH = theme_file("fonts", "LifeCraft_Font.ttf")
+_LIFECRAFT_FAMILY: str | None = None
+_LIFECRAFT_LOAD_ATTEMPTED = False
+
+
+def _lifecraft_family() -> str | None:
+    """Register the bundled LifeCraft face once; None if the file is missing."""
+    global _LIFECRAFT_FAMILY, _LIFECRAFT_LOAD_ATTEMPTED
+    if _LIFECRAFT_LOAD_ATTEMPTED:
+        return _LIFECRAFT_FAMILY
+    _LIFECRAFT_LOAD_ATTEMPTED = True
+    path = _RC_CAPTION_FONT_PATH
+    if not path.is_file() or path.stat().st_size <= 0:
+        return None
+    font_id = QFontDatabase.addApplicationFont(str(path))
+    if font_id == -1:
+        return None
+    families = QFontDatabase.applicationFontFamilies(font_id)
+    if not families:
+        return None
+    _LIFECRAFT_FAMILY = families[0]
+    return _LIFECRAFT_FAMILY
+
+
 def _caption_font() -> QFont | None:
-    """Crest caption face.
-
-    Was LifeCraft_Font.ttf, which its own note recorded as dafont donationware
-    licensed for personal use. An installed launcher is not personal use, and
-    the file shipped with no licence beside it. Cinzel is already bundled for
-    the chrome under OFL 1.1, which permits redistribution inside an
-    application, so the caption uses that and the personal-use file is gone.
-
-    The caption band measures itself from the metrics below, so the face
-    changing size does not need a hand-tuned height.
-    """
-    family = chrome_family()
+    """Crest caption only — LifeCraft, not the Cinzel chrome family."""
+    family = _lifecraft_family()
     if not family:
         return None
     font = QFont(family)
@@ -1573,7 +1588,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"IchaLaunch {__version__}")
-        icon_path = theme_file("ichalaunch.ico")
+        icon_path = theme_file("ravencraft_icon.ico")
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)

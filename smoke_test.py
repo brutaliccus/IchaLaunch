@@ -15311,10 +15311,12 @@ def test_home_art_width_fit_is_centred():
 
 
 def test_home_gallery_page_arrows():
-    """Prev/Next sit inside the art and turn the gallery both ways, wrapping."""
+    """Prev/Next hug the dots row and turn the gallery both ways, wrapping."""
     from PySide6.QtWidgets import QApplication
 
+    from ichalaunch.core.paths import theme_file
     from ichalaunch.ui.main_window import MainWindow
+    from ichalaunch.ui.widgets.common import _SPELLBOOK_IDLE_OPACITY
 
     app = QApplication.instance() or QApplication([])
     win = MainWindow()
@@ -15324,16 +15326,23 @@ def test_home_gallery_page_arrows():
         app.processEvents()
 
     home = win.home
-    art, prev, nxt = home.talent_bg, home.art_prev, home.art_next
+    art, prev, nxt, dots = home.talent_bg, home.art_prev, home.art_next, home.art_dots
+    assert theme_file("UI-SpellbookIcon-NextPage-Disabled.PNG").is_file()
+    assert theme_file("UI-SpellbookIcon-PrevPage-Disabled.PNG").is_file()
+    assert getattr(prev, "_art", "") == "disabled"
+    assert getattr(nxt, "_art", "") == "disabled"
+    assert _SPELLBOOK_IDLE_OPACITY == 0.80
     count = art.slide_count()
     assert count > 1, "gallery needs at least two slides to page"
     assert prev.isVisible() and nxt.isVisible()
 
-    ag, pg, ng = art.geometry(), prev.geometry(), nxt.geometry()
-    assert ag.left() <= pg.left() and pg.right() <= ag.right(), "prev outside the art"
-    assert ag.left() <= ng.left() and ng.right() <= ag.right(), "next outside the art"
-    assert pg.right() < ng.left(), "arrows overlap"
+    ag, pg, ng, dg = art.geometry(), prev.geometry(), nxt.geometry(), dots.geometry()
+    assert ag.left() <= pg.left() and ng.right() <= ag.right(), "indicator row overflowed the art"
+    assert pg.right() <= dg.left() and dg.right() <= ng.left(), "arrows do not hug the dots"
     assert pg.center().y() == ng.center().y(), "arrows not level"
+    assert abs(pg.center().y() - dg.center().y()) <= 2, "prev not on the dots row"
+    assert abs(ng.center().y() - dg.center().y()) <= 2, "next not on the dots row"
+    assert pg.center().y() > ag.center().y(), "prev still mid-art instead of on the indicator"
 
     # _next_index is the target and is set the moment a turn begins, so this
     # holds whether the turn crossfades or lands at once.
@@ -15406,14 +15415,12 @@ def test_chrome_font_is_bundled_and_scoped_to_chrome():
     theme_fonts._load_attempted = False
     theme_fonts._chrome_family = None
 
-    # OFL requires the licence travel with the font, and the face this replaced
-    # shipped with none at all - that was the reason for the swap.
+    # OFL requires the licence travel with the font.
     for name in ("Cinzel-Regular.ttf", "Cinzel-Bold.ttf", "OFL-Cinzel.txt"):
         path = theme_file("fonts", name)
         assert path.is_file() and path.stat().st_size > 0, f"missing {name}"
-    assert not theme_file("fonts", "LifeCraft_Font.ttf").exists(), (
-        "the personal-use face is back in the tree"
-    )
+    # Crest caption uses LifeCraft; it is allowed to sit beside Cinzel.
+    assert theme_file("fonts", "LifeCraft_Font.ttf").is_file()
 
     load_stylesheet(app)
     assert chrome_family() == "Cinzel"
@@ -15436,6 +15443,22 @@ def test_chrome_font_is_bundled_and_scoped_to_chrome():
         theme_fonts._chrome_family = None
         theme_fonts.chrome_family()
     print("OK chrome font bundled with its licence and scoped to chrome")
+
+
+def test_crest_caption_uses_lifecraft_not_cinzel():
+    """The IchaLaunch word under the crest is LifeCraft; chrome stays Cinzel."""
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.main_window import _caption_font, _lifecraft_family
+    from ichalaunch.ui.theme_fonts import chrome_family
+
+    app = QApplication.instance() or QApplication([])
+    font = _caption_font()
+    assert font is not None
+    assert font.family() == "LifeCraft", font.family()
+    assert _lifecraft_family() == "LifeCraft"
+    assert chrome_family() == "Cinzel"
+    print("OK crest caption is LifeCraft; chrome is Cinzel")
 
 
 def test_chrome_family_env_override():
@@ -15490,7 +15513,7 @@ def test_chrome_family_env_override():
                 self.text = text
 
         other = next(
-            (f for f in QFontDatabase.families() if f not in ("Cinzel", "") and " " not in f),
+            (f for f in QFontDatabase.families() if f not in ("Cinzel", "LifeCraft", "") and " " not in f),
             None,
         )
         if other is not None:
@@ -16033,6 +16056,7 @@ def _run_smoke_tests():
     test_home_gallery_page_arrows()
     test_home_gallery_position_dots()
     test_chrome_font_is_bundled_and_scoped_to_chrome()
+    test_crest_caption_uses_lifecraft_not_cinzel()
     test_chrome_family_env_override()
     test_launch_label_fills_its_plate()
     test_nav_tab_label_uses_the_chrome_font()

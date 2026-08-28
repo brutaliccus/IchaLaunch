@@ -87,11 +87,20 @@ _SPELLBOOK_NEXT_UP = "UI-SpellbookIcon-NextPage-Up.PNG"
 _SPELLBOOK_NEXT_DOWN = "UI-SpellbookIcon-NextPage-Down.PNG"
 _SPELLBOOK_PREV_UP = "UI-SpellbookIcon-PrevPage-Up.PNG"
 _SPELLBOOK_PREV_DOWN = "UI-SpellbookIcon-PrevPage-Down.PNG"
+# Home gallery Prev/Next — Disabled-state glyphs (grey) on the art wash.
+_SPELLBOOK_NEXT_DISABLED = "UI-SpellbookIcon-NextPage-Disabled.PNG"
+_SPELLBOOK_PREV_DISABLED = "UI-SpellbookIcon-PrevPage-Disabled.PNG"
 _SPELLBOOK_EXTERNAL = Path(r"F:\wow-ui-textures\Buttons")
-_SPELLBOOK_CACHE: dict[tuple[str, bool, int], QPixmap] = {}
+_SPELLBOOK_CACHE: dict[tuple[str, bool, int, str], QPixmap] = {}
 # Match GluePanelButton toolbar height; square hit target for the 32² art.
 _SPELLBOOK_PAGE_H = GLUE_BTN_H
 _SPELLBOOK_ICON_PX = GLUE_BTN_H
+# RGB sum at or below this is a BLP black well (punched out on the Home wash).
+_SPELLBOOK_WELL_SUM = 64
+_SPELLBOOK_IDLE_OPACITY = 0.80
+_SPELLBOOK_HOVER_OPACITY = 1.0
+_SPELLBOOK_PRESS_OPACITY = 0.85
+_SPELLBOOK_DISABLED_OPACITY = 0.40
 
 
 def _options_cog_pixmap() -> QPixmap:
@@ -586,14 +595,39 @@ class PassRemoveButton(QPushButton):
         painter.end()
 
 
-def _spellbook_page_pixmap(direction: str, *, pressed: bool, side: int = _SPELLBOOK_ICON_PX) -> QPixmap:
-    """Bundled WoW spellbook Next/Prev page icons (Up idle, Down pressed)."""
+def _knockout_spellbook_well(pm: QPixmap) -> QPixmap:
+    """Treat BLP-style black wells as transparent so the glyph sits on the wash."""
+    if pm.isNull():
+        return pm
+    img = pm.toImage().convertToFormat(QImage.Format.Format_ARGB32)
+    for y in range(img.height()):
+        for x in range(img.width()):
+            c = img.pixelColor(x, y)
+            if c.alpha() == 0:
+                continue
+            if c.red() + c.green() + c.blue() <= _SPELLBOOK_WELL_SUM:
+                c.setAlpha(0)
+                img.setPixelColor(x, y, c)
+    return QPixmap.fromImage(img)
+
+
+def _spellbook_page_pixmap(
+    direction: str,
+    *,
+    pressed: bool,
+    side: int = _SPELLBOOK_ICON_PX,
+    art: str = "up",
+) -> QPixmap:
+    """Bundled WoW spellbook Next/Prev icons (Up/Down, or Disabled for Home)."""
     direction = "prev" if direction == "prev" else "next"
-    key = (direction, bool(pressed), int(side))
+    art = "disabled" if art == "disabled" else "up"
+    key = (direction, bool(pressed), int(side), art)
     hit = _SPELLBOOK_CACHE.get(key)
     if hit is not None:
         return hit
-    if direction == "prev":
+    if art == "disabled":
+        name = _SPELLBOOK_PREV_DISABLED if direction == "prev" else _SPELLBOOK_NEXT_DISABLED
+    elif direction == "prev":
         name = _SPELLBOOK_PREV_DOWN if pressed else _SPELLBOOK_PREV_UP
     else:
         name = _SPELLBOOK_NEXT_DOWN if pressed else _SPELLBOOK_NEXT_UP
@@ -604,6 +638,8 @@ def _spellbook_page_pixmap(direction: str, *, pressed: bool, side: int = _SPELLB
     if path.is_file():
         src = QPixmap(str(path))
         if not src.isNull():
+            if art == "disabled":
+                src = _knockout_spellbook_well(src)
             pm = src.scaled(
                 side,
                 side,
@@ -615,11 +651,18 @@ def _spellbook_page_pixmap(direction: str, *, pressed: bool, side: int = _SPELLB
 
 
 class SpellbookPageButton(QPushButton):
-    """Addons catalog Prev/Next painted with UI-SpellbookIcon-*-Page Up/Down art."""
+    """Prev/Next painted with UI-SpellbookIcon page art (Up/Down or Disabled)."""
 
-    def __init__(self, direction: str, parent: QWidget | None = None):
+    def __init__(
+        self,
+        direction: str,
+        parent: QWidget | None = None,
+        *,
+        art: str = "up",
+    ):
         super().__init__(parent)
         self._direction = "prev" if direction == "prev" else "next"
+        self._art = "disabled" if art == "disabled" else "up"
         self.setObjectName("SpellbookPageButton")
         apply_open_hand(self)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -666,7 +709,7 @@ class SpellbookPageButton(QPushButton):
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
         rect = self.rect()
         pressed = bool(self.isDown())
-        icon = _spellbook_page_pixmap(self._direction, pressed=pressed)
+        icon = _spellbook_page_pixmap(self._direction, pressed=pressed, art=self._art)
         if icon.isNull():
             painter.setPen(Qt.GlobalColor.yellow)
             label = "◀" if self._direction == "prev" else "▶"
@@ -678,11 +721,18 @@ class SpellbookPageButton(QPushButton):
             painter.end()
             return
         if not self.isEnabled():
-            painter.setOpacity(0.40)
+            painter.setOpacity(_SPELLBOOK_DISABLED_OPACITY)
+        elif self._art == "disabled":
+            if pressed:
+                painter.setOpacity(_SPELLBOOK_PRESS_OPACITY)
+            elif self.underMouse():
+                painter.setOpacity(_SPELLBOOK_HOVER_OPACITY)
+            else:
+                painter.setOpacity(_SPELLBOOK_IDLE_OPACITY)
         elif pressed:
-            painter.setOpacity(0.85)
+            painter.setOpacity(_SPELLBOOK_PRESS_OPACITY)
         elif self.underMouse():
-            painter.setOpacity(1.0)
+            painter.setOpacity(_SPELLBOOK_HOVER_OPACITY)
         else:
             painter.setOpacity(0.94)
         press_dy = _UPDATE_PRESS_DY if pressed else 0
@@ -997,7 +1047,7 @@ class AddonRowUpdateButton(QPushButton):
 AddonRowUpdateSplit = AddonRowUpdateButton
 
 
-# Turtle WoW custom-addon badge (splash raven / ichalaunch icon).
+# Turtle WoW custom-addon badge (legacy ichalaunch raven — not the launcher icon).
 # Mark detection lives in ``ichalaunch.addons.catalog`` (``turtle_custom``).
 _TURTLE_BADGE_PX = 18
 _TURTLE_BADGE_TIP = "Turtle WoW custom addon"
@@ -1005,7 +1055,7 @@ _turtle_badge_pm: QPixmap | None = None
 
 
 def _turtle_wow_badge_pixmap() -> QPixmap:
-    """Cached splash raven icon scaled for AddonRow height."""
+    """Cached Addons-tab raven icon scaled for AddonRow height."""
     global _turtle_badge_pm
     if _turtle_badge_pm is not None:
         return _turtle_badge_pm
