@@ -4,6 +4,21 @@
     font-family: "Segoe UI", "Candara", "Calibri", sans-serif;
 }
 
+/* Chrome only. Cinzel is bundled (see ui/theme_fonts.py); the rest of the
+   stack is what the launcher fell back to before it was, so a build without
+   the font files still renders the way it used to. Body copy, mod and addon
+   rows and tooltips deliberately stay on the sans stack above. */
+QLabel#SectionTitle,
+QLabel#CardTitle,
+QLabel#Subtitle,
+QLabel#HomeModCategory,
+QLabel#SectionSubtitle,
+QLabel#HomeModCategorySub,
+QLabel#ThemedDialogTitle,
+QLabel#CountdownTitle {
+    font-family: "__CHROME_FAMILY__", "Segoe UI", "Candara", "Calibri", serif;
+}
+
 QMainWindow {
     background: transparent;
 }
@@ -33,6 +48,23 @@ QLabel#SectionTitle {
     color: #F1C22D;
     font-size: 16px;
     font-weight: 600;
+}
+
+/* The quieter half of a title lockup: same face, smaller, and stepped down in
+   colour so it reads as a qualifier rather than a second heading. */
+QLabel#SectionSubtitle {
+    color: #9990ab;
+    font-size: 11px;
+    font-weight: 400;
+    padding-bottom: 2px;
+}
+
+QLabel#HomeModCategorySub {
+    color: #8a7f70;
+    font-size: 10px;
+    font-weight: 400;
+    padding-left: 1px;
+    padding-bottom: 3px;
 }
 
 QLabel#Muted {

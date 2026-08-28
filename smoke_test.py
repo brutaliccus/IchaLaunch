@@ -15310,6 +15310,467 @@ def test_home_art_width_fit_is_centred():
     print("OK home art width-fit slide is vertically centred")
 
 
+def test_home_gallery_page_arrows():
+    """Prev/Next sit inside the art and turn the gallery both ways, wrapping."""
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.main_window import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    win = MainWindow()
+    win.resize(1500, 950)
+    win.show()
+    for _ in range(400):
+        app.processEvents()
+
+    home = win.home
+    art, prev, nxt = home.talent_bg, home.art_prev, home.art_next
+    count = art.slide_count()
+    assert count > 1, "gallery needs at least two slides to page"
+    assert prev.isVisible() and nxt.isVisible()
+
+    ag, pg, ng = art.geometry(), prev.geometry(), nxt.geometry()
+    assert ag.left() <= pg.left() and pg.right() <= ag.right(), "prev outside the art"
+    assert ag.left() <= ng.left() and ng.right() <= ag.right(), "next outside the art"
+    assert pg.right() < ng.left(), "arrows overlap"
+    assert pg.center().y() == ng.center().y(), "arrows not level"
+
+    # _next_index is the target and is set the moment a turn begins, so this
+    # holds whether the turn crossfades or lands at once.
+    start = art._index
+    nxt.click()
+    assert art._next_index == (start + 1) % count, "next did not turn the gallery"
+    for _ in range(200):
+        app.processEvents()
+
+    art._fade = None
+    art._index = 0
+    prev.click()
+    assert art._next_index == count - 1, "paging back from the first slide must wrap"
+
+    win.hide()
+    print("OK home gallery page arrows turn and wrap")
+
+
+def test_home_gallery_position_dots():
+    """The position row sits above the wordmark and follows the turn at once."""
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.main_window import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    win = MainWindow()
+    win.resize(1500, 950)
+    win.show()
+    for _ in range(400):
+        app.processEvents()
+
+    home = win.home
+    art, dots, logo, nxt = home.talent_bg, home.art_dots, home.logo, home.art_next
+    count = art.slide_count()
+    assert dots.isVisible()
+
+    ag, dg, lg = art.geometry(), dots.geometry(), logo.geometry()
+    assert dg.width() <= ag.width(), "dot row wider than the art it sits on"
+    assert ag.left() <= dg.left() and dg.right() <= ag.right(), "dots outside the art"
+    assert dg.bottom() <= lg.top(), "dots collide with the wordmark"
+    assert abs(dg.center().x() - ag.center().x()) <= 2, "dots not centred"
+
+    # The lit dot must move with the click, not with the crossfade that follows
+    # it; a row that waits out the fade reads as a click that did not register.
+    start = art.display_index()
+    nxt.click()
+    assert art.display_index() == (start + 1) % count, "shown slide did not advance"
+    assert dots._index == art.display_index(), "lit dot lags the gallery"
+
+    win.hide()
+    print("OK home gallery position dots track the shown slide")
+
+
+def test_chrome_font_is_bundled_and_scoped_to_chrome():
+    """Cinzel ships with its licence, dresses the chrome, and leaves body text alone."""
+    from PySide6.QtWidgets import QApplication, QLabel
+
+    import os
+
+    from ichalaunch.app import load_stylesheet
+    from ichalaunch.core.paths import theme_file
+    import ichalaunch.ui.theme_fonts as theme_fonts
+    from ichalaunch.ui.theme_fonts import chrome_family
+
+    app = QApplication.instance() or QApplication([])
+
+    # This is about what the launcher bundles, so it must hold whether or not
+    # the machine running it has pointed the chrome at a font of its own.
+    saved = os.environ.pop(theme_fonts._FAMILY_ENV, None)
+    theme_fonts._load_attempted = False
+    theme_fonts._chrome_family = None
+
+    # OFL requires the licence travel with the font, and the face this replaced
+    # shipped with none at all - that was the reason for the swap.
+    for name in ("Cinzel-Regular.ttf", "Cinzel-Bold.ttf", "OFL-Cinzel.txt"):
+        path = theme_file("fonts", name)
+        assert path.is_file() and path.stat().st_size > 0, f"missing {name}"
+    assert not theme_file("fonts", "LifeCraft_Font.ttf").exists(), (
+        "the personal-use face is back in the tree"
+    )
+
+    load_stylesheet(app)
+    assert chrome_family() == "Cinzel"
+
+    # Headings take it; a mod row does not. An inscriptional face is excellent
+    # at HOME ADDONS CLIENT SETTINGS and a readability tax on thirty addon names.
+    heading = QLabel("Installed client mods")
+    heading.setObjectName("SectionTitle")
+    heading.ensurePolished()
+    assert heading.font().family() == "Cinzel", heading.font().family()
+
+    row = QLabel("Reforged HD - Patch-A (Characters & NPCs)")
+    row.setObjectName("HomeModItem")
+    row.ensurePolished()
+    assert row.font().family() != "Cinzel", "body text was themed too"
+
+    if saved is not None:
+        os.environ[theme_fonts._FAMILY_ENV] = saved
+        theme_fonts._load_attempted = False
+        theme_fonts._chrome_family = None
+        theme_fonts.chrome_family()
+    print("OK chrome font bundled with its licence and scoped to chrome")
+
+
+def test_chrome_family_env_override():
+    """A named family is honoured; one Qt cannot see falls back instead of substituting."""
+    import os
+
+    from PySide6.QtWidgets import QApplication
+
+    import ichalaunch.ui.theme_fonts as theme_fonts
+
+    app = QApplication.instance() or QApplication([])
+
+    saved = os.environ.get(theme_fonts._FAMILY_ENV)
+
+    def resolve(value):
+        # Reset the one-shot cache rather than reloading the module, so widgets
+        # already holding a reference to it keep working.
+        theme_fonts._load_attempted = False
+        theme_fonts._chrome_family = None
+        if value is None:
+            os.environ.pop(theme_fonts._FAMILY_ENV, None)
+        else:
+            os.environ[theme_fonts._FAMILY_ENV] = value
+        return theme_fonts.chrome_family()
+
+    try:
+        assert resolve(None) == "Cinzel", "bundled face should win when nothing is named"
+        # The faces that suit this launcher best cannot be shipped, so a holder
+        # of one installs it and names it here. Blank must not mean "no font".
+        assert resolve("   ") == "Cinzel"
+        assert resolve("Cinzel") == "Cinzel"
+        # A name Qt cannot see would otherwise substitute something arbitrary and
+        # look deliberate.
+        assert resolve("NoSuchFaceAnywhere") == "Cinzel"
+
+        # The sheet must follow the override too. It used to pin the family, so
+        # naming a font dressed the painted chrome - tabs, PLAY - and left every
+        # heading behind, which reads as the setting half working.
+        #
+        # Captured rather than applied: setting the sheet on the live app
+        # re-polishes every widget in it, including ones earlier tests have
+        # queued for deletion, and that segfaults. load_stylesheet only ever
+        # calls setStyleSheet on what it is handed, so hand it a recorder.
+        from PySide6.QtGui import QFontDatabase
+
+        from ichalaunch.app import load_stylesheet
+
+        class _Recorder:
+            text = ""
+
+            def setStyleSheet(self, text):
+                self.text = text
+
+        other = next(
+            (f for f in QFontDatabase.families() if f not in ("Cinzel", "") and " " not in f),
+            None,
+        )
+        if other is not None:
+            assert resolve(other) == other
+            sheet = _Recorder()
+            load_stylesheet(sheet)
+            assert "__CHROME_FAMILY__" not in sheet.text, "the token was left unsubstituted"
+            assert f'"{other}"' in sheet.text, f"the sheet did not take {other}"
+    finally:
+        theme_fonts._load_attempted = False
+        theme_fonts._chrome_family = None
+        if saved is None:
+            os.environ.pop(theme_fonts._FAMILY_ENV, None)
+        else:
+            os.environ[theme_fonts._FAMILY_ENV] = saved
+        theme_fonts.chrome_family()
+    print("OK chrome family env override honoured, bad names fall back")
+
+
+def test_launch_label_fills_its_plate():
+    """PLAY grows into the button and is bounded by ink, so nothing clips."""
+    from PySide6.QtCore import QRect
+    from PySide6.QtGui import QFontMetrics, QPainter, QPixmap
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.app import load_stylesheet
+    import ichalaunch.ui.widgets.launch_button as launch_button
+
+    app = QApplication.instance() or QApplication([])
+    load_stylesheet(app)
+
+    def measure(text):
+        btn = launch_button.LaunchButton(text)
+        rect = QRect(0, 0, launch_button._PLAY_W, launch_button._PLAY_H)
+        pm = QPixmap(rect.width(), rect.height())
+        pm.fill()
+        painter = QPainter(pm)
+        btn._paint_label(painter, rect)
+        font = painter.font()
+        painter.end()
+        fm = QFontMetrics(font)
+        ink = max(fm.height(), fm.tightBoundingRect(text.upper()).height())
+        return font.pixelSize(), fm.horizontalAdvance(text.upper()), ink
+
+    box_w = launch_button._PLAY_W - launch_button._LABEL_H_PAD
+    box_h = launch_button._PLAY_H - launch_button._LABEL_V_PAD
+
+    px, advance, ink = measure("PLAY")
+    # The old ladder only ever shrank, so a short label sat at 20px in a 56px
+    # plate with most of it empty.
+    assert px > 20, f"PLAY did not grow (still {px}px)"
+    assert px <= launch_button._LABEL_MAX_PX
+    assert advance <= box_w, "PLAY overflows the plate horizontally"
+    assert ink <= box_h, "PLAY overflows the plate vertically and would clip"
+
+    # A long label meets the width bound first and must still fit.
+    px_long, advance_long, ink_long = measure("REGISTER HERE")
+    assert advance_long <= box_w and ink_long <= box_h
+    assert px_long < px, "a long label should not end up larger than a short one"
+    print("OK launch label fills its plate without clipping")
+
+
+def test_nav_tab_label_uses_the_chrome_font():
+    """Tab labels carry the chrome family and are sized from their own metrics."""
+    from PySide6.QtGui import QFontMetrics
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.app import load_stylesheet
+    from ichalaunch.ui.main_window import (
+        _TAB_LABEL_H,
+        _TAB_PX_MAX,
+        _TAB_PX_MIN,
+        _TAB_STRIP_HEIGHT,
+        NavTabButton,
+    )
+    from ichalaunch.ui.theme_fonts import chrome_family
+
+    app = QApplication.instance() or QApplication([])
+    load_stylesheet(app)
+    family = chrome_family()
+
+    for label in ("HOME", "SETTINGS"):
+        btn = NavTabButton(label)
+        btn.ensurePolished()
+        font = btn.font()
+        # Regression: the family used to be applied with setFont, and the file
+        # sheet carries a universal font-family rule. A stylesheet beats setFont
+        # for any property it names, so the family was silently discarded on the
+        # next polish and every tab rendered in the fallback sans.
+        assert font.family() == family, f"{label} is in {font.family()}, not {family}"
+        assert _TAB_PX_MIN <= font.pixelSize() <= _TAB_PX_MAX
+
+        fm = QFontMetrics(font)
+        ink = fm.tightBoundingRect(label).height()
+        # Both bounds are checked when sizing because neither implies the other:
+        # a face with deep descenders has ink taller than its line box, an
+        # all-caps face is the reverse.
+        # _TAB_LABEL_H is the strip less the plate's own 10px/4px padding, so
+        # this is the check that the tab fits. sizeHint is not: it rounds up
+        # past the strip that then clips it, and asserting on it tests Qt's
+        # padding arithmetic rather than the fit.
+        assert max(ink, fm.height()) <= _TAB_LABEL_H, f"{label} overruns its label box"
+        assert _TAB_LABEL_H < _TAB_STRIP_HEIGHT, "label box must leave room for padding"
+        assert fm.horizontalAdvance(label) <= btn.sizeHint().width()
+    print("OK nav tab labels use the chrome font at a fitted size")
+
+
+def test_gallery_hand_turns_land_at_once_and_vignette_spares_the_bands():
+    """A hand turn is immediate, dots jump, and the vignette darkens only the picture."""
+    from PySide6.QtCore import QPoint
+    from PySide6.QtGui import QImage, QPainter
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.widgets.gallery_dots import GalleryDots
+    import ichalaunch.ui.widgets.talent_bg as talent_bg
+    from ichalaunch.ui.widgets.talent_bg import TalentFrameBackground
+
+    app = QApplication.instance() or QApplication([])
+    del app
+
+    w, h = 880, 660
+    art = TalentFrameBackground()
+    art.set_frame(0, 0, w, h)
+    art.resize(w, h)
+    count = art.slide_count()
+    assert count > 2
+
+    # No settling anywhere below. The crossfade suits a gallery drifting on its
+    # own; asked for the next slide, waiting it out reads as a dead click.
+    art._index = 0
+    art.step(1)
+    assert art._index == 1, "a hand turn still waits on the crossfade"
+    art.step(-1)
+    assert art._index == 0
+    art.step(-1)
+    assert art._index == count - 1, "paging back off the first slide must wrap"
+
+    art.go_to(3)
+    assert art._index == 3, "go_to did not land"
+    art.go_to(-1)
+    art.go_to(count)
+    assert art._index == 3, "an out-of-range jump must be ignored"
+
+    # Each dot owns its whole pitch as a hit box, so the gaps are target too.
+    dots = GalleryDots()
+    dots.set_state(count, 0, w)
+    dots.resize(dots.width(), dots.height())
+    left = (dots.width() - count * dots._pitch) / 2.0
+    for target in (0, count // 2, count - 1):
+        assert dots._index_at(left + target * dots._pitch + 1) == target
+        assert dots._index_at(left + target * dots._pitch + dots._pitch - 1) == target
+    assert dots._index_at(left - 40) == -1, "a click left of the row is not a slide"
+    assert dots._index_at(left + count * dots._pitch + 40) == -1
+
+    # The featured slide is 2:1 in a taller rect, so it leaves transparent bands.
+    # The vignette is composited SourceAtop for exactly this reason: painted over
+    # the bands it would turn empty space into a black slab.
+    art.go_to(0)
+
+    def render():
+        img = QImage(w, h, QImage.Format.Format_ARGB32)
+        img.fill(0)
+        painter = QPainter(img)
+        art.render(painter, QPoint(0, 0))
+        painter.end()
+        return img
+
+    def lum(img, x, y):
+        c = img.pixelColor(x, y)
+        return (c.red() + c.green() + c.blue()) / 3.0
+
+    # Measured against the same frame with the gradient off, not against the
+    # picture's own centre. This art is already darker at its edges than in the
+    # middle, so comparing centre to edge passes whether the vignette runs or
+    # not - it reads as a test and asserts nothing.
+    shipped = render()
+    saved = talent_bg._VIGNETTE_ALPHA
+    try:
+        talent_bg._VIGNETTE_ALPHA = 0
+        plain = render()
+    finally:
+        talent_bg._VIGNETTE_ALPHA = saved
+
+    band_y = (h - w // 2) // 4
+    assert shipped.pixelColor(w // 2, band_y).alpha() < 20, "the vignette filled the letterbox band"
+
+    edge = lum(shipped, 24, h // 2)
+    edge_plain = lum(plain, 24, h // 2)
+    centre = lum(shipped, w // 2, h // 2)
+    centre_plain = lum(plain, w // 2, h // 2)
+    assert edge < edge_plain - 1, f"the vignette did not darken the edge ({edge} vs {edge_plain})"
+    assert abs(centre - centre_plain) <= 1, "the vignette should leave the centre alone"
+    print("OK gallery hand turns land at once and the vignette spares the bands")
+
+
+def test_rivet_frame_and_title_lockups():
+    """Tiles get a hairline frame with corner rivets; lockups carry real counts."""
+    import re
+
+    from PySide6.QtCore import QEvent, QRect
+    from PySide6.QtGui import QColor, QPainter, QPixmap
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.main_window import MainWindow
+    from ichalaunch.ui.widgets.frame_rivets import _RIVET_PX, paint_rivet_frame
+    from ichalaunch.ui.widgets.talent_bg import TalentFrameBackground
+    from ichalaunch.ui.widgets.title_lockup import TitleLockup
+
+    app = QApplication.instance() or QApplication([])
+
+    # --- the frame itself -----------------------------------------------------
+    w = h = 120
+    pm = QPixmap(w, h)
+    pm.fill(QColor(0, 0, 0, 0))
+    painter = QPainter(pm)
+    paint_rivet_frame(painter, QRect(0, 0, w, h))
+    painter.end()
+    img = pm.toImage()
+
+    for name, x, y in (("top-left", 0, 0), ("top-right", w - 1, 0),
+                       ("bottom-left", 0, h - 1), ("bottom-right", w - 1, h - 1)):
+        assert img.pixelColor(x, y).alpha() > 40, f"no rivet at {name}"
+    assert img.pixelColor(w // 2, 0).alpha() > 20, "no top edge line"
+    assert img.pixelColor(0, h // 2).alpha() > 20, "no left edge line"
+    # The middle is the picture's; the frame must not wash over it.
+    assert img.pixelColor(w // 2, h // 2).alpha() < 10, "the frame painted into the tile"
+
+    # Too small to carry rivets without swallowing the tile: draw nothing rather
+    # than something illegible.
+    tiny = QPixmap(2 * _RIVET_PX, 2 * _RIVET_PX)
+    tiny.fill(QColor(0, 0, 0, 0))
+    painter = QPainter(tiny)
+    paint_rivet_frame(painter, QRect(0, 0, tiny.width(), tiny.height()))
+    painter.end()
+    assert tiny.toImage().pixelColor(0, 0).alpha() == 0, "frame drawn on a rect too small for it"
+
+    # --- slides that bring their own frame art keep it -----------------------
+    art = TalentFrameBackground()
+    framed = [s for s in art._slides if s.get("frame")]
+    assert framed, "the featured slide should still carry frame art"
+    assert not art._frame_overlay(framed[0]).isNull()
+
+    # --- lockups -------------------------------------------------------------
+    bare = TitleLockup("Just a title")
+    assert not bare.subtitle.isVisible(), "an empty subtitle must not take space"
+
+    win = MainWindow()
+    win.resize(1500, 950)
+    win.show()
+    for _ in range(400):
+        app.processEvents()
+
+    # The drawer rebuilds itself on refresh and retires the old widgets with
+    # deleteLater. processEvents does not run deferred deletes, so without this
+    # findChildren returns every generation at once and the counts read as a
+    # leak that is not there.
+    app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+    lockups = win.home.findChildren(TitleLockup)
+    assert lockups, "the mods drawer built no lockups"
+    for lockup in lockups:
+        assert lockup.subtitle.font().family() == lockup.title.font().family(), (
+            "the subtitle is set in a different face from its title"
+        )
+
+    def count(text):
+        found = re.search(r"\d+", text)
+        return int(found.group()) if found else None
+
+    totals = [count(lk.subtitle.text()) for lk in lockups if "enabled" in lk.subtitle.text()]
+    parts = [count(lk.subtitle.text()) for lk in lockups if "mod" in lk.subtitle.text()]
+    if totals and parts:
+        # Every subtitle is a number the caller already held, so they reconcile.
+        # An invented one would not.
+        assert totals[0] == sum(parts), f"{totals[0]} enabled but categories sum to {sum(parts)}"
+
+    win.hide()
+    print("OK rivet frame draws and title lockups carry real counts")
+
+
 def _run_smoke_tests():
     test_catalogs()
     test_tls_ca_env_sanitizer()
@@ -15569,6 +16030,14 @@ def _run_smoke_tests():
     test_linux_game_running_guard()
     test_detect_and_installer_drop_unused_imports()
     test_home_art_width_fit_is_centred()
+    test_home_gallery_page_arrows()
+    test_home_gallery_position_dots()
+    test_chrome_font_is_bundled_and_scoped_to_chrome()
+    test_chrome_family_env_override()
+    test_launch_label_fills_its_plate()
+    test_nav_tab_label_uses_the_chrome_font()
+    test_gallery_hand_turns_land_at_once_and_vignette_spares_the_bands()
+    test_rivet_frame_and_title_lockups()
     joined, stuck = _drain_qt_threads()
     if joined:
         names = ", ".join(sorted(set(joined)))

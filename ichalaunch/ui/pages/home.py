@@ -18,10 +18,12 @@ from PySide6.QtWidgets import (
 from ichalaunch.core.paths import theme_file
 from ichalaunch.game.launcher import detect_game, is_installed
 from ichalaunch.mods.installer import detect_actual_state, load_mod_catalog
-from ichalaunch.ui.widgets.common import open_url_in_browser
+from ichalaunch.ui.widgets.common import SpellbookPageButton, open_url_in_browser
+from ichalaunch.ui.widgets.gallery_dots import GalleryDots
 from ichalaunch.ui.widgets.glue_panel_button import GLUE_BTN_H, GluePanelButton
 from ichalaunch.ui.widgets.mods_forest_bg import HomeModsCard
 from ichalaunch.ui.widgets.talent_bg import TalentFrameBackground
+from ichalaunch.ui.widgets.title_lockup import TitleLockup
 
 log = logging.getLogger("ichalaunch")
 
@@ -60,6 +62,10 @@ _ART_BOTTOM_INSET_PX = 0
 # Hide the hard art / black fringe under the grey banner bar (not into spike valleys).
 # A few extra px closes the visible gap so rotating art meets the nav banner.
 _ART_BANNER_TUCK_PX = 12
+# Inset of the gallery page arrows from the art's own left/right edges.
+_ART_ARROW_PAD_PX = 10
+# Gap between the position row and the MoA wordmark it sits above.
+_ART_DOTS_GAP_PX = 6
 # MoA wordmark prefer width, centered along the art bottom.
 _MOA_ART_LOGO_W = 190  # ~5% under prior 200px prefer width
 # Pad from art bottom for the MoA wordmark.
@@ -177,6 +183,23 @@ class HomePage(QWidget):
         self.talent_bg = TalentFrameBackground(self)
         self.talent_bg.frame_changed.connect(self._sync_brand_layout)
 
+        # Page arrows for the gallery, same art and size the Addons catalog
+        # already pages with, so "turn to the next one" looks the same in both
+        # places.
+        self.art_prev = SpellbookPageButton("prev", self)
+        self.art_next = SpellbookPageButton("next", self)
+        self.art_prev.setToolTip("Previous")
+        self.art_next.setToolTip("Next")
+        self.art_prev.clicked.connect(lambda: self.talent_bg.step(-1))
+        self.art_next.clicked.connect(lambda: self.talent_bg.step(1))
+
+        self.art_dots = GalleryDots(self)
+        # turn_started fires when the turn begins, frame_changed when it lands
+        # and when the manifest reloads with a different slide count.
+        self.talent_bg.turn_started.connect(self._sync_gallery_dots)
+        self.talent_bg.frame_changed.connect(self._sync_gallery_dots)
+        self.art_dots.dot_clicked.connect(self.talent_bg.go_to)
+
         self.logo = QLabel(self)
         self.logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.logo.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
@@ -214,6 +237,9 @@ class HomePage(QWidget):
         return (
             self.talent_bg,
             self.logo,
+            self.art_prev,
+            self.art_next,
+            self.art_dots,
         )
 
     def _overlay_host(self) -> QWidget | None:
@@ -268,9 +294,23 @@ class HomePage(QWidget):
             return False
         return True
 
+    def _sync_gallery_dots(self) -> None:
+        dots = getattr(self, "art_dots", None)
+        if dots is None or not dots.isVisible():
+            return
+        dots.set_state(
+            self.talent_bg.slide_count(),
+            self.talent_bg.display_index(),
+            max(1, self.talent_bg.width()),
+        )
+
     def _set_chrome_visible(self, visible: bool) -> None:
         self.talent_bg.setVisible(visible)
         self.logo.setVisible(visible)
+        pageable = visible and self.talent_bg.slide_count() > 1
+        self.art_prev.setVisible(pageable)
+        self.art_next.setVisible(pageable)
+        self.art_dots.setVisible(pageable)
         banner = self._nav_bottom_banner()
         if banner is not None:
             banner.update()
@@ -374,6 +414,26 @@ class HomePage(QWidget):
             logo_y = art.y()
         self.logo.setGeometry(logo_x, logo_y, logo_w, logo_h)
 
+        # --- gallery page arrows, centred on the picture's left/right edges ---
+        # Centred on paint_h, not on art.height(): the widget is the taller of
+        # the two (it tucks under the grey bar) and the picture centres inside
+        # the widget, so paint_h is what the arrows have to agree with.
+        arrow = self.art_prev.height() or GLUE_BTN_H
+        arrow_y = art.y() + (paint_h - arrow) // 2
+        self.art_prev.move(art.x() + _ART_ARROW_PAD_PX, arrow_y)
+        self.art_next.move(
+            art.x() + art.width() - arrow - _ART_ARROW_PAD_PX, arrow_y
+        )
+
+        # --- position row, centred above the MoA wordmark ---
+        self.art_dots.set_state(
+            self.talent_bg.slide_count(), self.talent_bg.display_index(), art.width()
+        )
+        self.art_dots.move(
+            art.x() + (art.width() - self.art_dots.width()) // 2,
+            logo_y - self.art_dots.height() - _ART_DOTS_GAP_PX,
+        )
+
         self._set_chrome_visible(True)
 
         # Z-order (back → front on Root):
@@ -412,6 +472,10 @@ class HomePage(QWidget):
                         btn.raise_()
         if isinstance(rc, QWidget):
             rc.raise_()
+
+        self.art_prev.raise_()
+        self.art_next.raise_()
+        self.art_dots.raise_()
 
         art_bottom_now = art.y() + art.height()
         gap = art_bottom - art_bottom_now
@@ -515,12 +579,20 @@ class HomePage(QWidget):
         block_l.setContentsMargins(0, 0, 0, 0)
         block_l.setSpacing(4)
 
-        cat_lbl = QLabel(category)
-        cat_lbl.setObjectName("HomeModCategory")
-        cat_lbl.setStyleSheet(
-            "color: #F1C22D; font-size: 12px; font-weight: 600; padding-bottom: 2px;"
+        # Title over a count, the shape ravencraft.io gives every card. The
+        # second line is a number the caller already holds - a lockup with
+        # invented subtitle text would be decoration wearing the shape of
+        # information.
+        heading = TitleLockup(
+            category,
+            f"{len(names)} mod" if len(names) == 1 else f"{len(names)} mods",
+            title_name="HomeModCategory",
+            subtitle_name="HomeModCategorySub",
         )
-        block_l.addWidget(cat_lbl)
+        heading.title.setStyleSheet(
+            "color: #F1C22D; font-size: 12px; font-weight: 600;"
+        )
+        block_l.addWidget(heading)
 
         for name in names:
             item = QLabel(name)
@@ -550,8 +622,11 @@ class HomePage(QWidget):
                 empty.setWordWrap(True)
                 self.summary_host.addWidget(empty)
             else:
-                hdr = QLabel("Installed client mods")
-                hdr.setObjectName("SectionTitle")
+                total = len(enabled_ids)
+                hdr = TitleLockup(
+                    "Installed client mods",
+                    f"{total} enabled" if total != 1 else "1 enabled",
+                )
                 self.summary_host.addWidget(hdr)
 
                 by_cat: dict[str, list[str]] = {}

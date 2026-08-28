@@ -9,14 +9,24 @@ from PySide6.QtWidgets import QApplication
 
 from ichalaunch.core.logging_setup import log
 from ichalaunch.core.paths import theme_file
+from ichalaunch.ui.theme_fonts import chrome_family
 from ichalaunch.ui.widgets.splash import SplashScreen, load_splash_pixmap
 
 
 def load_stylesheet(app: QApplication) -> None:
+    # Register the bundled face first: the sheet names it, and a family Qt has
+    # not seen yet is silently skipped rather than applied on the next repaint.
+    chrome_family()
+
     qss = theme_file("stylesheet.qss")
     if not qss.exists():
         return
     text = qss.read_text(encoding="utf-8")
+    # Same substitution the chevron below uses. Without it the sheet pins a
+    # family while the painted chrome follows the override, so naming a font
+    # dresses the tabs and buttons and leaves every heading behind.
+    text = text.replace("__CHROME_FAMILY__", chrome_family())
+
     chevron = theme_file("chevron-down.svg")
     if chevron.exists():
         # Qt QSS urls need forward slashes
