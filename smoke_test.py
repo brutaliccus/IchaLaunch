@@ -15243,6 +15243,49 @@ def test_chrome_font_is_bundled_and_scoped_to_chrome():
     print("OK chrome font bundled with its licence and scoped to chrome")
 
 
+def test_launch_label_fills_its_plate():
+    """PLAY grows into the button and is bounded by ink, so nothing clips."""
+    from PySide6.QtCore import QRect
+    from PySide6.QtGui import QFontMetrics, QPainter, QPixmap
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.app import load_stylesheet
+    import ichalaunch.ui.widgets.launch_button as launch_button
+
+    app = QApplication.instance() or QApplication([])
+    load_stylesheet(app)
+
+    def measure(text):
+        btn = launch_button.LaunchButton(text)
+        rect = QRect(0, 0, launch_button._PLAY_W, launch_button._PLAY_H)
+        pm = QPixmap(rect.width(), rect.height())
+        pm.fill()
+        painter = QPainter(pm)
+        btn._paint_label(painter, rect)
+        font = painter.font()
+        painter.end()
+        fm = QFontMetrics(font)
+        ink = max(fm.height(), fm.tightBoundingRect(text.upper()).height())
+        return font.pixelSize(), fm.horizontalAdvance(text.upper()), ink
+
+    box_w = launch_button._PLAY_W - launch_button._LABEL_H_PAD
+    box_h = launch_button._PLAY_H - launch_button._LABEL_V_PAD
+
+    px, advance, ink = measure("PLAY")
+    # The old ladder only ever shrank, so a short label sat at 20px in a 56px
+    # plate with most of it empty.
+    assert px > 20, f"PLAY did not grow (still {px}px)"
+    assert px <= launch_button._LABEL_MAX_PX
+    assert advance <= box_w, "PLAY overflows the plate horizontally"
+    assert ink <= box_h, "PLAY overflows the plate vertically and would clip"
+
+    # A long label meets the width bound first and must still fit.
+    px_long, advance_long, ink_long = measure("REGISTER HERE")
+    assert advance_long <= box_w and ink_long <= box_h
+    assert px_long < px, "a long label should not end up larger than a short one"
+    print("OK launch label fills its plate without clipping")
+
+
 def _run_smoke_tests():
     test_catalogs()
     test_tls_ca_env_sanitizer()
@@ -15503,6 +15546,7 @@ def _run_smoke_tests():
     test_detect_and_installer_drop_unused_imports()
     test_chrome_family_env_override()
     test_chrome_font_is_bundled_and_scoped_to_chrome()
+    test_launch_label_fills_its_plate()
     print("\nAll smoke tests passed.")
 
 
