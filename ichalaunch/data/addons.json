@@ -19103,5 +19103,13 @@
     "release_downloads_state": "none",
     "release_downloads": 0,
     "release_downloads_at": "2026-08-27T23:32:15Z"
+  },
+  {
+    "name": "FlightMap",
+    "repo": "https://github.com/roby-brok/FlightMap",
+    "category": "General",
+    "source": "community",
+    "folder": "FlightMap",
+    "description": "# FlightMap\nDhask's FlightMap v1.12-1 with support for [LevelRange-Turtle](https://github.com/Tenyar97/LevelRange-Turtle).\n\nCommands:\n/flightmap /fmap\n\nSummary:\n- Show all flight line available from a zone when hovering over it in world map, as well as their cost.    \n- Shows flight duration with a progress bar.    \n- Shows flight master locations on the world map.\n\n## OctoWoW Fork\n\nFlightMap was created by **Dhask** — all credit for the addon goes to them, thank you!\n\nChanges in this version, fixed by **Roby_Brok**:\n- Flights on routes without a recorded duration (the server's new flight paths) now show a **live elapsed timer** counting up instead of a static label, while the real duration is recorded for the next flight\n- The take-off confirmation no longer advertises a flight time of **\"0s\"** on a route it has never flown. An unknown duration is stored as zero, which the dialog printed verbatim; it now says the duration is unknown until the first flight records one"
   }
 ]
