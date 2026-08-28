@@ -12,7 +12,6 @@ from PySide6.QtGui import (
     QColor,
     QCursor,
     QFont,
-    QFontDatabase,
     QFontMetrics,
     QGuiApplication,
     QIcon,
@@ -61,7 +60,7 @@ _TAB_STRIP_HEIGHT = 44
 # Hide the glue-plate bottom stroke / L-corners under the content seam.
 # Dest is widget height + this many px, top-aligned, so the extra bottom clips.
 _TAB_ART_SHIFT_Y = 7
-# ContentPanel top inset so page scroll clips below −/X and the LifeCraft caption.
+# ContentPanel top inset so page scroll clips below −/X and the crest caption.
 # Extra px below the chrome glyphs clear the IchaLaunch word.
 _CONTENT_TOP_CHROME = 66
 # RavenCraft crest at ContentPanel top (was MoA). Larger than MoA wordmark was.
@@ -69,7 +68,7 @@ _RC_LOGO_WIDTH = 210
 # Optional outer pad around the crest (kept for layout math; no glow drawn).
 _RC_GLOW_PAD_X = 0
 _RC_GLOW_PAD_Y = 0
-# Secondary LifeCraft word under the crest — small vs the 210px art.
+# Secondary word under the crest — small vs the 210px art.
 _RC_CAPTION_TEXT = "IchaLaunch"
 _RC_CAPTION_PX = 15
 _RC_CAPTION_GAP = 3
@@ -184,33 +183,19 @@ from ichalaunch.core.paths import theme_file
 from ichalaunch.ui.theme_fonts import chrome_family
 from ichalaunch.ui.widgets.update_alert_badge import paint_update_alert_badge
 
-# LifeCraft_Font.ttf — Eliot Truelove / dafont donationware (personal use); zip has no readme.
-_RC_CAPTION_FONT_PATH = theme_file("fonts", "LifeCraft_Font.ttf")
-_LIFECRAFT_FAMILY: str | None = None
-_LIFECRAFT_LOAD_ATTEMPTED = False
+def _caption_font() -> QFont | None:
+    """Crest caption face.
 
+    Was LifeCraft_Font.ttf, which its own note recorded as dafont donationware
+    licensed for personal use. An installed launcher is not personal use, and
+    the file shipped with no licence beside it. Cinzel is already bundled for
+    the chrome under OFL 1.1, which permits redistribution inside an
+    application, so the caption uses that and the personal-use file is gone.
 
-def _lifecraft_family() -> str | None:
-    """Register the bundled LifeCraft face once; None if the file is missing."""
-    global _LIFECRAFT_FAMILY, _LIFECRAFT_LOAD_ATTEMPTED
-    if _LIFECRAFT_LOAD_ATTEMPTED:
-        return _LIFECRAFT_FAMILY
-    _LIFECRAFT_LOAD_ATTEMPTED = True
-    path = _RC_CAPTION_FONT_PATH
-    if not path.is_file() or path.stat().st_size <= 0:
-        return None
-    font_id = QFontDatabase.addApplicationFont(str(path))
-    if font_id == -1:
-        return None
-    families = QFontDatabase.applicationFontFamilies(font_id)
-    if not families:
-        return None
-    _LIFECRAFT_FAMILY = families[0]
-    return _LIFECRAFT_FAMILY
-
-
-def _lifecraft_caption_font() -> QFont | None:
-    family = _lifecraft_family()
+    The caption band measures itself from the metrics below, so the face
+    changing size does not need a hand-tuned height.
+    """
+    family = chrome_family()
     if not family:
         return None
     font = QFont(family)
@@ -542,7 +527,7 @@ class RavenCraftFloatingLogo(QWidget):
             return
         self._pix = src.scaledToWidth(_RC_LOGO_WIDTH, Qt.TransformationMode.SmoothTransformation)
         self._logo_h = self._pix.height()
-        self._caption_font = _lifecraft_caption_font()
+        self._caption_font = _caption_font()
         art_bottom = _RC_GLOW_PAD_Y + _pixmap_opaque_bottom(self._pix)
         self._caption_top = art_bottom + _RC_CAPTION_GAP
         caption_h = 0
