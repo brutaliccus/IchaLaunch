@@ -15242,6 +15242,94 @@ def test_home_gallery_position_dots():
     print("OK home gallery position dots track the shown slide")
 
 
+def test_gallery_hand_turns_land_at_once_and_vignette_spares_the_bands():
+    """A hand turn is immediate, dots jump, and the vignette darkens only the picture."""
+    from PySide6.QtCore import QPoint
+    from PySide6.QtGui import QImage, QPainter
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.widgets.gallery_dots import GalleryDots
+    import ichalaunch.ui.widgets.talent_bg as talent_bg
+    from ichalaunch.ui.widgets.talent_bg import TalentFrameBackground
+
+    app = QApplication.instance() or QApplication([])
+    del app
+
+    w, h = 880, 660
+    art = TalentFrameBackground()
+    art.set_frame(0, 0, w, h)
+    art.resize(w, h)
+    count = art.slide_count()
+    assert count > 2
+
+    # No settling anywhere below. The crossfade suits a gallery drifting on its
+    # own; asked for the next slide, waiting it out reads as a dead click.
+    art._index = 0
+    art.step(1)
+    assert art._index == 1, "a hand turn still waits on the crossfade"
+    art.step(-1)
+    assert art._index == 0
+    art.step(-1)
+    assert art._index == count - 1, "paging back off the first slide must wrap"
+
+    art.go_to(3)
+    assert art._index == 3, "go_to did not land"
+    art.go_to(-1)
+    art.go_to(count)
+    assert art._index == 3, "an out-of-range jump must be ignored"
+
+    # Each dot owns its whole pitch as a hit box, so the gaps are target too.
+    dots = GalleryDots()
+    dots.set_state(count, 0, w)
+    dots.resize(dots.width(), dots.height())
+    left = (dots.width() - count * dots._pitch) / 2.0
+    for target in (0, count // 2, count - 1):
+        assert dots._index_at(left + target * dots._pitch + 1) == target
+        assert dots._index_at(left + target * dots._pitch + dots._pitch - 1) == target
+    assert dots._index_at(left - 40) == -1, "a click left of the row is not a slide"
+    assert dots._index_at(left + count * dots._pitch + 40) == -1
+
+    # The featured slide is 2:1 in a taller rect, so it leaves transparent bands.
+    # The vignette is composited SourceAtop for exactly this reason: painted over
+    # the bands it would turn empty space into a black slab.
+    art.go_to(0)
+
+    def render():
+        img = QImage(w, h, QImage.Format.Format_ARGB32)
+        img.fill(0)
+        painter = QPainter(img)
+        art.render(painter, QPoint(0, 0))
+        painter.end()
+        return img
+
+    def lum(img, x, y):
+        c = img.pixelColor(x, y)
+        return (c.red() + c.green() + c.blue()) / 3.0
+
+    # Measured against the same frame with the gradient off, not against the
+    # picture's own centre. This art is already darker at its edges than in the
+    # middle, so comparing centre to edge passes whether the vignette runs or
+    # not - it reads as a test and asserts nothing.
+    shipped = render()
+    saved = talent_bg._VIGNETTE_ALPHA
+    try:
+        talent_bg._VIGNETTE_ALPHA = 0
+        plain = render()
+    finally:
+        talent_bg._VIGNETTE_ALPHA = saved
+
+    band_y = (h - w // 2) // 4
+    assert shipped.pixelColor(w // 2, band_y).alpha() < 20, "the vignette filled the letterbox band"
+
+    edge = lum(shipped, 24, h // 2)
+    edge_plain = lum(plain, 24, h // 2)
+    centre = lum(shipped, w // 2, h // 2)
+    centre_plain = lum(plain, w // 2, h // 2)
+    assert edge < edge_plain - 1, f"the vignette did not darken the edge ({edge} vs {edge_plain})"
+    assert abs(centre - centre_plain) <= 1, "the vignette should leave the centre alone"
+    print("OK gallery hand turns land at once and the vignette spares the bands")
+
+
 def _run_smoke_tests():
     test_catalogs()
     test_tls_ca_env_sanitizer()
@@ -15502,6 +15590,7 @@ def _run_smoke_tests():
     test_detect_and_installer_drop_unused_imports()
     test_home_gallery_page_arrows()
     test_home_gallery_position_dots()
+    test_gallery_hand_turns_land_at_once_and_vignette_spares_the_bands()
     print("\nAll smoke tests passed.")
 
 
