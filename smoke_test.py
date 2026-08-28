@@ -15287,7 +15287,6 @@ def test_chrome_family_env_override():
     import ichalaunch.ui.theme_fonts as theme_fonts
 
     app = QApplication.instance() or QApplication([])
-    del app
 
     saved = os.environ.get(theme_fonts._FAMILY_ENV)
 
@@ -15311,6 +15310,28 @@ def test_chrome_family_env_override():
         # A name Qt cannot see would otherwise substitute something arbitrary and
         # look deliberate.
         assert resolve("NoSuchFaceAnywhere") == "Cinzel"
+
+        # The sheet must follow the override too. It used to pin the family, so
+        # naming a font dressed the painted chrome - tabs, PLAY - and left every
+        # heading in Cinzel, which reads as the setting half working.
+        from PySide6.QtGui import QFontDatabase
+        from PySide6.QtWidgets import QLabel
+
+        from ichalaunch.app import load_stylesheet
+
+        other = next(
+            (f for f in QFontDatabase.families() if f not in ("Cinzel", "") and " " not in f),
+            None,
+        )
+        if other is not None:
+            assert resolve(other) == other
+            load_stylesheet(app)
+            heading = QLabel("Installed client mods")
+            heading.setObjectName("SectionTitle")
+            heading.ensurePolished()
+            assert heading.font().family() == other, (
+                f"the sheet ignored the override: {heading.font().family()} not {other}"
+            )
     finally:
         theme_fonts._load_attempted = False
         theme_fonts._chrome_family = None
@@ -15319,6 +15340,9 @@ def test_chrome_family_env_override():
         else:
             os.environ[theme_fonts._FAMILY_ENV] = saved
         theme_fonts.chrome_family()
+        # Re-apply, or every later test inherits the sheet this one last built.
+        from ichalaunch.app import load_stylesheet as _reload_sheet
+        _reload_sheet(app)
     print("OK chrome family env override honoured, bad names fall back")
 
 

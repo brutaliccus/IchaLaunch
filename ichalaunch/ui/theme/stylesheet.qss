@@ -16,7 +16,7 @@ QLabel#SectionSubtitle,
 QLabel#HomeModCategorySub,
 QLabel#ThemedDialogTitle,
 QLabel#CountdownTitle {
-    font-family: "Cinzel", "Segoe UI", "Candara", "Calibri", serif;
+    font-family: "__CHROME_FAMILY__", "Segoe UI", "Candara", "Calibri", serif;
 }
 
 QMainWindow {

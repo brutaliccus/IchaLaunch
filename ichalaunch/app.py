@@ -22,6 +22,11 @@ def load_stylesheet(app: QApplication) -> None:
     if not qss.exists():
         return
     text = qss.read_text(encoding="utf-8")
+    # Same substitution the chevron below uses. Without it the sheet pins a
+    # family while the painted chrome follows the override, so naming a font
+    # dresses the tabs and buttons and leaves every heading behind.
+    text = text.replace("__CHROME_FAMILY__", chrome_family())
+
     chevron = theme_file("chevron-down.svg")
     if chevron.exists():
         # Qt QSS urls need forward slashes
