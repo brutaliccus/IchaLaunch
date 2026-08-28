@@ -15169,6 +15169,40 @@ def test_linux_game_running_guard():
     print("OK linux game running guard")
 
 
+def _drain_qt_threads(wait_ms: int = 3000) -> tuple[list[str], list[str]]:
+    """Wait out any QThread still running, so the process can exit cleanly.
+
+    Qt's QThread destructor calls qFatal when the thread is still running, which
+    aborts the interpreter. That happens during teardown, AFTER every check has
+    passed, so a green run still exits 134 and any CI reading the exit code sees
+    failure. Nothing owns these threads by the end of the run, so they are found
+    by walking the heap rather than by bookkeeping.
+
+    Returns (joined, stuck) as lists of class names. A thread in *stuck* did NOT
+    stop: wait() timed out, the process may still abort, and requestInterruption
+    cannot help a thread that is blocked inside a call rather than between them.
+    """
+    import gc
+
+    from PySide6.QtCore import QThread
+
+    joined: list[str] = []
+    stuck: list[str] = []
+    for obj in gc.get_objects():
+        if not isinstance(obj, QThread):
+            continue
+        try:
+            if not obj.isRunning():
+                continue
+            obj.requestInterruption()
+            (joined if obj.wait(wait_ms) else stuck).append(type(obj).__name__)
+        except RuntimeError:
+            # Already deleted on the C++ side; nothing to wait for.
+            continue
+    return joined, stuck
+
+
+
 def main():
     import ichalaunch.config.settings as settings_mod
 
@@ -15490,6 +15524,13 @@ def _run_smoke_tests():
     test_wayland_window_move_and_resize_handoff()
     test_linux_game_running_guard()
     test_detect_and_installer_drop_unused_imports()
+    joined, stuck = _drain_qt_threads()
+    if joined:
+        names = ", ".join(sorted(set(joined)))
+        print(f"({len(joined)} QThread(s) still running at teardown, joined: {names})")
+    if stuck:
+        names = ", ".join(sorted(set(stuck)))
+        print(f"WARNING: {len(stuck)} QThread(s) did not stop: {names} - process may still abort")
     print("\nAll smoke tests passed.")
 
 
