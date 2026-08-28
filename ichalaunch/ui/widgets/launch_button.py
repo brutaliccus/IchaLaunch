@@ -20,6 +20,7 @@ from PySide6.QtWidgets import QPushButton, QSizePolicy
 from ichalaunch.core.paths import theme_file
 from ichalaunch.ui.widgets.cursors import apply_open_hand
 from ichalaunch.ui.widgets.glue_panel_button import launch_glue_chrome
+from ichalaunch.ui.theme_fonts import chrome_family
 
 # RavenCraft palette
 _GOLD = QColor("#F1C22D")
@@ -228,7 +229,7 @@ class LaunchButton(QPushButton):
     def _paint_label(self, painter: QPainter, rect: QRect) -> None:
         text = (self.text() or "").upper()
         font = QFont(self.font())
-        font.setFamily("Segoe UI")
+        font.setFamily(chrome_family())
         font.setBold(True)
         # Longer labels need a smaller size; compact Home links also shrink to width.
         n = len(text.replace(" ", ""))
