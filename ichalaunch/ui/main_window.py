@@ -57,6 +57,12 @@ _LAUNCH_POLL_MS = 250
 _RESIZE_MARGIN = 6
 _CORNER_RADIUS = 14
 _TAB_STRIP_HEIGHT = 44
+# Label box inside the strip, after the plate's own 10px/4px padding. The tab
+# sizes itself to its text, so this is what stops it outgrowing the strip.
+_TAB_LABEL_H = _TAB_STRIP_HEIGHT - 14
+_TAB_LABEL_W = 260
+_TAB_PX_MIN = 11
+_TAB_PX_MAX = 26
 # Hide the glue-plate bottom stroke / L-corners under the content seam.
 # Dest is widget height + this many px, top-aligned, so the extra bottom clips.
 _TAB_ART_SHIFT_Y = 7
@@ -180,7 +186,11 @@ _CHROME_BTN_INSET_Y = 24
 
 from ichalaunch import __version__
 from ichalaunch.core.paths import theme_file
-from ichalaunch.ui.theme_fonts import chrome_family
+from ichalaunch.ui.theme_fonts import (
+    chrome_family,
+    fit_pixel_size,
+    ink_centered_rect,
+)
 from ichalaunch.ui.widgets.update_alert_badge import paint_update_alert_badge
 
 def _caption_font() -> QFont | None:
@@ -394,6 +404,33 @@ def _client_mod_failure_dialog_body(
     )
 
 
+# Widget-scoped: kills the app-wide QPushButton 1px #7a6e88 frame. Size rules are
+# repeated so this sheet cannot drop the file-QSS box model.
+_TAB_BASE_QSS = (
+    "QPushButton {"
+    "  background: transparent;"
+    "  border: none;"
+    "  outline: none;"
+    "  padding: 10px 18px 4px 18px;"
+    "  margin: 2px 0 0 0;"
+    "}"
+    "QPushButton:hover, QPushButton:pressed, QPushButton:focus {"
+    "  background: transparent;"
+    "  border: none;"
+    "  outline: none;"
+    "}"
+    "QPushButton:checked {"
+    "  background: transparent;"
+    "  border: none;"
+    "  outline: none;"
+    "  margin-top: 0;"
+    "  padding-top: 12px;"
+    "  padding-bottom: 6px;"
+    "  min-height: 32px;"
+    "}"
+)
+
+
 class NavTabButton(QPushButton):
     """Folder tab — floor-tinted Glue-Panel plate + optional update alert badge."""
 
@@ -406,29 +443,7 @@ class NavTabButton(QPushButton):
         self.setFlat(True)
         # Widget-scoped: kill the app-wide QPushButton 1px #7a6e88 frame.
         # Repeat size rules so this sheet cannot drop the file-QSS box model.
-        self.setStyleSheet(
-            "QPushButton {"
-            "  background: transparent;"
-            "  border: none;"
-            "  outline: none;"
-            "  padding: 10px 18px 4px 18px;"
-            "  margin: 2px 0 0 0;"
-            "}"
-            "QPushButton:hover, QPushButton:pressed, QPushButton:focus {"
-            "  background: transparent;"
-            "  border: none;"
-            "  outline: none;"
-            "}"
-            "QPushButton:checked {"
-            "  background: transparent;"
-            "  border: none;"
-            "  outline: none;"
-            "  margin-top: 0;"
-            "  padding-top: 12px;"
-            "  padding-bottom: 6px;"
-            "  min-height: 32px;"
-            "}"
-        )
+        self._apply_chrome_font()
         self._badge = False
         self._tile_anchor: QWidget | None = None
         # Warm floor-tint caches so the first tab paint is snappy.
@@ -462,6 +477,33 @@ class NavTabButton(QPushButton):
             return "hover"
         return "idle"
 
+    def _apply_chrome_font(self) -> None:
+        """Size the label from its own metrics and put it in the widget sheet.
+
+        Not setFont(): the file sheet carries a `*` font-family rule, and a
+        stylesheet beats setFont for any property it names, so an explicitly set
+        family is silently discarded on the next polish. A widget-scoped rule is
+        more specific than `*` and survives.
+
+        Not paint-time either: sizeHint decides how wide the tab is, so a size
+        applied only while painting would be laid out for the old one and clip.
+        """
+        family = chrome_family()
+        font = QFont(family)
+        font.setBold(True)
+        px = fit_pixel_size(
+            font, self.text() or "", _TAB_LABEL_W, _TAB_LABEL_H, _TAB_PX_MIN, _TAB_PX_MAX
+        )
+        self.setStyleSheet(
+            _TAB_BASE_QSS
+            + f'QPushButton {{ font-family: "{family}"; font-size: {px}px; font-weight: bold; }}'
+        )
+        self.updateGeometry()
+
+    def setText(self, text: str) -> None:  # noqa: N802
+        super().setText(text)
+        self._apply_chrome_font()
+
     def _label_color(self) -> QColor:
         if self.isChecked():
             return QColor("#F1C22D")
@@ -488,10 +530,9 @@ class NavTabButton(QPushButton):
 
         text = self.text() or ""
         font = QFont(self.font())
-        font.setFamily(chrome_family())
-        font.setBold(True)
         painter.setFont(font)
         text_rect = rect.adjusted(0, 1 if self.isDown() else 0, 0, 0)
+        text_rect = ink_centered_rect(text_rect, font, text)
         painter.setPen(QColor(0, 0, 0, 140))
         painter.drawText(text_rect.adjusted(1, 1, 1, 1), Qt.AlignmentFlag.AlignCenter, text)
         painter.setPen(self._label_color())

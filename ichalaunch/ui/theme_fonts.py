@@ -29,7 +29,8 @@ from __future__ import annotations
 import logging
 import os
 
-from PySide6.QtGui import QFontDatabase
+from PySide6.QtCore import QRect
+from PySide6.QtGui import QFont, QFontDatabase, QFontMetrics
 
 from ichalaunch.core.paths import theme_file
 
@@ -87,3 +88,54 @@ def chrome_family() -> str:
     if _chrome_family is None:
         log.warning("No chrome font registered; falling back to %s", FALLBACK_CHROME_FAMILY)
     return _chrome_family or FALLBACK_CHROME_FAMILY
+
+
+# --- ink metrics -------------------------------------------------------------
+#
+# Qt lays text out on the line box: ascent plus descent, as the font declares
+# them. Display faces declare a tall ascent to make room for flourishes their
+# capitals never reach, so a label centred on the line box sits visibly high and
+# one sized by the line box comes out small. Both are read as the font being
+# wrong rather than the measurement being wrong. Measuring the ink instead makes
+# the chrome behave the same whatever family it is pointed at.
+
+
+def ink_height(font: QFont, text: str) -> int:
+    """Height of the marks themselves, never less than one line box would need."""
+    fm = QFontMetrics(font)
+    tight = fm.tightBoundingRect(text)
+    return max(1, tight.height())
+
+
+def fit_pixel_size(font: QFont, text: str, box_w: int, box_h: int, lo: int, hi: int) -> int:
+    """Largest size in [lo, hi] fitting box_w x box_h. Returns lo if none do."""
+    best = lo
+    for px in range(lo, hi + 1):
+        font.setPixelSize(px)
+        fm = QFontMetrics(font)
+        if fm.horizontalAdvance(text) > box_w:
+            break
+        # Both bounds matter and neither implies the other. Folkard's descenders
+        # make its ink taller than its line box; Cinzel, all caps and no tails,
+        # is the reverse by a factor of two. Checking one lets the other overrun.
+        if max(fm.tightBoundingRect(text).height(), fm.height()) > box_h:
+            break
+        best = px
+    font.setPixelSize(best)
+    return best
+
+
+def ink_centered_rect(rect: QRect, font: QFont, text: str) -> QRect:
+    """Shift *rect* so AlignCenter lands the ink centre on the rect centre.
+
+    Qt centres the line box, so a face whose capitals sit low inside a tall
+    ascent renders high in its own button. This returns the rect to draw into so
+    the marks are optically centred instead.
+    """
+    fm = QFontMetrics(font)
+    tight = fm.tightBoundingRect(text)
+    if tight.isEmpty():
+        return rect
+    baseline = rect.top() + (rect.height() - fm.height()) / 2.0 + fm.ascent()
+    ink_center = baseline + tight.top() + tight.height() / 2.0
+    return rect.translated(0, round(rect.center().y() - ink_center))

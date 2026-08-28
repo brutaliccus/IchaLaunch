@@ -20,7 +20,7 @@ from PySide6.QtWidgets import QPushButton, QSizePolicy
 from ichalaunch.core.paths import theme_file
 from ichalaunch.ui.widgets.cursors import apply_open_hand
 from ichalaunch.ui.widgets.glue_panel_button import launch_glue_chrome
-from ichalaunch.ui.theme_fonts import chrome_family
+from ichalaunch.ui.theme_fonts import chrome_family, ink_centered_rect
 
 # RavenCraft palette
 _GOLD = QColor("#F1C22D")
@@ -36,6 +36,10 @@ _LABEL_H_PAD = 18
 _LABEL_V_PAD = 16
 # A 56px plate; past this the ink crowds the bevel however well it fits.
 _LABEL_MAX_PX = 34
+# Optical drop. Ink centring puts the marks on the rect centre, but the plate's
+# top bevel reads thicker than its bottom, so true centre still sits high. A
+# taste value, not a derived one.
+_LABEL_NUDGE_Y = 2
 _UPDATE_SIDE = 56
 # CheckButtonGlow is 64×64: 9px empty pad, 46px halo, 32px inner hole,
 # bright gold line just outside the hole. Crop empty pad only, then scale
@@ -303,6 +307,11 @@ class LaunchButton(QPushButton):
 
         # Soft text shadow for recessed metal look
         text_rect = rect.adjusted(0, 0 if not self.isDown() else 1, 0, 0)
+        # Optically centre: AlignCenter would centre the line box, which sits
+        # the capitals high in a face that reserves ascent for flourishes.
+        if not wrap:
+            text_rect = ink_centered_rect(text_rect, font, text)
+        text_rect = text_rect.translated(0, _LABEL_NUDGE_Y)
         shadow = QColor(0, 0, 0, 160)
         flags = Qt.AlignmentFlag.AlignCenter
         draw = "\n".join(words) if wrap else text
