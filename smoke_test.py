@@ -15102,6 +15102,98 @@ def test_linux_game_running_guard():
     print("OK linux game running guard")
 
 
+def test_update_signature_verification():
+    """Signed-update verification: fails closed in every direction."""
+    import base64
+    import json
+    from unittest.mock import patch
+
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    import ichalaunch.core.signing as signing
+    from ichalaunch.core.signing import Signature, SignatureError
+
+    def keypair():
+        priv = Ed25519PrivateKey.generate()
+        raw = priv.public_key().public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+        return priv, base64.b64encode(raw).decode()
+
+    def sidecar(priv, payload, key_id):
+        return json.dumps(
+            {"key_id": key_id, "sig": base64.b64encode(priv.sign(payload)).decode()}
+        ).encode()
+
+    good_priv, good_pub = keypair()
+    evil_priv, evil_pub = keypair()
+    backup_priv, backup_pub = keypair()
+    payload = b"pretend this is IchaLaunch.exe" * 100
+
+    # An empty pin set must make verification IMPOSSIBLE, never skipped. A build
+    # that trusts nothing refuses to self-update rather than accepting anything.
+    with patch.object(signing, "PINNED_KEYS", ()):
+        assert signing.signing_is_configured() is False
+        try:
+            signing.verify_bytes(payload, Signature.parse(sidecar(good_priv, payload, good_pub)))
+            raise AssertionError("empty PINNED_KEYS accepted a signature")
+        except SignatureError:
+            pass
+
+    with patch.object(signing, "PINNED_KEYS", (good_pub, backup_pub)):
+        assert signing.signing_is_configured() is True
+        assert signing.verify_bytes(
+            payload, Signature.parse(sidecar(good_priv, payload, good_pub))
+        ) == good_pub
+        # A backup key is trusted too; that is the point of pinning spares.
+        assert signing.verify_bytes(
+            payload, Signature.parse(sidecar(backup_priv, payload, backup_pub))
+        ) == backup_pub
+
+        def rejects(label, payload_, raw_sig, **kw):
+            try:
+                signing.verify_bytes(payload_, Signature.parse(raw_sig), **kw)
+            except SignatureError:
+                return
+            raise AssertionError(label)
+
+        rejects("accepted a modified payload", payload + b"x", sidecar(good_priv, payload, good_pub))
+        rejects("accepted an untrusted key", payload, sidecar(evil_priv, payload, evil_pub))
+        # key_id is a HINT, not a credential: claiming a trusted id must not help.
+        rejects(
+            "a forged key_id was believed",
+            payload,
+            json.dumps(
+                {"key_id": good_pub, "sig": base64.b64encode(evil_priv.sign(payload)).decode()}
+            ).encode(),
+        )
+        # A revoked key stops being trusted even though it is still pinned.
+        rejects(
+            "a revoked key was accepted",
+            payload,
+            sidecar(good_priv, payload, good_pub),
+            revoked=frozenset({good_pub}),
+        )
+
+        # Malformed sidecars are failures, not warnings.
+        for bad in (
+            b"",
+            b"{}",
+            b"not json",
+            json.dumps({"key_id": good_pub, "sig": "!!"}).encode(),
+            json.dumps({"key_id": good_pub, "sig": base64.b64encode(b"short").decode()}).encode(),
+        ):
+            try:
+                Signature.parse(bad)
+                raise AssertionError(f"parsed a malformed signature: {bad!r}")
+            except SignatureError:
+                pass
+
+    print("OK update signature verification")
+
+
 def main():
     import ichalaunch.config.settings as settings_mod
 
@@ -15423,6 +15515,7 @@ def _run_smoke_tests():
     test_wayland_window_move_and_resize_handoff()
     test_linux_game_running_guard()
     test_detect_and_installer_drop_unused_imports()
+    test_update_signature_verification()
     print("\nAll smoke tests passed.")
 
 

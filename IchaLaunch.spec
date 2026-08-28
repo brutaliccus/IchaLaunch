@@ -16,6 +16,8 @@ datas = [
 ]
 binaries: list[tuple[str, str]] = []
 hiddenimports = [
+    # Ed25519 verification for signed launcher updates.
+    "cryptography.hazmat.bindings._rust",
     "PySide6.QtCore",
     "PySide6.QtGui",
     "PySide6.QtWidgets",
