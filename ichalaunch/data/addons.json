@@ -123,8 +123,8 @@
     "folder": "Bagshui",
     "release_downloads_repo": "The-Kludge-Bureau/Bagshui",
     "release_downloads_state": "ok",
-    "release_downloads": 214,
-    "release_downloads_at": "2026-08-27T23:32:15Z"
+    "release_downloads": 215,
+    "release_downloads_at": "2026-08-28T08:25:16Z"
   },
   {
     "name": "BlizzMo",
@@ -135,8 +135,8 @@
     "folder": "BlizzMo_Vanilla",
     "release_downloads_repo": "Dyaxler/BlizzMo_Vanilla",
     "release_downloads_state": "ok",
-    "release_downloads": 1009,
-    "release_downloads_at": "2026-08-27T13:39:38Z"
+    "release_downloads": 1010,
+    "release_downloads_at": "2026-08-28T08:25:16Z"
   },
   {
     "name": "CooldownTimers",
@@ -4014,8 +4014,8 @@
     "folder": "ClassicSnowFall",
     "release_downloads_repo": "Road-block/ClassicSnowFall",
     "release_downloads_state": "ok",
-    "release_downloads": 562,
-    "release_downloads_at": "2026-08-27T23:32:15Z"
+    "release_downloads": 563,
+    "release_downloads_at": "2026-08-28T08:25:16Z"
   },
   {
     "name": "ClassPortraits",
@@ -10858,8 +10858,8 @@
     ],
     "release_downloads_repo": "laytya/MinimapButtonFrame-vanilla",
     "release_downloads_state": "ok",
-    "release_downloads": 2338,
-    "release_downloads_at": "2026-08-27T13:39:38Z"
+    "release_downloads": 2339,
+    "release_downloads_at": "2026-08-28T08:25:16Z"
   },
   {
     "name": "PingoMatic",
@@ -11842,8 +11842,8 @@
     "folder": "_AutoBG",
     "release_downloads_repo": "EinBaum/_AutoBG",
     "release_downloads_state": "ok",
-    "release_downloads": 575,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads": 576,
+    "release_downloads_at": "2026-08-28T08:25:16Z"
   },
   {
     "name": "Avbars",
@@ -12478,8 +12478,8 @@
     ],
     "release_downloads_repo": "The-Kludge-Bureau/pfQuest",
     "release_downloads_state": "ok",
-    "release_downloads": 6687,
-    "release_downloads_at": "2026-08-27T23:32:15Z"
+    "release_downloads": 6695,
+    "release_downloads_at": "2026-08-28T08:25:16Z"
   },
   {
     "name": "pfQuest-icons",
@@ -14249,8 +14249,8 @@
     ],
     "release_downloads_repo": "Road-block/SimpleRaidTargetIcons",
     "release_downloads_state": "ok",
-    "release_downloads": 518,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads": 519,
+    "release_downloads_at": "2026-08-28T08:25:16Z"
   },
   {
     "name": "SmartBuff",
@@ -15213,8 +15213,8 @@
     ],
     "release_downloads_repo": "gashole/DruidManaBar",
     "release_downloads_state": "ok",
-    "release_downloads": 90,
-    "release_downloads_at": "2026-08-27T23:32:15Z"
+    "release_downloads": 91,
+    "release_downloads_at": "2026-08-28T08:25:16Z"
   },
   {
     "name": "FastTOT",
@@ -15397,8 +15397,8 @@
     "folder": "oCB",
     "release_downloads_repo": "Shellyoung/oCB-SuperWoW",
     "release_downloads_state": "ok",
-    "release_downloads": 135,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads": 136,
+    "release_downloads_at": "2026-08-28T08:25:16Z"
   },
   {
     "name": "Overhead",
@@ -18023,8 +18023,8 @@
     "description": "# pfQuest (turtle)\nThis AddOn is a [pfQuest](https://github.com/shagu/pfQuest) extension, which adds support for the [TurtleWoW](https://turtle-wow.org/) Private Server. In order to run this extension, the latest version of [pfQuest](https://github.com/shagu/pfQuest) is always required and only enUS-Gameclients are supported.\n\n*Notice: Issues and bugs like \"please add quest XYZ\" and all other content requests will be silently ignored. This is, because the data is not manually added, but depends on the Turtle-WoW team to release their database to a trusted person that can produce pfQuest-turtle builds.*\n\nIf you wish to contribute, please feel free to send a [Pull Requests](https://github.com/bennylava/pfQuest-turtle/pulls).\n\n## Install\n*The latest version of [pfQuest](https://shagu.org/pfQuest) is required for this module to work.*\n\n1. Download **[pfQuest-turtle](https://github.com/bennylava/pfQuest-turtle/archive/master.zip)**\n2. Unpack the Zip file\n3. Rename the folder \"pfQuest-turtle-master\" to \"pfQuest-turtle\"\n4. Copy \"pfQuest-turtle\" into Wow-Directory\\Interface\\AddOns\n5. Restart Wow",
     "release_downloads_repo": "Bennylavaa/pfQuest-turtle",
     "release_downloads_state": "ok",
-    "release_downloads": 9,
-    "release_downloads_at": "2026-08-27T23:32:15Z"
+    "release_downloads": 10,
+    "release_downloads_at": "2026-08-28T08:25:16Z"
   },
   {
     "name": "pfQuest-turtle",
@@ -18591,8 +18591,8 @@
     "description": "# For TurtleWoW launcher\nClick Addons - Add new addon - paste this url there: https://github.com/vaniron/TourGuide-Turtle.git\n\n# Contact & Donations\nYou can add me on discord: **vanironcz**\n\nIf you wanna support this fork, you can do so via https://www.paypal.com/donate/?hosted_button_id=FSQQQGRSBDA58\n\n# TourGuide-Turtle\nTekkub's TourGuide Addon backported for WoW 1.12 *with tweaks for TurtleWoW*\n\nRecommended Downloads: \n\n[**TomTom-TWOW**](https://github.com/laytya/TomTom-TWOW)\n* **Arrow to navigate you to next guide point**\n* you have to disable arrow from pfQuest as its showing closest quest, not optimal path - TomTom is integrated directly to TourGuide and shoudl be used instead\n\n[**pfQuest**](https://github.com/shagu/pfQuest) + [**pfQuest-turtle**](https://github.com/shagu/pfQuest-turtle)\n* pfQuest adds many features like tracking, map icons etc.\n\n[**pfUI**](https://github.com/shagu/pfUI)\n* pfUI provides so much more, overall UI overhaul but all features can be tweaked and disabled if you dont like them\n\nOptional addon: [TourGuide_Professions](https://github.com/Lorwik/TourGuide_Professions)\n\n\n**Features**\n* Automatic detection of objective completion\n  * Detect quest accept, completion and turnin\n  * Detect travel (by foot, flight, boat and stone)\n  * Detection of flight point discovery\n  * Detection of Hearth point change\n* Conditionals based on player’s class and item possession (only tell the player to accept the quest if they have the item that starts the quest)\n* Small “lego block” style frame shows current objective, detailed tooltips on hover\n* “Use item” frame, for those annoying quests where you have to use an item on a mob before you kill it, or you have to equip something, or you have to use an item to start a quest\n* Pop out frame for detailed view of quest sequence\n* Automatic mapping of coordinates with TomTom and questgiver locations from pfQuest if installed\n\nGuides list, plus few others didnt make it into the screenshot (Plaguelands, Silithus, Winterspring), too many for one screen xD\n![image](https://github.com/user-attachments/assets/7d655a07-d8b9-48ad-b514-b95fcefb81a8)\n\n\n**Contributors**\n* Tekkub\n* Cralor\n* Road-block\n* Rsheep\n* Azgaardian\n* Kyliexx\n* laytya\n* jb6357\n* Ez-mode\n* Gescht\n* Vaniron\n* Trus3683\n* Ravenhost",
     "release_downloads_repo": "vaniron/TourGuide-Turtle",
     "release_downloads_state": "ok",
-    "release_downloads": 229,
-    "release_downloads_at": "2026-08-27T23:32:15Z"
+    "release_downloads": 230,
+    "release_downloads_at": "2026-08-28T08:25:16Z"
   },
   {
     "name": "TourGuideVanilla",
@@ -18740,8 +18740,8 @@
     "description": "# pfUI - ClassicAPI Edition\n\n[![Octo WoW](https://img.shields.io/badge/Octo%20WoW-1.18.1-brightgreen.svg)](https://octowow.st/)\n[![ClassicAPI](https://img.shields.io/badge/ClassicAPI-Required-purple.svg)](https://github.com/brues-code/ClassicAPI)\n[![Nampower](https://img.shields.io/badge/Nampower-Required-purple.svg)](https://github.com/brues-code/nampower)\n[![SuperWoW](https://img.shields.io/badge/SuperWoW-Optional-yellow.svg)](https://github.com/balakethelock/SuperWoW)\n[![UnitXP](https://img.shields.io/badge/UnitXP__SP3-Optional-yellow.svg)](https://github.com/brues-code/UnitXP_SP3)\n\n**A pfUI fork specifically optimized for ClassicAPI on [Octo WoW](https://octowow.st/)**\n\nThis version includes significant performance improvements and DLL-enhanced features.\n\n## Installation\n1. Download **[Latest Version](https://github.com/brues-code/pfUI/releases/latest)**\n2. Unpack the Zip file\n4. Copy \"pfUI\" into Wow-Directory\\Interface\\AddOns\n5. Restart Wow\n\n## DLL Enhancements\n\nSince pfUI 6.0.0 includes integrations with client-side DLLs for enhanced functionality. These DLLs are permitted on Octo WoW:\n\n### [ClassicAPI](https://github.com/brues-code/ClassicAPI)\n\nProvides:\n- C_NamePlate - Event-driven nameplates (no more per-frame WorldFrame scanning) with real per-plate unit tokens and GUIDs\n- C_UnitAuras - Replaces over 3k lines of hand-rolled aura tracking\n- C_Spell - Replaces thousands of hardcoded spell names for each locale and powers castbar\n- Real cast bars - Actual cast/channel timing, spellID and interrupt state for any unit (C_Spell.UnitCastingInfo)\n- Focus - A genuine `focus` unit plus `/focus` and `/clearfocus` (FocusUnit / ClearFocus)\n- C_EquipmentSet - Full Equipment Manager with GUID-tracked gear sets (tells apart duplicate/enchanted items)\n- Instant Bag Sorting - C_Container.MoveItem / SwapItems instead of cursor pickup/drop\n- Sell junk in one call - C_MerchantFrame.GetNumJunkItems / SellAllJunkItems\n- Real item data - C_Item counts, quality, sell price and item info by ID\n- GUID-based targeting - Nameplates, mouseover and focus resolve by GUID, not by name text\n- Faster, safer profile sharing - Engine-side serialize/compress/base64 via C_EncodingUtil\n- C_Timer - After / NewTicker replacing hand-rolled OnUpdate throttles\n- Feign death, shapeshift and quest-item detection via real API calls\n- Mouseover Unit Frames\n- Click-casting\n- Loot Roll History (/loothistory)\n- New item highlighting\n- Plenty other functions\n\n### [Nampower](https://github.com/brues-code/nampower)\n\nProvides:\n- Spell queue indicator\n- GCD indicator\n\n### [SuperWoW](https://github.com/balakethelock/SuperWoW)\n\nProvides:\n- Tracks party/raid units on the minimap\n\n### [UnitXP_SP3](https://github.com/brues-code/UnitXP_SP3)\n\nProvides:\n- Line of Sight detection\n- Behind detection\n- Accurate distance calculations\n- OS notifications\n\nUse `/pfdll` in-game to check which DLLs are detected.\n\n## Commands\n\n    /pfui         Open the configuration GUI\n    /pfdll        Show DLL detection status (SuperWoW, Nampower, UnitXP)\n    /pfbehind     Test Behind/LOS detection on current target\n    /clickthrough Toggle clickthrough mode (or /ct)\n    /share        Open the configuration import/export dialog\n    /gm           Open the ticket Dialog\n    /rl           Reload the whole UI\n    /farm         Toggles the Farm-Mode\n    /pfcast       Same as /cast but for mouseover units\n    /focus        Creates a Focus-Frame for the current target\n    /castfocus    Same as /cast but for focus frame\n    /clearfocus   Clears the Focus-Frame\n    /swapfocus    Toggle Focus and Target-Frame\n    /pftest       Toggle pfUI Unitframe Test Mode\n    /abp          Addon Button Panel\n    /loothistory  Show Loot Roll History\n\n## Languages\npfUI supports and contains language specific code for the following gameclients.\n* English (enUS)\n* Korean (koKR)\n* French (frFR)\n* German (deDE)\n* Chinese (zhCN)\n* Spanish (esES)\n* Russian (ruRU)\n\n## Recommended Addons\n* [pfQuest](https://github.co\n\n… (truncated)",
     "release_downloads_repo": "brues-code/pfUI",
     "release_downloads_state": "ok",
-    "release_downloads": 91,
-    "release_downloads_at": "2026-08-27T23:32:15Z"
+    "release_downloads": 93,
+    "release_downloads_at": "2026-08-28T08:25:16Z"
   },
   {
     "name": "NiceDamage-1.12",
@@ -18752,8 +18752,8 @@
     "description": "# NiceDamage for WoW Vanilla 1.12\n\n> ## 📥 Latest Release\n>\n> **Download the latest version here:**\n>\n> https://github.com/Wurmschwanz/NiceDamage-1.12/releases/latest\n\nA lightweight enhancement of the original **NiceDamage** addon for **World of Warcraft Vanilla 1.12**.\n\nNiceDamage replaces the default floating combat text font and introduces a lightweight minimap-based font selector with themed style categories while staying true to the original philosophy: **simple, lightweight and fast.**\n\n---\n\n# ✨ Features\n\n- Lightweight combat text font replacement\n- Minimap button for quick access\n- Hierarchical font selection menu\n- Style-based font organization\n- Automatic font saving\n- Lightweight implementation\n- No measurable FPS or CPU impact\n- Compatible with WoW Vanilla 1.12\n- Compatible with pfUI\n\n---\n\n# 🎨 Available Style Categories\n\n## Blizzard\n\n- Warcraft III Style\n- Diablo Style\n- StarCraft Style\n\n## FPS\n\n- Doom Style\n- Quake Style\n- Unreal Style\n- Half-Life Style\n\n## Sci-Fi\n\n- Halo Style\n- Alien Style\n\n---\n\n# 📦 Installation\n\n1. Remove any previous `NiceDamage` and `NiceDamage_Font_*` folders from:\n\n```text\nInterface/AddOns/\n```\n\n2. Extract the archive into:\n\n```text\nInterface/AddOns/\n```\n\n3. Start World of Warcraft.\n\n4. Left-click the minimap button to open the font menu.\n\n5. Select your preferred combat text style.\n\n> **Note**\n>\n> Some WoW Vanilla 1.12 clients cache combat fonts during startup.\n>\n> After changing the selected combat font, a **full game restart** is required.\n>\n> Using `/reload` is **not** sufficient on affected clients.\n\n---\n\n# ⚡ Performance\n\nNiceDamage was designed to remain lightweight.\n\n- No permanent `OnUpdate` loops\n- No continuous background processing\n- No measurable FPS impact\n- Font changes are only processed when requested by the player\n\n---\n\n# ✅ Compatibility\n\n- WoW Vanilla 1.12\n- pfUI compatible\n- Compatible with most Vanilla private servers using the original 1.12 client\n\n---\n\n# 🚀 Roadmap\n\nThe following style categories are planned for future updates.\n\n### Retro\n\n- Arcade\n- Terminal\n- Pixel\n\n### Fantasy\n\n- Medieval\n- Ancient\n\nMore style categories and additional combat font styles will be added over time.\n\n---\n\n# ❤️ Credits\n\nOriginal **NiceDamage** addon by its original author(s).\n\nEnhanced for **WoW Vanilla 1.12** by **Wurmschwanz**.\n\nSpecial thanks to everyone who helped testing fonts and improving compatibility.",
     "release_downloads_repo": "Wurmschwanz/NiceDamage-1.12",
     "release_downloads_state": "ok",
-    "release_downloads": 91,
-    "release_downloads_at": "2026-08-27T13:39:38Z"
+    "release_downloads": 92,
+    "release_downloads_at": "2026-08-28T08:25:16Z"
   },
   {
     "name": "Chronometer-Turtle",
@@ -19067,8 +19067,8 @@
     "description": "A Questhelper and Database Addon for World of Warcraft: Vanilla & TBC",
     "release_downloads_repo": "shagu/pfQuest",
     "release_downloads_state": "ok",
-    "release_downloads": 226924,
-    "release_downloads_at": "2026-08-27T23:32:15Z"
+    "release_downloads": 226967,
+    "release_downloads_at": "2026-08-28T08:25:16Z"
   },
   {
     "name": "pfQuest-classicAPI",

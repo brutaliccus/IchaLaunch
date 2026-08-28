@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-27T23:31:37Z",
+  "generated_at": "2026-08-28T08:24:32Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -12275,9 +12275,9 @@
     },
     "obszczymucha/roll-for-vanilla": {
       "default_branch": "master",
-      "sha": "9991694a69e04d55cbb9e5249918eb34e9b5d694",
+      "sha": "67a7a1c0a4afab44c2857d87dc678708847a6fba",
       "branches": {
-        "master": "9991694a69e04d55cbb9e5249918eb34e9b5d694"
+        "master": "67a7a1c0a4afab44c2857d87dc678708847a6fba"
       },
       "latest_tag": "v4.6.5"
     },
@@ -16409,9 +16409,9 @@
     },
     "torchlite-bit/aegis_sbr": {
       "default_branch": "main",
-      "sha": "0c187a422caa6996a040dfe355c3806760cf7371",
+      "sha": "ffeccd66759f5a6a1a1fab8afb6e423793554a50",
       "branches": {
-        "main": "0c187a422caa6996a040dfe355c3806760cf7371"
+        "main": "ffeccd66759f5a6a1a1fab8afb6e423793554a50"
       }
     },
     "eirikaskheim/aegis_sbr": {
@@ -16430,9 +16430,9 @@
     },
     "torchlite-bit/aegis_exchange": {
       "default_branch": "main",
-      "sha": "836ca85631e2913daa3481be7c658cbf5dc3cbf7",
+      "sha": "0c4b11dc8b8d16be3c6b6abee57ace38d2a537ca",
       "branches": {
-        "main": "836ca85631e2913daa3481be7c658cbf5dc3cbf7"
+        "main": "0c4b11dc8b8d16be3c6b6abee57ace38d2a537ca"
       }
     },
     "rustybelter77/aegis_exchange": {
@@ -16976,16 +16976,16 @@
     },
     "igreed1993/greedmeter": {
       "default_branch": "main",
-      "sha": "0b0536af159b910e4c28bfc7baeb5c411ccf6f33",
+      "sha": "6eb45944ea5729b58a37d45f97e8acaf74ffdf9f",
       "branches": {
-        "main": "0b0536af159b910e4c28bfc7baeb5c411ccf6f33"
+        "main": "6eb45944ea5729b58a37d45f97e8acaf74ffdf9f"
       }
     },
     "kobeniiiiii/combatledger": {
       "default_branch": "main",
-      "sha": "2f57df4f6605ef775147fc54029cefb4de304dfe",
+      "sha": "cc4360a4f83abe86cdb50693827ef8f673945136",
       "branches": {
-        "main": "2f57df4f6605ef775147fc54029cefb4de304dfe"
+        "main": "cc4360a4f83abe86cdb50693827ef8f673945136"
       }
     },
     "sandreasub/questie-octo": {
