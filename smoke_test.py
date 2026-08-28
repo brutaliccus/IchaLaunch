@@ -15165,6 +15165,50 @@ def test_detect_and_installer_drop_unused_imports():
     print("OK detect/installer carry no unused module-level imports")
 
 
+def test_home_art_width_fit_is_centred():
+    """A width-fit slide splits its leftover height instead of banking it on top."""
+    from PySide6.QtCore import QPoint
+    from PySide6.QtGui import QImage, QPainter
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.widgets.talent_bg import TalentFrameBackground
+
+    app = QApplication.instance() or QApplication([])
+    del app
+
+    # The featured slide is 2:1 in a rect that is not, so scaling it to the
+    # width always leaves a vertical remainder. Bottom-pinning put all of it
+    # above the frame, which read as a picture that had slipped down its wall.
+    w, h = 880, 660
+    art = TalentFrameBackground()
+    art.set_frame(0, 0, w, h)
+    art.resize(w, h)
+
+    img = QImage(w, h, QImage.Format.Format_ARGB32)
+    img.fill(0)
+    painter = QPainter(img)
+    art.render(painter, QPoint(0, 0))
+    painter.end()
+
+    def row_is_painted(y: int) -> bool:
+        return any(img.pixelColor(x, y).alpha() > 8 for x in range(0, w, 16))
+
+    painted = [y for y in range(h) if row_is_painted(y)]
+    assert painted, "nothing was painted"
+    top_band = painted[0]
+    bottom_band = h - 1 - painted[-1]
+
+    # Bottom-pinned put the whole remainder above the frame and nothing below,
+    # so the test that matters is that both bands are substantial.
+    assert top_band > 40, f"no real band above the picture (top={top_band})"
+    assert bottom_band > 40, f"picture is still pinned to the bottom (bottom={bottom_band})"
+    # Not equal to the pixel: the edge mask feathers the top softly and the
+    # bottom hard, so where "painted" starts differs by a few rows at each end.
+    ratio = min(top_band, bottom_band) / max(top_band, bottom_band)
+    assert ratio > 0.8, f"bands are not a split: {top_band} vs {bottom_band}"
+    print("OK home art width-fit slide is vertically centred")
+
+
 def _run_smoke_tests():
     test_catalogs()
     test_tls_ca_env_sanitizer()
@@ -15423,6 +15467,7 @@ def _run_smoke_tests():
     test_wayland_window_move_and_resize_handoff()
     test_linux_game_running_guard()
     test_detect_and_installer_drop_unused_imports()
+    test_home_art_width_fit_is_centred()
     print("\nAll smoke tests passed.")
 
 
