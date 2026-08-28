@@ -15165,6 +15165,42 @@ def test_detect_and_installer_drop_unused_imports():
     print("OK detect/installer carry no unused module-level imports")
 
 
+def test_chrome_font_is_bundled_and_scoped_to_chrome():
+    """Cinzel ships with its licence, dresses the chrome, and leaves body text alone."""
+    from PySide6.QtWidgets import QApplication, QLabel
+
+    from ichalaunch.app import load_stylesheet
+    from ichalaunch.core.paths import theme_file
+    from ichalaunch.ui.theme_fonts import chrome_family
+
+    app = QApplication.instance() or QApplication([])
+
+    # OFL requires the licence travel with the font, and the face this replaced
+    # shipped with none at all - that was the reason for the swap.
+    for name in ("Cinzel-Regular.ttf", "Cinzel-Bold.ttf", "OFL-Cinzel.txt"):
+        path = theme_file("fonts", name)
+        assert path.is_file() and path.stat().st_size > 0, f"missing {name}"
+    assert not theme_file("fonts", "LifeCraft_Font.ttf").exists(), (
+        "the personal-use face is back in the tree"
+    )
+
+    load_stylesheet(app)
+    assert chrome_family() == "Cinzel"
+
+    # Headings take it; a mod row does not. An inscriptional face is excellent
+    # at HOME ADDONS CLIENT SETTINGS and a readability tax on thirty addon names.
+    heading = QLabel("Installed client mods")
+    heading.setObjectName("SectionTitle")
+    heading.ensurePolished()
+    assert heading.font().family() == "Cinzel", heading.font().family()
+
+    row = QLabel("Reforged HD - Patch-A (Characters & NPCs)")
+    row.setObjectName("HomeModItem")
+    row.ensurePolished()
+    assert row.font().family() != "Cinzel", "body text was themed too"
+    print("OK chrome font bundled with its licence and scoped to chrome")
+
+
 def _run_smoke_tests():
     test_catalogs()
     test_tls_ca_env_sanitizer()
@@ -15423,6 +15459,7 @@ def _run_smoke_tests():
     test_wayland_window_move_and_resize_handoff()
     test_linux_game_running_guard()
     test_detect_and_installer_drop_unused_imports()
+    test_chrome_font_is_bundled_and_scoped_to_chrome()
     print("\nAll smoke tests passed.")
 
 
