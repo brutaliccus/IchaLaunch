@@ -31,14 +31,16 @@ class TitleLockup(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        self.title = QLabel(title)
+        # Parent immediately. A parentless QLabel is a real HWND; setVisible(True)
+        # before addWidget() flashes a mini top-level window on Home refresh.
+        self.title = QLabel(title, self)
         self.title.setObjectName(title_name)
         layout.addWidget(self.title)
 
-        self.subtitle = QLabel(subtitle)
+        self.subtitle = QLabel(subtitle, self)
         self.subtitle.setObjectName(subtitle_name)
-        self.subtitle.setVisible(bool(subtitle))
         layout.addWidget(self.subtitle)
+        self.subtitle.setVisible(bool(subtitle))
 
     def set_subtitle(self, text: str) -> None:
         self.subtitle.setText(text)

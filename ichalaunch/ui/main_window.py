@@ -64,6 +64,7 @@ _TAB_LABEL_H = _TAB_STRIP_HEIGHT - 14
 _TAB_LABEL_W = 260
 _TAB_PX_MIN = 11
 _TAB_PX_MAX = 26
+_TAB_LABEL_PX = 16
 # Hide the glue-plate bottom stroke / L-corners under the content seam.
 # Dest is widget height + this many px, top-aligned, so the extra bottom clips.
 _TAB_ART_SHIFT_Y = 7
@@ -189,7 +190,6 @@ from ichalaunch import __version__
 from ichalaunch.core.paths import theme_file
 from ichalaunch.ui.theme_fonts import (
     chrome_family,
-    fit_pixel_size,
     ink_centered_rect,
 )
 from ichalaunch.ui.widgets.update_alert_badge import paint_update_alert_badge
@@ -493,7 +493,7 @@ class NavTabButton(QPushButton):
         return "idle"
 
     def _apply_chrome_font(self) -> None:
-        """Size the label from its own metrics and put it in the widget sheet.
+        """Apply the chrome family at a fixed pixel size via the widget sheet.
 
         Not setFont(): the file sheet carries a `*` font-family rule, and a
         stylesheet beats setFont for any property it names, so an explicitly set
@@ -504,11 +504,7 @@ class NavTabButton(QPushButton):
         applied only while painting would be laid out for the old one and clip.
         """
         family = chrome_family()
-        font = QFont(family)
-        font.setBold(True)
-        px = fit_pixel_size(
-            font, self.text() or "", _TAB_LABEL_W, _TAB_LABEL_H, _TAB_PX_MIN, _TAB_PX_MAX
-        )
+        px = _TAB_LABEL_PX
         self.setStyleSheet(
             _TAB_BASE_QSS
             + f'QPushButton {{ font-family: "{family}"; font-size: {px}px; font-weight: bold; }}'

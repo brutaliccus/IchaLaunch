@@ -15577,13 +15577,14 @@ def test_launch_label_fills_its_plate():
 
 
 def test_nav_tab_label_uses_the_chrome_font():
-    """Tab labels carry the chrome family and are sized from their own metrics."""
+    """Tab labels carry the chrome family at a fixed 16px size."""
     from PySide6.QtGui import QFontMetrics
     from PySide6.QtWidgets import QApplication
 
     from ichalaunch.app import load_stylesheet
     from ichalaunch.ui.main_window import (
         _TAB_LABEL_H,
+        _TAB_LABEL_PX,
         _TAB_PX_MAX,
         _TAB_PX_MIN,
         _TAB_STRIP_HEIGHT,
@@ -15604,6 +15605,8 @@ def test_nav_tab_label_uses_the_chrome_font():
         # for any property it names, so the family was silently discarded on the
         # next polish and every tab rendered in the fallback sans.
         assert font.family() == family, f"{label} is in {font.family()}, not {family}"
+        assert font.pixelSize() == _TAB_LABEL_PX
+        assert font.pixelSize() == 16
         assert _TAB_PX_MIN <= font.pixelSize() <= _TAB_PX_MAX
 
         fm = QFontMetrics(font)
@@ -15618,7 +15621,7 @@ def test_nav_tab_label_uses_the_chrome_font():
         assert max(ink, fm.height()) <= _TAB_LABEL_H, f"{label} overruns its label box"
         assert _TAB_LABEL_H < _TAB_STRIP_HEIGHT, "label box must leave room for padding"
         assert fm.horizontalAdvance(label) <= btn.sizeHint().width()
-    print("OK nav tab labels use the chrome font at a fitted size")
+    print("OK nav tab labels use the chrome font at 16px")
 
 
 def test_gallery_hand_turns_land_at_once_and_vignette_spares_the_bands():
@@ -15792,6 +15795,81 @@ def test_rivet_frame_and_title_lockups():
 
     win.hide()
     print("OK rivet frame draws and title lockups carry real counts")
+
+
+def test_home_nav_does_not_spawn_toplevel_windows():
+    """Home click rebuilds lockups; subtitles and gallery chrome must stay parented."""
+    from PySide6.QtCore import QEvent, QObject
+    from PySide6.QtWidgets import QApplication, QWidget
+
+    from ichalaunch.ui.main_window import MainWindow
+    from ichalaunch.ui.widgets.title_lockup import TitleLockup
+
+    app = QApplication.instance() or QApplication([])
+    flashes: list[str] = []
+
+    class Spy(QObject):
+        def eventFilter(self, obj, event):  # noqa: ANN001
+            if event.type() != QEvent.Type.Show or not isinstance(obj, QWidget):
+                return False
+            if obj.parent() is None or obj.isWindow():
+                flashes.append(
+                    f"{type(obj).__name__}#{obj.objectName() or '-'}"
+                )
+            return False
+
+    spy = Spy()
+    app.installEventFilter(spy)
+    try:
+        lock = TitleLockup("Installed client mods", "5 enabled")
+        assert lock.title.parent() is lock
+        assert lock.subtitle.parent() is lock
+        assert not lock.title.isWindow()
+        assert not lock.subtitle.isWindow()
+        # Own flag is on; isVisible() is still False while the lockup is hidden.
+        assert not lock.subtitle.isHidden()
+        lock.deleteLater()
+
+        win = MainWindow()
+        win.resize(1280, 800)
+        win.show()
+        for _ in range(200):
+            app.processEvents()
+        flashes.clear()
+        win._nav(1)
+        for _ in range(40):
+            app.processEvents()
+        win._nav(0)
+        for _ in range(40):
+            app.processEvents()
+    finally:
+        app.removeEventFilter(spy)
+
+    home_flashes = [
+        hit
+        for hit in flashes
+        if hit.startswith(("QLabel#", "TitleLockup#", "SpellbookPageButton#",
+                           "GalleryDots#", "TalentFrameBackground#"))
+    ]
+    assert not home_flashes, home_flashes
+
+    home = win.home
+    for w in home._overlay_widgets():
+        assert w.parent() is not None, type(w).__name__
+        assert not w.isWindow(), type(w).__name__
+    for lockup in home.findChildren(TitleLockup):
+        assert lockup.parent() is not None
+        assert lockup.title.parent() is lockup
+        assert lockup.subtitle.parent() is lockup
+        assert not lockup.subtitle.isWindow()
+    extras = [
+        w
+        for w in QApplication.topLevelWidgets()
+        if w is not win and w.isVisible()
+    ]
+    assert not extras, [type(w).__name__ for w in extras]
+    win.hide()
+    print("OK Home nav does not spawn top-level windows")
 
 
 def _run_smoke_tests():
@@ -16062,6 +16140,7 @@ def _run_smoke_tests():
     test_nav_tab_label_uses_the_chrome_font()
     test_gallery_hand_turns_land_at_once_and_vignette_spares_the_bands()
     test_rivet_frame_and_title_lockups()
+    test_home_nav_does_not_spawn_toplevel_windows()
     joined, stuck = _drain_qt_threads()
     if joined:
         names = ", ".join(sorted(set(joined)))
