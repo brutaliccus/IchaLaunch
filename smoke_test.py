@@ -15050,6 +15050,12 @@ def test_linux_game_running_guard():
     assert not procmod._arg_names_client("/games/rc/wow.exe.bak", "/games/rc")
     assert not procmod._arg_names_client("/games/rc/wow.exe.log", "/games/rc")
     assert not procmod._arg_names_client("/elsewhere/wow.exe", "/games/rc")
+    # A sibling whose name merely STARTS with the configured one is a different
+    # install. Without the separator these pass as a match and the launcher
+    # refuses to work on "rc" whenever "rc2" happens to be running.
+    assert not procmod._arg_names_client("/games/rc2/wow.exe", "/games/rc")
+    assert not procmod._arg_names_client("/games/rc-ptr/wow.exe", "/games/rc")
+    assert procmod._arg_names_client("/games/rc/wow.exe", "/games/rc/")
     assert procmod._arg_names_client("end task on wow.exe if listed", "") is False
     assert procmod._arg_names_client(
         "end task on wow.exe if listed", procmod._norm_cmdline("/games/rc")
@@ -15064,8 +15070,13 @@ def test_linux_game_running_guard():
     with tempfile.TemporaryDirectory() as tmp:
         game = Path(tmp) / "RavenCraft"
         other = Path(tmp) / "Elsewhere"
+        # "Elsewhere" shares no prefix with "RavenCraft", so it cannot show a
+        # substring match. A second install beside the first is the case that
+        # can, and running two side by side is ordinary on Linux.
+        sibling = Path(tmp) / "RavenCraft2"
         game.mkdir(parents=True)
         other.mkdir(parents=True)
+        sibling.mkdir(parents=True)
         wow = game / "WoW.exe"
         cmdlines = {"42": f"{wow}\x00".encode("utf-8")}
 
@@ -15086,6 +15097,14 @@ def test_linux_game_running_guard():
             with patch("builtins.open", fake_open):
                 assert procmod._proc_client_running(game) is True
                 assert procmod._proc_client_running(other) is False
+                # The configured install is the SIBLING; the client on /proc
+                # belongs to the shorter-named one. Nothing is running for the
+                # sibling, so this has to be False in both directions.
+                assert procmod._proc_client_running(sibling) is False
+                cmdlines["42"] = f"{sibling / 'WoW.exe'}\x00".encode("utf-8")
+                assert procmod._proc_client_running(sibling) is True
+                assert procmod._proc_client_running(game) is False
+                cmdlines["42"] = f"{wow}\x00".encode("utf-8")
                 wine_style = "Z:" + str(wow).replace("/", "\\")
                 assert procmod._norm_cmdline(str(game)).rstrip("/") in procmod._norm_cmdline(
                     wine_style

@@ -332,14 +332,23 @@ def _arg_names_client(arg: str, needle: str) -> bool:
     The exe name has to sit behind a separator, so an argument that merely
     mentions WoW.exe in prose (a shell command, an editor buffer, a log line)
     cannot trip the guard. With a known game directory the same argument must
-    also carry that directory, which is the scoping guarantee.
+    also carry that directory as a path prefix, which is the scoping guarantee.
     """
     if not any(arg == name or arg.endswith(f"/{name}") for name in CLIENT_PROCESS_NAMES):
         # The argument has to END with the exe name. Requiring only that it
         # appears leaves "/games/wow/wow.exe.bak" and a log line quoting the
         # path matching just as well as the client itself.
         return False
-    return needle in arg if needle else True
+    root = needle.rstrip("/")
+    if not root:
+        return True
+    # The separator is part of the test because the game directory has to be a
+    # path PREFIX, not merely a substring. Without it an install at
+    # ".../RavenCraft" also matches a client running from ".../RavenCraft2", so
+    # one install refuses to accept changes while a different one is running.
+    # _path_is_under takes the same care on the Windows side, appending os.sep
+    # before it compares.
+    return f"{root}/" in arg
 
 
 def _configured_game_dir() -> Path | None:
