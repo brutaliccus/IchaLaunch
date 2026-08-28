@@ -19,6 +19,7 @@ from ichalaunch.core.paths import theme_file
 from ichalaunch.game.launcher import detect_game, is_installed
 from ichalaunch.mods.installer import detect_actual_state, load_mod_catalog
 from ichalaunch.ui.widgets.common import SpellbookPageButton, open_url_in_browser
+from ichalaunch.ui.widgets.gallery_dots import GalleryDots
 from ichalaunch.ui.widgets.glue_panel_button import GLUE_BTN_H, GluePanelButton
 from ichalaunch.ui.widgets.mods_forest_bg import HomeModsCard
 from ichalaunch.ui.widgets.talent_bg import TalentFrameBackground
@@ -62,6 +63,8 @@ _ART_BOTTOM_INSET_PX = 0
 _ART_BANNER_TUCK_PX = 12
 # Inset of the gallery page arrows from the art's own left/right edges.
 _ART_ARROW_PAD_PX = 10
+# Gap between the position row and the MoA wordmark it sits above.
+_ART_DOTS_GAP_PX = 6
 # MoA wordmark prefer width, centered along the art bottom.
 _MOA_ART_LOGO_W = 190  # ~5% under prior 200px prefer width
 # Pad from art bottom for the MoA wordmark.
@@ -189,6 +192,12 @@ class HomePage(QWidget):
         self.art_prev.clicked.connect(lambda: self.talent_bg.step(-1))
         self.art_next.clicked.connect(lambda: self.talent_bg.step(1))
 
+        self.art_dots = GalleryDots(self)
+        # turn_started fires when the turn begins, frame_changed when it lands
+        # and when the manifest reloads with a different slide count.
+        self.talent_bg.turn_started.connect(self._sync_gallery_dots)
+        self.talent_bg.frame_changed.connect(self._sync_gallery_dots)
+
         self.logo = QLabel(self)
         self.logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.logo.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
@@ -228,6 +237,7 @@ class HomePage(QWidget):
             self.logo,
             self.art_prev,
             self.art_next,
+            self.art_dots,
         )
 
     def _overlay_host(self) -> QWidget | None:
@@ -282,12 +292,23 @@ class HomePage(QWidget):
             return False
         return True
 
+    def _sync_gallery_dots(self) -> None:
+        dots = getattr(self, "art_dots", None)
+        if dots is None or not dots.isVisible():
+            return
+        dots.set_state(
+            self.talent_bg.slide_count(),
+            self.talent_bg.display_index(),
+            max(1, self.talent_bg.width()),
+        )
+
     def _set_chrome_visible(self, visible: bool) -> None:
         self.talent_bg.setVisible(visible)
         self.logo.setVisible(visible)
         pageable = visible and self.talent_bg.slide_count() > 1
         self.art_prev.setVisible(pageable)
         self.art_next.setVisible(pageable)
+        self.art_dots.setVisible(pageable)
         banner = self._nav_bottom_banner()
         if banner is not None:
             banner.update()
@@ -402,6 +423,15 @@ class HomePage(QWidget):
             art.x() + art.width() - arrow - _ART_ARROW_PAD_PX, arrow_y
         )
 
+        # --- position row, centred above the MoA wordmark ---
+        self.art_dots.set_state(
+            self.talent_bg.slide_count(), self.talent_bg.display_index(), art.width()
+        )
+        self.art_dots.move(
+            art.x() + (art.width() - self.art_dots.width()) // 2,
+            logo_y - self.art_dots.height() - _ART_DOTS_GAP_PX,
+        )
+
         self._set_chrome_visible(True)
 
         # Z-order (back → front on Root):
@@ -443,6 +473,7 @@ class HomePage(QWidget):
 
         self.art_prev.raise_()
         self.art_next.raise_()
+        self.art_dots.raise_()
 
         art_bottom_now = art.y() + art.height()
         gap = art_bottom - art_bottom_now

@@ -254,6 +254,10 @@ class TalentFrameBackground(QWidget):
     """Crossfading official artwork; geometry is owned by HomePage."""
 
     frame_changed = Signal()
+    # Emitted the moment a turn begins, not when its crossfade lands. A position
+    # indicator that waited for frame_changed would sit unmoved for the whole
+    # 2.8s fade and read as a click that did not register.
+    turn_started = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -266,6 +270,7 @@ class TalentFrameBackground(QWidget):
         self._overlay_cache: dict[str, QPixmap] = {}
         self._index = 0
         self._next_index = 0
+        self._display_index = 0
         self._cur_opacity = _BASE_OPACITY
         self._nxt_opacity = 0.0
         self._mask: QPixmap = QPixmap()
@@ -331,6 +336,7 @@ class TalentFrameBackground(QWidget):
         self._overlay_cache.clear()
         if self._index >= len(self._slides):
             self._index = 0
+        self._display_index = self._index
         self.update()
         self.frame_changed.emit()
 
@@ -510,6 +516,15 @@ class TalentFrameBackground(QWidget):
     def slide_count(self) -> int:
         return len(self._slides)
 
+    def display_index(self) -> int:
+        """Which slide the viewer is being shown, mid-crossfade included.
+
+        Held as its own field rather than inferred from the animation, because
+        a turn is announced before its fade object exists and reading the fade
+        state at that moment reports the slide being left behind.
+        """
+        return self._display_index
+
     def step(self, delta: int) -> None:
         """Turn the gallery by hand, forwards or back.
 
@@ -536,6 +551,8 @@ class TalentFrameBackground(QWidget):
         self._timer.stop()
 
         self._next_index = (self._index + step) % len(self._slides)
+        self._display_index = self._next_index
+        self.turn_started.emit()
         nxt = self._slide_at(self._next_index)
         if nxt is not None:
             self._pixmap(str(nxt.get("image") or ""))
@@ -563,6 +580,7 @@ class TalentFrameBackground(QWidget):
 
         def _done() -> None:
             self._index = self._next_index
+            self._display_index = self._index
             self._cur_opacity = _BASE_OPACITY
             self._nxt_opacity = 0.0
             self._fade = None
