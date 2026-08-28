@@ -37,6 +37,9 @@ desktop.ini
 *.pem
 credentials.json
 
+# Update-signing private keys (key ceremony). Never commit these.
+tools/_signing_keys/
+
 # Local scratch
 _wiki_addons.wikitext
 *.log

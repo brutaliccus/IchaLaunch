@@ -2,3 +2,5 @@
 requests>=2.31
 certifi
 PyInstaller>=6.0
+# Ed25519 verification for signed launcher updates (core/signing.py).
+cryptography>=42

@@ -112,4 +112,18 @@ The Available catalog is `ichalaunch/data/addons.json` on `master`. Clients fetc
 
 Optional GitHub token in Settings unlocks fork/version browsing and README previews; update badges work without one.
 
+**Signed launcher updates:** builds that include `ichalaunch/core/signing.py` download `IchaLaunch.exe.sig` beside the exe and **refuse** to install unless a pinned Ed25519 key signed the bytes. There is no override. v1.4.6 clients still use the old updater and ignore the sidecar. The **next** GitHub release after v1.4.6 (typically **v1.4.7**) must upload **both** `IchaLaunch.exe` and `IchaLaunch.exe.sig`. Sign locally after PyInstaller — never in CI:
+
+```bat
+python tools\sign.py --key %LOCALAPPDATA%\IchaLaunch\signing\ichalaunch-key1.pem dist\IchaLaunch.exe
+```
+
+Pinned public keys (SHA-256 of the raw 32-byte key; also in `PINNED_KEYS`):
+
+- key 1 (active): `04fd0725af49fcb3a1fbe69845ef3bb1007ecc911ece3a093d7e623fe8878a23`
+- key 2 (backup): `b75ae8582b9e4f338f7af4a7e77540445b988bcfb6bab04a4c1e91003f7c3272`
+- key 3 (backup): `92991a640ca7adc5b49f69a75af799a6cca4c5521db99527c6cc5b69b9476752`
+
+Private keys are not in this repository. Back them up offline. A key swap in the repo alone should be visible here.
+
 </details>

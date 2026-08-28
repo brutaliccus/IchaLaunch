@@ -9486,6 +9486,171 @@ def test_launcher_release_cache():
     print("OK launcher release cache")
 
 
+def test_update_signature_verification():
+    """Signed-update verification: fails closed in every direction."""
+    import base64
+    import json
+    from unittest.mock import patch
+
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    import ichalaunch.core.signing as signing
+    from ichalaunch.core.signing import Signature, SignatureError
+
+    def keypair():
+        priv = Ed25519PrivateKey.generate()
+        raw = priv.public_key().public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+        return priv, base64.b64encode(raw).decode()
+
+    def sidecar(priv, payload, key_id):
+        return json.dumps(
+            {"key_id": key_id, "sig": base64.b64encode(priv.sign(payload)).decode()}
+        ).encode()
+
+    good_priv, good_pub = keypair()
+    evil_priv, evil_pub = keypair()
+    backup_priv, backup_pub = keypair()
+    payload = b"pretend this is IchaLaunch.exe" * 100
+
+    # An empty pin set must make verification IMPOSSIBLE, never skipped. A build
+    # that trusts nothing refuses to self-update rather than accepting anything.
+    with patch.object(signing, "PINNED_KEYS", ()):
+        assert signing.signing_is_configured() is False
+        try:
+            signing.verify_bytes(payload, Signature.parse(sidecar(good_priv, payload, good_pub)))
+            raise AssertionError("empty PINNED_KEYS accepted a signature")
+        except SignatureError:
+            pass
+
+    with patch.object(signing, "PINNED_KEYS", (good_pub, backup_pub)):
+        assert signing.signing_is_configured() is True
+        assert signing.verify_bytes(
+            payload, Signature.parse(sidecar(good_priv, payload, good_pub))
+        ) == good_pub
+        # A backup key is trusted too; that is the point of pinning spares.
+        assert signing.verify_bytes(
+            payload, Signature.parse(sidecar(backup_priv, payload, backup_pub))
+        ) == backup_pub
+
+        def rejects(label, payload_, raw_sig, **kw):
+            try:
+                signing.verify_bytes(payload_, Signature.parse(raw_sig), **kw)
+            except SignatureError:
+                return
+            raise AssertionError(label)
+
+        rejects("accepted a modified payload", payload + b"x", sidecar(good_priv, payload, good_pub))
+        rejects("accepted an untrusted key", payload, sidecar(evil_priv, payload, evil_pub))
+        # key_id is a HINT, not a credential: claiming a trusted id must not help.
+        rejects(
+            "a forged key_id was believed",
+            payload,
+            json.dumps(
+                {"key_id": good_pub, "sig": base64.b64encode(evil_priv.sign(payload)).decode()}
+            ).encode(),
+        )
+        # A revoked key stops being trusted even though it is still pinned.
+        rejects(
+            "a revoked key was accepted",
+            payload,
+            sidecar(good_priv, payload, good_pub),
+            revoked=frozenset({good_pub}),
+        )
+
+        # Malformed sidecars are failures, not warnings.
+        for bad in (
+            b"",
+            b"{}",
+            b"not json",
+            json.dumps({"key_id": good_pub, "sig": "!!"}).encode(),
+            json.dumps({"key_id": good_pub, "sig": base64.b64encode(b"short").decode()}).encode(),
+        ):
+            try:
+                Signature.parse(bad)
+                raise AssertionError(f"parsed a malformed signature: {bad!r}")
+            except SignatureError:
+                pass
+
+    print("OK update signature verification")
+
+
+def test_update_signing_keys_are_pinned():
+    """Production PINNED_KEYS must be filled. Empty keys freeze in-app update."""
+    import base64
+    import hashlib
+
+    from ichalaunch.core.signing import PINNED_KEYS, signing_is_configured, trusted_keys
+
+    assert signing_is_configured() is True
+    keys = [k.strip() for k in PINNED_KEYS if k.strip()]
+    assert len(keys) >= 3, f"need three pinned keys for rotation, got {len(keys)}"
+    seen: set[str] = set()
+    for key in keys:
+        raw = base64.b64decode(key, validate=True)
+        assert len(raw) == 32, f"pinned key is {len(raw)} bytes, expected 32"
+        assert key not in seen, "duplicate pinned key"
+        seen.add(key)
+        hashlib.sha256(raw).hexdigest()
+    assert trusted_keys() == tuple(keys)
+    print(f"OK {len(keys)} pinned update-signing keys")
+
+
+def test_signature_sidecar_url_and_unverified_exe_is_deleted():
+    """A missing/bad .sig must fail closed and not leave a staged EXE in temp."""
+    from unittest.mock import patch
+
+    from ichalaunch.core.self_update import (
+        SIGNATURE_ASSET_SUFFIX,
+        LauncherReleaseInfo,
+        _signature_url_for,
+        download_and_stage_update,
+    )
+    from ichalaunch.core.signing import SignatureError
+
+    info = LauncherReleaseInfo(
+        tag="v9.9.9",
+        version="9.9.9",
+        name="Test",
+        asset_name="IchaLaunch.exe",
+        download_url="https://example.com/IchaLaunch.exe",
+        update_available=True,
+    )
+    assert _signature_url_for(info) == f"https://example.com/IchaLaunch.exe{SIGNATURE_ASSET_SUFFIX}"
+    assert _signature_url_for(
+        LauncherReleaseInfo(
+            tag="v0",
+            version="0",
+            name="",
+            asset_name="IchaLaunch.exe",
+            download_url="",
+            update_available=False,
+        )
+    ) == ""
+
+    def fake_download(url, dest, **_kwargs):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if str(url).endswith(SIGNATURE_ASSET_SUFFIX):
+            dest.write_bytes(b'{"key_id":"nope","sig":"bm90LWEtcmVhbC1zaWc="}')
+            return dest
+        dest.write_bytes(b"MZ" + b"\x00" * (64 * 1024))
+        return dest
+
+    with patch("ichalaunch.core.self_update._download_asset", side_effect=fake_download):
+        try:
+            download_and_stage_update(info)
+            raise AssertionError("unverified update was staged")
+        except SignatureError:
+            pass
+
+    staged = Path(tempfile.gettempdir()) / "IchaLaunch_update_9.9.9.exe"
+    assert not staged.exists(), "unverified EXE was left in temp"
+    print("OK unverified staged update is deleted")
+
+
 def test_dll_injection_mod_detection():
     from ichalaunch.mods.client_mod_hints import is_dll_injection_mod
 
@@ -16130,6 +16295,9 @@ def _run_smoke_tests():
     test_wayland_window_move_and_resize_handoff()
     test_linux_game_running_guard()
     test_detect_and_installer_drop_unused_imports()
+    test_update_signature_verification()
+    test_update_signing_keys_are_pinned()
+    test_signature_sidecar_url_and_unverified_exe_is_deleted()
     test_home_art_width_fit_is_centred()
     test_home_gallery_page_arrows()
     test_home_gallery_position_dots()

@@ -262,6 +262,7 @@ def _download_asset(
     repo: str = LAUNCHER_REPO,
     progress: Callable[[int, int], None] | None = None,
     known_total: int = 0,
+    min_size: int = 1024,
 ) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
     # Prefer API asset URL when we have an id (works with token for private assets).
@@ -301,13 +302,17 @@ def _download_asset(
             ) as r2:
                 r2.raise_for_status()
                 _write_stream(r2)
-            if dest.stat().st_size < 1024:
-                raise RuntimeError("Downloaded launcher update looks too small — aborting")
+            if dest.stat().st_size < min_size:
+                raise RuntimeError(
+                    f"Downloaded update asset looks too small ({dest.stat().st_size} bytes) — aborting"
+                )
             return dest
         r.raise_for_status()
         _write_stream(r)
-    if dest.stat().st_size < 1024:
-        raise RuntimeError("Downloaded launcher update looks too small — aborting")
+    if dest.stat().st_size < min_size:
+        raise RuntimeError(
+            f"Downloaded update asset looks too small ({dest.stat().st_size} bytes) — aborting"
+        )
     return dest
 
 
@@ -368,6 +373,69 @@ def _write_windows_replace_script(*, pid: int, src: Path, dest: Path) -> Path:
     return script
 
 
+SIGNATURE_ASSET_SUFFIX = ".sig"
+# Detached Ed25519 sidecars are a few hundred bytes of JSON, not an EXE.
+_SIGNATURE_MIN_SIZE = 32
+
+
+def _signature_url_for(info: "LauncherReleaseInfo") -> str:
+    """Where the detached signature for this release asset lives.
+
+    By convention the release carries ``IchaLaunch.exe`` and
+    ``IchaLaunch.exe.sig`` side by side, so the signature URL is the asset URL
+    plus a suffix. Publishing both is one extra upload in the release step.
+    """
+    return f"{info.download_url}{SIGNATURE_ASSET_SUFFIX}" if info.download_url else ""
+
+
+def _verify_staged_update(staged: Path, info: "LauncherReleaseInfo") -> None:
+    """Refuse to install a launcher build we cannot prove came from us.
+
+    This is the control that makes every other failure in the update path
+    survivable. Without it the only thing standing between a compromised
+    release credential and code execution on every player's machine is TLS to
+    GitHub, and TLS authenticates the server rather than the artefact.
+
+    Fails closed in every direction: no pinned keys, no signature asset, an
+    unreadable signature, or a signature that verifies under no trusted key all
+    raise. There is deliberately no override.
+    """
+    from ichalaunch.core.signing import (
+        Signature,
+        SignatureError,
+        signing_is_configured,
+        verify_bytes,
+    )
+
+    if not signing_is_configured():
+        raise SignatureError(
+            "This build pins no update-signing keys, so it cannot verify a "
+            "launcher update. Download the new version manually instead."
+        )
+
+    sig_url = _signature_url_for(info)
+    if not sig_url:
+        raise SignatureError("Release has no signature URL to check against")
+
+    sig_path = staged.with_name(staged.name + SIGNATURE_ASSET_SUFFIX)
+    try:
+        _download_asset(sig_url, sig_path, min_size=_SIGNATURE_MIN_SIZE)
+        signature = Signature.parse(sig_path.read_bytes())
+        key_id = verify_bytes(staged.read_bytes(), signature)
+    except SignatureError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - a missing/unreadable sig is a failure
+        raise SignatureError(
+            f"Could not fetch or read the signature for {info.asset_name}: {exc}"
+        ) from exc
+    finally:
+        try:
+            sig_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+    log.info("Launcher update %s verified against pinned key %s…", info.tag, key_id[:12])
+
+
 def download_and_stage_update(
     info: LauncherReleaseInfo,
     progress: ProgressCb | None = None,
@@ -390,6 +458,17 @@ def download_and_stage_update(
         known_total=info.asset_size,
     )
     _validate_pe_exe(tmp)
+    status_only(progress, "Verifying signature…")
+    try:
+        _verify_staged_update(tmp, info)
+    except Exception:
+        # Never leave an unverified executable lying in temp where a later step,
+        # or a user, could mistake it for a good build.
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
     status_only(progress, "Preparing installer…")
     return tmp
 
