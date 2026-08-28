@@ -9,10 +9,15 @@ from PySide6.QtWidgets import QApplication
 
 from ichalaunch.core.logging_setup import log
 from ichalaunch.core.paths import theme_file
+from ichalaunch.ui.theme_fonts import chrome_family
 from ichalaunch.ui.widgets.splash import SplashScreen, load_splash_pixmap
 
 
 def load_stylesheet(app: QApplication) -> None:
+    # Register the bundled face first: the sheet names it, and a family Qt has
+    # not seen yet is silently skipped rather than applied on the next repaint.
+    chrome_family()
+
     qss = theme_file("stylesheet.qss")
     if not qss.exists():
         return

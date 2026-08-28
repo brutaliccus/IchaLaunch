@@ -181,6 +181,7 @@ _CHROME_BTN_INSET_Y = 24
 
 from ichalaunch import __version__
 from ichalaunch.core.paths import theme_file
+from ichalaunch.ui.theme_fonts import chrome_family
 from ichalaunch.ui.widgets.update_alert_badge import paint_update_alert_badge
 
 # LifeCraft_Font.ttf — Eliot Truelove / dafont donationware (personal use); zip has no readme.
@@ -502,6 +503,7 @@ class NavTabButton(QPushButton):
 
         text = self.text() or ""
         font = QFont(self.font())
+        font.setFamily(chrome_family())
         font.setBold(True)
         painter.setFont(font)
         text_rect = rect.adjusted(0, 1 if self.isDown() else 0, 0, 0)
