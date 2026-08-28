@@ -15522,6 +15522,91 @@ def test_gallery_hand_turns_land_at_once_and_vignette_spares_the_bands():
     print("OK gallery hand turns land at once and the vignette spares the bands")
 
 
+def test_rivet_frame_and_title_lockups():
+    """Tiles get a hairline frame with corner rivets; lockups carry real counts."""
+    import re
+
+    from PySide6.QtCore import QEvent, QRect
+    from PySide6.QtGui import QColor, QPainter, QPixmap
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.main_window import MainWindow
+    from ichalaunch.ui.widgets.frame_rivets import _RIVET_PX, paint_rivet_frame
+    from ichalaunch.ui.widgets.talent_bg import TalentFrameBackground
+    from ichalaunch.ui.widgets.title_lockup import TitleLockup
+
+    app = QApplication.instance() or QApplication([])
+
+    # --- the frame itself -----------------------------------------------------
+    w = h = 120
+    pm = QPixmap(w, h)
+    pm.fill(QColor(0, 0, 0, 0))
+    painter = QPainter(pm)
+    paint_rivet_frame(painter, QRect(0, 0, w, h))
+    painter.end()
+    img = pm.toImage()
+
+    for name, x, y in (("top-left", 0, 0), ("top-right", w - 1, 0),
+                       ("bottom-left", 0, h - 1), ("bottom-right", w - 1, h - 1)):
+        assert img.pixelColor(x, y).alpha() > 40, f"no rivet at {name}"
+    assert img.pixelColor(w // 2, 0).alpha() > 20, "no top edge line"
+    assert img.pixelColor(0, h // 2).alpha() > 20, "no left edge line"
+    # The middle is the picture's; the frame must not wash over it.
+    assert img.pixelColor(w // 2, h // 2).alpha() < 10, "the frame painted into the tile"
+
+    # Too small to carry rivets without swallowing the tile: draw nothing rather
+    # than something illegible.
+    tiny = QPixmap(2 * _RIVET_PX, 2 * _RIVET_PX)
+    tiny.fill(QColor(0, 0, 0, 0))
+    painter = QPainter(tiny)
+    paint_rivet_frame(painter, QRect(0, 0, tiny.width(), tiny.height()))
+    painter.end()
+    assert tiny.toImage().pixelColor(0, 0).alpha() == 0, "frame drawn on a rect too small for it"
+
+    # --- slides that bring their own frame art keep it -----------------------
+    art = TalentFrameBackground()
+    framed = [s for s in art._slides if s.get("frame")]
+    assert framed, "the featured slide should still carry frame art"
+    assert not art._frame_overlay(framed[0]).isNull()
+
+    # --- lockups -------------------------------------------------------------
+    bare = TitleLockup("Just a title")
+    assert not bare.subtitle.isVisible(), "an empty subtitle must not take space"
+
+    win = MainWindow()
+    win.resize(1500, 950)
+    win.show()
+    for _ in range(400):
+        app.processEvents()
+
+    # The drawer rebuilds itself on refresh and retires the old widgets with
+    # deleteLater. processEvents does not run deferred deletes, so without this
+    # findChildren returns every generation at once and the counts read as a
+    # leak that is not there.
+    app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+    lockups = win.home.findChildren(TitleLockup)
+    assert lockups, "the mods drawer built no lockups"
+    for lockup in lockups:
+        assert lockup.subtitle.font().family() == lockup.title.font().family(), (
+            "the subtitle is set in a different face from its title"
+        )
+
+    def count(text):
+        found = re.search(r"\d+", text)
+        return int(found.group()) if found else None
+
+    totals = [count(lk.subtitle.text()) for lk in lockups if "enabled" in lk.subtitle.text()]
+    parts = [count(lk.subtitle.text()) for lk in lockups if "mod" in lk.subtitle.text()]
+    if totals and parts:
+        # Every subtitle is a number the caller already held, so they reconcile.
+        # An invented one would not.
+        assert totals[0] == sum(parts), f"{totals[0]} enabled but categories sum to {sum(parts)}"
+
+    win.hide()
+    print("OK rivet frame draws and title lockups carry real counts")
+
+
 def _run_smoke_tests():
     test_catalogs()
     test_tls_ca_env_sanitizer()
@@ -15787,6 +15872,7 @@ def _run_smoke_tests():
     test_launch_label_fills_its_plate()
     test_nav_tab_label_uses_the_chrome_font()
     test_gallery_hand_turns_land_at_once_and_vignette_spares_the_bands()
+    test_rivet_frame_and_title_lockups()
     print("\nAll smoke tests passed.")
 
 
