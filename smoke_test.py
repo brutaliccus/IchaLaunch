@@ -15165,6 +15165,48 @@ def test_detect_and_installer_drop_unused_imports():
     print("OK detect/installer carry no unused module-level imports")
 
 
+def test_home_gallery_page_arrows():
+    """Prev/Next sit inside the art and turn the gallery both ways, wrapping."""
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.main_window import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    win = MainWindow()
+    win.resize(1500, 950)
+    win.show()
+    for _ in range(400):
+        app.processEvents()
+
+    home = win.home
+    art, prev, nxt = home.talent_bg, home.art_prev, home.art_next
+    count = art.slide_count()
+    assert count > 1, "gallery needs at least two slides to page"
+    assert prev.isVisible() and nxt.isVisible()
+
+    ag, pg, ng = art.geometry(), prev.geometry(), nxt.geometry()
+    assert ag.left() <= pg.left() and pg.right() <= ag.right(), "prev outside the art"
+    assert ag.left() <= ng.left() and ng.right() <= ag.right(), "next outside the art"
+    assert pg.right() < ng.left(), "arrows overlap"
+    assert pg.center().y() == ng.center().y(), "arrows not level"
+
+    # _next_index is the target and is set the moment a turn begins, so this
+    # holds whether the turn crossfades or lands at once.
+    start = art._index
+    nxt.click()
+    assert art._next_index == (start + 1) % count, "next did not turn the gallery"
+    for _ in range(200):
+        app.processEvents()
+
+    art._fade = None
+    art._index = 0
+    prev.click()
+    assert art._next_index == count - 1, "paging back from the first slide must wrap"
+
+    win.hide()
+    print("OK home gallery page arrows turn and wrap")
+
+
 def _run_smoke_tests():
     test_catalogs()
     test_tls_ca_env_sanitizer()
@@ -15423,6 +15465,7 @@ def _run_smoke_tests():
     test_wayland_window_move_and_resize_handoff()
     test_linux_game_running_guard()
     test_detect_and_installer_drop_unused_imports()
+    test_home_gallery_page_arrows()
     print("\nAll smoke tests passed.")
 
 
