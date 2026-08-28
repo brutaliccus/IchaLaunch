@@ -15169,11 +15169,20 @@ def test_chrome_font_is_bundled_and_scoped_to_chrome():
     """Cinzel ships with its licence, dresses the chrome, and leaves body text alone."""
     from PySide6.QtWidgets import QApplication, QLabel
 
+    import os
+
     from ichalaunch.app import load_stylesheet
     from ichalaunch.core.paths import theme_file
+    import ichalaunch.ui.theme_fonts as theme_fonts
     from ichalaunch.ui.theme_fonts import chrome_family
 
     app = QApplication.instance() or QApplication([])
+
+    # This is about what the launcher bundles, so it must hold whether or not
+    # the machine running it has pointed the chrome at a font of its own.
+    saved = os.environ.pop(theme_fonts._FAMILY_ENV, None)
+    theme_fonts._load_attempted = False
+    theme_fonts._chrome_family = None
 
     # OFL requires the licence travel with the font, and the face this replaced
     # shipped with none at all - that was the reason for the swap.
@@ -15198,6 +15207,12 @@ def test_chrome_font_is_bundled_and_scoped_to_chrome():
     row.setObjectName("HomeModItem")
     row.ensurePolished()
     assert row.font().family() != "Cinzel", "body text was themed too"
+
+    if saved is not None:
+        os.environ[theme_fonts._FAMILY_ENV] = saved
+        theme_fonts._load_attempted = False
+        theme_fonts._chrome_family = None
+        theme_fonts.chrome_family()
     print("OK chrome font bundled with its licence and scoped to chrome")
 
 
@@ -15236,11 +15251,21 @@ def test_chrome_family_env_override():
 
         # The sheet must follow the override too. It used to pin the family, so
         # naming a font dressed the painted chrome - tabs, PLAY - and left every
-        # heading in Cinzel, which reads as the setting half working.
+        # heading behind, which reads as the setting half working.
+        #
+        # Captured rather than applied: setting the sheet on the live app
+        # re-polishes every widget in it, including ones earlier tests have
+        # queued for deletion, and that segfaults. load_stylesheet only ever
+        # calls setStyleSheet on what it is handed, so hand it a recorder.
         from PySide6.QtGui import QFontDatabase
-        from PySide6.QtWidgets import QLabel
 
         from ichalaunch.app import load_stylesheet
+
+        class _Recorder:
+            text = ""
+
+            def setStyleSheet(self, text):
+                self.text = text
 
         other = next(
             (f for f in QFontDatabase.families() if f not in ("Cinzel", "") and " " not in f),
@@ -15248,13 +15273,10 @@ def test_chrome_family_env_override():
         )
         if other is not None:
             assert resolve(other) == other
-            load_stylesheet(app)
-            heading = QLabel("Installed client mods")
-            heading.setObjectName("SectionTitle")
-            heading.ensurePolished()
-            assert heading.font().family() == other, (
-                f"the sheet ignored the override: {heading.font().family()} not {other}"
-            )
+            sheet = _Recorder()
+            load_stylesheet(sheet)
+            assert "__CHROME_FAMILY__" not in sheet.text, "the token was left unsubstituted"
+            assert f'"{other}"' in sheet.text, f"the sheet did not take {other}"
     finally:
         theme_fonts._load_attempted = False
         theme_fonts._chrome_family = None
@@ -15263,9 +15285,6 @@ def test_chrome_family_env_override():
         else:
             os.environ[theme_fonts._FAMILY_ENV] = saved
         theme_fonts.chrome_family()
-        # Re-apply, or every later test inherits the sheet this one last built.
-        from ichalaunch.app import load_stylesheet as _reload_sheet
-        _reload_sheet(app)
     print("OK chrome family env override honoured, bad names fall back")
 
 
