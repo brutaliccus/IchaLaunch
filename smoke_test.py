@@ -15165,48 +15165,6 @@ def test_detect_and_installer_drop_unused_imports():
     print("OK detect/installer carry no unused module-level imports")
 
 
-def test_chrome_family_env_override():
-    """A named family is honoured; one Qt cannot see falls back instead of substituting."""
-    import os
-
-    from PySide6.QtWidgets import QApplication
-
-    import ichalaunch.ui.theme_fonts as theme_fonts
-
-    app = QApplication.instance() or QApplication([])
-    del app
-
-    saved = os.environ.get(theme_fonts._FAMILY_ENV)
-
-    def resolve(value):
-        # Reset the one-shot cache rather than reloading the module, so widgets
-        # already holding a reference to it keep working.
-        theme_fonts._load_attempted = False
-        theme_fonts._chrome_family = None
-        if value is None:
-            os.environ.pop(theme_fonts._FAMILY_ENV, None)
-        else:
-            os.environ[theme_fonts._FAMILY_ENV] = value
-        return theme_fonts.chrome_family()
-
-    try:
-        assert resolve(None) == "Cinzel", "bundled face should win when nothing is named"
-        # The faces that suit this launcher best cannot be shipped, so a holder
-        # of one installs it and names it here. Blank must not mean "no font".
-        assert resolve("   ") == "Cinzel"
-        assert resolve("Cinzel") == "Cinzel"
-        # A name Qt cannot see would otherwise substitute something arbitrary and
-        # look deliberate.
-        assert resolve("NoSuchFaceAnywhere") == "Cinzel"
-    finally:
-        theme_fonts._load_attempted = False
-        theme_fonts._chrome_family = None
-        if saved is None:
-            os.environ.pop(theme_fonts._FAMILY_ENV, None)
-        else:
-            os.environ[theme_fonts._FAMILY_ENV] = saved
-        theme_fonts.chrome_family()
-    print("OK chrome family env override honoured, bad names fall back")
 def test_chrome_font_is_bundled_and_scoped_to_chrome():
     """Cinzel ships with its licence, dresses the chrome, and leaves body text alone."""
     from PySide6.QtWidgets import QApplication, QLabel
@@ -15241,6 +15199,74 @@ def test_chrome_font_is_bundled_and_scoped_to_chrome():
     row.ensurePolished()
     assert row.font().family() != "Cinzel", "body text was themed too"
     print("OK chrome font bundled with its licence and scoped to chrome")
+
+
+def test_chrome_family_env_override():
+    """A named family is honoured; one Qt cannot see falls back instead of substituting."""
+    import os
+
+    from PySide6.QtWidgets import QApplication
+
+    import ichalaunch.ui.theme_fonts as theme_fonts
+
+    app = QApplication.instance() or QApplication([])
+
+    saved = os.environ.get(theme_fonts._FAMILY_ENV)
+
+    def resolve(value):
+        # Reset the one-shot cache rather than reloading the module, so widgets
+        # already holding a reference to it keep working.
+        theme_fonts._load_attempted = False
+        theme_fonts._chrome_family = None
+        if value is None:
+            os.environ.pop(theme_fonts._FAMILY_ENV, None)
+        else:
+            os.environ[theme_fonts._FAMILY_ENV] = value
+        return theme_fonts.chrome_family()
+
+    try:
+        assert resolve(None) == "Cinzel", "bundled face should win when nothing is named"
+        # The faces that suit this launcher best cannot be shipped, so a holder
+        # of one installs it and names it here. Blank must not mean "no font".
+        assert resolve("   ") == "Cinzel"
+        assert resolve("Cinzel") == "Cinzel"
+        # A name Qt cannot see would otherwise substitute something arbitrary and
+        # look deliberate.
+        assert resolve("NoSuchFaceAnywhere") == "Cinzel"
+
+        # The sheet must follow the override too. It used to pin the family, so
+        # naming a font dressed the painted chrome - tabs, PLAY - and left every
+        # heading in Cinzel, which reads as the setting half working.
+        from PySide6.QtGui import QFontDatabase
+        from PySide6.QtWidgets import QLabel
+
+        from ichalaunch.app import load_stylesheet
+
+        other = next(
+            (f for f in QFontDatabase.families() if f not in ("Cinzel", "") and " " not in f),
+            None,
+        )
+        if other is not None:
+            assert resolve(other) == other
+            load_stylesheet(app)
+            heading = QLabel("Installed client mods")
+            heading.setObjectName("SectionTitle")
+            heading.ensurePolished()
+            assert heading.font().family() == other, (
+                f"the sheet ignored the override: {heading.font().family()} not {other}"
+            )
+    finally:
+        theme_fonts._load_attempted = False
+        theme_fonts._chrome_family = None
+        if saved is None:
+            os.environ.pop(theme_fonts._FAMILY_ENV, None)
+        else:
+            os.environ[theme_fonts._FAMILY_ENV] = saved
+        theme_fonts.chrome_family()
+        # Re-apply, or every later test inherits the sheet this one last built.
+        from ichalaunch.app import load_stylesheet as _reload_sheet
+        _reload_sheet(app)
+    print("OK chrome family env override honoured, bad names fall back")
 
 
 def _run_smoke_tests():
@@ -15501,8 +15527,8 @@ def _run_smoke_tests():
     test_wayland_window_move_and_resize_handoff()
     test_linux_game_running_guard()
     test_detect_and_installer_drop_unused_imports()
-    test_chrome_family_env_override()
     test_chrome_font_is_bundled_and_scoped_to_chrome()
+    test_chrome_family_env_override()
     print("\nAll smoke tests passed.")
 
 
