@@ -27,6 +27,7 @@ readability tax on a list of thirty addon names at 12px.
 from __future__ import annotations
 
 import logging
+import os
 
 from PySide6.QtGui import QFontDatabase
 
@@ -35,6 +36,13 @@ from ichalaunch.core.paths import theme_file
 log = logging.getLogger(__name__)
 
 _CHROME_FILES = ("Cinzel-Regular.ttf", "Cinzel-Bold.ttf")
+
+# Point the chrome at a family the machine already has, without the launcher
+# shipping it. This exists because the fonts that would suit best cannot be
+# bundled: ravencraft.io sets its titles in Folkard, whose licence grants use to
+# the purchaser and forbids including the file with other software. A user who
+# holds that licence can install it and set this; we still ship nothing.
+_FAMILY_ENV = "ICHALAUNCH_CHROME_FAMILY"
 
 # What the launcher asked for before anything was bundled. Retained so a build
 # with the font files stripped degrades to the old behaviour rather than to
@@ -51,6 +59,16 @@ def chrome_family() -> str:
     if _load_attempted:
         return _chrome_family or FALLBACK_CHROME_FAMILY
     _load_attempted = True
+
+    override = os.environ.get(_FAMILY_ENV, "").strip()
+    if override:
+        if override in QFontDatabase.families():
+            log.info("Chrome font set to %r by %s", override, _FAMILY_ENV)
+            _chrome_family = override
+            return _chrome_family
+        # Naming a family Qt cannot see would silently substitute something
+        # arbitrary, which looks like the setting worked. Say so and carry on.
+        log.warning("%s names %r, which is not installed - ignoring", _FAMILY_ENV, override)
 
     for name in _CHROME_FILES:
         path = theme_file("fonts", name)
