@@ -12,6 +12,8 @@ QLabel#SectionTitle,
 QLabel#CardTitle,
 QLabel#Subtitle,
 QLabel#HomeModCategory,
+QLabel#SectionSubtitle,
+QLabel#HomeModCategorySub,
 QLabel#ThemedDialogTitle,
 QLabel#CountdownTitle {
     font-family: "Cinzel", "Segoe UI", "Candara", "Calibri", serif;
@@ -46,6 +48,23 @@ QLabel#SectionTitle {
     color: #F1C22D;
     font-size: 16px;
     font-weight: 600;
+}
+
+/* The quieter half of a title lockup: same face, smaller, and stepped down in
+   colour so it reads as a qualifier rather than a second heading. */
+QLabel#SectionSubtitle {
+    color: #9990ab;
+    font-size: 11px;
+    font-weight: 400;
+    padding-bottom: 2px;
+}
+
+QLabel#HomeModCategorySub {
+    color: #8a7f70;
+    font-size: 10px;
+    font-weight: 400;
+    padding-left: 1px;
+    padding-bottom: 3px;
 }
 
 QLabel#Muted {

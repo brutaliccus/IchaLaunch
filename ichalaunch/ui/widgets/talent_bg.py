@@ -32,6 +32,7 @@ from PySide6.QtWidgets import QWidget
 
 from ichalaunch.core.logging_setup import log
 from ichalaunch.core.paths import theme_file
+from ichalaunch.ui.widgets.frame_rivets import paint_rivet_frame
 from ichalaunch.ui.home_art import (
     fetch_missing_images,
     load_home_art,
@@ -514,6 +515,11 @@ class TalentFrameBackground(QWidget):
                 lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
                 lp.drawPixmap(0, 0, self._mask)
             overlay = self._frame_overlay(slide)
+            if overlay.isNull() and scaled.width() > 0 and scaled.height() > 0:
+                # Only where the slide brings no frame art of its own, so the
+                # featured one keeps its painted border rather than wearing two.
+                lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+                paint_rivet_frame(lp, QRect(x, y, scaled.width(), scaled.height()))
             if not overlay.isNull() and scaled.width() > 0 and scaled.height() > 0:
                 # Full-bleed border with transparent center — stretch to the
                 # painted photo dest (not the widget/letterbox).

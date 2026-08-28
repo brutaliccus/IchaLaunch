@@ -1,0 +1,45 @@
+"""A display line with a smaller qualifier beneath it.
+
+The shape every card on ravencraft.io uses: the name, then a quieter line
+underneath in the same face saying which part of it you are looking at. The
+launcher's headings were all single lines, so a heading and a plain label read
+at the same weight even though one names a section and the other is content.
+
+The second line is only ever a fact the caller already has. A lockup with
+invented subtitle text would be decoration wearing the shape of information.
+"""
+
+from __future__ import annotations
+
+from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+
+
+class TitleLockup(QWidget):
+    """Two stacked labels; the subtitle is hidden when there is nothing to say."""
+
+    def __init__(
+        self,
+        title: str,
+        subtitle: str = "",
+        parent: QWidget | None = None,
+        *,
+        title_name: str = "SectionTitle",
+        subtitle_name: str = "SectionSubtitle",
+    ) -> None:
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        self.title = QLabel(title)
+        self.title.setObjectName(title_name)
+        layout.addWidget(self.title)
+
+        self.subtitle = QLabel(subtitle)
+        self.subtitle.setObjectName(subtitle_name)
+        self.subtitle.setVisible(bool(subtitle))
+        layout.addWidget(self.subtitle)
+
+    def set_subtitle(self, text: str) -> None:
+        self.subtitle.setText(text)
+        self.subtitle.setVisible(bool(text))

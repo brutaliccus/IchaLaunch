@@ -23,6 +23,7 @@ from ichalaunch.ui.widgets.gallery_dots import GalleryDots
 from ichalaunch.ui.widgets.glue_panel_button import GLUE_BTN_H, GluePanelButton
 from ichalaunch.ui.widgets.mods_forest_bg import HomeModsCard
 from ichalaunch.ui.widgets.talent_bg import TalentFrameBackground
+from ichalaunch.ui.widgets.title_lockup import TitleLockup
 
 log = logging.getLogger("ichalaunch")
 
@@ -578,12 +579,20 @@ class HomePage(QWidget):
         block_l.setContentsMargins(0, 0, 0, 0)
         block_l.setSpacing(4)
 
-        cat_lbl = QLabel(category)
-        cat_lbl.setObjectName("HomeModCategory")
-        cat_lbl.setStyleSheet(
-            "color: #F1C22D; font-size: 12px; font-weight: 600; padding-bottom: 2px;"
+        # Title over a count, the shape ravencraft.io gives every card. The
+        # second line is a number the caller already holds - a lockup with
+        # invented subtitle text would be decoration wearing the shape of
+        # information.
+        heading = TitleLockup(
+            category,
+            f"{len(names)} mod" if len(names) == 1 else f"{len(names)} mods",
+            title_name="HomeModCategory",
+            subtitle_name="HomeModCategorySub",
         )
-        block_l.addWidget(cat_lbl)
+        heading.title.setStyleSheet(
+            "color: #F1C22D; font-size: 12px; font-weight: 600;"
+        )
+        block_l.addWidget(heading)
 
         for name in names:
             item = QLabel(name)
@@ -613,8 +622,11 @@ class HomePage(QWidget):
                 empty.setWordWrap(True)
                 self.summary_host.addWidget(empty)
             else:
-                hdr = QLabel("Installed client mods")
-                hdr.setObjectName("SectionTitle")
+                total = len(enabled_ids)
+                hdr = TitleLockup(
+                    "Installed client mods",
+                    f"{total} enabled" if total != 1 else "1 enabled",
+                )
                 self.summary_host.addWidget(hdr)
 
                 by_cat: dict[str, list[str]] = {}
