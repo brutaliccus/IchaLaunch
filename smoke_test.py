@@ -15251,6 +15251,13 @@ def test_gallery_hand_turns_land_at_once_and_vignette_spares_the_bands():
     from ichalaunch.ui.widgets.gallery_dots import GalleryDots
     import ichalaunch.ui.widgets.talent_bg as talent_bg
     from ichalaunch.ui.widgets.talent_bg import TalentFrameBackground
+def test_chrome_family_env_override():
+    """A named family is honoured; one Qt cannot see falls back instead of substituting."""
+    import os
+
+    from PySide6.QtWidgets import QApplication
+
+    import ichalaunch.ui.theme_fonts as theme_fonts
 
     app = QApplication.instance() or QApplication([])
     del app
@@ -15328,6 +15335,159 @@ def test_gallery_hand_turns_land_at_once_and_vignette_spares_the_bands():
     assert edge < edge_plain - 1, f"the vignette did not darken the edge ({edge} vs {edge_plain})"
     assert abs(centre - centre_plain) <= 1, "the vignette should leave the centre alone"
     print("OK gallery hand turns land at once and the vignette spares the bands")
+    saved = os.environ.get(theme_fonts._FAMILY_ENV)
+
+    def resolve(value):
+        # Reset the one-shot cache rather than reloading the module, so widgets
+        # already holding a reference to it keep working.
+        theme_fonts._load_attempted = False
+        theme_fonts._chrome_family = None
+        if value is None:
+            os.environ.pop(theme_fonts._FAMILY_ENV, None)
+        else:
+            os.environ[theme_fonts._FAMILY_ENV] = value
+        return theme_fonts.chrome_family()
+
+    try:
+        assert resolve(None) == "Cinzel", "bundled face should win when nothing is named"
+        # The faces that suit this launcher best cannot be shipped, so a holder
+        # of one installs it and names it here. Blank must not mean "no font".
+        assert resolve("   ") == "Cinzel"
+        assert resolve("Cinzel") == "Cinzel"
+        # A name Qt cannot see would otherwise substitute something arbitrary and
+        # look deliberate.
+        assert resolve("NoSuchFaceAnywhere") == "Cinzel"
+    finally:
+        theme_fonts._load_attempted = False
+        theme_fonts._chrome_family = None
+        if saved is None:
+            os.environ.pop(theme_fonts._FAMILY_ENV, None)
+        else:
+            os.environ[theme_fonts._FAMILY_ENV] = saved
+        theme_fonts.chrome_family()
+    print("OK chrome family env override honoured, bad names fall back")
+def test_chrome_font_is_bundled_and_scoped_to_chrome():
+    """Cinzel ships with its licence, dresses the chrome, and leaves body text alone."""
+    from PySide6.QtWidgets import QApplication, QLabel
+
+    from ichalaunch.app import load_stylesheet
+    from ichalaunch.core.paths import theme_file
+    from ichalaunch.ui.theme_fonts import chrome_family
+
+    app = QApplication.instance() or QApplication([])
+
+    # OFL requires the licence travel with the font, and the face this replaced
+    # shipped with none at all - that was the reason for the swap.
+    for name in ("Cinzel-Regular.ttf", "Cinzel-Bold.ttf", "OFL-Cinzel.txt"):
+        path = theme_file("fonts", name)
+        assert path.is_file() and path.stat().st_size > 0, f"missing {name}"
+    assert not theme_file("fonts", "LifeCraft_Font.ttf").exists(), (
+        "the personal-use face is back in the tree"
+    )
+
+    load_stylesheet(app)
+    assert chrome_family() == "Cinzel"
+
+    # Headings take it; a mod row does not. An inscriptional face is excellent
+    # at HOME ADDONS CLIENT SETTINGS and a readability tax on thirty addon names.
+    heading = QLabel("Installed client mods")
+    heading.setObjectName("SectionTitle")
+    heading.ensurePolished()
+    assert heading.font().family() == "Cinzel", heading.font().family()
+
+    row = QLabel("Reforged HD - Patch-A (Characters & NPCs)")
+    row.setObjectName("HomeModItem")
+    row.ensurePolished()
+    assert row.font().family() != "Cinzel", "body text was themed too"
+    print("OK chrome font bundled with its licence and scoped to chrome")
+
+
+def test_launch_label_fills_its_plate():
+    """PLAY grows into the button and is bounded by ink, so nothing clips."""
+    from PySide6.QtCore import QRect
+    from PySide6.QtGui import QFontMetrics, QPainter, QPixmap
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.app import load_stylesheet
+    import ichalaunch.ui.widgets.launch_button as launch_button
+
+    app = QApplication.instance() or QApplication([])
+    load_stylesheet(app)
+
+    def measure(text):
+        btn = launch_button.LaunchButton(text)
+        rect = QRect(0, 0, launch_button._PLAY_W, launch_button._PLAY_H)
+        pm = QPixmap(rect.width(), rect.height())
+        pm.fill()
+        painter = QPainter(pm)
+        btn._paint_label(painter, rect)
+        font = painter.font()
+        painter.end()
+        fm = QFontMetrics(font)
+        ink = max(fm.height(), fm.tightBoundingRect(text.upper()).height())
+        return font.pixelSize(), fm.horizontalAdvance(text.upper()), ink
+
+    box_w = launch_button._PLAY_W - launch_button._LABEL_H_PAD
+    box_h = launch_button._PLAY_H - launch_button._LABEL_V_PAD
+
+    px, advance, ink = measure("PLAY")
+    # The old ladder only ever shrank, so a short label sat at 20px in a 56px
+    # plate with most of it empty.
+    assert px > 20, f"PLAY did not grow (still {px}px)"
+    assert px <= launch_button._LABEL_MAX_PX
+    assert advance <= box_w, "PLAY overflows the plate horizontally"
+    assert ink <= box_h, "PLAY overflows the plate vertically and would clip"
+
+    # A long label meets the width bound first and must still fit.
+    px_long, advance_long, ink_long = measure("REGISTER HERE")
+    assert advance_long <= box_w and ink_long <= box_h
+    assert px_long < px, "a long label should not end up larger than a short one"
+    print("OK launch label fills its plate without clipping")
+
+
+def test_nav_tab_label_uses_the_chrome_font():
+    """Tab labels carry the chrome family and are sized from their own metrics."""
+    from PySide6.QtGui import QFontMetrics
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.app import load_stylesheet
+    from ichalaunch.ui.main_window import (
+        _TAB_LABEL_H,
+        _TAB_PX_MAX,
+        _TAB_PX_MIN,
+        _TAB_STRIP_HEIGHT,
+        NavTabButton,
+    )
+    from ichalaunch.ui.theme_fonts import chrome_family
+
+    app = QApplication.instance() or QApplication([])
+    load_stylesheet(app)
+    family = chrome_family()
+
+    for label in ("HOME", "SETTINGS"):
+        btn = NavTabButton(label)
+        btn.ensurePolished()
+        font = btn.font()
+        # Regression: the family used to be applied with setFont, and the file
+        # sheet carries a universal font-family rule. A stylesheet beats setFont
+        # for any property it names, so the family was silently discarded on the
+        # next polish and every tab rendered in the fallback sans.
+        assert font.family() == family, f"{label} is in {font.family()}, not {family}"
+        assert _TAB_PX_MIN <= font.pixelSize() <= _TAB_PX_MAX
+
+        fm = QFontMetrics(font)
+        ink = fm.tightBoundingRect(label).height()
+        # Both bounds are checked when sizing because neither implies the other:
+        # a face with deep descenders has ink taller than its line box, an
+        # all-caps face is the reverse.
+        # _TAB_LABEL_H is the strip less the plate's own 10px/4px padding, so
+        # this is the check that the tab fits. sizeHint is not: it rounds up
+        # past the strip that then clips it, and asserting on it tests Qt's
+        # padding arithmetic rather than the fit.
+        assert max(ink, fm.height()) <= _TAB_LABEL_H, f"{label} overruns its label box"
+        assert _TAB_LABEL_H < _TAB_STRIP_HEIGHT, "label box must leave room for padding"
+        assert fm.horizontalAdvance(label) <= btn.sizeHint().width()
+    print("OK nav tab labels use the chrome font at a fitted size")
 
 
 def _run_smoke_tests():
@@ -15591,6 +15751,10 @@ def _run_smoke_tests():
     test_home_gallery_page_arrows()
     test_home_gallery_position_dots()
     test_gallery_hand_turns_land_at_once_and_vignette_spares_the_bands()
+    test_chrome_family_env_override()
+    test_chrome_font_is_bundled_and_scoped_to_chrome()
+    test_launch_label_fills_its_plate()
+    test_nav_tab_label_uses_the_chrome_font()
     print("\nAll smoke tests passed.")
 
 

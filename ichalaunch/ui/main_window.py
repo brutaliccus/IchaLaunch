@@ -12,7 +12,6 @@ from PySide6.QtGui import (
     QColor,
     QCursor,
     QFont,
-    QFontDatabase,
     QFontMetrics,
     QGuiApplication,
     QIcon,
@@ -58,10 +57,16 @@ _LAUNCH_POLL_MS = 250
 _RESIZE_MARGIN = 6
 _CORNER_RADIUS = 14
 _TAB_STRIP_HEIGHT = 44
+# Label box inside the strip, after the plate's own 10px/4px padding. The tab
+# sizes itself to its text, so this is what stops it outgrowing the strip.
+_TAB_LABEL_H = _TAB_STRIP_HEIGHT - 14
+_TAB_LABEL_W = 260
+_TAB_PX_MIN = 11
+_TAB_PX_MAX = 26
 # Hide the glue-plate bottom stroke / L-corners under the content seam.
 # Dest is widget height + this many px, top-aligned, so the extra bottom clips.
 _TAB_ART_SHIFT_Y = 7
-# ContentPanel top inset so page scroll clips below −/X and the LifeCraft caption.
+# ContentPanel top inset so page scroll clips below −/X and the crest caption.
 # Extra px below the chrome glyphs clear the IchaLaunch word.
 _CONTENT_TOP_CHROME = 66
 # RavenCraft crest at ContentPanel top (was MoA). Larger than MoA wordmark was.
@@ -69,7 +74,7 @@ _RC_LOGO_WIDTH = 210
 # Optional outer pad around the crest (kept for layout math; no glow drawn).
 _RC_GLOW_PAD_X = 0
 _RC_GLOW_PAD_Y = 0
-# Secondary LifeCraft word under the crest — small vs the 210px art.
+# Secondary word under the crest — small vs the 210px art.
 _RC_CAPTION_TEXT = "IchaLaunch"
 _RC_CAPTION_PX = 15
 _RC_CAPTION_GAP = 3
@@ -181,35 +186,26 @@ _CHROME_BTN_INSET_Y = 24
 
 from ichalaunch import __version__
 from ichalaunch.core.paths import theme_file
+from ichalaunch.ui.theme_fonts import (
+    chrome_family,
+    fit_pixel_size,
+    ink_centered_rect,
+)
 from ichalaunch.ui.widgets.update_alert_badge import paint_update_alert_badge
 
-# LifeCraft_Font.ttf — Eliot Truelove / dafont donationware (personal use); zip has no readme.
-_RC_CAPTION_FONT_PATH = theme_file("fonts", "LifeCraft_Font.ttf")
-_LIFECRAFT_FAMILY: str | None = None
-_LIFECRAFT_LOAD_ATTEMPTED = False
+def _caption_font() -> QFont | None:
+    """Crest caption face.
 
+    Was LifeCraft_Font.ttf, which its own note recorded as dafont donationware
+    licensed for personal use. An installed launcher is not personal use, and
+    the file shipped with no licence beside it. Cinzel is already bundled for
+    the chrome under OFL 1.1, which permits redistribution inside an
+    application, so the caption uses that and the personal-use file is gone.
 
-def _lifecraft_family() -> str | None:
-    """Register the bundled LifeCraft face once; None if the file is missing."""
-    global _LIFECRAFT_FAMILY, _LIFECRAFT_LOAD_ATTEMPTED
-    if _LIFECRAFT_LOAD_ATTEMPTED:
-        return _LIFECRAFT_FAMILY
-    _LIFECRAFT_LOAD_ATTEMPTED = True
-    path = _RC_CAPTION_FONT_PATH
-    if not path.is_file() or path.stat().st_size <= 0:
-        return None
-    font_id = QFontDatabase.addApplicationFont(str(path))
-    if font_id == -1:
-        return None
-    families = QFontDatabase.applicationFontFamilies(font_id)
-    if not families:
-        return None
-    _LIFECRAFT_FAMILY = families[0]
-    return _LIFECRAFT_FAMILY
-
-
-def _lifecraft_caption_font() -> QFont | None:
-    family = _lifecraft_family()
+    The caption band measures itself from the metrics below, so the face
+    changing size does not need a hand-tuned height.
+    """
+    family = chrome_family()
     if not family:
         return None
     font = QFont(family)
@@ -408,6 +404,33 @@ def _client_mod_failure_dialog_body(
     )
 
 
+# Widget-scoped: kills the app-wide QPushButton 1px #7a6e88 frame. Size rules are
+# repeated so this sheet cannot drop the file-QSS box model.
+_TAB_BASE_QSS = (
+    "QPushButton {"
+    "  background: transparent;"
+    "  border: none;"
+    "  outline: none;"
+    "  padding: 10px 18px 4px 18px;"
+    "  margin: 2px 0 0 0;"
+    "}"
+    "QPushButton:hover, QPushButton:pressed, QPushButton:focus {"
+    "  background: transparent;"
+    "  border: none;"
+    "  outline: none;"
+    "}"
+    "QPushButton:checked {"
+    "  background: transparent;"
+    "  border: none;"
+    "  outline: none;"
+    "  margin-top: 0;"
+    "  padding-top: 12px;"
+    "  padding-bottom: 6px;"
+    "  min-height: 32px;"
+    "}"
+)
+
+
 class NavTabButton(QPushButton):
     """Folder tab — floor-tinted Glue-Panel plate + optional update alert badge."""
 
@@ -420,29 +443,7 @@ class NavTabButton(QPushButton):
         self.setFlat(True)
         # Widget-scoped: kill the app-wide QPushButton 1px #7a6e88 frame.
         # Repeat size rules so this sheet cannot drop the file-QSS box model.
-        self.setStyleSheet(
-            "QPushButton {"
-            "  background: transparent;"
-            "  border: none;"
-            "  outline: none;"
-            "  padding: 10px 18px 4px 18px;"
-            "  margin: 2px 0 0 0;"
-            "}"
-            "QPushButton:hover, QPushButton:pressed, QPushButton:focus {"
-            "  background: transparent;"
-            "  border: none;"
-            "  outline: none;"
-            "}"
-            "QPushButton:checked {"
-            "  background: transparent;"
-            "  border: none;"
-            "  outline: none;"
-            "  margin-top: 0;"
-            "  padding-top: 12px;"
-            "  padding-bottom: 6px;"
-            "  min-height: 32px;"
-            "}"
-        )
+        self._apply_chrome_font()
         self._badge = False
         self._tile_anchor: QWidget | None = None
         # Warm floor-tint caches so the first tab paint is snappy.
@@ -476,6 +477,33 @@ class NavTabButton(QPushButton):
             return "hover"
         return "idle"
 
+    def _apply_chrome_font(self) -> None:
+        """Size the label from its own metrics and put it in the widget sheet.
+
+        Not setFont(): the file sheet carries a `*` font-family rule, and a
+        stylesheet beats setFont for any property it names, so an explicitly set
+        family is silently discarded on the next polish. A widget-scoped rule is
+        more specific than `*` and survives.
+
+        Not paint-time either: sizeHint decides how wide the tab is, so a size
+        applied only while painting would be laid out for the old one and clip.
+        """
+        family = chrome_family()
+        font = QFont(family)
+        font.setBold(True)
+        px = fit_pixel_size(
+            font, self.text() or "", _TAB_LABEL_W, _TAB_LABEL_H, _TAB_PX_MIN, _TAB_PX_MAX
+        )
+        self.setStyleSheet(
+            _TAB_BASE_QSS
+            + f'QPushButton {{ font-family: "{family}"; font-size: {px}px; font-weight: bold; }}'
+        )
+        self.updateGeometry()
+
+    def setText(self, text: str) -> None:  # noqa: N802
+        super().setText(text)
+        self._apply_chrome_font()
+
     def _label_color(self) -> QColor:
         if self.isChecked():
             return QColor("#F1C22D")
@@ -502,9 +530,9 @@ class NavTabButton(QPushButton):
 
         text = self.text() or ""
         font = QFont(self.font())
-        font.setBold(True)
         painter.setFont(font)
         text_rect = rect.adjusted(0, 1 if self.isDown() else 0, 0, 0)
+        text_rect = ink_centered_rect(text_rect, font, text)
         painter.setPen(QColor(0, 0, 0, 140))
         painter.drawText(text_rect.adjusted(1, 1, 1, 1), Qt.AlignmentFlag.AlignCenter, text)
         painter.setPen(self._label_color())
@@ -540,7 +568,7 @@ class RavenCraftFloatingLogo(QWidget):
             return
         self._pix = src.scaledToWidth(_RC_LOGO_WIDTH, Qt.TransformationMode.SmoothTransformation)
         self._logo_h = self._pix.height()
-        self._caption_font = _lifecraft_caption_font()
+        self._caption_font = _caption_font()
         art_bottom = _RC_GLOW_PAD_Y + _pixmap_opaque_bottom(self._pix)
         self._caption_top = art_bottom + _RC_CAPTION_GAP
         caption_h = 0

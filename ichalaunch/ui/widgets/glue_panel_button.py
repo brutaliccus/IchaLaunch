@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QPushButton, QSizePolicy
 
 from ichalaunch.core.paths import theme_file
 from ichalaunch.ui.widgets.cursors import apply_open_hand
+from ichalaunch.ui.theme_fonts import chrome_family
 
 _UP_NAME = "Glue-Panel-Button-Up-v2.PNG"
 _DOWN_NAME = "Glue-Panel-Button-Down-v2.PNG"
@@ -792,7 +793,7 @@ class GluePanelButton(QPushButton):
     def _paint_label(self, painter: QPainter, rect: QRect) -> None:
         text = self.text() or ""
         font = QFont(self.font())
-        font.setFamily("Segoe UI")
+        font.setFamily(chrome_family())
         font.setBold(True)
         n = len(text)
         if n >= 14:
