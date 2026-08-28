@@ -15286,6 +15286,51 @@ def test_launch_label_fills_its_plate():
     print("OK launch label fills its plate without clipping")
 
 
+def test_nav_tab_label_uses_the_chrome_font():
+    """Tab labels carry the chrome family and are sized from their own metrics."""
+    from PySide6.QtGui import QFontMetrics
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.app import load_stylesheet
+    from ichalaunch.ui.main_window import (
+        _TAB_LABEL_H,
+        _TAB_PX_MAX,
+        _TAB_PX_MIN,
+        _TAB_STRIP_HEIGHT,
+        NavTabButton,
+    )
+    from ichalaunch.ui.theme_fonts import chrome_family
+
+    app = QApplication.instance() or QApplication([])
+    load_stylesheet(app)
+    family = chrome_family()
+
+    for label in ("HOME", "SETTINGS"):
+        btn = NavTabButton(label)
+        btn.ensurePolished()
+        font = btn.font()
+        # Regression: the family used to be applied with setFont, and the file
+        # sheet carries a universal font-family rule. A stylesheet beats setFont
+        # for any property it names, so the family was silently discarded on the
+        # next polish and every tab rendered in the fallback sans.
+        assert font.family() == family, f"{label} is in {font.family()}, not {family}"
+        assert _TAB_PX_MIN <= font.pixelSize() <= _TAB_PX_MAX
+
+        fm = QFontMetrics(font)
+        ink = fm.tightBoundingRect(label).height()
+        # Both bounds are checked when sizing because neither implies the other:
+        # a face with deep descenders has ink taller than its line box, an
+        # all-caps face is the reverse.
+        # _TAB_LABEL_H is the strip less the plate's own 10px/4px padding, so
+        # this is the check that the tab fits. sizeHint is not: it rounds up
+        # past the strip that then clips it, and asserting on it tests Qt's
+        # padding arithmetic rather than the fit.
+        assert max(ink, fm.height()) <= _TAB_LABEL_H, f"{label} overruns its label box"
+        assert _TAB_LABEL_H < _TAB_STRIP_HEIGHT, "label box must leave room for padding"
+        assert fm.horizontalAdvance(label) <= btn.sizeHint().width()
+    print("OK nav tab labels use the chrome font at a fitted size")
+
+
 def _run_smoke_tests():
     test_catalogs()
     test_tls_ca_env_sanitizer()
@@ -15547,6 +15592,7 @@ def _run_smoke_tests():
     test_chrome_family_env_override()
     test_chrome_font_is_bundled_and_scoped_to_chrome()
     test_launch_label_fills_its_plate()
+    test_nav_tab_label_uses_the_chrome_font()
     print("\nAll smoke tests passed.")
 
 
