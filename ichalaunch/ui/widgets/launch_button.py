@@ -30,6 +30,12 @@ _PURPLE = QColor("#7c5cc4")
 
 _PLAY_W = 200
 _PLAY_H = 56
+# Label box inside the plate. The chrome bevel eats about 8px a side, so the
+# ink is kept clear of it rather than run to the pixel edge.
+_LABEL_H_PAD = 18
+_LABEL_V_PAD = 16
+# A 56px plate; past this the ink crowds the bevel however well it fits.
+_LABEL_MAX_PX = 34
 _UPDATE_SIDE = 56
 # CheckButtonGlow is 64×64: 9px empty pad, 46px halo, 32px inner hole,
 # bright gold line just outside the hole. Crop empty pad only, then scale
@@ -239,7 +245,8 @@ class LaunchButton(QPushButton):
             px, spacing = 16, 1.6
         else:
             px, spacing = 20, 2.5
-        inner_w = max(8, rect.width() - 18)
+        inner_w = max(8, rect.width() - _LABEL_H_PAD)
+        inner_h = max(8, rect.height() - _LABEL_V_PAD)
         words = text.split()
         start_px, start_spacing = px, spacing
         wrap = False
@@ -248,9 +255,18 @@ class LaunchButton(QPushButton):
             font.setPixelSize(size)
             font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, track)
 
-        def _fits(sample: str, size: int, track: float) -> bool:
+        def _fits(sample: str, size: int, track: float, lines: int = 1) -> bool:
             _apply(size, track)
-            return QFontMetrics(font).horizontalAdvance(sample) <= inner_w
+            fm = QFontMetrics(font)
+            if fm.horizontalAdvance(sample) > inner_w:
+                return False
+            # Measure ink, not just the line box. A display face puts flourishes
+            # and descenders outside its reported height, and a container sized
+            # from the metrics alone clips them - which is exactly what
+            # ravencraft.io does to its own headings, where .folkard throws away
+            # its line-height and inherits one computed for a plainer face.
+            ink = max(fm.height(), fm.tightBoundingRect(sample).height())
+            return ink * lines <= inner_h
 
         while spacing > 0 and not _fits(text, px, spacing):
             spacing = max(0.0, spacing - 0.25)
@@ -267,6 +283,14 @@ class LaunchButton(QPushButton):
         elif not _fits(text, px, spacing):
             while px >= 8 and not _fits(text, px, spacing):
                 px -= 1
+        # Grow into the plate. Everything above only ever shrank, so PLAY sat at
+        # 20px in a 56px button with most of the plate empty. The same two
+        # bounds apply going up, so a longer label simply stops sooner.
+        sample = max(words, key=len) if wrap else text
+        lines = 2 if wrap else 1
+        while px < _LABEL_MAX_PX and _fits(sample, px + 1, spacing, lines):
+            px += 1
+
         _apply(px, spacing)
         painter.setFont(font)
 
