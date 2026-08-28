@@ -15165,6 +15165,50 @@ def test_detect_and_installer_drop_unused_imports():
     print("OK detect/installer carry no unused module-level imports")
 
 
+def test_chrome_family_env_override():
+    """A named family is honoured; one Qt cannot see falls back instead of substituting."""
+    import os
+
+    from PySide6.QtWidgets import QApplication
+
+    import ichalaunch.ui.theme_fonts as theme_fonts
+
+    app = QApplication.instance() or QApplication([])
+    del app
+
+    saved = os.environ.get(theme_fonts._FAMILY_ENV)
+
+    def resolve(value):
+        # Reset the one-shot cache rather than reloading the module, so widgets
+        # already holding a reference to it keep working.
+        theme_fonts._load_attempted = False
+        theme_fonts._chrome_family = None
+        if value is None:
+            os.environ.pop(theme_fonts._FAMILY_ENV, None)
+        else:
+            os.environ[theme_fonts._FAMILY_ENV] = value
+        return theme_fonts.chrome_family()
+
+    try:
+        assert resolve(None) == "Cinzel", "bundled face should win when nothing is named"
+        # The faces that suit this launcher best cannot be shipped, so a holder
+        # of one installs it and names it here. Blank must not mean "no font".
+        assert resolve("   ") == "Cinzel"
+        assert resolve("Cinzel") == "Cinzel"
+        # A name Qt cannot see would otherwise substitute something arbitrary and
+        # look deliberate.
+        assert resolve("NoSuchFaceAnywhere") == "Cinzel"
+    finally:
+        theme_fonts._load_attempted = False
+        theme_fonts._chrome_family = None
+        if saved is None:
+            os.environ.pop(theme_fonts._FAMILY_ENV, None)
+        else:
+            os.environ[theme_fonts._FAMILY_ENV] = saved
+        theme_fonts.chrome_family()
+    print("OK chrome family env override honoured, bad names fall back")
+
+
 def _run_smoke_tests():
     test_catalogs()
     test_tls_ca_env_sanitizer()
@@ -15423,6 +15467,7 @@ def _run_smoke_tests():
     test_wayland_window_move_and_resize_handoff()
     test_linux_game_running_guard()
     test_detect_and_installer_drop_unused_imports()
+    test_chrome_family_env_override()
     print("\nAll smoke tests passed.")
 
 
