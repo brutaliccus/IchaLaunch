@@ -33,10 +33,8 @@ from ichalaunch.game.launcher import detect_game, ensure_addons_dir, resolve_add
 ProgressCb = Callable[[str], None]
 UA = {"User-Agent": "IchaLaunch/0.1", "Accept": "application/vnd.github+json"}
 
-# PERF: a bare ``requests.get`` opens a fresh TCP connection and completes a full
-# TLS handshake every call. A catalog scan makes hundreds of them and the
-# handshakes dominate the wall clock. One module-level Session keeps the
-# connection to api.github.com alive and reuses it for the whole scan.
+# A catalog scan makes hundreds of GETs. One Session keeps the TLS connection
+# to api.github.com alive instead of handshaking per call.
 _SESSION = requests.Session()
 _SESSION.headers.update({"User-Agent": UA["User-Agent"]})
 
@@ -666,6 +664,7 @@ def list_repo_forks(owner: str, repo: str, *, use_cache: bool = True) -> list[di
     try:
         r = _github_api_get(
             f"https://api.github.com/repos/{owner}/{repo}",
+            use_etag=True,
             timeout=30,
         )
         _note_rate_headers(r)
@@ -701,6 +700,7 @@ def list_repo_forks(owner: str, repo: str, *, use_cache: bool = True) -> list[di
         for page in range(1, _FORK_LIST_MAX_PAGES + 1):
             r = _github_api_get(
                 f"https://api.github.com/repos/{owner}/{repo}/forks",
+                use_etag=True,
                 timeout=30,
                 params={
                     "per_page": _FORK_LIST_PER_PAGE,
@@ -773,6 +773,7 @@ def list_repo_versions(
     try:
         r = _github_api_get(
             f"https://api.github.com/repos/{owner}/{repo}/releases",
+            use_etag=True,
             timeout=30,
             params={"per_page": cap},
         )
@@ -797,6 +798,7 @@ def list_repo_versions(
     try:
         r = _github_api_get(
             f"https://api.github.com/repos/{owner}/{repo}/tags",
+            use_etag=True,
             timeout=30,
             params={"per_page": cap},
         )
@@ -978,20 +980,17 @@ def _http_get(url: str, **kwargs: Any) -> requests.Response:
     return _SESSION.get(url, **kwargs)
 
 
-# ---------------------------------------------------------------- ETag cache
 # GitHub does not charge a conditional request against the rate limit when it
-# answers 304 Not Modified, and between two scans almost nothing has changed.
-# Replaying a cached body on a 304 therefore turns the 60-requests/hour
-# unauthenticated ceiling into an effectively unlimited scan.
-# https://docs.github.com/rest/overview/resources-in-the-rest-api#conditional-requests
+# answers 304 Not Modified. Replaying a cached body on a 304 turns the
+# 60-requests/hour unauthenticated ceiling into an effectively unlimited scan.
+# Archive / stream downloads must never use this path (see github_open).
 _ETAG_MAX_ENTRIES = 1500
+_ETAG_MAX_BODY_BYTES = 512 * 1024
 _etag_cache: dict[str, dict[str, Any]] | None = None
 _etag_dirty = False
 
 
 def _etag_cache_path() -> Path:
-    from ichalaunch.config.settings import appdata_root
-
     return appdata_root() / "etag-cache.json"
 
 
@@ -1019,13 +1018,14 @@ def _load_etag_cache() -> dict[str, dict[str, Any]]:
 
 def save_etag_cache() -> None:
     """Persist the cache. A cheap no-op when nothing changed."""
-    global _etag_dirty
+    global _etag_dirty, _etag_cache
     if not _etag_dirty or _etag_cache is None:
         return
     cache = _etag_cache
     if len(cache) > _ETAG_MAX_ENTRIES:
         newest = sorted(cache.items(), key=lambda kv: kv[1].get("ts", 0), reverse=True)
         cache = dict(newest[:_ETAG_MAX_ENTRIES])
+        _etag_cache = cache
     try:
         _etag_cache_path().write_text(json.dumps(cache), encoding="utf-8")
         _etag_dirty = False
@@ -1033,9 +1033,6 @@ def save_etag_cache() -> None:
         log.warning("Could not save ETag cache: %s", exc)
 
 
-# Flushed at exit rather than per write: the scan that matters is the FIRST one
-# after a restart, so a cache that only lived for one session would be the wrong
-# half of the benefit.
 atexit.register(save_etag_cache)
 
 
@@ -1045,10 +1042,16 @@ def _etag_store(key: str, response: requests.Response) -> None:
     if not etag:
         return
     try:
-        body = response.content.decode("utf-8")
-    except (UnicodeDecodeError, AttributeError):
+        body = response.content
+    except (OSError, AttributeError):
         return
-    _load_etag_cache()[key] = {"etag": etag, "body": body, "ts": time.time()}
+    if not body or len(body) > _ETAG_MAX_BODY_BYTES:
+        return
+    try:
+        text = body.decode("utf-8")
+    except UnicodeDecodeError:
+        return
+    _load_etag_cache()[key] = {"etag": etag, "body": text, "ts": time.time()}
     _etag_dirty = True
 
 
@@ -1501,9 +1504,7 @@ def github_latest_version_tag(owner: str, repo: str) -> str | None:
 
     try:
         tags_url = f"https://api.github.com/repos/{full}/tags"
-        r = _github_api_get(
-            tags_url, use_etag=True, timeout=30, params={"per_page": 10}
-        )
+        r = _github_api_get(tags_url, use_etag=True, timeout=30, params={"per_page": 10})
         _note_rate_headers(r)
         if _looks_like_rate_limit(r):
             raise GitHubRateLimitError(RATE_LIMIT_STATUS)
