@@ -7,7 +7,7 @@
       "frame": "zaeya_first_60_frame.png",
       "frame_url": "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/ichalaunch/ui/theme/zaeya_first_60_frame.png",
       "hold": 2.0,
-      "fit": "width",
+      "fit": "cover",
       "nudge_x": -5,
       "nudge_y": -5,
       "shrink_w": 10
