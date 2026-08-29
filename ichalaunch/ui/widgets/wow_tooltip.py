@@ -229,6 +229,7 @@ class ContributorNameTip(QWidget):
         self._text = ""
         self._face = tooltip_font()
         self._ramp = None
+        self._tint = None
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
@@ -240,11 +241,22 @@ class ContributorNameTip(QWidget):
     def set_ramp(self, stops) -> None:
         """Colour stops for the animated text, sampled from the portrait art."""
         self._ramp = stops
+        # The frame borrows the ramp's hottest colour, so border, glow and text
+        # are three views of one palette rather than three unrelated choices.
+        if stops:
+            self._tint = QColor(stops[len(stops) // 2][1])
 
     def set_name(self, text: str) -> None:
         self._text = (text or "").strip()
         self._face = tooltip_font(self.font())
-        self.setFixedSize(tooltip_size_for(self._text, self._face))
+        # Sized for the ornate frame rather than the thin default one: the
+        # border is real art with a crest on it, so the text needs clear space
+        # inside or the ornament crowds the word.
+        fm = QFontMetrics(self._face)
+        e = portrait_frame_edge()
+        w = fm.horizontalAdvance(self._text) + 2 * e + 2 * _PF_TEXT_PAD
+        h = max(fm.height() + 2 * e + _PF_TEXT_PAD, e * 2 + 14)
+        self.setFixedSize(int(w), int(h))
 
     def popup_above(self, anchor: QWidget) -> None:
         if not self._text or anchor is None:
@@ -283,6 +295,116 @@ class ContributorNameTip(QWidget):
             return
         from ichalaunch.ui.widgets.gradient_label import lava_text_pen, lava_ticker
 
-        pen = lava_text_pen(self.rect(), lava_ticker().phase, self._ramp)
-        paint_wow_tooltip(painter, self.rect(), self._text, self._face, pen)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+        rect = self.rect()
+        paint_portrait_frame(painter, rect, self._tint)
+        pen = lava_text_pen(rect, lava_ticker().phase, self._ramp)
+        painter.setFont(self._face)
+        painter.setPen(pen)
+        e = portrait_frame_edge()
+        painter.drawText(
+            rect.adjusted(e, e, -e, -e),
+            int(Qt.AlignmentFlag.AlignCenter),
+            self._text,
+        )
         painter.end()
+
+
+# ---------------------------------------------------------------------------
+# Portrait-frame tooltip. Built from the ornate border around an in-game
+# Pandaren portrait, cut into a nine-slice with the middle punched out, so a box
+# of any size can be framed in real vanilla art rather than in a rounded
+# rectangle that speaks no particular language.
+#
+# Scaled to 0.62 for use. At native 26px the ornament is heavier than the words
+# it surrounds: a four-letter name like "Icha" ends up mostly frame. 16px keeps
+# the stonework and the gold corners readable while leaving the label the
+# larger share of the plate.
+# ---------------------------------------------------------------------------
+_PF_TEXT_PAD = 10
+_PF_SCALE = 0.62
+_PF_NAMES = {
+    "tl": "portraitframe_tl.png", "tr": "portraitframe_tr.png",
+    "bl": "portraitframe_bl.png", "br": "portraitframe_br.png",
+    "t": "portraitframe_t.png", "b": "portraitframe_b.png",
+    "l": "portraitframe_l.png", "r": "portraitframe_r.png",
+    "crest": "portraitframe_crest.png",
+}
+_pf_tiles: dict | None = None
+_PF_FILL = QColor(12, 10, 9, 249)
+
+
+def _pf_load() -> dict:
+    global _pf_tiles
+    if _pf_tiles is not None:
+        return _pf_tiles
+    out: dict = {}
+    for key, name in _PF_NAMES.items():
+        path = _resolve_asset(name)
+        pm = QPixmap(str(path)) if path is not None else QPixmap()
+        if not pm.isNull() and _PF_SCALE != 1.0:
+            pm = pm.scaled(
+                max(1, round(pm.width() * _PF_SCALE)),
+                max(1, round(pm.height() * _PF_SCALE)),
+                Qt.AspectRatioMode.IgnoreAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        out[key] = pm
+    _pf_tiles = out
+    return out
+
+
+def portrait_frame_edge() -> int:
+    tiles = _pf_load()
+    tl = tiles.get("tl")
+    return tl.width() if tl is not None and not tl.isNull() else 16
+
+
+def paint_portrait_frame(painter: QPainter, rect: QRect, tint: QColor | None = None) -> None:
+    """Nine-slice the portrait border around *rect*, interior filled dark.
+
+    Corners are drawn at native size and only the edges stretch, which is the
+    whole point: a stretched corner turns the gold ornament into a smear and
+    reads as cheap. The crest is drawn ONCE, centred on the top edge, rather
+    than being part of a tiled strip that would repeat it across the width.
+    """
+    tiles = _pf_load()
+    e = portrait_frame_edge()
+    if tiles.get("tl") is None or tiles["tl"].isNull():
+        return
+    painter.fillRect(rect.adjusted(e // 2, e // 2, -e // 2, -e // 2), _PF_FILL)
+
+    inner_w = max(0, rect.width() - 2 * e)
+    inner_h = max(0, rect.height() - 2 * e)
+    if inner_w:
+        painter.drawPixmap(QRect(rect.x() + e, rect.y(), inner_w, e), tiles["t"])
+        painter.drawPixmap(
+            QRect(rect.x() + e, rect.y() + rect.height() - e, inner_w, e), tiles["b"]
+        )
+    if inner_h:
+        painter.drawPixmap(QRect(rect.x(), rect.y() + e, e, inner_h), tiles["l"])
+        painter.drawPixmap(
+            QRect(rect.x() + rect.width() - e, rect.y() + e, e, inner_h), tiles["r"]
+        )
+    painter.drawPixmap(rect.x(), rect.y(), tiles["tl"])
+    painter.drawPixmap(rect.x() + rect.width() - e, rect.y(), tiles["tr"])
+    painter.drawPixmap(rect.x(), rect.y() + rect.height() - e, tiles["bl"])
+    painter.drawPixmap(
+        rect.x() + rect.width() - e, rect.y() + rect.height() - e, tiles["br"]
+    )
+    crest = tiles.get("crest")
+    if crest is not None and not crest.isNull() and rect.width() > crest.width() + 2 * e:
+        painter.drawPixmap(
+            rect.x() + (rect.width() - crest.width()) // 2, rect.y(), crest
+        )
+    if tint is not None:
+        # A whisper of the contributor's own colour over the stone, so the frame,
+        # the portrait glow and the text ramp read as one object. Kept low:
+        # any more and it stops looking like lit metal and starts looking like
+        # a coloured rectangle.
+        painter.save()
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Overlay)
+        painter.setOpacity(0.30)
+        painter.fillRect(rect, tint)
+        painter.restore()

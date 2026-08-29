@@ -27,6 +27,11 @@ def load_stylesheet(app: QApplication) -> None:
     # dresses the tabs and buttons and leaves every heading behind.
     text = text.replace("__CHROME_FAMILY__", chrome_family())
 
+    # Theme directory, so the sheet can reference bundled art by name instead of
+    # every asset needing its own placeholder the way the chevron does.
+    theme_dir = theme_file("chevron-down.svg").parent
+    text = text.replace("__THEME__", theme_dir.resolve().as_posix())
+
     chevron = theme_file("chevron-down.svg")
     if chevron.exists():
         # Qt QSS urls need forward slashes

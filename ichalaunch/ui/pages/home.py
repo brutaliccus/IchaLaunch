@@ -68,6 +68,11 @@ _ART_BOTTOM_INSET_PX = 0
 _ART_BANNER_TUCK_PX = 12
 # Gap between a page arrow and the dots it hugs on the indicator row.
 _ART_ARROW_DOTS_GAP_PX = 4
+# The indicator row spans this fraction of the artwork's width rather than a
+# fixed gap, so it stays right if the window or the art is ever resized. Short
+# of 1.0 on purpose: at the extreme edges the arrows would sit on the frame's
+# own ornate border.
+_ART_ROW_SPAN = 0.92
 # Gap between the position row and the MoA wordmark it sits above.
 _ART_DOTS_GAP_PX = 6
 # MoA wordmark prefer width, centered along the art bottom.
@@ -203,8 +208,8 @@ class HomePage(QWidget):
 
         # Page arrows hug the dots row. Disabled spellbook glyphs sit on the
         # art wash at 80% idle / 100% hover (Addons catalog keeps gold Up/Down).
-        self.art_prev = SpellbookPageButton("prev", self, art="disabled")
-        self.art_next = SpellbookPageButton("next", self, art="disabled")
+        self.art_prev = SpellbookPageButton("prev", self, art="up")
+        self.art_next = SpellbookPageButton("next", self, art="up")
         self.art_prev.setToolTip("Previous")
         self.art_next.setToolTip("Next")
         self.art_prev.clicked.connect(lambda: self.talent_bg.step(-1))
@@ -312,9 +317,15 @@ class HomePage(QWidget):
         return True
 
     def _gallery_dots_max_width(self, art_width: int) -> int:
-        """Dots share the indicator row with the page arrows; leave them room."""
+        """Dots share the indicator row with the page arrows; leave them room.
+
+        Measured against the SPAN the row now occupies rather than the whole
+        frame, so the dots spread into the space the arrows were freed from
+        without ever reaching them.
+        """
         arrow = self.art_prev.width() or GLUE_BTN_H
-        return max(1, art_width - 2 * arrow - 2 * _ART_ARROW_DOTS_GAP_PX)
+        span = int(art_width * _ART_ROW_SPAN)
+        return max(1, span - 2 * arrow - 4 * _ART_ARROW_DOTS_GAP_PX)
 
     def _sync_gallery_dots(self) -> None:
         dots = getattr(self, "art_dots", None)
@@ -447,13 +458,17 @@ class HomePage(QWidget):
         dots_w = self.art_dots.width()
         dots_h = self.art_dots.height()
         row_h = max(arrow, dots_h)
-        row_w = arrow + gap + dots_w + gap + arrow
+        # Arrows pushed out to the ends of the span, dots centred between them.
+        row_w = max(arrow * 2 + dots_w + gap * 2, int(art.width() * _ART_ROW_SPAN))
         row_x = art.x() + (art.width() - row_w) // 2
         row_y = logo_y - row_h - _ART_DOTS_GAP_PX
+        # Arrows pinned to the ends of the span, dots centred in the gap between
+        # them. Chaining each element off the previous one is what kept the whole
+        # row bunched in the middle however wide the span was.
         self.art_prev.move(row_x, row_y + (row_h - arrow) // 2)
-        self.art_dots.move(row_x + arrow + gap, row_y + (row_h - dots_h) // 2)
-        self.art_next.move(
-            row_x + arrow + gap + dots_w + gap, row_y + (row_h - arrow) // 2
+        self.art_next.move(row_x + row_w - arrow, row_y + (row_h - arrow) // 2)
+        self.art_dots.move(
+            row_x + (row_w - dots_w) // 2, row_y + (row_h - dots_h) // 2
         )
 
         self._set_chrome_visible(True)

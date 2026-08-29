@@ -183,7 +183,10 @@ _FRAME_OUTSET_MARGIN = 4
 _FRAME_OUTSET_BOTTOM = 24
 # −/X sit inside the framed panel, clear of the TR vertical stem (~20) and
 # below the top arm (~20). Long horizontal arms do not cover the buttons.
-_CHROME_BTN_INSET_X = 44
+# 44 was too far in, 16 was half a button too far out. 30 is one button width
+# right of the original minus half a button back, which is where he put it by
+# eye. The button is 28px, so this still clears the right rail.
+_CHROME_BTN_INSET_X = 30
 # Below the 20px top rail / corner top arm.
 _CHROME_BTN_INSET_Y = 24
 

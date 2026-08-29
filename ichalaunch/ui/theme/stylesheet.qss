@@ -754,18 +754,31 @@ QAbstractScrollArea::viewport {
 
 /* RavenCraft scrollbars — thin dark track, purple thumb, gold on hover */
 QScrollBar:vertical {
-    background: #1b1512;
-    width: 9px;
-    margin: 2px 1px 2px 1px;
+    /* Right margin 3 puts the bar's right edge flush with the metal corner
+       bracket above it, which is drawn at a 3px inset. Aligning to the ornament
+       makes the bar read as part of the panel's frame rather than as something
+       floating inside it. */
+    background: #14100e;
+    width: 16px;
+    margin: 2px 3px 2px 1px;
     border: none;
-    border-radius: 4px;
+    border-radius: 0;
 }
 
 QScrollBar::handle:vertical {
-    background: #6b4a1e;
-    border: 1px solid rgba(241, 194, 45, 0.25);
-    border-radius: 4px;
-    min-height: 28px;
+    /* The window's own edge art rather than a flat fill or a fake gradient, so
+       the bar is made of the same metal as the frame. 6px slices keep the ends
+       at native size and tile only the middle, so the weathering never
+       stretches. The trough behind it is darker and flat on purpose: metal on
+       metal loses all contrast and stops reading as draggable. */
+    border-image: url(__THEME__/scrollbar_metal_v.png) 16 0 16 0 repeat repeat;
+    background: transparent;
+    /* Twice the 16px cap plus a middle worth seeing. Below 32 the two caps
+       would meet and the handle would be all ornament and no bar, which is the
+       degenerate case when the list is barely scrollable. */
+    min-height: 44px;
+    border-radius: 0;
+    margin: 0;
 }
 
 QScrollBar::handle:vertical:hover {

@@ -19,6 +19,7 @@ padding still come from the style sheet.
 from __future__ import annotations
 
 import math
+import zlib
 
 from PySide6.QtCore import QObject, QRect, Qt, QTimer
 from PySide6.QtGui import (
@@ -388,6 +389,24 @@ class AnimatedLavaLabel(QLabel):
     def __init__(self, text: str = "", parent: QWidget | None = None) -> None:
         super().__init__(text, parent)
         self._plain: "str | None" = None
+        # One shared clock, but every label reads it at its own offset and its
+        # own rate. Sharing the ticker is right, a timer each would drift and
+        # cost more, but sharing the PHASE made the sweep cross a column of
+        # headings in lockstep and read as a single bar of light travelling
+        # down the panel.
+        #
+        # crc32, not hash(): Python randomises string hashing per process, so
+        # hash() would reshuffle every launch and a heading would never look
+        # like itself twice.
+        seed = zlib.crc32((text or "").encode("utf-8"))
+        self._phase_offset = (seed % 360)
+        # Rates near 1 but never equal and never a simple ratio, so no two
+        # labels re-align on a beat the eye can find. Same principle as the
+        # torch flicker's three non-dividing sines.
+        self._phase_rate = 0.72 + ((seed >> 9) % 61) / 100.0
+
+    def _own_phase(self) -> float:
+        return (lava_ticker().phase * self._phase_rate + self._phase_offset) % 360.0
 
     def set_plain(self, colour: "str | None") -> None:
         self._plain = colour
@@ -413,7 +432,7 @@ class AnimatedLavaLabel(QLabel):
         if self._plain:
             painter.setPen(QColor(self._plain))
         else:
-            painter.setPen(lava_text_pen(rect, lava_ticker().phase))
+            painter.setPen(lava_text_pen(rect, self._own_phase()))
         flags = int(self.alignment())
         if self.wordWrap():
             flags |= int(Qt.TextFlag.TextWordWrap)
