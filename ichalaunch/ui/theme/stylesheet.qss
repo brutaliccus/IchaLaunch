@@ -20,18 +20,17 @@
    Fontin-Sans in 10 rules, more than any other family, with Folkard reserved for
    display. That is the answer to Joe's "is there a secondary font from their website
    that isn't so garish" (29 Aug). Small caps IS the site's normal weight.
-   NOT BUNDLED: the font says "All rights reserved" with no licence text, same as
-   Folkard, so it is referenced and falls back to the bundled sans if absent. */
+   Bundled: RavenCraft licenses this face for the site, and this is their launcher. */
 QLabel#HomeModCategory,
 QLabel#SectionSubtitle,
 QLabel#HomeModCategorySub,
 QLabel#HomeModCategoryCount {
-    font-family: "Fontin Sans CR SC", "Fontin Sans CR", "__BODY_FAMILY__", sans-serif;
+    font-family: "__LABEL_FAMILY__", "__BODY_FAMILY__", sans-serif;
 }
 
 QLabel#CardTitle,
 QLabel#Subtitle {
-    font-family: "Fontin Sans CR", "__BODY_FAMILY__", sans-serif;
+    font-family: "__LABEL_FAMILY__", "__BODY_FAMILY__", sans-serif;
 }
 
 /* Display face for HEADERS ONLY. Joe's note, 29 Aug: he liked the font "for all
