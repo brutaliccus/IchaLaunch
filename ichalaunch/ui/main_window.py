@@ -387,12 +387,15 @@ from ichalaunch.mods.installer import (
     ModUpdateCheckResult,
     apply_desired_state,
     check_mod_updates,
+    dxvk_texture_memory_workaround_needed,
     ensure_desired_mods_synced,
+    ensure_dxvk_texture_memory_workaround,
     format_mod_verify_warning,
     install_custom_dll_from_github,
     plan_manual_missing,
     plan_sync_changes,
     prepare_for_launch,
+    read_dxvk_texture_memory,
     recently_checked_mod_updates,
     split_mod_apply_results,
     update_mod,
@@ -3627,6 +3630,34 @@ class MainWindow(QMainWindow):
             self._farclip_prompted = False
             themed.error(self, "Could not update Config.wtf", str(exc))
 
+    def _confirm_dxvk_texture_memory_before_launch(self) -> bool:
+        """Block Play when Minimap Trackings is on and dxvk.conf is unsafe.
+
+        Apply writes ``d3d9.textureMemory = 0``. Cancel aborts launch.
+        """
+        if not dxvk_texture_memory_workaround_needed():
+            return True
+        if not themed.confirm_minimapicons_dxvk(
+            self,
+            for_launch=True,
+            current=read_dxvk_texture_memory(),
+        ):
+            self._fail_play_launch("Launch cancelled")
+            return False
+        if ensure_dxvk_texture_memory_workaround() or (
+            not dxvk_texture_memory_workaround_needed()
+        ):
+            self.status_lbl.setText("Set DXVK textureMemory workaround")
+            return True
+        themed.error(
+            self,
+            "Could not update dxvk.conf",
+            "Utility Minimap Trackings needs d3d9.textureMemory = 0, but "
+            "dxvk.conf could not be written.",
+        )
+        self._fail_play_launch("Launch cancelled")
+        return False
+
     def _apply_toc_mismatch_prompts(self, result: object) -> object:
         """UI-thread prompts for install mismatches collected on a worker."""
         if isinstance(result, AddonInstallResult):
@@ -3967,6 +3998,8 @@ class MainWindow(QMainWindow):
     def _launch_prepared(self) -> None:
         try:
             self._maybe_prompt_high_farclip()
+            if not self._confirm_dxvk_texture_memory_before_launch():
+                return
             manuals = plan_manual_missing()
             if manuals:
                 themed.warning(

@@ -3592,6 +3592,42 @@ def confirm_vanilla_tweaks_old(parent: QWidget | None) -> bool:
     )
 
 
+def confirm_minimapicons_dxvk(
+    parent: QWidget | None,
+    *,
+    for_launch: bool = False,
+    current: str | None = None,
+) -> bool:
+    """Ask before writing ``d3d9.textureMemory = 0`` to dxvk.conf.
+
+    Apply continues (enable the DLL, or launch). Cancel leaves the DLL
+    unchecked, or aborts Play.
+    """
+    if current is None:
+        have = "not set (DXVK defaults to 100, which crashes the tracker menu)"
+    else:
+        have = current
+    closer = (
+        "Apply that setting and launch?"
+        if for_launch
+        else "Apply that setting and enable Minimap Trackings?"
+    )
+    result = choice(
+        parent,
+        "DXVK setting required",
+        "Utility Minimap Trackings crashes under DXVK unless this line is "
+        "set in dxvk.conf:\n\n"
+        "d3d9.textureMemory = 0\n\n"
+        f"Your dxvk.conf currently has d3d9.textureMemory = {have}.\n\n"
+        "This keeps D3D9 texture mappings resident so the tracker menu can "
+        "upload its icons. It does not change HD texture quality or VRAM use.\n\n"
+        + closer,
+        [("Cancel", DialogResult.Cancel), ("Apply", DialogResult.Yes)],
+        kind="warning",
+    )
+    return result == DialogResult.Yes
+
+
 def _run(
     parent: QWidget | None,
     title: str,

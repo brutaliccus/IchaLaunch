@@ -36,6 +36,10 @@ from ichalaunch.mods.installer import (
     apply_mod_toggle,
     apply_vanillafixes_dxvk_choice,
     detect_actual_state,
+    dxvk_layer_desired,
+    dxvk_texture_memory_workaround_pending,
+    ensure_dxvk_texture_memory_workaround,
+    read_dxvk_texture_memory,
     get_mod,
     load_mod_catalog,
     mod_contains_caption,
@@ -67,6 +71,7 @@ from ichalaunch.ui.widgets.dialogs import (
     DialogResult,
     choice,
     confirm,
+    confirm_minimapicons_dxvk,
     confirm_vanilla_tweaks_old,
     dll_security_exclusion_dialog,
     github_import_dialog,
@@ -1030,6 +1035,17 @@ class ClientPage(QWidget):
                     row.cb.setChecked(False)
                     row.cb.blockSignals(False)
                 return
+        if enabled and mod_id == "wu_minimapicons":
+            if dxvk_layer_desired() and dxvk_texture_memory_workaround_pending():
+                if not confirm_minimapicons_dxvk(
+                    self, current=read_dxvk_texture_memory()
+                ):
+                    row = self.rows.get(mod_id)
+                    if row is not None:
+                        row.cb.blockSignals(True)
+                        row.cb.setChecked(False)
+                        row.cb.blockSignals(False)
+                    return
         if not enabled:
             preview = resolve_mod_toggle(mod_id, False)
             cascade_off = [
@@ -1045,6 +1061,8 @@ class ClientPage(QWidget):
                     row.cb.blockSignals(False)
                 return
         changes = apply_mod_toggle(mod_id, enabled)
+        if enabled and mod_id == "wu_minimapicons":
+            ensure_dxvk_texture_memory_workaround()
         if enabled and not bool(settings.desired_mods.get(mod_id, False)):
             row = self.rows.get(mod_id)
             if row is not None:

@@ -3341,6 +3341,7 @@ def test_hd_dxvk_catalog_and_patch_v():
     assert "dxvk.logLevel = none" in text
     assert "d3d9.dpiAware = False" in text
     assert "DXVK 2.7.1" in text
+    assert "d3d9.textureMemory = 0" in text
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -3358,6 +3359,251 @@ def test_hd_dxvk_catalog_and_patch_v():
         assert picked.read_bytes() == b"x32"
 
     print("OK hd dxvk catalog and patch-v install target")
+
+
+def test_dxvk_texture_memory_workaround():
+    """Apply writes/replaces d3d9.textureMemory = 0; Play never rewrites silently."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.mods.installer import (
+        dxvk_layer_desired,
+        dxvk_texture_memory_workaround_needed,
+        dxvk_texture_memory_workaround_pending,
+        ensure_dxvk_texture_memory_workaround,
+        prepare_for_launch,
+        read_dxvk_texture_memory,
+    )
+
+    assert dxvk_layer_desired({"dxvk": True}) is True
+    assert dxvk_layer_desired({"hd_dxvk": True}) is True
+    assert dxvk_layer_desired({"dxvk": False, "hd_dxvk": False}) is False
+
+    keys = ("desired_mods",)
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td)
+            s.set("desired_mods", {"dxvk": True, "wu_minimapicons": False})
+            conf = game / "dxvk.conf"
+            conf.write_text("dxvk.logLevel = none\n", encoding="utf-8")
+            assert ensure_dxvk_texture_memory_workaround(game) is False
+            assert "d3d9.textureMemory" not in conf.read_text(encoding="utf-8")
+            assert dxvk_texture_memory_workaround_needed(game) is False
+            assert dxvk_texture_memory_workaround_pending(game) is True
+
+            s.set("desired_mods", {"dxvk": True, "wu_minimapicons": True})
+            assert read_dxvk_texture_memory(game) is None
+            assert dxvk_texture_memory_workaround_needed(game) is True
+            assert ensure_dxvk_texture_memory_workaround(game) is True
+            assert read_dxvk_texture_memory(game) == "0"
+            text = conf.read_text(encoding="utf-8")
+            assert "d3d9.textureMemory = 0" in text
+            assert "dxvk.logLevel = none" in text
+            assert ensure_dxvk_texture_memory_workaround(game) is False
+            assert dxvk_texture_memory_workaround_needed(game) is False
+            assert dxvk_texture_memory_workaround_pending(game) is False
+
+            conf.write_text(
+                "# d3d9.textureMemory = 0\n"
+                "d3d9.textureMemory = 100\n",
+                encoding="utf-8",
+            )
+            assert read_dxvk_texture_memory(game) == "100"
+            assert dxvk_texture_memory_workaround_needed(game) is True
+            assert dxvk_texture_memory_workaround_pending(game) is True
+            prep = prepare_for_launch(game)
+            assert read_dxvk_texture_memory(game) == "100"
+            assert "textureMemory" not in " ".join(prep.fixes)
+            assert ensure_dxvk_texture_memory_workaround(game) is True
+            assert read_dxvk_texture_memory(game) == "0"
+            rewritten = conf.read_text(encoding="utf-8")
+            assert "d3d9.textureMemory = 0" in rewritten
+            assert "d3d9.textureMemory = 100" not in rewritten
+
+            s.set("desired_mods", {"wu_minimapicons": True})
+            conf.write_text("d3d9.textureMemory = 100\n", encoding="utf-8")
+            assert dxvk_texture_memory_workaround_needed(game) is False
+            (game / "d3d9.dll").write_bytes(b"dxvk")
+            assert dxvk_texture_memory_workaround_needed(game) is True
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+    print("OK dxvk textureMemory workaround")
+
+
+def test_minimapicons_dxvk_confirm_toggle_and_launch():
+    """Cancel leaves the DLL off; Play prompts when the conf is still unsafe."""
+    from unittest.mock import patch
+
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.ui.main_window import MainWindow
+    from ichalaunch.ui.pages.client import ClientPage
+
+    app = QApplication.instance() or QApplication([])
+    keys = ("desired_mods", "user_set_mods")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        s.set("desired_mods", {"dxvk": True, "wu_minimapicons": False})
+        s.set("user_set_mods", [])
+        with patch("ichalaunch.ui.pages.client.plan_changes", return_value=[]):
+            page = ClientPage()
+        row = page.rows.get("wu_minimapicons")
+        assert row is not None
+
+        with (
+            patch("ichalaunch.ui.pages.client.dxvk_layer_desired", return_value=True),
+            patch(
+                "ichalaunch.ui.pages.client.dxvk_texture_memory_workaround_pending",
+                return_value=True,
+            ),
+            patch(
+                "ichalaunch.ui.pages.client.confirm_minimapicons_dxvk",
+                return_value=False,
+            ) as confirm,
+            patch("ichalaunch.ui.pages.client.plan_changes", return_value=[]),
+        ):
+            page._on_toggle("wu_minimapicons", True)
+            app.processEvents()
+            confirm.assert_called_once()
+            assert not s.desired_mods.get("wu_minimapicons")
+            assert row.cb.isChecked() is False
+
+        with (
+            patch("ichalaunch.ui.pages.client.dxvk_layer_desired", return_value=True),
+            patch(
+                "ichalaunch.ui.pages.client.dxvk_texture_memory_workaround_pending",
+                return_value=True,
+            ),
+            patch(
+                "ichalaunch.ui.pages.client.confirm_minimapicons_dxvk",
+                return_value=True,
+            ),
+            patch("ichalaunch.ui.pages.client.plan_changes", return_value=[]),
+            patch(
+                "ichalaunch.ui.pages.client.ensure_dxvk_texture_memory_workaround",
+                return_value=True,
+            ) as ensure,
+            patch(
+                "ichalaunch.ui.pages.client.ClientPage._maybe_show_dll_security_hint"
+            ),
+            patch(
+                "ichalaunch.ui.pages.client.ClientPage._maybe_show_mpq_patch_warning"
+            ),
+        ):
+            page._on_toggle("wu_minimapicons", True)
+            app.processEvents()
+            assert s.desired_mods.get("wu_minimapicons") is True
+            ensure.assert_called()
+
+        s.set_desired_mod("wu_minimapicons", False)
+        page.refresh_from_settings()
+        with (
+            patch("ichalaunch.ui.pages.client.dxvk_layer_desired", return_value=True),
+            patch(
+                "ichalaunch.ui.pages.client.dxvk_texture_memory_workaround_pending",
+                return_value=False,
+            ),
+            patch(
+                "ichalaunch.ui.pages.client.confirm_minimapicons_dxvk",
+                side_effect=AssertionError("should not prompt when already 0"),
+            ),
+            patch("ichalaunch.ui.pages.client.plan_changes", return_value=[]),
+            patch(
+                "ichalaunch.ui.pages.client.ClientPage._maybe_show_dll_security_hint"
+            ),
+            patch(
+                "ichalaunch.ui.pages.client.ClientPage._maybe_show_mpq_patch_warning"
+            ),
+        ):
+            page._on_toggle("wu_minimapicons", True)
+            assert s.desired_mods.get("wu_minimapicons") is True
+
+        s.set_desired_mod("wu_minimapicons", False)
+        s.set(
+            "desired_mods",
+            {**s.desired_mods, "dxvk": False, "hd_dxvk": False},
+        )
+        page.refresh_from_settings()
+        with (
+            patch(
+                "ichalaunch.ui.pages.client.confirm_minimapicons_dxvk",
+                side_effect=AssertionError("should not prompt without DXVK"),
+            ),
+            patch("ichalaunch.ui.pages.client.plan_changes", return_value=[]),
+            patch(
+                "ichalaunch.ui.pages.client.ClientPage._maybe_show_dll_security_hint"
+            ),
+            patch(
+                "ichalaunch.ui.pages.client.ClientPage._maybe_show_mpq_patch_warning"
+            ),
+        ):
+            page._on_toggle("wu_minimapicons", True)
+            assert s.desired_mods.get("wu_minimapicons") is True
+        page.deleteLater()
+
+        with patch("ichalaunch.ui.main_window.MainWindow.__init__", return_value=None):
+            win = MainWindow.__new__(MainWindow)
+        win.status_lbl = type("L", (), {"setText": lambda self, t: None})()
+        cancelled: list[str] = []
+        win._fail_play_launch = lambda msg: cancelled.append(msg)
+
+        with (
+            patch(
+                "ichalaunch.ui.main_window.dxvk_texture_memory_workaround_needed",
+                return_value=False,
+            ),
+            patch(
+                "ichalaunch.ui.widgets.dialogs.confirm_minimapicons_dxvk",
+                side_effect=AssertionError("safe conf must not prompt"),
+            ),
+        ):
+            assert win._confirm_dxvk_texture_memory_before_launch() is True
+            assert cancelled == []
+
+        with (
+            patch(
+                "ichalaunch.ui.main_window.dxvk_texture_memory_workaround_needed",
+                return_value=True,
+            ),
+            patch(
+                "ichalaunch.ui.main_window.read_dxvk_texture_memory",
+                return_value="100",
+            ),
+            patch(
+                "ichalaunch.ui.widgets.dialogs.confirm_minimapicons_dxvk",
+                return_value=False,
+            ) as launch_confirm,
+        ):
+            assert win._confirm_dxvk_texture_memory_before_launch() is False
+            launch_confirm.assert_called_once()
+            assert cancelled == ["Launch cancelled"]
+
+        cancelled.clear()
+        with (
+            patch(
+                "ichalaunch.ui.main_window.dxvk_texture_memory_workaround_needed",
+                return_value=True,
+            ),
+            patch(
+                "ichalaunch.ui.main_window.read_dxvk_texture_memory",
+                return_value="100",
+            ),
+            patch(
+                "ichalaunch.ui.widgets.dialogs.confirm_minimapicons_dxvk",
+                return_value=True,
+            ),
+            patch(
+                "ichalaunch.ui.main_window.ensure_dxvk_texture_memory_workaround",
+                return_value=True,
+            ),
+        ):
+            assert win._confirm_dxvk_texture_memory_before_launch() is True
+            assert cancelled == []
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+    print("OK minimapicons DXVK confirm toggle and launch")
 
 
 def test_hd_dxvk_disable_restores_vf_layer():
@@ -20021,6 +20267,8 @@ def _run_smoke_tests():
     test_client_page_fog_toggleable_with_patch_e()
     test_plan_installs_standalone_fog_with_patch_e()
     test_hd_dxvk_catalog_and_patch_v()
+    test_dxvk_texture_memory_workaround()
+    test_minimapicons_dxvk_confirm_toggle_and_launch()
     test_hd_dxvk_disable_restores_vf_layer()
     test_dxvk_layers_detect_dll_not_conf_comment()
     test_dxvk_cursor_remove_restores_dll_from_backup()

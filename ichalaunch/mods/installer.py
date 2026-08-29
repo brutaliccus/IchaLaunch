@@ -2035,6 +2035,144 @@ def ensure_bundled_local_dlls_current(game: Path | None = None) -> list[str]:
     return done
 
 
+MINIMAPICONS_MOD_ID = "wu_minimapicons"
+_DXVK_LAYER_IDS = ("dxvk", "hd_dxvk")
+_TEXTURE_MEMORY_KEY = "d3d9.textureMemory"
+_TEXTURE_MEMORY_SAFE = "0"
+_TEXTURE_MEMORY_COMMENT = (
+    "# Keep D3D9 texture mappings resident (tracker menu AV on DXVK 2.7.1)"
+)
+
+
+def dxvk_layer_desired(desired: dict[str, bool] | None = None) -> bool:
+    """True when VanillaFixes+DXVK or the 2.7.1 overlay is enabled."""
+    mods = desired if desired is not None else settings.desired_mods
+    return any(bool(mods.get(mid)) for mid in _DXVK_LAYER_IDS)
+
+
+def _dxvk_conf_path(game: Path) -> Path:
+    return resolve_ci(game, "dxvk.conf") or (game / "dxvk.conf")
+
+
+def _dxvk_dll_present(game: Path) -> bool:
+    dll = resolve_ci(game, "d3d9.dll")
+    try:
+        return bool(dll and dll.is_file())
+    except OSError:
+        return False
+
+
+def _parse_dxvk_conf_assignment(text: str, key: str) -> str | None:
+    """Last live (non-comment) assignment for *key*, or None if unset."""
+    found: str | None = None
+    key_norm = key.lower().replace(" ", "")
+    for line in text.splitlines():
+        stripped = line.split("#", 1)[0].strip()
+        if not stripped or "=" not in stripped:
+            continue
+        left, right = stripped.split("=", 1)
+        if left.strip().lower().replace(" ", "") == key_norm:
+            found = right.strip()
+    return found
+
+
+def read_dxvk_texture_memory(game: Path | None = None) -> str | None:
+    """Live ``d3d9.textureMemory`` value, or None if unset / unreadable."""
+    game = game or detect_game()
+    if not game:
+        return None
+    conf = _dxvk_conf_path(game)
+    try:
+        if not conf.is_file():
+            return None
+        text = conf.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    return _parse_dxvk_conf_assignment(text, _TEXTURE_MEMORY_KEY)
+
+
+def dxvk_texture_memory_workaround_pending(game: Path | None = None) -> bool:
+    """True when ``d3d9.textureMemory`` is missing or not ``0``."""
+    game = game or detect_game()
+    if not game:
+        return True
+    return read_dxvk_texture_memory(game) != _TEXTURE_MEMORY_SAFE
+
+
+def dxvk_texture_memory_workaround_needed(game: Path | None = None) -> bool:
+    """True when Minimap Trackings is on, DXVK is in play, and the conf is unsafe.
+
+    Unsafe means the key is missing (DXVK defaults to 100) or set to something
+    other than 0. Used as a Play-time gate — never rewrite silently.
+    """
+    if not settings.desired_mods.get(MINIMAPICONS_MOD_ID):
+        return False
+    game = game or detect_game()
+    if not game:
+        return False
+    if not dxvk_layer_desired() and not _dxvk_dll_present(game):
+        return False
+    return read_dxvk_texture_memory(game) != _TEXTURE_MEMORY_SAFE
+
+
+def ensure_dxvk_texture_memory_workaround(game: Path | None = None) -> bool:
+    """Set ``d3d9.textureMemory = 0`` after the user accepted Apply.
+
+    Replaces a live assignment (including a wrong value such as 100). Creates
+    ``dxvk.conf`` when the DXVK layer is present without one. Does not change
+    texture quality. Only when Utility Minimap Trackings is desired.
+    """
+    if not settings.desired_mods.get(MINIMAPICONS_MOD_ID):
+        return False
+    game = game or detect_game()
+    if not game:
+        return False
+    conf = _dxvk_conf_path(game)
+    try:
+        if conf.is_file():
+            with open(conf, "r", encoding="utf-8", errors="replace", newline="") as fh:
+                original = fh.read()
+        else:
+            original = ""
+    except OSError:
+        return False
+    if (
+        original
+        and _parse_dxvk_conf_assignment(original, _TEXTURE_MEMORY_KEY)
+        == _TEXTURE_MEMORY_SAFE
+    ):
+        return False
+    newline = "\r\n" if "\r\n" in original else "\n"
+    out: list[str] = []
+    replaced = False
+    key_norm = _TEXTURE_MEMORY_KEY.lower().replace(" ", "")
+    for line in original.splitlines():
+        stripped = line.lstrip()
+        live = stripped.split("#", 1)[0].strip()
+        left = live.split("=", 1)[0].strip().lower().replace(" ", "") if live else ""
+        if left == key_norm:
+            indent = line[: len(line) - len(stripped)]
+            out.append(f"{indent}{_TEXTURE_MEMORY_KEY} = {_TEXTURE_MEMORY_SAFE}")
+            replaced = True
+        else:
+            out.append(line)
+    if not replaced:
+        if original.strip():
+            out.append(_TEXTURE_MEMORY_COMMENT)
+        else:
+            out.append(_TEXTURE_MEMORY_COMMENT)
+        out.append(f"{_TEXTURE_MEMORY_KEY} = {_TEXTURE_MEMORY_SAFE}")
+    new_body = newline.join(out) + newline
+    try:
+        with open(conf, "w", encoding="utf-8", newline="") as fh:
+            fh.write(new_body)
+    except OSError as exc:
+        log.warning("Could not write DXVK textureMemory workaround: %s", exc)
+        return False
+    log.info("Set d3d9.textureMemory = 0 in %s", conf.name)
+    return True
+
+
 def _exe_differs_from_backup(game_path: Path, backup_name: str) -> bool:
     """True when WoW.exe has been patched relative to *backup_name*.
 
@@ -4926,7 +5064,6 @@ def prepare_for_launch(game: Path | None = None) -> PreLaunchResult:
     for mid in ensure_bundled_local_dlls_current(game):
         name = (get_mod(mid) or {}).get("name") or mid
         result.fixes.append(f"Updated {name}")
-
     added, removed = _sync_dlls_txt_for_desired_mods(game)
     if added:
         result.fixes.append(f"Added to dlls.txt: {', '.join(added)}")
