@@ -56,11 +56,12 @@ _SWEEP_PERIOD_MS = 4200  # a full turn; slow reads as molten, fast reads as a lo
 # turns a hard silhouette into light falling off into the dark. Both are
 # generous on purpose: a tight blur still reads as an outline with soft edges,
 # and the target is a warm bulb, where you cannot say where the light stops.
-# Breathing room inside the widget for the halo to fall off in. Without it the
-# blur is clipped to the widget bounds and reads as a hard rectangle. It also
-# sets the widget's real size: the plate plus twice this. At 26 the plate came
-# to 108px tall inside an 88px bar, which is why the bar could not shrink.
-_GLOW_MARGIN = 12
+# Zero since the halo was removed. This was breathing room for the glow to fall
+# off in, because Qt clips painting to the widget rectangle and a blur drawn to
+# the edge ends on a hard line. With nothing spilling out any more it was only
+# padding the widget, holding the plate away from the bar's edge and pushing the
+# update button to 104px inside an 80px slot.
+_GLOW_MARGIN = 0
 # Lava, not a flat gold band. The ramp runs ember, through orange, to a
 # white-hot core and back, which is the same journey the site's own heading
 # gradient makes (#F1C22D to #FF7757) taken further in both directions. The
@@ -199,11 +200,8 @@ class LaunchButton(QPushButton):
         apply_open_hand(self)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        # The widget is the plate PLUS a margin, and the plate is drawn inset
-        # into it. Qt clips painting to the widget's own rectangle, so a glow
-        # drawn outside it is cut off at exactly a rectangle, which is what a
-        # halo around a plate-sized widget looked like however wide the blur
-        # was. The margin is where the light is allowed to live.
+        # Kept as a field rather than inlined: paintEvent still insets by it, so
+        # a future effect that needs room to spill can set it again in one place.
         self._glow_margin = _GLOW_MARGIN
         self.setFixedSize(width + _GLOW_MARGIN * 2, height + _GLOW_MARGIN * 2)
         # Let paintEvent own the look — strip QSS chrome for this widget.
