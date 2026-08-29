@@ -174,7 +174,6 @@ def test_backup_refuses_outside_paths_and_empty_restore_is_survivable():
     print("OK backup refuses outside paths and empty restore is survivable")
 
 
-
 def test_tls_ca_env_sanitizer():
     """Stale CA env vars (Postgres, foo.crt, missing dir) must not survive startup."""
     import os
@@ -256,6 +255,98 @@ def test_tls_ca_env_sanitizer():
         _restore()
 
     print("OK tls ca env sanitizer")
+
+
+def test_tls_ca_env_sanitizer_leaves_unset_vars_unset():
+    """A CA env var nobody set must stay unset; a broken one must still be repaired."""
+    import json
+    import os
+    import subprocess
+    import sys
+    import tempfile
+    from pathlib import Path
+
+    from ichalaunch.core.tls import (
+        CA_DIR_ENV_VARS,
+        CA_FILE_ENV_VARS,
+        bundled_ca_file,
+        process_ca_file,
+        sanitize_tls_ca_env,
+    )
+
+    ca_names = CA_FILE_ENV_VARS + CA_DIR_ENV_VARS
+    saved = {name: os.environ.get(name) for name in ca_names}
+
+    def _restore() -> None:
+        for name, value in saved.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+        sanitize_tls_ca_env()
+
+    certifi_pem = bundled_ca_file()
+    assert certifi_pem and os.path.isfile(certifi_pem), "certifi cacert.pem must be readable"
+
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            for name in ca_names:
+                os.environ.pop(name, None)
+            broken = root / "vanished-corporate.pem"
+            os.environ["REQUESTS_CA_BUNDLE"] = str(broken)
+
+            bundle = sanitize_tls_ca_env()
+            assert bundle == certifi_pem, bundle
+            assert process_ca_file() == certifi_pem
+
+            # The one variable that was set and broken is repaired in place.
+            assert os.environ.get("REQUESTS_CA_BUNDLE") == certifi_pem
+            assert "vanished-corporate" not in os.environ.get("REQUESTS_CA_BUNDLE", "")
+
+            # Everything nobody set stays absent, so children do not inherit a
+            # bundle path that can point into a temporary _MEIPASS directory.
+            untouched = [n for n in CA_FILE_ENV_VARS if n != "REQUESTS_CA_BUNDLE"]
+            for name in untouched:
+                assert name not in os.environ, f"{name} was invented by the sanitizer"
+            assert "SSL_CERT_DIR" not in os.environ
+
+            # A child process (git is run this way by core.detect) sees the
+            # same absence, so a CA configured in ~/.gitconfig still wins.
+            probe = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    "import json,os;print(json.dumps("
+                    "{k: os.environ.get(k) for k in "
+                    f"{list(CA_FILE_ENV_VARS)!r}"
+                    "}))",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            assert probe.returncode == 0, probe.stderr
+            inherited = json.loads(probe.stdout)
+            assert inherited["GIT_SSL_CAINFO"] is None, inherited
+            assert inherited["CURL_CA_BUNDLE"] is None, inherited
+            assert inherited["REQUESTS_CA_BUNDLE"] == certifi_pem, inherited
+
+            # A readable custom bundle is still preferred and still kept.
+            custom = root / "corporate.pem"
+            custom.write_bytes(Path(certifi_pem).read_bytes())
+            os.environ["SSL_CERT_FILE"] = str(custom)
+            os.environ["REQUESTS_CA_BUNDLE"] = str(broken)
+            chosen = sanitize_tls_ca_env()
+            assert chosen == str(custom), chosen
+            assert os.environ["SSL_CERT_FILE"] == str(custom)
+            assert os.environ["REQUESTS_CA_BUNDLE"] == str(custom)
+            for name in ("CURL_CA_BUNDLE", "GIT_SSL_CAINFO", "PIP_CERT", "NODE_EXTRA_CA_CERTS"):
+                assert name not in os.environ, f"{name} was invented by the sanitizer"
+    finally:
+        _restore()
+
+    print("OK tls ca env sanitizer leaves unset vars unset")
 
 
 def test_bundle_pins_charset_normalizer_and_excludes_chardet():
@@ -17092,6 +17183,7 @@ def _run_smoke_tests():
     test_smoke_settings_isolated_from_live_appdata()
     test_catalogs()
     test_tls_ca_env_sanitizer()
+    test_tls_ca_env_sanitizer_leaves_unset_vars_unset()
     test_backup_refuses_outside_paths_and_empty_restore_is_survivable()
     test_bundle_pins_charset_normalizer_and_excludes_chardet()
     test_no_control_flow_escapes_a_finally_block()

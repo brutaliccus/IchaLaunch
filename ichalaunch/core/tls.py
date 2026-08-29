@@ -7,9 +7,17 @@ then fail every HTTPS call — catalog, addons, GitHub, GitLab, updates — each
 naming whichever env var that stack inherited.
 
 Only invalid or unreadable paths are replaced. A custom CA file that exists
-and is readable (corporate MITM) is kept. After sanitizing, every file-based
-CA env var and the default ``ssl`` context use the same readable bundle
-(certifi, or that valid custom file).
+and is readable (corporate MITM) is kept. A variable the environment never
+set stays unset: repairing a broken value is this module's job, inventing one
+it was never given is not. After sanitizing, the default ``ssl`` context and
+requests both use one readable bundle (certifi, or that valid custom file),
+and :func:`process_ca_file` hands that path to anything else that wants it.
+
+That restraint matters because child processes inherit our environment. Git,
+curl and pip run from the launcher would otherwise pick up a CA path inside
+the PyInstaller ``_MEIPASS`` extraction directory, which is deleted when the
+launcher exits, and it would override a corporate CA configured in
+``~/.gitconfig`` rather than in an env var.
 """
 
 from __future__ import annotations
@@ -212,11 +220,15 @@ def sanitize_tls_ca_env() -> str | None:
 
     for name in CA_FILE_ENV_VARS:
         raw = os.environ.get(name)
-        if raw is not None and _readable_file(raw):
+        if raw is None:
+            # Never introduce a variable the environment did not have. Child
+            # processes inherit it, and our bundle can live in a temporary
+            # _MEIPASS directory that dies with the launcher.
             continue
-        if raw is not None:
-            os.environ.pop(name, None)
-            replaced.append(name)
+        if _readable_file(raw):
+            continue
+        os.environ.pop(name, None)
+        replaced.append(name)
         if process_ca:
             os.environ[name] = process_ca
 
