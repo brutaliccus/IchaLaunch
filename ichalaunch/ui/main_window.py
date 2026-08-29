@@ -1953,7 +1953,9 @@ class MainWindow(QMainWindow):
                 border_name="CheckButtonHilight-Blue.PNG",
                 crop_mode="cover",
                 fill_mode="outer",
-                tooltip="Icha",
+                # No name plate: this is a guild member who reported a bug, not
+                # the author, and guessing a label onto someone is worse than
+                # leaving the portrait unnamed.
                 glow_ramp=RIM_FROST_BLUE,
             )
         )
