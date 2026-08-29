@@ -7669,7 +7669,7 @@ def test_github_bad_token_retries_without_auth():
     from ichalaunch.addons import github as G
 
     prev_token = G.settings.get("github_token")
-    orig_get = G.requests.get
+    orig_get = G._http_get
     calls: list[tuple[str, str | None]] = []
 
     class _Resp:
@@ -7678,6 +7678,7 @@ def test_github_bad_token_retries_without_auth():
             self.headers = {"Content-Type": "application/json"}
             self.text = body
             self._body = body
+            self.content = body.encode("utf-8")
 
         def json(self):
             return json.loads(self._body)
@@ -7702,7 +7703,9 @@ def test_github_bad_token_retries_without_auth():
     try:
         G.settings.set("github_token", "ghp_invalid_token")
         G._token_rejected_pending = False
-        G.requests.get = _fake_get
+        G._etag_cache = {}
+        G._etag_dirty = False
+        G._http_get = _fake_get
         r = G.github_get("https://api.github.com/repos/hannesmann/vanillafixes/releases/latest")
         assert r.status_code == 200
         assert len(calls) == 2
@@ -7710,11 +7713,82 @@ def test_github_bad_token_retries_without_auth():
         assert calls[1][1] is None
         assert G.take_github_token_warning() == G.GITHUB_TOKEN_REJECTED_MSG
     finally:
-        G.requests.get = orig_get
+        G._http_get = orig_get
         G.settings.set("github_token", prev_token or "")
         G._token_rejected_pending = False
+        G._etag_cache = {}
+        G._etag_dirty = False
 
     print("OK github bad token retries without auth")
+
+
+def test_github_etag_cache_replays_304():
+    """A second scan with If-None-Match must reuse the body and refund the slot."""
+    import requests
+
+    from ichalaunch.addons import github as G
+
+    orig_get = G._http_get
+    orig_cache = G._etag_cache
+    orig_dirty = G._etag_dirty
+    orig_used = G._budget_window_used
+    orig_start = G._budget_window_start
+    calls: list[dict] = []
+
+    class _Resp:
+        def __init__(self, status_code: int, body: str = "{}", etag: str | None = None):
+            self.status_code = status_code
+            self.headers = {"Content-Type": "application/json"}
+            if etag:
+                self.headers["ETag"] = etag
+            self.text = body
+            self._body = body
+            self.content = body.encode("utf-8")
+            self.url = "https://api.github.com/repos/o/r/releases/latest"
+
+        def json(self):
+            return json.loads(self._body)
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise requests.HTTPError(f"{self.status_code}", response=self)
+
+        def close(self):
+            pass
+
+    def _fake_get(url, headers=None, **kw):
+        headers = headers or {}
+        calls.append({"url": url, "inm": headers.get("If-None-Match")})
+        if headers.get("If-None-Match") == '"v1"':
+            return _Resp(304)
+        return _Resp(200, '{"tag_name":"1.0.0"}', etag='"v1"')
+
+    try:
+        G._etag_cache = {}
+        G._etag_dirty = False
+        G._budget_window_start = None
+        G._budget_window_used = 0
+        G._http_get = _fake_get
+        first = G.github_get("https://api.github.com/repos/o/r/releases/latest")
+        assert first.status_code == 200
+        assert first.json()["tag_name"] == "1.0.0"
+        used_after_first = G._budget_window_used
+        second = G.github_get("https://api.github.com/repos/o/r/releases/latest")
+        assert second.status_code == 200
+        assert second.headers.get("X-IchaLaunch-FromCache") == "1"
+        assert second.json()["tag_name"] == "1.0.0"
+        assert calls[1]["inm"] == '"v1"'
+        assert G._budget_window_used == used_after_first, (
+            "304 was charged against the unauthenticated budget"
+        )
+    finally:
+        G._http_get = orig_get
+        G._etag_cache = orig_cache
+        G._etag_dirty = orig_dirty
+        G._budget_window_used = orig_used
+        G._budget_window_start = orig_start
+
+    print("OK github etag cache replays 304")
 
 
 def test_auto_scan_cooldown_setting():
@@ -17317,6 +17391,7 @@ def _run_smoke_tests():
     test_preview_addon_repo_soft_fails_fake_tags()
     test_github_token_not_sent_to_third_party_readme_hosts()
     test_github_bad_token_retries_without_auth()
+    test_github_etag_cache_replays_304()
     test_auto_scan_cooldown_setting()
     test_auto_scan_cooldown_persists_to_disk()
     test_addon_startup_token_gating()
