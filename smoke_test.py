@@ -116,6 +116,61 @@ def test_catalogs():
     print(f"OK catalogs: {len(mods)} mods, {len(addons)} addons")
 
 
+def test_backup_refuses_outside_paths_and_empty_restore_is_survivable():
+    """Outside-folder paths are refused, and an empty first-install snapshot
+    must not break rollback cleanup.
+
+    Both halves are one bug seen from two ends. A path outside the game folder
+    used to collapse to its bare name, so restoring it would overwrite whatever
+    legitimately lived at that name. Refusing produces an empty manifest, and an
+    empty manifest is also what a genuine first install produces, so the refusal
+    has to be survivable by the rollback path or a failed first install loses its
+    partial-copy cleanup.
+    """
+    import json
+    import tempfile
+    from pathlib import Path
+
+    from ichalaunch.core.backup import create_backup, restore_backup
+
+    with tempfile.TemporaryDirectory() as td:
+        game = Path(td) / "game"
+        (game / "Interface").mkdir(parents=True)
+        (game / "Interface" / "real.txt").write_text("keep me", encoding="utf-8")
+
+        outside = Path(td) / "elsewhere" / "Interface"
+        outside.mkdir(parents=True)
+        (outside / "decoy.txt").write_text("do not restore me", encoding="utf-8")
+
+        # 1. a path outside the game folder is refused, not silently rewritten
+        root = create_backup(game, "outside", [outside])
+        manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+        assert manifest["files"] == [], "outside path must not enter the manifest"
+        assert manifest.get("empty") is True
+
+        # 2. restoring that empty snapshot refuses loudly rather than doing nothing
+        raised = False
+        try:
+            restore_backup(game, root)
+        except RuntimeError:
+            raised = True
+        assert raised, "an empty snapshot must not look like a successful restore"
+
+        # 3. and the real Interface is untouched by any of it
+        assert (game / "Interface" / "real.txt").read_text(encoding="utf-8") == "keep me"
+
+        # 4. the rollback path must SURVIVE that refusal, or cleanup never runs
+        from ichalaunch.mods import installer
+
+        stray = game / "Interface" / "AddOns" / "PartialCopy"
+        stray.mkdir(parents=True)
+        (stray / "half.lua").write_text("partial", encoding="utf-8")
+        installer._revert_failed_mod_install(game, {}, root)   # must not raise
+
+    print("OK backup refuses outside paths and empty restore is survivable")
+
+
+
 def test_tls_ca_env_sanitizer():
     """Stale CA env vars (Postgres, foo.crt, missing dir) must not survive startup."""
     import os
@@ -17033,6 +17088,7 @@ def _run_smoke_tests():
     test_smoke_settings_isolated_from_live_appdata()
     test_catalogs()
     test_tls_ca_env_sanitizer()
+    test_backup_refuses_outside_paths_and_empty_restore_is_survivable()
     test_bundle_pins_charset_normalizer_and_excludes_chardet()
     test_no_control_flow_escapes_a_finally_block()
     test_launcher_ca_env_does_not_reach_the_game()

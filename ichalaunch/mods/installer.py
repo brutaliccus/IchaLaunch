@@ -3652,6 +3652,13 @@ def _revert_failed_mod_install(
     if backup_root:
         try:
             restore_backup(game, backup_root)
+        except RuntimeError as exc:
+            # An empty snapshot is NORMAL here: a first install has no pre-existing
+            # files to capture, so restore_backup refuses rather than pretending it
+            # restored something. That is not a rollback failure, and it must not
+            # escape, because everything below is the cleanup of the partial copy.
+            # Letting it propagate skipped that cleanup and hid the original error.
+            log.info("Nothing to restore (first install): %s", exc)
         except OSError as exc:
             log.warning("Install rollback restore failed: %s", exc)
 
