@@ -561,60 +561,62 @@ class GlueComboBox(QComboBox):
             return
         if not painter.isActive():
             return
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
-
-        rect = self.rect()
-        chrome_down = self._popup_open or self._pressed
-        pm = glue_chrome_pixmap(
-            pressed=chrome_down,
-            role="standard",
-            disabled=not self.isEnabled(),
-        )
-        if pm.isNull():
-            painter.setPen(QColor("#94836a"))
-            painter.setBrush(QColor("#2e2820"))
-            painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 6, 6)
-        else:
-            painter.drawPixmap(rect, pm)
-
-        # Label + caret shift with depressed chrome (same offset as GluePanelButton).
-        press_dx = _PRESS_DX if chrome_down else 0
-        press_dy = _PRESS_DY if chrome_down else 0
-        text = self.currentText() or ""
-        font = QFont(self.font())
-        font.setFamily("Segoe UI")
-        font.setBold(True)
-        font.setPixelSize(12 if len(text) >= 14 else 13)
-        painter.setFont(font)
-        color = _TEXT_DIM if not self.isEnabled() else _TEXT
-        text_rect = rect.adjusted(
-            _TEXT_PAD_L + press_dx,
-            press_dy,
-            -_TEXT_PAD_R + press_dx,
-            press_dy,
-        )
-        align = Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignHCenter
-        painter.setPen(QColor(0, 0, 0, 140))
-        painter.drawText(text_rect.adjusted(1, 1, 1, 1), align, text)
-        painter.setPen(color)
-        painter.drawText(text_rect, align, text)
-
-        # Arrow caret — Up when idle, Down when open/pressed.
-        # Idle: +_ARROW_X_NUDGE / V-center + _ARROW_Y_NUDGE; depressed: + press DX/DY.
-        arrow = _load_arrow(
-            _ARROW_DOWN if chrome_down else _ARROW_UP,
-            _ARROW_DOWN_EXT if chrome_down else _ARROW_UP_EXT,
-        )
-        if not arrow.isNull():
-            aw = _ARROW_SIZE
-            caret_dx = _ARROW_PRESS_DX if chrome_down else 0
-            caret_dy = _ARROW_PRESS_DY if chrome_down else 0
-            ax = rect.right() - _ARROW_PAD_R - aw + _ARROW_X_NUDGE + caret_dx
-            ay = rect.center().y() - aw // 2 + _ARROW_Y_NUDGE + caret_dy
-            painter.drawPixmap(QRect(ax, ay, aw, aw), arrow)
-
         try:
-            painter.end()
-        except RuntimeError:
-            pass
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+
+            rect = self.rect()
+            chrome_down = self._popup_open or self._pressed
+            pm = glue_chrome_pixmap(
+                pressed=chrome_down,
+                role="standard",
+                disabled=not self.isEnabled(),
+            )
+            if pm.isNull():
+                painter.setPen(QColor("#94836a"))
+                painter.setBrush(QColor("#2e2820"))
+                painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 6, 6)
+            else:
+                painter.drawPixmap(rect, pm)
+
+            # Label + caret shift with depressed chrome (same offset as GluePanelButton).
+            press_dx = _PRESS_DX if chrome_down else 0
+            press_dy = _PRESS_DY if chrome_down else 0
+            text = self.currentText() or ""
+            font = QFont(self.font())
+            font.setFamily("Segoe UI")
+            font.setBold(True)
+            font.setPixelSize(12 if len(text) >= 14 else 13)
+            painter.setFont(font)
+            color = _TEXT_DIM if not self.isEnabled() else _TEXT
+            text_rect = rect.adjusted(
+                _TEXT_PAD_L + press_dx,
+                press_dy,
+                -_TEXT_PAD_R + press_dx,
+                press_dy,
+            )
+            align = Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignHCenter
+            painter.setPen(QColor(0, 0, 0, 140))
+            painter.drawText(text_rect.adjusted(1, 1, 1, 1), align, text)
+            painter.setPen(color)
+            painter.drawText(text_rect, align, text)
+
+            # Arrow caret — Up when idle, Down when open/pressed.
+            # Idle: +_ARROW_X_NUDGE / V-center + _ARROW_Y_NUDGE; depressed: + press DX/DY.
+            arrow = _load_arrow(
+                _ARROW_DOWN if chrome_down else _ARROW_UP,
+                _ARROW_DOWN_EXT if chrome_down else _ARROW_UP_EXT,
+            )
+            if not arrow.isNull():
+                aw = _ARROW_SIZE
+                caret_dx = _ARROW_PRESS_DX if chrome_down else 0
+                caret_dy = _ARROW_PRESS_DY if chrome_down else 0
+                ax = rect.right() - _ARROW_PAD_R - aw + _ARROW_X_NUDGE + caret_dx
+                ay = rect.center().y() - aw // 2 + _ARROW_Y_NUDGE + caret_dy
+                painter.drawPixmap(QRect(ax, ay, aw, aw), arrow)
+
+        finally:
+            try:
+                painter.end()
+            except RuntimeError:
+                pass

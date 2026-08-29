@@ -458,96 +458,98 @@ class TalentFrameBackground(QWidget):
         self._ensure_mask(w, h)
 
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
-        def _draw(slide: dict[str, Any] | None, opacity: float) -> None:
-            if slide is None or opacity <= 0.01:
-                return
-            name = str(slide.get("image") or "")
-            src = self._pixmap(name)
-            if src.isNull():
-                return
-            shrink_w = int(slide.get("shrink_w") or 0)
-            nudge_x = int(slide.get("nudge_x") or 0)
-            nudge_y = int(slide.get("nudge_y") or 0)
-            if str(slide.get("fit") or "") == "width":
-                # Full width, no L/R crop — honor unusual AR; centre the rest.
-                #
-                # A width-fit slide is wider in aspect than the brand rect, so
-                # scaling it to the width always leaves a vertical remainder:
-                # the featured 2:1 slide paints 542 tall in a 745 tall column.
-                # Pinning to the banner banked all 203px of that above the
-                # frame, which reads as a picture that has slipped down its
-                # wall. Splitting the remainder is the only option that does
-                # not crop: cover fills the rect but takes ~14% off each side,
-                # and the featured slide carries its caption out there.
-                dest_w = max(1, w - shrink_w) if shrink_w else w
-                scaled = src.scaledToWidth(
-                    dest_w, Qt.TransformationMode.SmoothTransformation
-                )
-                x = (w - scaled.width()) // 2
-                y = max(0, (h - scaled.height()) // 2)
-            else:
-                # Cover the brand rect (center crop). Widget itself is
-                # bottom-tucked to the nav banner.
-                scaled = src.scaled(
-                    w,
-                    h,
-                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-                x = (w - scaled.width()) // 2
-                y = (h - scaled.height()) // 2
-            x += nudge_x
-            y += nudge_y
-            layer = QPixmap(w, h)
-            layer.fill(Qt.GlobalColor.transparent)
-            lp = QPainter(layer)
-            lp.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-            lp.drawPixmap(x, y, scaled)
-            # SourceAtop so only the picture darkens. The letterbox bands a
-            # width-fit slide leaves are transparent, and painting the gradient
-            # over them would turn the empty space into a black slab.
-            if _VIGNETTE_ALPHA > 0 and scaled.width() > 0 and scaled.height() > 0:
-                cx = x + scaled.width() / 2.0
-                cy = y + scaled.height() / 2.0
-                radius = math.hypot(scaled.width(), scaled.height()) / 2.0
-                grad = QRadialGradient(cx, cy, radius)
-                grad.setColorAt(0.0, QColor(0, 0, 0, 0))
-                grad.setColorAt(_VIGNETTE_CLEAR, QColor(0, 0, 0, 0))
-                grad.setColorAt(1.0, QColor(0, 0, 0, _VIGNETTE_ALPHA))
-                lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceAtop)
-                lp.fillRect(0, 0, w, h, grad)
+            def _draw(slide: dict[str, Any] | None, opacity: float) -> None:
+                if slide is None or opacity <= 0.01:
+                    return
+                name = str(slide.get("image") or "")
+                src = self._pixmap(name)
+                if src.isNull():
+                    return
+                shrink_w = int(slide.get("shrink_w") or 0)
+                nudge_x = int(slide.get("nudge_x") or 0)
+                nudge_y = int(slide.get("nudge_y") or 0)
+                if str(slide.get("fit") or "") == "width":
+                    # Full width, no L/R crop — honor unusual AR; centre the rest.
+                    #
+                    # A width-fit slide is wider in aspect than the brand rect, so
+                    # scaling it to the width always leaves a vertical remainder:
+                    # the featured 2:1 slide paints 542 tall in a 745 tall column.
+                    # Pinning to the banner banked all 203px of that above the
+                    # frame, which reads as a picture that has slipped down its
+                    # wall. Splitting the remainder is the only option that does
+                    # not crop: cover fills the rect but takes ~14% off each side,
+                    # and the featured slide carries its caption out there.
+                    dest_w = max(1, w - shrink_w) if shrink_w else w
+                    scaled = src.scaledToWidth(
+                        dest_w, Qt.TransformationMode.SmoothTransformation
+                    )
+                    x = (w - scaled.width()) // 2
+                    y = max(0, (h - scaled.height()) // 2)
+                else:
+                    # Cover the brand rect (center crop). Widget itself is
+                    # bottom-tucked to the nav banner.
+                    scaled = src.scaled(
+                        w,
+                        h,
+                        Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
+                    x = (w - scaled.width()) // 2
+                    y = (h - scaled.height()) // 2
+                x += nudge_x
+                y += nudge_y
+                layer = QPixmap(w, h)
+                layer.fill(Qt.GlobalColor.transparent)
+                lp = QPainter(layer)
+                lp.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+                lp.drawPixmap(x, y, scaled)
+                # SourceAtop so only the picture darkens. The letterbox bands a
+                # width-fit slide leaves are transparent, and painting the gradient
+                # over them would turn the empty space into a black slab.
+                if _VIGNETTE_ALPHA > 0 and scaled.width() > 0 and scaled.height() > 0:
+                    cx = x + scaled.width() / 2.0
+                    cy = y + scaled.height() / 2.0
+                    radius = math.hypot(scaled.width(), scaled.height()) / 2.0
+                    grad = QRadialGradient(cx, cy, radius)
+                    grad.setColorAt(0.0, QColor(0, 0, 0, 0))
+                    grad.setColorAt(_VIGNETTE_CLEAR, QColor(0, 0, 0, 0))
+                    grad.setColorAt(1.0, QColor(0, 0, 0, _VIGNETTE_ALPHA))
+                    lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceAtop)
+                    lp.fillRect(0, 0, w, h, grad)
 
-            if not self._mask.isNull():
-                lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
-                lp.drawPixmap(0, 0, self._mask)
-            overlay = self._frame_overlay(slide)
-            if overlay.isNull() and scaled.width() > 0 and scaled.height() > 0:
-                # Only where the slide brings no frame art of its own, so the
-                # featured one keeps its painted border rather than wearing two.
-                lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
-                paint_rivet_frame(lp, QRect(x, y, scaled.width(), scaled.height()))
-            if not overlay.isNull() and scaled.width() > 0 and scaled.height() > 0:
-                # Full-bleed border with transparent center — stretch to the
-                # painted photo dest (not the widget/letterbox).
-                lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
-                frame = overlay.scaled(
-                    scaled.width(),
-                    scaled.height(),
-                    Qt.AspectRatioMode.IgnoreAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-                lp.drawPixmap(x, y, frame)
-            lp.end()
-            painter.setOpacity(opacity)
-            painter.drawPixmap(0, 0, layer)
+                if not self._mask.isNull():
+                    lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
+                    lp.drawPixmap(0, 0, self._mask)
+                overlay = self._frame_overlay(slide)
+                if overlay.isNull() and scaled.width() > 0 and scaled.height() > 0:
+                    # Only where the slide brings no frame art of its own, so the
+                    # featured one keeps its painted border rather than wearing two.
+                    lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+                    paint_rivet_frame(lp, QRect(x, y, scaled.width(), scaled.height()))
+                if not overlay.isNull() and scaled.width() > 0 and scaled.height() > 0:
+                    # Full-bleed border with transparent center — stretch to the
+                    # painted photo dest (not the widget/letterbox).
+                    lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+                    frame = overlay.scaled(
+                        scaled.width(),
+                        scaled.height(),
+                        Qt.AspectRatioMode.IgnoreAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
+                    lp.drawPixmap(x, y, frame)
+                lp.end()
+                painter.setOpacity(opacity)
+                painter.drawPixmap(0, 0, layer)
 
-        _draw(self._slide_at(self._index), self._cur_opacity)
-        if self._nxt_opacity > 0.01:
-            _draw(self._slide_at(self._next_index), self._nxt_opacity)
-        painter.end()
+            _draw(self._slide_at(self._index), self._cur_opacity)
+            if self._nxt_opacity > 0.01:
+                _draw(self._slide_at(self._next_index), self._nxt_opacity)
+        finally:
+            painter.end()
 
     def slide_count(self) -> int:
         return len(self._slides)

@@ -63,35 +63,37 @@ class ChromeGlyphButton(QWidget):
 
     def paintEvent(self, event) -> None:  # noqa: N802
         painter = QPainter(self)
-        if not painter.isActive():
-            return
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        # No plate / border — glyph only; hover brightens gold.
-        # The minimise bar and the close X run molten with everything else in
-        # the chrome. Subscribed only while the pointer is on them, so two more
-        # widgets are not repainting for the sake of a glyph nobody is looking
-        # at; idle keeps the flat gold so the corner stays quiet.
-        color = _GOLD_BRIGHT if self._hover else _GOLD
-        lava_pen = None
-        if self._hover:
-            from ichalaunch.ui.widgets.gradient_label import (
-                lava_text_pen,
-                lava_ticker,
-            )
+        try:
+            if not painter.isActive():
+                return
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            # No plate / border — glyph only; hover brightens gold.
+            # The minimise bar and the close X run molten with everything else in
+            # the chrome. Subscribed only while the pointer is on them, so two more
+            # widgets are not repainting for the sake of a glyph nobody is looking
+            # at; idle keeps the flat gold so the corner stays quiet.
+            color = _GOLD_BRIGHT if self._hover else _GOLD
+            lava_pen = None
+            if self._hover:
+                from ichalaunch.ui.widgets.gradient_label import (
+                    lava_text_pen,
+                    lava_ticker,
+                )
 
-            lava_pen = lava_text_pen(self.rect(), lava_ticker().phase)
-        cx = self.width() / 2.0
-        cy = self.height() / 2.0
-        glyph = QPen(lava_pen.brush(), 2.15) if lava_pen is not None else QPen(color, 2.15)
-        glyph.setCapStyle(Qt.PenCapStyle.RoundCap)
-        glyph.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-        painter.setPen(glyph)
+                lava_pen = lava_text_pen(self.rect(), lava_ticker().phase)
+            cx = self.width() / 2.0
+            cy = self.height() / 2.0
+            glyph = QPen(lava_pen.brush(), 2.15) if lava_pen is not None else QPen(color, 2.15)
+            glyph.setCapStyle(Qt.PenCapStyle.RoundCap)
+            glyph.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            painter.setPen(glyph)
 
-        if self._kind == "minimize":
-            half = 5.5
-            painter.drawLine(QPointF(cx - half, cy + 1.0), QPointF(cx + half, cy + 1.0))
-        else:
-            arm = 5.2
-            painter.drawLine(QPointF(cx - arm, cy - arm), QPointF(cx + arm, cy + arm))
-            painter.drawLine(QPointF(cx + arm, cy - arm), QPointF(cx - arm, cy + arm))
-        painter.end()
+            if self._kind == "minimize":
+                half = 5.5
+                painter.drawLine(QPointF(cx - half, cy + 1.0), QPointF(cx + half, cy + 1.0))
+            else:
+                arm = 5.2
+                painter.drawLine(QPointF(cx - arm, cy - arm), QPointF(cx + arm, cy + arm))
+                painter.drawLine(QPointF(cx + arm, cy - arm), QPointF(cx - arm, cy + arm))
+        finally:
+            painter.end()

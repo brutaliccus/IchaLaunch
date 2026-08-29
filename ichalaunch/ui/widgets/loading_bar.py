@@ -286,58 +286,61 @@ class ThemeLoadingBar(QWidget):
     def paintEvent(self, event) -> None:  # noqa: N802
         del event
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        border_rect = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
-        _cap_w, trough = self._frame_metrics(border_rect)
+            border_rect = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+            _cap_w, trough = self._frame_metrics(border_rect)
 
-        # Background trough — stretch opaque content only (ignore PNG side padding).
-        if not self._background.isNull():
-            dest = trough.toRect()
-            # Nudge 1px past trough edges to hide rounding gaps under the frame.
-            dest.adjust(-1, 0, 1, 0)
-            src = self._bg_src if not self._bg_src.isNull() else self._background.rect()
-            painter.drawPixmap(dest, self._background, src)
-        else:
-            painter.fillRect(trough, QColor(16, 10, 22, 200))
+            # Background trough — stretch opaque content only (ignore PNG side padding).
+            if not self._background.isNull():
+                dest = trough.toRect()
+                # Nudge 1px past trough edges to hide rounding gaps under the frame.
+                dest.adjust(-1, 0, 1, 0)
+                src = self._bg_src if not self._bg_src.isNull() else self._background.rect()
+                painter.drawPixmap(dest, self._background, src)
+            else:
+                painter.fillRect(trough, QColor(16, 10, 22, 200))
 
-        frac = self._progress_fraction()
-        fill_w = trough.width() * frac
-        spark_x = trough.left()
+            frac = self._progress_fraction()
+            fill_w = trough.width() * frac
+            spark_x = trough.left()
 
-        if fill_w > 0.5 and not self._fill.isNull():
-            fill_rect = QRectF(trough.left(), trough.top(), fill_w, trough.height())
-            painter.drawPixmap(fill_rect.toRect(), self._fill)
-            spark_x = fill_rect.right()
-        elif fill_w > 0.5:
-            fill_rect = QRectF(trough.left(), trough.top(), fill_w, trough.height())
-            painter.fillRect(fill_rect, QColor(107, 74, 30, 210))
-            spark_x = fill_rect.right()
+            if fill_w > 0.5 and not self._fill.isNull():
+                fill_rect = QRectF(trough.left(), trough.top(), fill_w, trough.height())
+                painter.drawPixmap(fill_rect.toRect(), self._fill)
+                spark_x = fill_rect.right()
+            elif fill_w > 0.5:
+                fill_rect = QRectF(trough.left(), trough.top(), fill_w, trough.height())
+                painter.fillRect(fill_rect, QColor(107, 74, 30, 210))
+                spark_x = fill_rect.right()
 
-        # Frame-v2: end caps + tiled middle (not a single stretched strip).
-        if not self._border.isNull():
-            _draw_frame_tiled(painter, self._border, border_rect)
-        else:
-            painter.setPen(QColor(201, 149, 63, 160))
-            painter.drawRect(border_rect)
+            # Frame-v2: end caps + tiled middle (not a single stretched strip).
+            if not self._border.isNull():
+                _draw_frame_tiled(painter, self._border, border_rect)
+            else:
+                painter.setPen(QColor(201, 149, 63, 160))
+                painter.drawRect(border_rect)
 
-        # Spark at leading edge — natural PNG glow only.
-        if frac > 0.01 and not self._spark.isNull():
-            spark_h = trough.height() * 1.55
-            spark_w = spark_h * (self._spark.width() / max(1, self._spark.height()))
-            spark_rect = QRectF(
-                spark_x - spark_w * 0.5,
-                trough.center().y() - spark_h * 0.5,
-                spark_w,
-                spark_h,
-            )
-            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
-            painter.drawPixmap(spark_rect.toRect(), self._spark)
+            # Spark at leading edge — natural PNG glow only.
+            if frac > 0.01 and not self._spark.isNull():
+                spark_h = trough.height() * 1.55
+                spark_w = spark_h * (self._spark.width() / max(1, self._spark.height()))
+                spark_rect = QRectF(
+                    spark_x - spark_w * 0.5,
+                    trough.center().y() - spark_h * 0.5,
+                    spark_w,
+                    spark_h,
+                )
+                painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+                painter.drawPixmap(spark_rect.toRect(), self._spark)
 
-        if self._text_visible and self._format and not self._indeterminate:
-            text = self._format.replace("%p", str(int(round(frac * 100)))).replace(
-                "%v", str(self._value)
-            )
-            painter.setPen(QColor("#ece3d2"))
-            painter.drawText(border_rect.toRect(), Qt.AlignmentFlag.AlignCenter, text)
+            if self._text_visible and self._format and not self._indeterminate:
+                text = self._format.replace("%p", str(int(round(frac * 100)))).replace(
+                    "%v", str(self._value)
+                )
+                painter.setPen(QColor("#ece3d2"))
+                painter.drawText(border_rect.toRect(), Qt.AlignmentFlag.AlignCenter, text)
+        finally:
+            painter.end()

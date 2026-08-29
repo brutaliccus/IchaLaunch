@@ -325,27 +325,29 @@ class ContributorNameTip(QWidget):
         if not self._text:
             return
         painter = QPainter(self)
-        if not painter.isActive():
-            return
-        from ichalaunch.ui.widgets.gradient_label import lava_text_pen, lava_ticker
+        try:
+            if not painter.isActive():
+                return
+            from ichalaunch.ui.widgets.gradient_label import lava_text_pen, lava_ticker
 
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
-        rect = self.rect()
-        paint_portrait_frame(painter, rect, self._tint)
-        pen = lava_text_pen(rect, lava_ticker().phase, self._ramp)
-        painter.setFont(self._face)
-        painter.setPen(pen)
-        e = portrait_frame_edge()
-        crest = _pf_load().get("crest")
-        crest_h = crest.height() if crest is not None and not crest.isNull() else e
-        # Ink-centred, not AlignCenter. Folkard's capitals sit low inside a tall
-        # ascent, which is what put the R on the plate's top edge on the glue
-        # buttons, and bigger type makes that offset worse rather than better.
-        box = rect.adjusted(e, crest_h, -e, -e)
-        box = ink_centered_rect(box, self._face, self._text)
-        painter.drawText(box, int(Qt.AlignmentFlag.AlignCenter), self._text)
-        painter.end()
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+            rect = self.rect()
+            paint_portrait_frame(painter, rect, self._tint)
+            pen = lava_text_pen(rect, lava_ticker().phase, self._ramp)
+            painter.setFont(self._face)
+            painter.setPen(pen)
+            e = portrait_frame_edge()
+            crest = _pf_load().get("crest")
+            crest_h = crest.height() if crest is not None and not crest.isNull() else e
+            # Ink-centred, not AlignCenter. Folkard's capitals sit low inside a tall
+            # ascent, which is what put the R on the plate's top edge on the glue
+            # buttons, and bigger type makes that offset worse rather than better.
+            box = rect.adjusted(e, crest_h, -e, -e)
+            box = ink_centered_rect(box, self._face, self._text)
+            painter.drawText(box, int(Qt.AlignmentFlag.AlignCenter), self._text)
+        finally:
+            painter.end()
 
 
 # ---------------------------------------------------------------------------

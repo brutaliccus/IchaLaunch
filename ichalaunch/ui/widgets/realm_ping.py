@@ -344,24 +344,26 @@ class PingLatencyTip(QWidget):
         if not self._text:
             return
         painter = QPainter(self)
-        if not painter.isActive():
-            return
-        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
-        painter.setFont(self._face)
-        rect = self.rect()
-        painter.setPen(_TIP_SHADOW)
-        painter.drawText(
-            rect.adjusted(_TIP_SHADOW_PX, _TIP_SHADOW_PX, 0, 0),
-            int(Qt.AlignmentFlag.AlignCenter),
-            self._text,
-        )
-        painter.setPen(_TIP_GOLD)
-        painter.drawText(
-            rect.adjusted(0, 0, -_TIP_SHADOW_PX, -_TIP_SHADOW_PX),
-            int(Qt.AlignmentFlag.AlignCenter),
-            self._text,
-        )
-        painter.end()
+        try:
+            if not painter.isActive():
+                return
+            painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+            painter.setFont(self._face)
+            rect = self.rect()
+            painter.setPen(_TIP_SHADOW)
+            painter.drawText(
+                rect.adjusted(_TIP_SHADOW_PX, _TIP_SHADOW_PX, 0, 0),
+                int(Qt.AlignmentFlag.AlignCenter),
+                self._text,
+            )
+            painter.setPen(_TIP_GOLD)
+            painter.drawText(
+                rect.adjusted(0, 0, -_TIP_SHADOW_PX, -_TIP_SHADOW_PX),
+                int(Qt.AlignmentFlag.AlignCenter),
+                self._text,
+            )
+        finally:
+            painter.end()
 
 
 class RealmPingDot(QWidget):
@@ -462,47 +464,49 @@ class RealmPingDot(QWidget):
     def paintEvent(self, event) -> None:  # noqa: ANN001, N802
         del event
         painter = QPainter(self)
-        if not painter.isActive():
-            return
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
-        color = _COLORS.get(self._quality, _COLORS["grey"])
-        chrome = _radio_chrome()
-        ring, hole_mask = chrome.ring, chrome.hole_mask
-        if ring.isNull() or hole_mask.isNull() or _mask_bounds(hole_mask).isNull():
-            self._paint_fallback(painter, color)
+        try:
+            if not painter.isActive():
+                return
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+            color = _COLORS.get(self._quality, _COLORS["grey"])
+            chrome = _radio_chrome()
+            ring, hole_mask = chrome.ring, chrome.hole_mask
+            if ring.isNull() or hole_mask.isNull() or _mask_bounds(hole_mask).isNull():
+                self._paint_fallback(painter, color)
+                painter.end()
+                return
+
+            ox = (self.width() - ring.width()) // 2
+            oy = (self.height() - ring.height()) // 2
+            dest = _hole_fill_rect(hole_mask)
+            if dest.isNull() or dest.width() <= 0:
+                self._paint_fallback(painter, color)
+                painter.end()
+                return
+
+            native_d = max(3, chrome.native_hole_d)
+            dest_d = max(dest.width(), dest.height())
+            source_d = _orb_source_side(native_d, dest_d)
+            orb = _paint_orb_native(color, source_d, dim=self._quality == "grey")
+            scaled = QPixmap.fromImage(orb).scaled(
+                dest.width(),
+                dest.height(),
+                Qt.AspectRatioMode.IgnoreAspectRatio,
+                Qt.TransformationMode.FastTransformation,
+            )
+            layer = QPixmap(ring.size())
+            layer.fill(Qt.GlobalColor.transparent)
+            lp = QPainter(layer)
+            lp.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+            lp.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+            lp.drawPixmap(dest.topLeft(), scaled)
+            # Safety clip — orb is already inset; this keeps any scale crumbs off silver.
+            lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
+            lp.drawImage(0, 0, hole_mask)
+            lp.end()
+
+            painter.drawPixmap(ox, oy, layer)
+            painter.drawPixmap(ox, oy, ring)
+        finally:
             painter.end()
-            return
-
-        ox = (self.width() - ring.width()) // 2
-        oy = (self.height() - ring.height()) // 2
-        dest = _hole_fill_rect(hole_mask)
-        if dest.isNull() or dest.width() <= 0:
-            self._paint_fallback(painter, color)
-            painter.end()
-            return
-
-        native_d = max(3, chrome.native_hole_d)
-        dest_d = max(dest.width(), dest.height())
-        source_d = _orb_source_side(native_d, dest_d)
-        orb = _paint_orb_native(color, source_d, dim=self._quality == "grey")
-        scaled = QPixmap.fromImage(orb).scaled(
-            dest.width(),
-            dest.height(),
-            Qt.AspectRatioMode.IgnoreAspectRatio,
-            Qt.TransformationMode.FastTransformation,
-        )
-        layer = QPixmap(ring.size())
-        layer.fill(Qt.GlobalColor.transparent)
-        lp = QPainter(layer)
-        lp.setRenderHint(QPainter.RenderHint.Antialiasing, False)
-        lp.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
-        lp.drawPixmap(dest.topLeft(), scaled)
-        # Safety clip — orb is already inset; this keeps any scale crumbs off silver.
-        lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
-        lp.drawImage(0, 0, hole_mask)
-        lp.end()
-
-        painter.drawPixmap(ox, oy, layer)
-        painter.drawPixmap(ox, oy, ring)
-        painter.end()

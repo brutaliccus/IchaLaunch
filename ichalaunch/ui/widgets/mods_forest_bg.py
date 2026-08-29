@@ -129,56 +129,58 @@ class HomeModsCard(Card):
 
     def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
 
-        rect = self.rect()
-        path = QPainterPath()
-        path.addRoundedRect(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), _RADIUS, _RADIUS)
-        painter.setClipPath(path)
-        # Opaque card base so BloodElf floor never shows through.
-        painter.fillPath(path, _CARD_BASE)
+            rect = self.rect()
+            path = QPainterPath()
+            path.addRoundedRect(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), _RADIUS, _RADIUS)
+            painter.setClipPath(path)
+            # Opaque card base so BloodElf floor never shows through.
+            painter.fillPath(path, _CARD_BASE)
 
-        if not self._src.isNull() and self.width() > 0 and self.height() > 0:
-            scaled = self._src.scaled(
-                rect.size(),
-                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            x = (rect.width() - scaled.width()) // 2
-            y = (rect.height() - scaled.height()) // 2
+            if not self._src.isNull() and self.width() > 0 and self.height() > 0:
+                scaled = self._src.scaled(
+                    rect.size(),
+                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+                x = (rect.width() - scaled.width()) // 2
+                y = (rect.height() - scaled.height()) // 2
 
-            layer = QPixmap(rect.size())
-            layer.fill(Qt.GlobalColor.transparent)
-            lp = QPainter(layer)
-            lp.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-            lp.drawPixmap(x, y, scaled)
+                layer = QPixmap(rect.size())
+                layer.fill(Qt.GlobalColor.transparent)
+                lp = QPainter(layer)
+                lp.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+                lp.drawPixmap(x, y, scaled)
 
-            if self._mask_w != rect.width() or self._mask_h != rect.height() or self._mask.isNull():
-                self._mask = _edge_mask(rect.width(), rect.height())
-                self._mask_w = rect.width()
-                self._mask_h = rect.height()
-            if not self._mask.isNull():
-                lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
-                lp.drawPixmap(0, 0, self._mask)
-            lp.end()
+                if self._mask_w != rect.width() or self._mask_h != rect.height() or self._mask.isNull():
+                    self._mask = _edge_mask(rect.width(), rect.height())
+                    self._mask_w = rect.width()
+                    self._mask_h = rect.height()
+                if not self._mask.isNull():
+                    lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
+                    lp.drawPixmap(0, 0, self._mask)
+                lp.end()
 
-            painter.setOpacity(_ART_OPACITY)
-            painter.drawPixmap(0, 0, layer)
-            painter.setOpacity(1.0)
-            painter.fillPath(path, _WASH)
+                painter.setOpacity(_ART_OPACITY)
+                painter.drawPixmap(0, 0, layer)
+                painter.setOpacity(1.0)
+                painter.fillPath(path, _WASH)
 
-        # Corner brackets last, and outside the art clip, so they read as frame
-        # rather than as something printed on the texture.
-        painter.setClipping(False)
-        i = _CORNER_INSET
-        for name, slot in _CORNER_NAMES:
-            pm = _corner(name)
-            if pm.isNull():
-                continue
-            x = i if slot in (0, 2) else rect.width() - pm.width() - i
-            y = i if slot in (0, 1) else rect.height() - pm.height() - i
-            painter.drawPixmap(x, y, pm)
+            # Corner brackets last, and outside the art clip, so they read as frame
+            # rather than as something printed on the texture.
+            painter.setClipping(False)
+            i = _CORNER_INSET
+            for name, slot in _CORNER_NAMES:
+                pm = _corner(name)
+                if pm.isNull():
+                    continue
+                x = i if slot in (0, 2) else rect.width() - pm.width() - i
+                y = i if slot in (0, 1) else rect.height() - pm.height() - i
+                painter.drawPixmap(x, y, pm)
 
-        painter.end()
+        finally:
+            painter.end()
         super().paintEvent(event)

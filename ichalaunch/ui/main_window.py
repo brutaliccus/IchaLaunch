@@ -598,57 +598,59 @@ class NavTabButton(QPushButton):
     def paintEvent(self, event) -> None:  # noqa: N802
         del event
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
-        rect = self.rect()
-        painter.setPen(Qt.PenStyle.NoPen)
-        pm = glue_floor_chrome_pixmap(pressed=self.isDown(), shade=self._plate_shade())
-        if pm.isNull():
-            painter.setBrush(_FLOOR_BASE)
-            painter.drawRoundedRect(rect.adjusted(0, 0, 0, 1), 6, 6)
-        else:
-            # Shift art down by extending dest past the widget; bottom clips
-            # at the tab / ContentPanel seam so L-corners + bottom stroke hide.
-            dest = QRect(rect.x(), rect.y(), rect.width(), rect.height() + _TAB_ART_SHIFT_Y)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+            rect = self.rect()
+            painter.setPen(Qt.PenStyle.NoPen)
+            pm = glue_floor_chrome_pixmap(pressed=self.isDown(), shade=self._plate_shade())
+            if pm.isNull():
+                painter.setBrush(_FLOOR_BASE)
+                painter.drawRoundedRect(rect.adjusted(0, 0, 0, 1), 6, 6)
+            else:
+                # Shift art down by extending dest past the widget; bottom clips
+                # at the tab / ContentPanel seam so L-corners + bottom stroke hide.
+                dest = QRect(rect.x(), rect.y(), rect.width(), rect.height() + _TAB_ART_SHIFT_Y)
+                if self._sweeping():
+                    # Same two layers as the launch plate. A blurred halo first, so
+                    # the light falls off into the background rather than ending on
+                    # a hard outline, then the travelling heat round the outline.
+                    pad = _TAB_HALO_PAD
+                    soft = soft_halo(pm, "#F1C22D", pad, _TAB_HALO_BLUR)
+                    painter.setOpacity(0.55 * lava_flicker(self._sweep_deg * 0.6))
+                    painter.drawPixmap(dest.adjusted(-pad, -pad, pad, pad), soft)
+                    rim = lava_rim_pixmap(soft, self._sweep_deg)
+                    painter.setOpacity(0.62 * lava_flicker(self._sweep_deg))
+                    painter.drawPixmap(dest.adjusted(-pad, -pad, pad, pad), rim)
+                    painter.setOpacity(1.0)
+                painter.drawPixmap(dest, pm)
+
+            text = self.text() or ""
+            font = QFont(self.font())
+            painter.setFont(font)
+            text_rect = rect.adjusted(0, 1 if self.isDown() else 0, 0, 0)
+            text_rect = ink_centered_rect(text_rect, font, text)
+            painter.setPen(QColor(0, 0, 0, 140))
+            painter.drawText(text_rect.adjusted(1, 1, 1, 1), Qt.AlignmentFlag.AlignCenter, text)
+            # The selected tab is the site's gold, so it takes the site's gradient
+            # rather than a flat fill. Hover and idle stay solid: the ramp is what
+            # marks the active tab, and running it on every tab would spend the
+            # signal.
+            # Static until pointed at. The window's rule is that only PLAY moves on
+            # its own; everything else holds still and responds to the pointer, so
+            # hovering means the same thing everywhere.
             if self._sweeping():
-                # Same two layers as the launch plate. A blurred halo first, so
-                # the light falls off into the background rather than ending on
-                # a hard outline, then the travelling heat round the outline.
-                pad = _TAB_HALO_PAD
-                soft = soft_halo(pm, "#F1C22D", pad, _TAB_HALO_BLUR)
-                painter.setOpacity(0.55 * lava_flicker(self._sweep_deg * 0.6))
-                painter.drawPixmap(dest.adjusted(-pad, -pad, pad, pad), soft)
-                rim = lava_rim_pixmap(soft, self._sweep_deg)
-                painter.setOpacity(0.62 * lava_flicker(self._sweep_deg))
-                painter.drawPixmap(dest.adjusted(-pad, -pad, pad, pad), rim)
-                painter.setOpacity(1.0)
-            painter.drawPixmap(dest, pm)
+                painter.setPen(lava_text_pen(text_rect, self._sweep_deg))
+            elif self.isChecked():
+                painter.setPen(gold_pen(text_rect))
+            else:
+                painter.setPen(self._label_color())
+            painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, text)
 
-        text = self.text() or ""
-        font = QFont(self.font())
-        painter.setFont(font)
-        text_rect = rect.adjusted(0, 1 if self.isDown() else 0, 0, 0)
-        text_rect = ink_centered_rect(text_rect, font, text)
-        painter.setPen(QColor(0, 0, 0, 140))
-        painter.drawText(text_rect.adjusted(1, 1, 1, 1), Qt.AlignmentFlag.AlignCenter, text)
-        # The selected tab is the site's gold, so it takes the site's gradient
-        # rather than a flat fill. Hover and idle stay solid: the ramp is what
-        # marks the active tab, and running it on every tab would spend the
-        # signal.
-        # Static until pointed at. The window's rule is that only PLAY moves on
-        # its own; everything else holds still and responds to the pointer, so
-        # hovering means the same thing everywhere.
-        if self._sweeping():
-            painter.setPen(lava_text_pen(text_rect, self._sweep_deg))
-        elif self.isChecked():
-            painter.setPen(gold_pen(text_rect))
-        else:
-            painter.setPen(self._label_color())
-        painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, text)
-
-        if self._badge:
-            paint_update_alert_badge(painter, rect)
-        painter.end()
+            if self._badge:
+                paint_update_alert_badge(painter, rect)
+        finally:
+            painter.end()
 
 
 class RavenCraftFloatingLogo(QWidget):
@@ -705,30 +707,33 @@ class RavenCraftFloatingLogo(QWidget):
         if self._pix.isNull():
             return
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
-        painter.drawPixmap(_RC_GLOW_PAD_X, _RC_GLOW_PAD_Y, self._pix)
-        font = self._caption_font
-        if font is None:
-            return
-        painter.setFont(font)
-        fm = painter.fontMetrics()
-        band_h = max(fm.height(), fm.tightBoundingRect(_RC_CAPTION_TEXT).height()) + 2
-        band = QRect(0, self._caption_top, self.width(), band_h)
-        # Soft floor shadow so gold stays readable on the Necrolord wash.
-        painter.setPen(QColor(16, 13, 12, 200))
-        painter.drawText(
-            band.translated(1, 1),
-            int(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop),
-            _RC_CAPTION_TEXT,
-        )
-        painter.setPen(_RC_CAPTION_COLOR)
-        painter.drawText(
-            band,
-            int(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop),
-            _RC_CAPTION_TEXT,
-        )
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+            painter.drawPixmap(_RC_GLOW_PAD_X, _RC_GLOW_PAD_Y, self._pix)
+            font = self._caption_font
+            if font is None:
+                return
+            painter.setFont(font)
+            fm = painter.fontMetrics()
+            band_h = max(fm.height(), fm.tightBoundingRect(_RC_CAPTION_TEXT).height()) + 2
+            band = QRect(0, self._caption_top, self.width(), band_h)
+            # Soft floor shadow so gold stays readable on the Necrolord wash.
+            painter.setPen(QColor(16, 13, 12, 200))
+            painter.drawText(
+                band.translated(1, 1),
+                int(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop),
+                _RC_CAPTION_TEXT,
+            )
+            painter.setPen(_RC_CAPTION_COLOR)
+            painter.drawText(
+                band,
+                int(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop),
+                _RC_CAPTION_TEXT,
+            )
+        finally:
+            painter.end()
 
 
 def _paint_floor_fill(
@@ -1283,80 +1288,83 @@ class FolderFrameStroke(QWidget):
         if box is None or box.width() <= 0 or box.height() <= 0:
             return
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        hang = _METAL_CORNER_HANG
-        join = _METAL_ARM_JOIN
-        tl_w = max(self._tl.width(), 1)
-        tl_h = max(self._tl.height(), 1)
-        tr_w = max(self._tr.width(), 1)
-        tr_h = max(self._tr.height(), 1)
-        ew = _METAL_EDGE_DRAW
-        eh = _METAL_EDGE_DRAW
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            hang = _METAL_CORNER_HANG
+            join = _METAL_ARM_JOIN
+            tl_w = max(self._tl.width(), 1)
+            tl_h = max(self._tl.height(), 1)
+            tr_w = max(self._tr.width(), 1)
+            tr_h = max(self._tr.height(), 1)
+            ew = _METAL_EDGE_DRAW
+            eh = _METAL_EDGE_DRAW
 
-        tl_pos = QPoint(box.x() - hang, box.y() - hang)
-        tr_pos = QPoint(
-            box.x() + box.width() - tr_w + hang,
-            box.y() - hang,
-        )
+            tl_pos = QPoint(box.x() - hang, box.y() - hang)
+            tr_pos = QPoint(
+                box.x() + box.width() - tr_w + hang,
+                box.y() - hang,
+            )
 
-        # Tiled edges span between corner arm tips (not under cropped stubs).
-        top_x0 = tl_pos.x() + tl_w - join
-        top_x1 = tr_pos.x() + join
-        top = QRect(
-            top_x0,
-            box.y() - 1,
-            max(1, top_x1 - top_x0),
-            eh,
-        )
+            # Tiled edges span between corner arm tips (not under cropped stubs).
+            top_x0 = tl_pos.x() + tl_w - join
+            top_x1 = tr_pos.x() + join
+            top = QRect(
+                top_x0,
+                box.y() - 1,
+                max(1, top_x1 - top_x0),
+                eh,
+            )
 
-        # Rails run from the TL/TR vertical arm tips down to the solid banner
-        # bar, then tuck under the opaque strip. Banner PNG is raised above.
-        side_top = max(tl_pos.y() + tl_h, tr_pos.y() + tr_h) - join
-        side_stop = box.y() + box.height()
-        banner = getattr(self._host, "_nav_bottom_banner", None)
-        if banner is not None and banner.height() > 0:
-            banner_tl = _map_via_global(banner, self, QPoint(0, 0))
-            if banner_tl is not None:
-                side_stop = banner_tl.y() + _METAL_RAIL_BANNER_TUCK
-        side_h = max(1, side_stop - side_top)
-        left = QRect(box.x() - 1, side_top, ew, side_h)
-        right = QRect(box.x() + box.width() - ew + 1, side_top, ew, side_h)
+            # Rails run from the TL/TR vertical arm tips down to the solid banner
+            # bar, then tuck under the opaque strip. Banner PNG is raised above.
+            side_top = max(tl_pos.y() + tl_h, tr_pos.y() + tr_h) - join
+            side_stop = box.y() + box.height()
+            banner = getattr(self._host, "_nav_bottom_banner", None)
+            if banner is not None and banner.height() > 0:
+                banner_tl = _map_via_global(banner, self, QPoint(0, 0))
+                if banner_tl is not None:
+                    side_stop = banner_tl.y() + _METAL_RAIL_BANNER_TUCK
+            side_h = max(1, side_stop - side_top)
+            left = QRect(box.x() - 1, side_top, ew, side_h)
+            right = QRect(box.x() + box.width() - ew + 1, side_top, ew, side_h)
 
-        # Floor first — U-band under and slightly outside the metal. No pen.
-        # Side bands stop at side_stop; spike valleys use the under-banner fill.
-        tile_origin = box.topLeft()
-        panel = getattr(self._host, "_content_panel", None)
-        if panel is not None:
-            mapped = _map_via_global(panel, self, QPoint(0, 0))
-            if mapped is not None:
-                tile_origin = mapped
-        under = _metal_underfill_path(
-            box, hang=hang, ew=ew, eh=eh, side_stop=side_stop
-        )
-        painter.save()
-        painter.setClipPath(under)
-        _paint_floor_fill(
-            painter,
-            under.boundingRect().toAlignedRect().adjusted(-1, -1, 1, 1),
-            self._floor,
-            tile_origin=tile_origin,
-        )
-        _paint_floor_lighting(
-            painter,
-            under.boundingRect().toAlignedRect().adjusted(-1, -1, 1, 1),
-            origin=tile_origin,
-        )
-        painter.restore()
+            # Floor first — U-band under and slightly outside the metal. No pen.
+            # Side bands stop at side_stop; spike valleys use the under-banner fill.
+            tile_origin = box.topLeft()
+            panel = getattr(self._host, "_content_panel", None)
+            if panel is not None:
+                mapped = _map_via_global(panel, self, QPoint(0, 0))
+                if mapped is not None:
+                    tile_origin = mapped
+            under = _metal_underfill_path(
+                box, hang=hang, ew=ew, eh=eh, side_stop=side_stop
+            )
+            painter.save()
+            painter.setClipPath(under)
+            _paint_floor_fill(
+                painter,
+                under.boundingRect().toAlignedRect().adjusted(-1, -1, 1, 1),
+                self._floor,
+                tile_origin=tile_origin,
+            )
+            _paint_floor_lighting(
+                painter,
+                under.boundingRect().toAlignedRect().adjusted(-1, -1, 1, 1),
+                origin=tile_origin,
+            )
+            painter.restore()
 
-        _paint_tiled_h(painter, top, self._edge_top, eh)
-        _paint_tiled_v(painter, left, self._edge_left, ew)
-        _paint_tiled_v(painter, right, self._edge_right, ew)
+            _paint_tiled_h(painter, top, self._edge_top, eh)
+            _paint_tiled_v(painter, left, self._edge_left, ew)
+            _paint_tiled_v(painter, right, self._edge_right, ew)
 
-        if not self._tl.isNull():
-            painter.drawPixmap(tl_pos, self._tl)
-        if not self._tr.isNull():
-            painter.drawPixmap(tr_pos, self._tr)
+            if not self._tl.isNull():
+                painter.drawPixmap(tl_pos, self._tl)
+            if not self._tr.isNull():
+                painter.drawPixmap(tr_pos, self._tr)
+        finally:
+            painter.end()
 
 
 class PortraitPlayFrame(QWidget):
@@ -1386,57 +1394,60 @@ class PortraitPlayFrame(QWidget):
         if frame is None or frame.width() <= 0 or frame.height() <= 0:
             return
         painter = QPainter(self)
-        # Native 1:1 tiles — SmoothPixmapTransform smears the 8–9px lips.
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        try:
+            # Native 1:1 tiles — SmoothPixmapTransform smears the 8–9px lips.
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
 
-        bl = self._bl
-        br = self._br
-        el = self._edge_left
-        er = self._edge_right
-        eb = self._edge_bottom
-        if bl.isNull() or br.isNull():
-            return
+            bl = self._bl
+            br = self._br
+            el = self._edge_left
+            er = self._edge_right
+            eb = self._edge_bottom
+            if bl.isNull() or br.isNull():
+                return
 
-        nudge = _PORTRAIT_OUTER_NUDGE
-        bl_pos = QPoint(
-            frame.x() - _PORTRAIT_BL_OX - nudge, frame.bottom() - _PORTRAIT_BL_OY
-        )
-        br_pos = QPoint(
-            frame.right() - _PORTRAIT_BR_OX + nudge, frame.bottom() - _PORTRAIT_BR_OY
-        )
-        join = _PORTRAIT_JOIN
-
-        if not eb.isNull():
-            by = frame.bottom() - _PORTRAIT_BOT_OY
-            x0 = bl_pos.x() + bl.width() - join
-            x1 = br_pos.x() + join
-            bot = QRect(x0, by, max(1, x1 - x0), eb.height())
-            _paint_tiled_h(painter, bot, eb, eb.height())
-
-        # Start at the solid banner bar, not the crystal / spike-valley region.
-        # Rails sit under the PNG and are only seen as they meet the bar.
-        side_top = frame.y() + _NAV_BOTTOM_BANNER_MID_Y
-        # Stop at the L inner join (top of the corner's horizontal arm). Adding
-        # JOIN here used to equal corner height and poke past the rounded lip.
-        side_stop = min(
-            bl_pos.y() + _PORTRAIT_ARM_JOIN,
-            br_pos.y() + _PORTRAIT_ARM_JOIN,
-        )
-        side_h = max(1, side_stop - side_top)
-        if not el.isNull():
-            lx = frame.x() - _PORTRAIT_LEFT_OX - nudge
-            _paint_tiled_v(
-                painter, QRect(lx, side_top, el.width(), side_h), el, el.width()
+            nudge = _PORTRAIT_OUTER_NUDGE
+            bl_pos = QPoint(
+                frame.x() - _PORTRAIT_BL_OX - nudge, frame.bottom() - _PORTRAIT_BL_OY
             )
-        if not er.isNull():
-            rx = frame.right() - _PORTRAIT_RIGHT_OX + nudge
-            _paint_tiled_v(
-                painter, QRect(rx, side_top, er.width(), side_h), er, er.width()
+            br_pos = QPoint(
+                frame.right() - _PORTRAIT_BR_OX + nudge, frame.bottom() - _PORTRAIT_BR_OY
             )
+            join = _PORTRAIT_JOIN
 
-        painter.drawPixmap(bl_pos, bl)
-        painter.drawPixmap(br_pos, br)
+            if not eb.isNull():
+                by = frame.bottom() - _PORTRAIT_BOT_OY
+                x0 = bl_pos.x() + bl.width() - join
+                x1 = br_pos.x() + join
+                bot = QRect(x0, by, max(1, x1 - x0), eb.height())
+                _paint_tiled_h(painter, bot, eb, eb.height())
+
+            # Start at the solid banner bar, not the crystal / spike-valley region.
+            # Rails sit under the PNG and are only seen as they meet the bar.
+            side_top = frame.y() + _NAV_BOTTOM_BANNER_MID_Y
+            # Stop at the L inner join (top of the corner's horizontal arm). Adding
+            # JOIN here used to equal corner height and poke past the rounded lip.
+            side_stop = min(
+                bl_pos.y() + _PORTRAIT_ARM_JOIN,
+                br_pos.y() + _PORTRAIT_ARM_JOIN,
+            )
+            side_h = max(1, side_stop - side_top)
+            if not el.isNull():
+                lx = frame.x() - _PORTRAIT_LEFT_OX - nudge
+                _paint_tiled_v(
+                    painter, QRect(lx, side_top, el.width(), side_h), el, el.width()
+                )
+            if not er.isNull():
+                rx = frame.right() - _PORTRAIT_RIGHT_OX + nudge
+                _paint_tiled_v(
+                    painter, QRect(rx, side_top, er.width(), side_h), er, er.width()
+                )
+
+            painter.drawPixmap(bl_pos, bl)
+            painter.drawPixmap(br_pos, br)
+        finally:
+            painter.end()
 
 
 class ContentPanel(QWidget):
@@ -1458,15 +1469,18 @@ class ContentPanel(QWidget):
         if self.width() <= 0 or self.height() <= 0:
             return
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        inner = self.rect()
-        painter.setClipPath(
-            _interior_fill_clip(
-                self, inner, self._frame_host, pad_top=0.0, pad_bottom=0.0
+        try:
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            inner = self.rect()
+            painter.setClipPath(
+                _interior_fill_clip(
+                    self, inner, self._frame_host, pad_top=0.0, pad_bottom=0.0
+                )
             )
-        )
-        _paint_floor_fill(painter, inner, self._floor, tile_origin=inner.topLeft())
-        _paint_floor_lighting(painter, inner, origin=inner.topLeft())
+            _paint_floor_fill(painter, inner, self._floor, tile_origin=inner.topLeft())
+            _paint_floor_lighting(painter, inner, origin=inner.topLeft())
+        finally:
+            painter.end()
 
 
 class BottomBar(QWidget):
@@ -1487,24 +1501,27 @@ class BottomBar(QWidget):
     def paintEvent(self, event) -> None:  # noqa: N802
         # Mist fill to the widget edges (no window-stroke gutter).
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        inner = self.rect()
-        # Folder interior ∩ widget (BL/BR fallback) — never the exterior corner pockets.
-        # pad_top=0 so the banner join is opaque (no 0.5px hole under the strip).
-        painter.setClipPath(
-            _interior_fill_clip(
-                self,
-                inner,
-                self._frame_host,
-                round_bottom=True,
-                pad_top=0.0,
-                pad_bottom=0.0,
+        try:
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            inner = self.rect()
+            # Folder interior ∩ widget (BL/BR fallback) — never the exterior corner pockets.
+            # pad_top=0 so the banner join is opaque (no 0.5px hole under the strip).
+            painter.setClipPath(
+                _interior_fill_clip(
+                    self,
+                    inner,
+                    self._frame_host,
+                    round_bottom=True,
+                    pad_top=0.0,
+                    pad_bottom=0.0,
+                )
             )
-        )
 
-        tile_h = max(1, inner.height())
-        origin = QPoint(inner.left(), inner.bottom() - tile_h + 1)
-        _paint_mist_fill(painter, inner, self._mist, tile_h=tile_h, tile_origin=origin)
+            tile_h = max(1, inner.height())
+            origin = QPoint(inner.left(), inner.bottom() - tile_h + 1)
+            _paint_mist_fill(painter, inner, self._mist, tile_h=tile_h, tile_origin=origin)
+        finally:
+            painter.end()
 
 
 class NavBannerUnderFill(QWidget):
@@ -1527,22 +1544,25 @@ class NavBannerUnderFill(QWidget):
         if self.width() <= 0 or self.height() <= 0:
             return
         painter = QPainter(self)
-        inner = self.rect()
-        painter.setClipPath(
-            _interior_fill_clip(
-                self, inner, self._host, pad_top=0.0, pad_bottom=0.0
+        try:
+            inner = self.rect()
+            painter.setClipPath(
+                _interior_fill_clip(
+                    self, inner, self._host, pad_top=0.0, pad_bottom=0.0
+                )
             )
-        )
-        meet = min(_NAV_BOTTOM_BANNER_MID_Y, inner.height())
-        # Play fill (full), then body on the upper/bar half. Seam is hidden
-        # in the opaque solid bar. Do not paint mist texture here — that
-        # read as a muddy slab; this is the play-strip black only.
-        painter.fillRect(inner, _MIST_BASE)
-        if meet > 0:
-            painter.fillRect(
-                QRect(inner.left(), inner.top(), inner.width(), meet),
-                _FLOOR_BASE,
-            )
+            meet = min(_NAV_BOTTOM_BANNER_MID_Y, inner.height())
+            # Play fill (full), then body on the upper/bar half. Seam is hidden
+            # in the opaque solid bar. Do not paint mist texture here — that
+            # read as a muddy slab; this is the play-strip black only.
+            painter.fillRect(inner, _MIST_BASE)
+            if meet > 0:
+                painter.fillRect(
+                    QRect(inner.left(), inner.top(), inner.width(), meet),
+                    _FLOOR_BASE,
+                )
+        finally:
+            painter.end()
 
 
 class NavBottomBanner(QWidget):
@@ -1567,18 +1587,21 @@ class NavBottomBanner(QWidget):
 
     def paintEvent(self, event) -> None:  # noqa: N802
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        inner = self.rect()
-        clip = _interior_fill_clip(
-            self, inner, self._frame_host, pad_top=0.0, pad_bottom=0.0
-        )
-        painter.setClipPath(clip)
-        pix = self._pix
-        if pix.isNull():
-            return
-        overdraw = _NAV_BOTTOM_BANNER_OVERDRAW_X
-        draw = inner.adjusted(-overdraw, 0, overdraw, 0)
-        painter.drawPixmap(draw, pix)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            inner = self.rect()
+            clip = _interior_fill_clip(
+                self, inner, self._frame_host, pad_top=0.0, pad_bottom=0.0
+            )
+            painter.setClipPath(clip)
+            pix = self._pix
+            if pix.isNull():
+                return
+            overdraw = _NAV_BOTTOM_BANNER_OVERDRAW_X
+            draw = inner.adjusted(-overdraw, 0, overdraw, 0)
+            painter.drawPixmap(draw, pix)
+        finally:
+            painter.end()
 
 
 try:

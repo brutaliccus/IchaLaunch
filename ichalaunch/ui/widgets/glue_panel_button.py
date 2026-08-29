@@ -782,31 +782,33 @@ class GluePanelButton(QPushButton):
     def paintEvent(self, event) -> None:  # noqa: N802
         del event
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
 
-        if getattr(self, "_glowing", False) and not self._glow_pm.isNull():
-            self._paint_update_glow(painter)
-        rect = self._chrome_rect()
-        name, ext = _chrome_sources(
-            pressed=self.isDown(),
-            variant=self._chrome_variant,
-        )
-        pm = _colored_pm(name, ext, self._role_key(), not self.isEnabled())
-        if pm.isNull():
-            self._paint_fallback(painter, rect)
-        else:
-            painter.drawPixmap(rect, pm)
+            if getattr(self, "_glowing", False) and not self._glow_pm.isNull():
+                self._paint_update_glow(painter)
+            rect = self._chrome_rect()
+            name, ext = _chrome_sources(
+                pressed=self.isDown(),
+                variant=self._chrome_variant,
+            )
+            pm = _colored_pm(name, ext, self._role_key(), not self.isEnabled())
+            if pm.isNull():
+                self._paint_fallback(painter, rect)
+            else:
+                painter.drawPixmap(rect, pm)
 
-        if self.isEnabled() and (self.underMouse() or self._pulse) and self._role == "primary":
-            pen = QPen(_GOLD if self._pulse else _GOLD_SOFT)
-            pen.setWidth(2)
-            painter.setPen(pen)
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawRoundedRect(rect.adjusted(2, 2, -2, -2), 4, 4)
+            if self.isEnabled() and (self.underMouse() or self._pulse) and self._role == "primary":
+                pen = QPen(_GOLD if self._pulse else _GOLD_SOFT)
+                pen.setWidth(2)
+                painter.setPen(pen)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawRoundedRect(rect.adjusted(2, 2, -2, -2), 4, 4)
 
-        self._paint_label(painter, rect)
-        painter.end()
+            self._paint_label(painter, rect)
+        finally:
+            painter.end()
 
     def _paint_fallback(self, painter: QPainter, rect: QRect) -> None:
         fill = QColor("#6b4a1e") if self._role == "primary" else QColor("#2e2820")

@@ -104,5 +104,7 @@ class BadgeNavButton(QPushButton):
         if not self._badge:
             return
         painter = QPainter(self)
-        paint_update_alert_badge(painter, self.rect())
-        painter.end()
+        try:
+            paint_update_alert_badge(painter, self.rect())
+        finally:
+            painter.end()

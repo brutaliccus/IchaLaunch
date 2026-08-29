@@ -204,41 +204,44 @@ class SplashScreen(QWidget):
     def paintEvent(self, event) -> None:  # noqa: N802
         del event
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
-        painter.setOpacity(1.0)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+            painter.setOpacity(1.0)
 
-        cx = self.width() * 0.5
-        cy = self.height() * 0.5
+            cx = self.width() * 0.5
+            cy = self.height() * 0.5
 
-        # Layer: large black smoke → smaller dark-purple smoke → icon (front).
-        # No dark fill — widget backdrop stays translucent.
-        if not self._smoke.isNull():
-            sw = self._smoke.width() * self._scale
-            sh = self._smoke.height() * self._scale
-            painter.drawPixmap(
-                QRectF(cx - sw * 0.5, cy - sh * 0.5, sw, sh),
-                self._smoke,
-                QRectF(self._smoke.rect()),
-            )
+            # Layer: large black smoke → smaller dark-purple smoke → icon (front).
+            # No dark fill — widget backdrop stays translucent.
+            if not self._smoke.isNull():
+                sw = self._smoke.width() * self._scale
+                sh = self._smoke.height() * self._scale
+                painter.drawPixmap(
+                    QRectF(cx - sw * 0.5, cy - sh * 0.5, sw, sh),
+                    self._smoke,
+                    QRectF(self._smoke.rect()),
+                )
 
-        if not self._smoke_purple.isNull():
-            pw = self._smoke_purple.width() * self._scale
-            ph = self._smoke_purple.height() * self._scale
-            painter.drawPixmap(
-                QRectF(cx - pw * 0.5, cy - ph * 0.5, pw, ph),
-                self._smoke_purple,
-                QRectF(self._smoke_purple.rect()),
-            )
+            if not self._smoke_purple.isNull():
+                pw = self._smoke_purple.width() * self._scale
+                ph = self._smoke_purple.height() * self._scale
+                painter.drawPixmap(
+                    QRectF(cx - pw * 0.5, cy - ph * 0.5, pw, ph),
+                    self._smoke_purple,
+                    QRectF(self._smoke_purple.rect()),
+                )
 
-        if self._icon.isNull():
-            return
+            if self._icon.isNull():
+                return
 
-        iw = self._icon.width() * self._scale
-        ih = self._icon.height() * self._scale
-        target = QRectF(cx - iw * 0.5, cy - ih * 0.5, iw, ih)
-        painter.drawPixmap(target, self._icon, QRectF(self._icon.rect()))
+            iw = self._icon.width() * self._scale
+            ih = self._icon.height() * self._scale
+            target = QRectF(cx - iw * 0.5, cy - ih * 0.5, iw, ih)
+            painter.drawPixmap(target, self._icon, QRectF(self._icon.rect()))
+        finally:
+            painter.end()
 
     def finish(self, widget: QWidget | None = None) -> None:
         """Stop breathe, optionally show *widget*, then close the splash."""

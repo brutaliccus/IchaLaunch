@@ -66,24 +66,26 @@ class GalleryDots(QWidget):
         if self._count < 2:
             return
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        painter.setPen(Qt.PenStyle.NoPen)
-        y = (self.height() - _DOT_PX) / 2.0
-        left = (self.width() - self._count * self._pitch) / 2.0
-        for i in range(self._count):
-            x = left + i * self._pitch + (self._pitch - _DOT_PX) / 2.0
-            if i == self._index:
-                painter.setBrush(_ACTIVE)
-                painter.drawEllipse(QRectF(x, y, _DOT_PX, _DOT_PX))
-            else:
-                idle = QColor(_IDLE)
-                idle.setAlpha(_IDLE_ALPHA)
-                painter.setBrush(idle)
-                inset = 1.0
-                painter.drawEllipse(
-                    QRectF(x + inset, y + inset, _DOT_PX - 2 * inset, _DOT_PX - 2 * inset)
-                )
-        painter.end()
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            painter.setPen(Qt.PenStyle.NoPen)
+            y = (self.height() - _DOT_PX) / 2.0
+            left = (self.width() - self._count * self._pitch) / 2.0
+            for i in range(self._count):
+                x = left + i * self._pitch + (self._pitch - _DOT_PX) / 2.0
+                if i == self._index:
+                    painter.setBrush(_ACTIVE)
+                    painter.drawEllipse(QRectF(x, y, _DOT_PX, _DOT_PX))
+                else:
+                    idle = QColor(_IDLE)
+                    idle.setAlpha(_IDLE_ALPHA)
+                    painter.setBrush(idle)
+                    inset = 1.0
+                    painter.drawEllipse(
+                        QRectF(x + inset, y + inset, _DOT_PX - 2 * inset, _DOT_PX - 2 * inset)
+                    )
+        finally:
+            painter.end()
 
     def _index_at(self, x: float) -> int:
         """Slide under *x*, or -1 outside the row."""

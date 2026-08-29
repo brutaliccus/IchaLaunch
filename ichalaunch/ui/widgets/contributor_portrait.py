@@ -573,28 +573,30 @@ class ContributorPortrait(QWidget):
         if self._pix.isNull():
             return
         p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        m = self._glow_margin
-        if self._glow_ramp and self.underMouse() and self.isEnabled():
-            # Same three layers as the launch plate, driven by the same shared
-            # phase, differing only in the colour stops handed to them.
-            from ichalaunch.ui.widgets.gradient_label import (
-                lava_flicker,
-                lava_rim_pixmap,
-                lava_ticker,
-                soft_halo,
-            )
+        try:
+            p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            m = self._glow_margin
+            if self._glow_ramp and self.underMouse() and self.isEnabled():
+                # Same three layers as the launch plate, driven by the same shared
+                # phase, differing only in the colour stops handed to them.
+                from ichalaunch.ui.widgets.gradient_label import (
+                    lava_flicker,
+                    lava_rim_pixmap,
+                    lava_ticker,
+                    soft_halo,
+                )
 
-            deg = lava_ticker().phase
-            peak = self._glow_ramp[len(self._glow_ramp) // 2][1]
-            soft = soft_halo(self._pix, peak, _GLOW_HALO_PAD, _GLOW_HALO_BLUR)
-            pad = _GLOW_HALO_PAD
-            box = self.rect().adjusted(m - pad, m - pad, -(m - pad), -(m - pad))
-            p.setOpacity(0.55 * lava_flicker(deg * 0.6))
-            p.drawPixmap(box, soft)
-            rim = lava_rim_pixmap(soft, deg, self._glow_ramp)
-            p.setOpacity(0.70 * lava_flicker(deg))
-            p.drawPixmap(box, rim)
-            p.setOpacity(1.0)
-        p.drawPixmap(m, m, self._pix)
-        p.end()
+                deg = lava_ticker().phase
+                peak = self._glow_ramp[len(self._glow_ramp) // 2][1]
+                soft = soft_halo(self._pix, peak, _GLOW_HALO_PAD, _GLOW_HALO_BLUR)
+                pad = _GLOW_HALO_PAD
+                box = self.rect().adjusted(m - pad, m - pad, -(m - pad), -(m - pad))
+                p.setOpacity(0.55 * lava_flicker(deg * 0.6))
+                p.drawPixmap(box, soft)
+                rim = lava_rim_pixmap(soft, deg, self._glow_ramp)
+                p.setOpacity(0.70 * lava_flicker(deg))
+                p.drawPixmap(box, rim)
+                p.setOpacity(1.0)
+            p.drawPixmap(m, m, self._pix)
+        finally:
+            p.end()
