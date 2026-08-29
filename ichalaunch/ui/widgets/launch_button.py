@@ -8,6 +8,10 @@ from pathlib import Path
 from PySide6.QtCore import QRect, Qt, QTimer
 from PySide6.QtGui import (
     QColor,
+    QPen,
+    QGradient,
+    QLinearGradient,
+    QConicalGradient,
     QFont,
     QFontMetrics,
     QImage,
@@ -20,7 +24,13 @@ from PySide6.QtWidgets import QPushButton, QSizePolicy
 from ichalaunch.core.paths import theme_file
 from ichalaunch.ui.widgets.cursors import apply_open_hand
 from ichalaunch.ui.widgets.glue_panel_button import launch_glue_chrome
-from ichalaunch.ui.widgets.gradient_label import gold_pen
+from ichalaunch.ui.widgets.gradient_label import (
+    LAVA_RIM,
+    soft_halo,
+    gold_pen,
+    lava_rim_pixmap,
+    lava_text_pen,
+)
 from ichalaunch.ui.theme_fonts import chrome_family, ink_centered_rect
 
 # RavenCraft palette
@@ -39,6 +49,22 @@ _GLOW_TINT = QColor("#F1C22D")
 _GLOW_STEPS = 5
 _GLOW_STEP_PX = 3
 _GLOW_ALPHA = 0.26
+# A bright arc travels around the plate's edge while hovered, which is the move
+# every "glowing button" tutorial makes: a gradient that rotates rather than a
+# halo that simply sits there. Here it is a conical gradient swept over the
+# plate's own silhouette, so the light follows the real outline and its bevels.
+_SWEEP_MS = 33          # ~30fps; one button, and only while the pointer is on it
+_SWEEP_PERIOD_MS = 4200  # a full turn; slow reads as molten, fast reads as a loading spinner
+_SWEEP_ALPHA = 0.62
+# Halo. Padding gives the blur room to spread past the plate; the radius is what
+# turns a hard silhouette into light falling off into the dark.
+_HALO_PAD = 16
+_HALO_BLUR = 6
+# Lava, not a flat gold band. The ramp runs ember, through orange, to a
+# white-hot core and back, which is the same journey the site's own heading
+# gradient makes (#F1C22D to #FF7757) taken further in both directions. The
+# stops are placed so the hot core is narrow and the ember tail is long, which
+# is what reads as molten rather than as a glowing outline.
 
 _PLAY_W = 200
 _PLAY_H = 56
@@ -190,6 +216,12 @@ class LaunchButton(QPushButton):
         self._chrome_pressed: QPixmap | None = None
         self._glow_cache = QPixmap()
         self._glow_key = None
+        self._halo_cache = QPixmap()
+        self._halo_key = None
+        self._sweep_deg = 0.0
+        self._sweep_timer = QTimer(self)
+        self._sweep_timer.setInterval(_SWEEP_MS)
+        self._sweep_timer.timeout.connect(self._advance_sweep)
         self._chrome_disabled: QPixmap | None = None
         self._load_chrome()
 
@@ -266,10 +298,26 @@ class LaunchButton(QPushButton):
         if halo.isNull():
             return
         painter.save()
-        for step in range(_GLOW_STEPS, 0, -1):
-            grow = step * _GLOW_STEP_PX
-            painter.setOpacity(_GLOW_ALPHA / step)
-            painter.drawPixmap(rect.adjusted(-grow, -grow, grow, grow), halo)
+        # One blurred halo, so the light falls off smoothly into the background
+        # instead of ending on a hard outline.
+        soft = soft_halo(self._glow_pixmap(chrome), _GLOW_TINT.name(), _HALO_PAD, _HALO_BLUR)
+        if not soft.isNull():
+            painter.setOpacity(_GLOW_ALPHA * 2.4)
+            painter.drawPixmap(rect.adjusted(-_HALO_PAD, -_HALO_PAD, _HALO_PAD, _HALO_PAD), soft)
+            painter.setOpacity(1.0)
+
+        # The travelling arc. A conical gradient is built at the plate's centre
+        # and masked by the silhouette, so a bright band runs round the outline
+        # instead of a ring being drawn over the top of it.
+        sweep = lava_rim_pixmap(halo, self._sweep_deg)
+
+        # ONE pass, deliberately. Drawing the rotating cone at several scales
+        # put the same moving gradient on screen at three different sizes, and
+        # they beat against each other as it turned, which read as flicker
+        # rather than as flow. The bloom above already supplies the depth.
+        painter.setOpacity(_SWEEP_ALPHA)
+        grow = 2 * _GLOW_STEP_PX
+        painter.drawPixmap(rect.adjusted(-grow, -grow, grow, grow), sweep)
         painter.setOpacity(1.0)
         painter.restore()
 
@@ -382,19 +430,35 @@ class LaunchButton(QPushButton):
         painter.drawText(text_rect.adjusted(1, 2, 1, 2), flags, draw)
         # Gold label takes the site ramp. Disabled and pressed keep their flat
         # colours, so the plate still reads as unavailable or held down.
-        if color is _GOLD:
+        if color is _GOLD and self._sweep_timer.isActive():
+            # Hovered: the label runs molten with the rim.
+            painter.setPen(lava_text_pen(text_rect, self._sweep_deg))
+        elif color is _GOLD:
             painter.setPen(gold_pen(text_rect))
         else:
             painter.setPen(color)
         painter.drawText(text_rect, flags, draw)
 
+    def _advance_sweep(self) -> None:
+        self._sweep_deg = (self._sweep_deg + 360.0 * _SWEEP_MS / _SWEEP_PERIOD_MS) % 360.0
+        self.update()
+
     def enterEvent(self, event) -> None:
         super().enterEvent(event)
+        if self.isEnabled():
+            self._sweep_deg = 0.0
+            self._sweep_timer.start()
         self.update()
 
     def leaveEvent(self, event) -> None:
         super().leaveEvent(event)
+        self._sweep_timer.stop()
         self.update()
+
+    def hideEvent(self, event) -> None:  # noqa: N802
+        # Never leave the repaint timer running behind a hidden widget.
+        self._sweep_timer.stop()
+        super().hideEvent(event)
 
 
 class UpdateLaunchButton(LaunchButton):

@@ -192,7 +192,14 @@ from ichalaunch.ui.theme_fonts import (
     chrome_family,
     ink_centered_rect,
 )
-from ichalaunch.ui.widgets.gradient_label import gold_pen
+from ichalaunch.ui.widgets.gradient_label import (
+    SWEEP_MS,
+    SWEEP_PERIOD_MS,
+    gold_pen,
+    lava_rim_pixmap,
+    lava_text_pen,
+    soft_halo,
+)
 from ichalaunch.ui.widgets.update_alert_badge import paint_update_alert_badge
 
 _RC_CAPTION_FONT_PATH = theme_file("fonts", "LifeCraft_Font.ttf")
@@ -461,6 +468,10 @@ _TAB_BASE_QSS = (
 )
 
 
+_TAB_HALO_PAD = 14
+_TAB_HALO_BLUR = 5
+
+
 class NavTabButton(QPushButton):
     """Folder tab — floor-tinted Glue-Panel plate + optional update alert badge."""
 
@@ -530,6 +541,44 @@ class NavTabButton(QPushButton):
         super().setText(text)
         self._apply_chrome_font()
 
+    def _ensure_sweep(self) -> None:
+        """Lazily build the hover sweep timer. One per tab, only while hovered."""
+        if getattr(self, "_sweep_timer", None) is not None:
+            return
+        self._sweep_deg = 0.0
+        self._sweep_timer = QTimer(self)
+        self._sweep_timer.setInterval(SWEEP_MS)
+        self._sweep_timer.timeout.connect(self._advance_sweep)
+
+    def _advance_sweep(self) -> None:
+        self._sweep_deg = (self._sweep_deg + 360.0 * SWEEP_MS / SWEEP_PERIOD_MS) % 360.0
+        self.update()
+
+    def _sweeping(self) -> bool:
+        t = getattr(self, "_sweep_timer", None)
+        return bool(t is not None and t.isActive())
+
+    def enterEvent(self, event) -> None:  # noqa: N802
+        super().enterEvent(event)
+        if self.isEnabled():
+            self._ensure_sweep()
+            self._sweep_deg = 0.0
+            self._sweep_timer.start()
+        self.update()
+
+    def leaveEvent(self, event) -> None:  # noqa: N802
+        super().leaveEvent(event)
+        t = getattr(self, "_sweep_timer", None)
+        if t is not None:
+            t.stop()
+        self.update()
+
+    def hideEvent(self, event) -> None:  # noqa: N802
+        t = getattr(self, "_sweep_timer", None)
+        if t is not None:
+            t.stop()
+        super().hideEvent(event)
+
     def _label_color(self) -> QColor:
         if self.isChecked():
             return QColor("#F1C22D")
@@ -552,6 +601,18 @@ class NavTabButton(QPushButton):
             # Shift art down by extending dest past the widget; bottom clips
             # at the tab / ContentPanel seam so L-corners + bottom stroke hide.
             dest = QRect(rect.x(), rect.y(), rect.width(), rect.height() + _TAB_ART_SHIFT_Y)
+            if self._sweeping():
+                # Same two layers as the launch plate. A blurred halo first, so
+                # the light falls off into the background rather than ending on
+                # a hard outline, then the travelling heat round the outline.
+                pad = _TAB_HALO_PAD
+                soft = soft_halo(pm, "#F1C22D", pad, _TAB_HALO_BLUR)
+                painter.setOpacity(0.55)
+                painter.drawPixmap(dest.adjusted(-pad, -pad, pad, pad), soft)
+                rim = lava_rim_pixmap(pm, self._sweep_deg)
+                painter.setOpacity(0.62)
+                painter.drawPixmap(dest.adjusted(-4, -4, 4, 4), rim)
+                painter.setOpacity(1.0)
             painter.drawPixmap(dest, pm)
 
         text = self.text() or ""
@@ -565,7 +626,9 @@ class NavTabButton(QPushButton):
         # rather than a flat fill. Hover and idle stay solid: the ramp is what
         # marks the active tab, and running it on every tab would spend the
         # signal.
-        if self.isChecked():
+        if self._sweeping():
+            painter.setPen(lava_text_pen(text_rect, self._sweep_deg))
+        elif self.isChecked():
             painter.setPen(gold_pen(text_rect))
         else:
             painter.setPen(self._label_color())
