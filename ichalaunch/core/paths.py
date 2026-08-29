@@ -13,6 +13,13 @@ def package_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
+def repo_root() -> Path:
+    """Checkout root when running from source; executable folder when frozen."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return package_root().parent
+
+
 def data_file(*parts: str) -> Path:
     return package_root().joinpath("data", *parts)
 

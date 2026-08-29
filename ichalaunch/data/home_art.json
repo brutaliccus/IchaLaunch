@@ -14,123 +14,153 @@
     },
     {
       "id": "art_adventurers",
-      "image": "art_adventurers.jpg"
+      "image": "art_adventurers.jpg",
+      "url": "https://ravencraft.io/build/assets/art_adventurers-DaDn9dmG.png"
     },
     {
       "id": "art_crescent_grove_no_logo",
-      "image": "art_crescent_grove_no_logo.jpg"
+      "image": "art_crescent_grove_no_logo.jpg",
+      "url": "https://ravencraft.io/build/assets/art_crescent_grove_no_logo-BaLvmZRm.png"
     },
     {
       "id": "art_giln",
-      "image": "art_giln.jpg"
+      "image": "art_giln.jpg",
+      "url": "https://ravencraft.io/build/assets/art_giln-D3cVat7-.png"
     },
     {
       "id": "balor_illustration",
-      "image": "balor_illustration.jpg"
+      "image": "balor_illustration.jpg",
+      "url": "https://ravencraft.io/build/assets/Balor_Illustration-DjIXovEQ.jpg"
     },
     {
       "id": "deep_in_the_green",
-      "image": "deep_in_the_green.jpg"
+      "image": "deep_in_the_green.jpg",
+      "url": "https://ravencraft.io/build/assets/Deep%20in%20the%20Green-BNW_slvT.png"
     },
     {
       "id": "development_basement_artwork",
-      "image": "development_basement_artwork.jpg"
+      "image": "development_basement_artwork.jpg",
+      "url": "https://ravencraft.io/build/assets/Development_Basement_Artwork-BiuxhgEt.jpg"
     },
     {
       "id": "druid_tier_illustration_4k",
-      "image": "druid_tier_illustration_4k.jpg"
+      "image": "druid_tier_illustration_4k.jpg",
+      "url": "https://ravencraft.io/build/assets/Druid_Tier_Illustration_4k-DqXsG0qV.jpg"
     },
     {
       "id": "gm_artwork_2",
-      "image": "gm_artwork_2.jpg"
+      "image": "gm_artwork_2.jpg",
+      "url": "https://ravencraft.io/build/assets/GM_Artwork_2-CqBmxCUw.jpg"
     },
     {
       "id": "gnarlmoon2",
-      "image": "gnarlmoon2.jpg"
+      "image": "gnarlmoon2.jpg",
+      "url": "https://ravencraft.io/build/assets/Gnarlmoon2-Dh6Bzpg4.jpg"
     },
     {
       "id": "grim_illustration",
-      "image": "grim_illustration.jpg"
+      "image": "grim_illustration.jpg",
+      "url": "https://ravencraft.io/build/assets/Grim_Illustration-DkIvprkp.jpg"
     },
     {
       "id": "grim_reaches_illustration",
-      "image": "grim_reaches_illustration.jpg"
+      "image": "grim_reaches_illustration.jpg",
+      "url": "https://ravencraft.io/build/assets/Grim_Reaches_Illustration-CKnIkp8J.jpg"
     },
     {
       "id": "ironforge_music",
-      "image": "ironforge_music.jpg"
+      "image": "ironforge_music.jpg",
+      "url": "https://ravencraft.io/build/assets/ironforge_music-v9UaA8rv.jpg"
     },
     {
       "id": "karazhan",
-      "image": "karazhan.jpg"
+      "image": "karazhan.jpg",
+      "url": "https://ravencraft.io/build/assets/Karazhan-Anomalus-Illustration-NQVAlUVc.jpg"
     },
     {
       "id": "kruul_artwork",
-      "image": "kruul_artwork.jpg"
+      "image": "kruul_artwork.jpg",
+      "url": "https://ravencraft.io/build/assets/Kruul_Artwork-9NZvwXa5.jpg"
     },
     {
       "id": "lava_boss_illustration",
-      "image": "lava_boss_illustration.jpg"
+      "image": "lava_boss_illustration.jpg",
+      "url": "https://ravencraft.io/build/assets/Lava_Boss_Illustration-DQ5NMiUr.jpg"
     },
     {
       "id": "lvl1_lunatic_illustration",
-      "image": "lvl1_lunatic_illustration.jpg"
+      "image": "lvl1_lunatic_illustration.jpg",
+      "url": "https://ravencraft.io/build/assets/Lvl1_Lunatic_Illustration-Db_TSBev.jpg"
     },
     {
       "id": "moonwhisper_coast",
-      "image": "moonwhisper_coast.jpg"
+      "image": "moonwhisper_coast.jpg",
+      "url": "https://ravencraft.io/build/assets/Moonwhisper_Coast-Be-tD1Vx.jpg"
     },
     {
       "id": "northwind_art",
-      "image": "northwind_art.jpg"
+      "image": "northwind_art.jpg",
+      "url": "https://ravencraft.io/build/assets/northwind_art-G4megDko.jpg"
     },
     {
       "id": "northwind_art_2",
-      "image": "northwind_art_2.jpg"
+      "image": "northwind_art_2.jpg",
+      "url": "https://ravencraft.io/build/assets/northwind_art_2-CQLL-0c5.jpg"
     },
     {
       "id": "paladin_lock",
-      "image": "paladin_lock.jpg"
+      "image": "paladin_lock.jpg",
+      "url": "https://ravencraft.io/build/assets/paladin_lock-CDrowJpy.jpg"
     },
     {
       "id": "priest_t35",
-      "image": "priest_t35.jpg"
+      "image": "priest_t35.jpg",
+      "url": "https://ravencraft.io/build/assets/priest_t35-YgnbD4cD.jpg"
     },
     {
       "id": "rogue_mage",
-      "image": "rogue_mage.jpg"
+      "image": "rogue_mage.jpg",
+      "url": "https://ravencraft.io/build/assets/rogue_mage-CU3g3NMm.jpg"
     },
     {
       "id": "shaman_warrior_t35",
-      "image": "shaman_warrior_t35.jpg"
+      "image": "shaman_warrior_t35.jpg",
+      "url": "https://ravencraft.io/build/assets/Shaman_Warrior_T35-De9CB99x.jpg"
     },
     {
       "id": "sorrowguard_keep",
-      "image": "sorrowguard_keep.jpg"
+      "image": "sorrowguard_keep.jpg",
+      "url": "https://ravencraft.io/build/assets/sorrowguard_keep--0OJ7CDV.jpeg"
     },
     {
       "id": "the_thalassian_council",
-      "image": "the_thalassian_council.jpg"
+      "image": "the_thalassian_council.jpg",
+      "url": "https://ravencraft.io/build/assets/The%20Thalassian%20Council-D19cFzGJ.jpg"
     },
     {
       "id": "timbermaw_entrance",
-      "image": "timbermaw_entrance.jpg"
+      "image": "timbermaw_entrance.jpg",
+      "url": "https://ravencraft.io/build/assets/Timbermaw_Entrance-OZY_6Tej.jpg"
     },
     {
       "id": "turtle_wow_anniversary_illustration",
-      "image": "turtle_wow_anniversary_illustration.jpg"
+      "image": "turtle_wow_anniversary_illustration.jpg",
+      "url": "https://ravencraft.io/build/assets/Turtle_Wow_Anniversary_Illustration-CRmrlq8g.jpg"
     },
     {
       "id": "undead_hunter_tier35",
-      "image": "undead_hunter_tier35.jpg"
+      "image": "undead_hunter_tier35.jpg",
+      "url": "https://ravencraft.io/build/assets/Undead_Hunter_Tier35-CkrDOGh2.jpg"
     },
     {
       "id": "windhorn_canyon",
-      "image": "windhorn_canyon.jpg"
+      "image": "windhorn_canyon.jpg",
+      "url": "https://ravencraft.io/build/assets/Windhorn_Canyon-B67i6wYR.jpg"
     },
     {
       "id": "zulaman_war",
-      "image": "zulaman_war.jpg"
+      "image": "zulaman_war.jpg",
+      "url": "https://ravencraft.io/build/assets/ZulAman_War-DzhKHv2H.jpg"
     }
   ]
 }

@@ -274,13 +274,50 @@ def _resolve_ci_parts(current: Path, parts: list[str]) -> Path | None:
     return None
 
 
+# FILE_ATTRIBUTE_READONLY/HIDDEN/SYSTEM. HIDDEN and SYSTEM block open('wb') /
+# shutil.copy2 on Windows even after chmod has set S_IWRITE.
+_WIN_INVALID_FILE_ATTRIBUTES = 0xFFFFFFFF
+_WIN_FILE_ATTRIBUTE_READONLY = 0x00000001
+_WIN_FILE_ATTRIBUTE_HIDDEN = 0x00000002
+_WIN_FILE_ATTRIBUTE_SYSTEM = 0x00000004
+_WIN_FILE_ATTRIBUTE_NORMAL = 0x00000080
+_WIN_ATTRS_BLOCK_OVERWRITE = (
+    _WIN_FILE_ATTRIBUTE_READONLY
+    | _WIN_FILE_ATTRIBUTE_HIDDEN
+    | _WIN_FILE_ATTRIBUTE_SYSTEM
+)
+
+
+def _clear_win_overwrite_attrs(path: Path) -> None:
+    """Clear READONLY/HIDDEN/SYSTEM so the dest can be replaced."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        attrs = int(kernel32.GetFileAttributesW(str(path)))
+        if attrs == _WIN_INVALID_FILE_ATTRIBUTES:
+            return
+        if not (attrs & _WIN_ATTRS_BLOCK_OVERWRITE):
+            return
+        new_attrs = attrs & ~_WIN_ATTRS_BLOCK_OVERWRITE
+        if new_attrs == 0:
+            new_attrs = _WIN_FILE_ATTRIBUTE_NORMAL
+        kernel32.SetFileAttributesW(str(path), new_attrs)
+    except (OSError, AttributeError, ValueError, TypeError):
+        pass
+
+
 def ensure_writable(path: Path | str) -> None:
-    """Clear the Windows read-only bit so overwrites can succeed."""
+    """Clear read-only (and Windows HIDDEN/SYSTEM) so overwrites can succeed."""
     try:
         p = Path(path)
+        if not p.exists():
+            return
         mode = p.stat().st_mode
-        if not (mode & stat.S_IWRITE):
-            os.chmod(p, mode | stat.S_IWRITE)
+        os.chmod(p, mode | stat.S_IWRITE)
+        _clear_win_overwrite_attrs(p)
     except OSError:
         pass
 
@@ -393,6 +430,16 @@ def is_access_denied(exc: BaseException) -> bool:
     if isinstance(exc, PermissionError):
         return True
     return getattr(exc, "errno", None) in (5, 13)
+
+
+def is_sharing_violation(exc: BaseException) -> bool:
+    """True when another process actually has the file open (WinError 32/33).
+
+    ``PermissionError`` / WinError 5 is often a read-only or HIDDEN/SYSTEM dest,
+    not a lock — callers must chmod/clear attributes and retry before treating
+    those as "file in use".
+    """
+    return getattr(exc, "winerror", None) in (32, 33)
 
 
 # ERROR_ACCESS_DENIED=5, SHARING_VIOLATION=32, LOCK_VIOLATION=33,
@@ -660,6 +707,52 @@ def name_present(
             mark_path_locked(dest)
             return True
         return False
+
+
+def replace_file(src: Path, dest: Path, *, share_retries: int = 1, share_delay: float = 0.4) -> None:
+    """Copy *src* over *dest*, clearing dest attributes first.
+
+    Writes a sibling temp then ``os.replace``. In-place ``shutil.copy2`` fails
+    on Windows HIDDEN/SYSTEM dests (common under ``Data/Interface/GlueXML``)
+    with ``PermissionError`` errno 13 and no WinError — which
+    :func:`is_lock_or_av_error` then misreports as a lock.
+
+    Retries once after a short sleep on sharing violations (AV scan) and on
+    access-denied after clearing attributes.
+    """
+    dest = Path(dest)
+    src = Path(src)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    attempts = 1 + max(0, int(share_retries))
+    last: OSError | None = None
+    for i in range(attempts):
+        tmp = dest.with_name(f".{dest.name}.__new_{os.getpid()}_{time.time_ns()}")
+        try:
+            if dest.exists():
+                ensure_writable(dest)
+            shutil.copy2(src, tmp)
+            ensure_writable(tmp)
+            os.replace(tmp, dest)
+            return
+        except OSError as exc:
+            last = exc
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+            if dest.exists():
+                ensure_writable(dest)
+            if i + 1 >= attempts:
+                raise
+            if is_sharing_violation(exc) or getattr(exc, "winerror", None) == 225:
+                time.sleep(share_delay)
+                continue
+            if is_access_denied(exc):
+                time.sleep(min(0.05, share_delay))
+                continue
+            raise
+    if last is not None:
+        raise last
 
 
 def copy_file_tolerant(src: Path, dest: Path) -> bool:

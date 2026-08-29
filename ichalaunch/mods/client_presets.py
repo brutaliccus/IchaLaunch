@@ -168,6 +168,14 @@ def apply_client_preset(preset_id: str, *, hd_ultra: bool = False) -> dict[str, 
         if bool(before.get(mid, False)) != want:
             changes[mid] = want
         settings.set_desired_mod(mid, want)
+    for mid, want in desired.items():
+        if mid in managed:
+            continue
+        want_b = bool(want)
+        if bool(before.get(mid, False)) == want_b:
+            continue
+        changes[mid] = want_b
+        settings.set_desired_mod(mid, want_b)
     settings.set("client_preset", preset_id)
     settings.set(
         "client_preset_hd_ultra",

@@ -349,6 +349,15 @@ from ichalaunch.game.client_install import (
     should_settle_existing,
     wow_exe_here,
 )
+from ichalaunch.game.realm_status import (
+    PROBE_FIRST_DELAY_MS,
+    PROBE_INTERVAL_MS,
+    RealmProbe,
+    jittered_probe_delay_ms,
+    next_probe_backoff_ms,
+    probe_logon,
+    realm_ping_disabled,
+)
 from ichalaunch.game.launcher import (
     GAME_DOWNLOAD_URL,
     GOFILE_FILE_NAME,
@@ -391,6 +400,11 @@ from ichalaunch.ui.widgets.glue_panel_button import (
     tint_image_toward_color,
 )
 from ichalaunch.ui.widgets.launch_button import LaunchButton, UpdateLaunchButton
+from ichalaunch.ui.widgets.realm_ping import (
+    PING_DOT_GAP,
+    RealmPingDot,
+    ping_overlay_x,
+)
 
 
 def _format_minutes_since(settings_key: str) -> str:
@@ -1596,6 +1610,7 @@ class MainWindow(QMainWindow):
         self._update_worker: Worker | None = None
         self._mod_update_worker: Worker | None = None
         self._launcher_update_worker: Worker | None = None
+        self._realm_ping_worker: Worker | None = None
         # Strong refs to every started Worker until its thread has fully
         # finished. The done/fail slots clear the attributes above while the
         # QThread can still be inside run(); if that attribute held the last
@@ -1745,15 +1760,24 @@ class MainWindow(QMainWindow):
         self.update_btn.clicked.connect(self._apply_launcher_update)
         self.play_btn = LaunchButton("PLAY")
         self.play_btn.clicked.connect(self._on_play_or_install)
+        # Overlay on BottomBar — not in the PLAY HBox, so PLAY does not shift.
+        self.realm_ping = RealmPingDot(bottom)
+        self.realm_ping.raise_()
 
         play_cluster = QWidget(bottom)
         play_cluster.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
         play_row = QHBoxLayout(play_cluster)
         play_row.setContentsMargins(0, 0, 0, 0)
-        play_row.setSpacing(8)
+        play_row.setSpacing(PING_DOT_GAP)
         play_row.addWidget(self.update_btn, 0, Qt.AlignmentFlag.AlignVCenter)
         play_row.addWidget(self.play_btn, 0, Qt.AlignmentFlag.AlignVCenter)
         self._play_cluster = play_cluster
+        self._realm_ping_timer = QTimer(self)
+        self._realm_ping_timer.setSingleShot(True)
+        self._realm_ping_timer.timeout.connect(self._refresh_realm_ping)
+        self._realm_ping_backoff_ms = PROBE_INTERVAL_MS
+        self._realm_ping_next_at = 0.0
+        self._realm_ping_last_at = 0.0
 
         # Expanding slot keeps PLAY pinned to the right when the rail is hidden.
         # Contributors and the loading bar share this slot (mutually exclusive).
@@ -1823,6 +1847,7 @@ class MainWindow(QMainWindow):
         grip.setFixedSize(16, 16)
         grip.setToolTip("Drag to resize")
         self._play_grip = grip
+        self.realm_ping.raise_()
 
         bot_l.addWidget(self.status_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
         # Slot (not the hidden bar) owns leftover space so PLAY never recenters.
@@ -2216,11 +2241,25 @@ class MainWindow(QMainWindow):
         if not getattr(self, "_addons_preload_scheduled", False):
             self._addons_preload_scheduled = True
             QTimer.singleShot(0, self._preload_hidden_addon_rows)
+        if not getattr(self, "_realm_ping_scheduled", False):
+            self._realm_ping_scheduled = True
+            if not realm_ping_disabled():
+                self._arm_realm_ping(PROBE_FIRST_DELAY_MS)
+        else:
+            self._resume_realm_ping_timer()
 
     def changeEvent(self, event) -> None:  # noqa: N802
-        if event.type() == QEvent.Type.WindowStateChange and self.isMinimized():
-            themed.close_open_themed_dialogs(self)
+        if event.type() == QEvent.Type.WindowStateChange:
+            if self.isMinimized():
+                themed.close_open_themed_dialogs(self)
+                self._pause_realm_ping_timer()
+            else:
+                self._resume_realm_ping_timer()
         super().changeEvent(event)
+
+    def hideEvent(self, event) -> None:  # noqa: N802
+        self._pause_realm_ping_timer()
+        super().hideEvent(event)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -2278,6 +2317,7 @@ class MainWindow(QMainWindow):
                     QScrollBar,
                     QSizeGrip,
                     ChromeGlyphButton,
+                    RealmPingDot,
                 ),
             ):
                 return True
@@ -2735,19 +2775,162 @@ class MainWindow(QMainWindow):
             self.update_btn.setToolTip("Update IchaLaunch")
         self._fit_bottom_progress()
 
-    def _fit_bottom_progress(self) -> None:
-        """Keep the loading rail out of the update/PLAY cluster."""
-        progress = getattr(self, "progress", None)
-        update_btn = getattr(self, "update_btn", None)
-        if progress is None or update_btn is None:
-            return
+    def _play_cluster_trailing_px(self) -> int:
+        """Width the PLAY cluster grew past a bare PLAY plate (UPDATE only)."""
         extra = 0
-        if not update_btn.isHidden():
-            extra = update_btn.width() + 8
+        update_btn = getattr(self, "update_btn", None)
+        if update_btn is not None and not update_btn.isHidden():
+            extra += update_btn.width() + PING_DOT_GAP
+        return extra
+
+    def _realm_ping_gap_right(self, bottom: QWidget) -> int:
+        """Visible right edge of the PLAY–border gap (inner portrait chrome)."""
+        right = bottom.width()
+        root = self.centralWidget()
+        frame = self.portrait_play_box()
+        if root is not None and frame is not None and root.isAncestorOf(bottom):
+            inner = QPoint(
+                frame.right() - _PORTRAIT_RIGHT_OX + _PORTRAIT_OUTER_NUDGE,
+                0,
+            )
+            mapped = bottom.mapFrom(root, inner)
+            if mapped.x() > 0:
+                right = min(right, mapped.x())
+        return right
+
+    def _position_realm_ping(self) -> None:
+        """Center the ping in the open gap between PLAY and the right border."""
+        ping = getattr(self, "realm_ping", None)
+        play = getattr(self, "play_btn", None)
+        bottom = getattr(self, "_bottom_bar", None)
+        if ping is None or play is None or bottom is None:
+            return
+        if ping.parentWidget() is not bottom:
+            ping.setParent(bottom)
+        if play.width() <= 0 or bottom.width() <= 0:
+            return
+        play_tl = play.mapTo(bottom, QPoint(0, 0))
+        play_right = play_tl.x() + play.width()
+        border_right = self._realm_ping_gap_right(bottom)
+        x = ping_overlay_x(play_right, border_right, ping.width())
+        y = play_tl.y() + (play.height() - ping.height()) // 2
+        min_x = play_right
+        max_x = max(min_x, min(bottom.width(), border_right) - ping.width())
+        if x > max_x:
+            x = max_x
+        if x < min_x:
+            x = min_x
+        y = max(0, min(y, max(0, bottom.height() - ping.height())))
+        grip = getattr(self, "_play_grip", None)
+        if grip is not None and not grip.isHidden():
+            grip_tl = grip.mapTo(bottom, QPoint(0, 0))
+            ping_rect = QRect(x, y, ping.width(), ping.height())
+            grip_rect = QRect(grip_tl, grip.size())
+            if ping_rect.intersects(grip_rect):
+                y = max(0, grip_rect.y() - ping.height())
+                ping_rect = QRect(x, y, ping.width(), ping.height())
+            if ping_rect.intersects(grip_rect):
+                x = max(min_x, grip_rect.x() - ping.width())
+        ping.move(x, y)
+        ping.raise_()
+        if ping.isHidden():
+            return
+        ping.show()
+
+    def _fit_bottom_progress(self) -> None:
+        """Shorten the loading rail and recenter contributors for the PLAY cluster.
+
+        UPDATE may grow the cluster left. The ping is overlaid to the right of
+        PLAY and is not reserved here. ``reserve_trailing`` drops the rail's
+        min/max so it never runs under UPDATE or PLAY.
+        """
+        progress = getattr(self, "progress", None)
+        if progress is None:
+            return
+        extra = self._play_cluster_trailing_px()
         progress.reserve_trailing(extra)
+        slot = getattr(self, "_progress_slot", None)
+        if slot is not None and slot.layout() is not None:
+            slot.layout().activate()
+        contrib = getattr(self, "_contributors", None)
+        if contrib is not None and contrib.layout() is not None:
+            contrib.layout().activate()
         lay = getattr(self, "_bottom_bar", None)
         if lay is not None and lay.layout() is not None:
             lay.layout().activate()
+        self._position_realm_ping()
+
+    def _realm_ping_window_active(self) -> bool:
+        return bool(self.isVisible() and not self.isMinimized())
+
+    def _pause_realm_ping_timer(self) -> None:
+        timer = getattr(self, "_realm_ping_timer", None)
+        if timer is not None:
+            timer.stop()
+
+    def _arm_realm_ping(self, delay_ms: int) -> None:
+        self._realm_ping_next_at = time.monotonic() + max(1, int(delay_ms)) / 1000.0
+        self._pause_realm_ping_timer()
+        if realm_ping_disabled() or not self._realm_ping_window_active():
+            return
+        self._realm_ping_timer.start(max(1, int(delay_ms)))
+
+    def _resume_realm_ping_timer(self) -> None:
+        if realm_ping_disabled() or not getattr(self, "_realm_ping_scheduled", False):
+            return
+        if not self._realm_ping_window_active():
+            self._pause_realm_ping_timer()
+            return
+        if _safe_worker_running(getattr(self, "_realm_ping_worker", None)):
+            return
+        remaining_ms = int((self._realm_ping_next_at - time.monotonic()) * 1000)
+        if remaining_ms < 1:
+            last = getattr(self, "_realm_ping_last_at", 0.0) or 0.0
+            if last and (time.monotonic() - last) < 1.0:
+                remaining_ms = 1000
+            else:
+                remaining_ms = 1
+        self._arm_realm_ping(remaining_ms)
+
+    def _refresh_realm_ping(self) -> None:
+        """Background TCP probe of the bundled logon host (never blocks PLAY)."""
+        if realm_ping_disabled():
+            return
+        if not self._realm_ping_window_active():
+            return
+        if _safe_worker_running(self._realm_ping_worker):
+            return
+        self._realm_ping_last_at = time.monotonic()
+        worker = Worker(probe_logon)
+
+        def done(result):
+            self._realm_ping_worker = None
+            ok = False
+            if isinstance(result, RealmProbe):
+                self.realm_ping.set_probe(result)
+                ok = bool(result.online)
+            else:
+                self.realm_ping.set_offline()
+            self._realm_ping_backoff_ms = next_probe_backoff_ms(
+                success=ok,
+                previous_ms=self._realm_ping_backoff_ms,
+            )
+            self._arm_realm_ping(jittered_probe_delay_ms(self._realm_ping_backoff_ms))
+
+        def fail(_msg):
+            self._realm_ping_worker = None
+            self.realm_ping.set_offline()
+            self._realm_ping_backoff_ms = next_probe_backoff_ms(
+                success=False,
+                previous_ms=self._realm_ping_backoff_ms,
+            )
+            self._arm_realm_ping(jittered_probe_delay_ms(self._realm_ping_backoff_ms))
+
+        worker.finished_ok.connect(done)
+        worker.failed.connect(fail)
+        self._realm_ping_worker = worker
+        self._track_worker(worker)
+        worker.start()
 
     def _sync_contributors_with_progress(self) -> None:
         """Hide Contributors while the loading bar occupies the center slot."""
@@ -2756,6 +2939,7 @@ class MainWindow(QMainWindow):
         if contrib is None or progress is None:
             return
         contrib.setVisible(progress.isHidden())
+        self._fit_bottom_progress()
 
     def _hide_progress_bar(self) -> None:
         self.progress.hide()
@@ -2796,6 +2980,7 @@ class MainWindow(QMainWindow):
             "_update_worker",
             "_mod_update_worker",
             "_launcher_update_worker",
+            "_realm_ping_worker",
         ):
             if getattr(self, attr, None) is worker:
                 setattr(self, attr, None)
@@ -3091,14 +3276,16 @@ class MainWindow(QMainWindow):
         """Once per session: missing/incomplete official patch-9 (Home-first)."""
         if getattr(self, "_patch9_prompted", False):
             return
-        game = detect_game()
-        if not game or not has_wow_exe(game):
-            return
         from ichalaunch.mods.stock_patch import (
+            configured_game_for_stock_patch9,
             inspect_stock_patch9,
             should_offer_stock_patch9_reacquire,
         )
 
+        # Configured folder only — no nested RavenCraft walk, no nearby search.
+        game = configured_game_for_stock_patch9()
+        if not game:
+            return
         status = inspect_stock_patch9(game)
         if not should_offer_stock_patch9_reacquire(status):
             return

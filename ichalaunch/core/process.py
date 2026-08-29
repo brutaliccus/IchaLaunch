@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 from typing import Any, Callable
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import requests
 from requests.exceptions import ChunkedEncodingError, ConnectionError, HTTPError, Timeout
@@ -139,13 +139,24 @@ def resolve_download_total(headers: Any, known_total: int = 0) -> int:
     return k if k > 0 else 0
 
 
-def _download_headers() -> dict[str, str]:
-    return {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-        )
-    }
+_BROWSER_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
+# Codeberg returns 403 for common browser UAs on /releases/download/.
+_CODEBERG_UA = "IchaLaunch/0.1"
+
+
+def _download_headers(url: str | None = None) -> dict[str, str]:
+    host = ""
+    if url:
+        try:
+            host = (urlparse(url).hostname or "").lower()
+        except Exception:
+            host = ""
+    if host == "codeberg.org" or host.endswith(".codeberg.org"):
+        return {"User-Agent": _CODEBERG_UA}
+    return {"User-Agent": _BROWSER_UA}
 
 
 def zip_url_from_html(html: str, base_url: str) -> str | None:
@@ -177,7 +188,7 @@ def download_bytes(
     known_total: int = 0,
 ) -> bytes:
     """Download into memory (avoids Windows AV locking certain zip names on disk)."""
-    headers = _download_headers()
+    headers = _download_headers(url)
     chunks: list[bytes] = []
     with requests.get(url, stream=True, timeout=timeout, headers=headers) as r:
         r.raise_for_status()
@@ -250,7 +261,7 @@ def _download_file_once(
     known_total: int = 0,
 ) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
-    headers = _download_headers()
+    headers = _download_headers(url)
     if extra_headers:
         headers.update(extra_headers)
     origin = source_url or url
@@ -814,23 +825,32 @@ def _restart_manager_lockers(paths: list[Path | str], *, limit: int = 6) -> list
     return None if failed else found
 
 
-def file_in_use_hint(*paths: Path | str) -> str:
+def file_in_use_hint(*paths: Path | str, game_path: Path | str | None = None) -> str:
     """Short user-facing diagnosis when a game-tree file cannot be replaced.
 
     Prefers detecting WoW/VanillaFixes, then Restart Manager lockers, then a
-    generic "another process" note (not antivirus-first). Always includes the
-    steps for ending WoW.exe / VanillaFixes.exe on this platform.
+    generic holder note. End-task steps for WoW.exe / VanillaFixes.exe are
+    included only when that process is actually running.
     """
     from ichalaunch.core.filesystem import END_GAME_PROCESS_HINT
 
     end_tasks = f"{END_GAME_PROCESS_HINT} Then retry Apply."
-    game_dir = None
-    try:
-        from ichalaunch.game.launcher import detect_game
+    shown = ""
+    for raw in paths:
+        if raw:
+            shown = Path(raw).name
+            break
+    shown = shown or "the file"
+    game_dir: Path | None
+    if game_path:
+        game_dir = Path(game_path)
+    else:
+        try:
+            from ichalaunch.game.launcher import detect_game
 
-        game_dir = detect_game()
-    except Exception:  # noqa: BLE001
-        game_dir = None
+            game_dir = detect_game()
+        except Exception:  # noqa: BLE001
+            game_dir = None
     if wow_exe_running(game_dir):
         linger = (
             "the game window can be closed while the process stays in Task Manager"
@@ -844,18 +864,18 @@ def file_in_use_hint(*paths: Path | str) -> str:
         )
     lockers = processes_locking_paths([p for p in paths if p])
     if lockers:
-        return f"In use by: {', '.join(lockers)}. {end_tasks}"
+        return f"In use by: {', '.join(lockers)}. Close that program, then retry Apply."
     if sys.platform == "win32":
         return (
-            "Another process still has the file open "
-            "(overlays, Explorer preview, backup/sync, or antivirus — "
+            f"{shown} is still open in another process "
+            "(Explorer preview, backup/sync, or antivirus — "
             "including non-Defender products). "
-            + end_tasks
+            "Close the preview or pause the scanner, then retry Apply."
         )
     return (
-        "Another process still has the file open "
+        f"{shown} is still open in another process "
         "(a Wine process, an overlay, a file manager preview, or backup/sync). "
-        + end_tasks
+        "Then retry Apply."
     )
 
 

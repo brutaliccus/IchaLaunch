@@ -142,6 +142,26 @@ def should_offer_stock_patch9_reacquire(status: StockPatch9Status | None) -> boo
     return bool(status is not None and status.needs_reacquire)
 
 
+def configured_game_for_stock_patch9() -> Path | None:
+    """``settings.game_path`` only if that folder itself contains WoW.exe.
+
+    Empty or unset path is None. A parent of RavenCraft that has no client
+    exe at the configured folder is None — no nested walk, no nearby search.
+    """
+    from ichalaunch.config.settings import settings
+
+    raw = str(settings.game_path or "").strip()
+    if not raw:
+        return None
+    game = Path(raw)
+    try:
+        if has_wow_exe(game):
+            return game
+    except OSError:
+        return None
+    return None
+
+
 def stock_patch9_path(game_path: Path | None) -> Path | None:
     """On-disk ``Data/patch-9.mpq`` (any casing), or None if missing."""
     if game_path is None:

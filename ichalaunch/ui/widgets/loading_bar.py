@@ -163,9 +163,9 @@ class ThemeLoadingBar(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setMinimumHeight(32)
         self.setMaximumHeight(40)
-        # Default slot is the gap between status and PLAY. When the square
-        # update button is showing, reserve_trailing() tightens this so the
-        # rail does not run under the arrow.
+        # Default slot is the gap between status and the PLAY cluster.
+        # reserve_trailing() tightens min/max so the rail does not run under
+        # the square update button (ping is overlaid to the right of PLAY).
         self.setMinimumWidth(320)
         self.setMaximumWidth(880)
 
@@ -198,7 +198,7 @@ class ThemeLoadingBar(QWidget):
         return QSize(min(640, self.maximumWidth()), 36)
 
     def reserve_trailing(self, px: int = 0) -> None:
-        """Shrink the bar's min/max width by *px* (update-button slot)."""
+        """Shrink the bar's min/max width by *px* (visible UPDATE button)."""
         extra = max(0, int(px))
         self.setMinimumWidth(220 if extra else 320)
         self.setMaximumWidth(max(self.minimumWidth(), 880 - extra))

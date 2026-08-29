@@ -10,10 +10,41 @@ from PyInstaller.utils.hooks.qt import pyside6_library_info
 
 block_cipher = None
 
+def _theme_datas() -> list[tuple[str, str]]:
+    """Pack theme chrome, but not the official_artworks gallery (fetched at runtime)."""
+    theme = os.path.join("ichalaunch", "ui", "theme")
+    out: list[tuple[str, str]] = []
+    for root, dirs, files in os.walk(theme):
+        dirs[:] = [name for name in dirs if name != "official_artworks"]
+        if os.path.basename(root) == "official_artworks":
+            continue
+        dest = root.replace("\\", "/")
+        for name in files:
+            out.append((os.path.join(root, name), dest))
+    return out
+
+
 datas = [
     ("ichalaunch/data", "ichalaunch/data"),
-    ("ichalaunch/ui/theme", "ichalaunch/ui/theme"),
+    *_theme_datas(),
 ]
+
+# Source-built WeirdUtils variants (gitignored). Fail the build if missing.
+# Outline / DPSLog stay offered; Interact / Crash Fix stay packed but hidden.
+_WEIRDUTILS_VARIANT_DLLS = (
+    "outline.dll",
+    "interact.dll",
+    "framecrash.dll",
+    "dpslog.dll",
+)
+_weirdutils_out = os.path.join("tools", "_weirdutils", "out")
+for _name in _WEIRDUTILS_VARIANT_DLLS:
+    _src = os.path.join(_weirdutils_out, _name)
+    if not os.path.isfile(_src):
+        raise SystemExit(
+            f"Missing {_src}. Run: python tools/build_weirdutils.py --build-only"
+        )
+    datas.append((_src, "ichalaunch/data/weirdutils"))
 binaries: list[tuple[str, str]] = []
 hiddenimports = [
     # Ed25519 verification for signed launcher updates.

@@ -15,6 +15,10 @@ from typing import Any, Iterator  # Path used by default_addons_path_for
 
 APP_DIR_NAME = "IchaLaunch"
 
+# Test/dev only. When set, appdata_root() uses this directory instead of
+# the live user tree. Normal launches leave it unset — no user-facing change.
+APPDATA_OVERRIDE_ENV = "ICHALAUNCH_APPDATA"
+
 # Automatic (startup / while-open) addon + client update refresh interval.
 # Not user-adjustable — catalog checks are one JSON request, then a local compare.
 AUTO_SCAN_COOLDOWN_MINUTES = 15
@@ -92,7 +96,18 @@ def _migrate_linux_appdata(legacy: Path, xdg: Path) -> None:
         return
 
 
+def _appdata_override_root() -> Path | None:
+    raw = (os.environ.get(APPDATA_OVERRIDE_ENV) or "").strip()
+    if not raw:
+        return None
+    return Path(raw)
+
+
 def appdata_root() -> Path:
+    override = _appdata_override_root()
+    if override is not None:
+        override.mkdir(parents=True, exist_ok=True)
+        return override
     if sys.platform == "win32":
         base = _windows_appdata_root()
         base.mkdir(parents=True, exist_ok=True)

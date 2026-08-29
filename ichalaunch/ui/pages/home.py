@@ -32,6 +32,7 @@ CATEGORY_ORDER = [
     "Client Enhancements",
     "HD Graphics",
     "Visual / QoL",
+    "Advanced",
 ]
 
 # Wide enough for three title-case glue buttons ("Bug Report" on one line)

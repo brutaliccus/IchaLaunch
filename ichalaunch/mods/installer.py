@@ -37,6 +37,10 @@ from ichalaunch.core.filesystem import (
     LOCK_AV_VERIFY_TITLE,
     copy_file_tolerant,
     ensure_data_writable,
+    ensure_writable,
+    is_access_denied,
+    is_sharing_violation,
+    replace_file,
     extract_tar,
     extract_zip,
     note_pending_toc_mismatch,
@@ -64,6 +68,7 @@ from ichalaunch.core.filesystem import (
 )
 from ichalaunch.core.logging_setup import log
 from ichalaunch.core.process import (
+    _download_headers,
     download_bytes,
     download_bytes_cb,
     download_file,
@@ -88,12 +93,65 @@ UA = {"User-Agent": "IchaLaunch/0.1"}
 _APPLY_IN_PROGRESS = False
 # Turtle/RavenCraft ships numeric Data patches. Letter slots are community/HD.
 _STOCK_DATA_MPQ_RE = re.compile(r"^patch(-[0-9])?\.mpq$", re.IGNORECASE)
+LOCAL_BUILD_HINT = "Run: python tools/build_weirdutils.py"
 
 
 def is_stock_data_mpq(rel: str | Path) -> bool:
     """True for official numeric client patches (``patch.mpq``, ``patch-2``…``patch-9``)."""
     name = Path(str(rel).replace("\\", "/")).name
     return bool(_STOCK_DATA_MPQ_RE.fullmatch(name))
+
+
+def resolve_local_source_path(source: dict[str, Any]) -> Path:
+    """Resolve a catalog ``type=local`` path.
+
+    Frozen builds use the copy packed into the exe (``ichalaunch/data/weirdutils``).
+    Source checkouts fall back to the gitignored ``tools/_weirdutils/out`` file.
+    """
+    import sys
+
+    from ichalaunch.core.paths import data_file, repo_root
+
+    raw = str(source.get("path") or "").strip()
+    filename = sanitize_filename(
+        str(source.get("filename") or (Path(raw).name if raw else ""))
+    )
+    if filename.lower().endswith(".dll"):
+        bundled = data_file("weirdutils", filename)
+        if bundled.is_file():
+            return bundled.resolve()
+    if not raw:
+        raise FileNotFoundError(f"Local mod source is missing a path. {LOCAL_BUILD_HINT}")
+    path = Path(raw)
+    if not path.is_absolute():
+        path = repo_root() / path
+    path = path.resolve()
+    if not path.is_file():
+        if getattr(sys, "frozen", False):
+            raise FileNotFoundError(
+                f"Bundled WeirdUtils DLL missing: {filename or raw}. Update IchaLaunch."
+            )
+        raise FileNotFoundError(f"Local WeirdUtils DLL missing: {raw}. {LOCAL_BUILD_HINT}")
+    return path
+
+
+def _local_source_override(source: dict[str, Any]) -> Path | None:
+    """Prefer a repo-local DLL when catalog ``local`` or WeirdUtils prebuilt exists."""
+    explicit = str(source.get("local") or source.get("path") or "").strip()
+    if explicit and source.get("type") != "local":
+        try:
+            return resolve_local_source_path({"path": explicit})
+        except FileNotFoundError:
+            pass
+    filename = sanitize_filename(
+        str(source.get("filename") or Path(str(source.get("url") or "")).name)
+    )
+    if not filename.lower().endswith(".dll"):
+        return None
+    from ichalaunch.core.paths import repo_root
+
+    candidate = repo_root() / "tools" / "_weirdutils" / "prebuilt" / filename
+    return candidate if candidate.is_file() else None
 
 
 def _mpq_dest_basename(dest_rel: str | Path) -> str:
@@ -297,7 +355,7 @@ def _install_copy(src: Path, dest: Path, game_path: Path | None = None) -> None:
             hint_paths: list[Path] = [dest]
             if game_path is not None:
                 hint_paths.append(game_path / "WoW.exe")
-            hint = file_in_use_hint(*hint_paths)
+            hint = file_in_use_hint(*hint_paths, game_path=game_path)
             log.warning(
                 "Replace blocked for %s (wow_running=%s): %s",
                 dest.name,
@@ -315,17 +373,31 @@ def _install_copy(src: Path, dest: Path, game_path: Path | None = None) -> None:
         return
     try:
         dest.parent.mkdir(parents=True, exist_ok=True)
-        if game_path is not None and dest.exists():
-            ensure_data_writable(dest, game_path)
-        shutil.copy2(src, dest)
-        if game_path is not None:
-            ensure_data_writable(dest, game_path)
+        if dest.exists():
+            # Always clear dest attributes — not only Data/*.mpq. GlueXML under
+            # Data/Interface/ is often READONLY+HIDDEN+SYSTEM; copy2-in-place
+            # then raises PermissionError and was reported as "file in use".
+            ensure_writable(dest)
+        replace_file(src, dest)
+        if dest.exists():
+            ensure_writable(dest)
     except OSError as exc:
-        if is_lock_or_av_error(exc):
-            hint = file_in_use_hint(dest)
+        sharing = is_sharing_violation(exc) or getattr(exc, "winerror", None) == 225
+        if sharing or is_lock_or_av_error(exc) or is_access_denied(exc):
+            hint = file_in_use_hint(dest, game_path=game_path)
+            running = wow_exe_running(game_path)
+            if sharing or running:
+                detail = (
+                    f"Could not replace {dest.name} — file in use by another process. {hint}"
+                )
+            else:
+                detail = (
+                    f"Could not replace {dest.name} — write was denied after clearing the "
+                    f"read-only attribute. {hint}"
+                )
             raise OSError(
                 getattr(exc, "errno", None) or 13,
-                f"Could not replace {dest.name} — file in use by another process. {hint}",
+                detail,
                 str(dest),
             ) from exc
         raise
@@ -348,12 +420,16 @@ def _data_path() -> Path:
     return data_file("mods.json")
 
 
-def load_mod_catalog() -> list[dict[str, Any]]:
+def load_mod_catalog(*, include_hidden: bool = False) -> list[dict[str, Any]]:
     catalog = json.loads(_data_path().read_text(encoding="utf-8"))
+    if not include_hidden:
+        catalog = [m for m in catalog if not m.get("hidden")]
     seen = {m["id"] for m in catalog if m.get("id")}
     for mod in settings.user_mods:
         mid = mod.get("id")
         if not mid or mid in seen:
+            continue
+        if not include_hidden and mod.get("hidden"):
             continue
         catalog.append(dict(mod))
         seen.add(mid)
@@ -675,6 +751,17 @@ def reconcile_exclusive_desired_mods(
                     continue
             winner = _pick_exclusive_detect_winner(a, b, out)
             out[b if winner == a else a] = False
+    changed = True
+    while changed:
+        changed = False
+        for mid, mod in catalog.items():
+            if not out.get(mid):
+                continue
+            for req in mod.get("requires") or []:
+                if req in catalog and not out.get(req):
+                    out[mid] = False
+                    changed = True
+                    break
     return out
 
 
@@ -763,7 +850,8 @@ def _collect_mod_dependents(
     seen.add(mod_id)
     ordered: list[str] = []
     for oid, mod in catalog.items():
-        if mod_id not in (mod.get("dependencies") or []):
+        parents = list(mod.get("dependencies") or []) + list(mod.get("requires") or [])
+        if mod_id not in parents:
             continue
         ordered.extend(_collect_mod_dependents(oid, catalog, seen))
         ordered.append(oid)
@@ -863,6 +951,9 @@ def resolve_mod_toggle(mod_id: str, enabled: bool) -> dict[str, bool]:
         changes[mid] = False
 
     if enabled:
+        for req in catalog[mod_id].get("requires") or []:
+            if req in catalog and not effective(req):
+                return {}
         enable_with_deps(mod_id)
         # Catalog includes that still need a standalone install (not HD-MPQ bundles).
         for mid in list(changes):
@@ -1868,6 +1959,7 @@ def plan_changes(desired: dict[str, bool] | None = None) -> list[dict[str, str]]
         mid
         for mid, want in desired.items()
         if want
+        and mid in catalog
         and (
             not _effective_mod_installed(mid, actual)
             or _mpq_exclusive_variant_needs_reinstall(mid, desired, catalog)
@@ -2170,6 +2262,14 @@ def _download_source(source: dict[str, Any], work: Path, progress: ProgressCb | 
     """
     stype = source.get("type")
     status_only(progress, f"Downloading ({stype})...")
+    if stype == "local":
+        status_only(progress, "Copying local DLL...")
+        src_path = resolve_local_source_path(source)
+        filename = sanitize_filename(str(source.get("filename") or src_path.name))
+        dest = work / filename
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src_path, dest)
+        return dest
     bytes_cb = download_bytes_cb(progress)
     timeout = int(source.get("timeout") or (300 if stype == "google_drive" else 120))
     if stype == "google_drive":
@@ -2186,6 +2286,13 @@ def _download_source(source: dict[str, Any], work: Path, progress: ProgressCb | 
         filename = sanitize_filename(
             source.get("filename") or url.split("/")[-1].split("?")[0]
         )
+        local = _local_source_override(source)
+        if local is not None:
+            status_only(progress, "Copying local DLL...")
+            dest = work / filename
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(local, dest)
+            return dest
         file_timeout: int | tuple[int, int] = timeout
         if not source.get("timeout") and filename.lower().endswith(".mpq"):
             # HD patches are multi-GB; allow slower links between read chunks.
@@ -2327,6 +2434,8 @@ def mod_version_label(
     source = mod.get("source") if isinstance(mod.get("source"), dict) else {}
     if not source:
         return ""
+    if str(source.get("type") or "") == "local":
+        return _displayable_mod_version(source.get("version"))
     pinned = _tag_from_release_url(str(source.get("url") or ""))
     label = _displayable_mod_version(pinned)
     if label:
@@ -2361,12 +2470,7 @@ def _branch_from_archive_url(url: str) -> str | None:
 
 def _head_identity(url: str) -> dict[str, str]:
     """ETag / Last-Modified fingerprint for a static download URL."""
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-        )
-    }
+    headers = _download_headers(url)
     r = requests.head(url, timeout=30, headers=headers, allow_redirects=True)
     if r.status_code >= 400:
         # Some hosts reject HEAD — fall back to a ranged GET
@@ -2575,6 +2679,18 @@ def _remote_identity(
                 "drive_id": file_id,
                 "url": url,
             }
+    if stype == "local":
+        try:
+            path = resolve_local_source_path(source)
+        except FileNotFoundError:
+            return None
+        stat = path.stat()
+        return {
+            "kind": "local",
+            "key": f"{stat.st_mtime_ns}:{stat.st_size}",
+            "display": str(source.get("version") or "local"),
+            "path": str(path),
+        }
     return None
 
 
@@ -2692,7 +2808,7 @@ def _record_mod_install(
     except Exception as exc:  # noqa: BLE001
         log.warning("Could not fingerprint mod %s: %s", mod_id, exc)
         remote = None
-    if pinned and source.get("type") == "github_release":
+    if pinned and source.get("type") in ("github_release", "raw", "raw_zip"):
         meta["version_key"] = pinned
         meta["version_display"] = pinned
         meta["version_kind"] = "release"
@@ -2949,8 +3065,8 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
     if not mod:
         raise KeyError(mod_id)
 
-    if _mod_requires_game_closed(mod) and wow_exe_running(game):
-        hint = file_in_use_hint(game / "WoW.exe", game / "VanillaFixes.exe")
+    if _mod_requires_game_closed(mod, game) and wow_exe_running(game):
+        hint = file_in_use_hint(game / "WoW.exe", game / "VanillaFixes.exe", game_path=game)
         log.warning("Refusing %s install — game process still running: %s", mod_id, hint)
         raise OSError(
             32,
@@ -3240,24 +3356,11 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 for f in glue_src.iterdir():
                     if f.is_file():
                         _install_copy(f, dest / f.name, game_path=game)
-                # apply glue signature skip patch (vanilla 1.12.1)
-                wow = wow_exe_in(game) or (game / "WoW.exe")
-                if wow.exists():
-                    if not (game / "WoW-OriginalBackup.exe").exists():
-                        _install_copy(wow, game / "WoW-OriginalBackup.exe", game_path=game)
-                    data = bytearray(wow.read_bytes())
-                    patches = {
-                        0x2F113A: 0xEB,
-                        0x2F113B: 0x19,
-                        0x2F1158: 0x03,
-                        0x2F11A7: 0x03,
-                        0x2F11F0: 0xEB,
-                        0x2F11F1: 0xB2,
-                    }
-                    if len(data) > max(patches):
-                        for off, val in patches.items():
-                            data[off] = val
-                        wow.write_bytes(data)
+                # Glue signature skip is a one-time WoW.exe write. Updates only
+                # replace AutoLogin.lua — rewriting the PE every time is what
+                # produced a false "game is running" lock when AV or a
+                # read-only bit blocked Path.write_bytes.
+                apply_glue_signature_skip(wow_exe_in(game) or (game / "WoW.exe"), game)
                 return _finish_mod_install(mod_id, mod, source)
 
             if kind == "dxvk_cursor":
@@ -3350,12 +3453,91 @@ def _mod_remove_targets_only_stock_mpq(mod: dict[str, Any]) -> bool:
 _DLL_PE_MIN_BYTES = 1024
 _SUPERWOW_DLL_MIN_BYTES = 200_000
 
+# Vanilla 1.12.1 GlueXML signature skip (Vanilla Auto Login). Offsets are
+# absolute in WoW.exe; a client shorter than the last offset is left alone.
+_GLUE_SIGNATURE_SKIP = {
+    0x2F113A: 0xEB,
+    0x2F113B: 0x19,
+    0x2F1158: 0x03,
+    0x2F11A7: 0x03,
+    0x2F11F0: 0xEB,
+    0x2F11F1: 0xB2,
+}
 
-def _mod_requires_game_closed(mod: dict[str, Any]) -> bool:
-    """True when install must replace PE files that WoW/VanillaFixes typically lock."""
+
+def glue_signature_skip_applied(data: bytes | bytearray) -> bool:
+    """True when *data* already has the Vanilla Auto Login glue skip bytes."""
+    if len(data) <= max(_GLUE_SIGNATURE_SKIP):
+        return False
+    return all(data[off] == val for off, val in _GLUE_SIGNATURE_SKIP.items())
+
+
+def _glue_signature_skip_needed(wow: Path) -> bool:
+    """True when *wow* exists, is large enough, and is not yet patched."""
+    if not wow.is_file():
+        return False
+    try:
+        size = wow.stat().st_size
+    except OSError:
+        return False
+    if size <= max(_GLUE_SIGNATURE_SKIP):
+        return False
+    try:
+        with wow.open("rb") as handle:
+            for off, val in _GLUE_SIGNATURE_SKIP.items():
+                handle.seek(off)
+                got = handle.read(1)
+                if len(got) != 1 or got[0] != val:
+                    return True
+        return False
+    except OSError:
+        return False
+
+
+def apply_glue_signature_skip(wow: Path, game: Path) -> bool:
+    """Patch WoW.exe glue signature checks. Returns True if bytes were written.
+
+    Already-patched clients are left untouched so an Auto Login *update* only
+    copies GlueXML lua — it must not rewrite the live PE (AV / read-only /
+    exclusive probes then surface as "file in use / game is running").
+    """
+    if not wow.is_file() or not _glue_signature_skip_needed(wow):
+        return False
+    backup = game / "WoW-OriginalBackup.exe"
+    if not backup.exists():
+        _install_copy(wow, backup, game_path=game)
+    data = bytearray(wow.read_bytes())
+    if glue_signature_skip_applied(data) or len(data) <= max(_GLUE_SIGNATURE_SKIP):
+        return False
+    for off, val in _GLUE_SIGNATURE_SKIP.items():
+        data[off] = val
+    ensure_writable(wow)
+    staged = wow.with_name(f".{wow.name}.__glue")
+    try:
+        staged.write_bytes(data)
+        # .exe dest uses copy_file_tolerant + file_in_use_hint (not raw write_bytes).
+        _install_copy(staged, wow, game_path=game)
+    finally:
+        try:
+            staged.unlink(missing_ok=True)
+        except OSError:
+            pass
+    return True
+
+
+def _mod_requires_game_closed(mod: dict[str, Any], game: Path | None = None) -> bool:
+    """True when install must replace PE files that WoW/VanillaFixes typically lock.
+
+    ``glue_autologin`` only writes WoW.exe when the one-time signature skip is
+    still missing. Later lua-only updates do not need the client closed.
+    """
     kind = str(mod.get("kind") or "")
     if kind in {"dll_file", "dll_bundle", "dxvk_cursor", "dxvk_hd", "exe_patch", "zip_root"}:
         return True
+    if kind == "glue_autologin":
+        if game is None:
+            return False
+        return _glue_signature_skip_needed(wow_exe_in(game) or (game / "WoW.exe"))
     if (mod.get("dlls_txt") or {}).get("add"):
         return True
     for rel in _mod_owned_paths(mod):

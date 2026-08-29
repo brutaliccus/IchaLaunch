@@ -1418,14 +1418,38 @@ def apply_open_git_visibility(
     setattr(owner, "_git_url_deferred", text)
 
 
+def codeberg_repo_browse_url(*candidates: Any) -> str | None:
+    """Best-effort https://codeberg.org/owner/repo from catalog/meta fields."""
+    for raw in candidates:
+        if not raw:
+            continue
+        text = str(raw).strip()
+        if not text:
+            continue
+        try:
+            parsed = urlparse(text)
+        except Exception:  # noqa: BLE001
+            continue
+        host = (parsed.hostname or "").lower()
+        if host not in {"codeberg.org", "www.codeberg.org"}:
+            continue
+        parts = [p for p in parsed.path.strip("/").split("/") if p]
+        if len(parts) >= 2:
+            return f"https://codeberg.org/{parts[0]}/{parts[1]}"
+    return None
+
+
 def git_repo_browse_url(*candidates: Any) -> str | None:
-    """Best-effort GitHub or GitLab.com browse URL from catalog/meta fields.
+    """Best-effort GitHub, GitLab.com, or Codeberg browse URL from catalog fields.
 
     GitLab URLs stay on gitlab.com — they are never rewritten as GitHub.
     Bare ``owner/repo`` tokens still resolve as GitHub (existing convention).
     """
     from ichalaunch.addons.gitlab import gitlab_browse_url, parse_gitlab_url
 
+    found = codeberg_repo_browse_url(*candidates)
+    if found:
+        return found
     for raw in candidates:
         if not raw:
             continue
@@ -1482,9 +1506,10 @@ def mod_git_url(mod: dict[str, Any] | None) -> str | None:
     if str(mod.get("category") or "") == "HD Graphics":
         return None
     src = mod.get("source") if isinstance(mod.get("source"), dict) else {}
-    found = github_repo_browse_url(
+    found = git_repo_browse_url(
         mod.get("repo_url"),
         mod.get("repo"),
+        mod.get("info_url"),
         mod.get("github"),
         mod.get("url"),
         mod.get("repository"),
@@ -2177,6 +2202,7 @@ class ModCheckRow(QWidget):
         self._editing_locked = False
         self._feature_locked = False
         self._feature_lock_tip = ""
+        self._nested = False
         self._update_detail = ""
         self.setObjectName("ModCheckRow")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -2365,6 +2391,12 @@ class ModCheckRow(QWidget):
         """Grey out the checkbox while WoW.exe / VanillaFixes.exe is running."""
         self._editing_locked = bool(locked)
         self._sync_editing_lock()
+
+    def set_nested(self, nested: bool) -> None:
+        """Indent this row as a child option under the previous catalog row."""
+        self._nested = bool(nested)
+        extra = 22 if self._nested else 0
+        self.layout().setContentsMargins(8 + extra, 6, 8, 6)
 
     def set_feature_locked(self, locked: bool, tip: str = "") -> None:
         """Grey the checkbox for a feature-level lock (does not disable Apply actions)."""

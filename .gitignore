@@ -40,6 +40,11 @@ credentials.json
 # Update-signing private keys (key ceremony). Never commit these.
 tools/_signing_keys/
 
+# WeirdUtils clone, release DLLs, and locally compiled variants.
+# Packed into IchaLaunch.exe at build time — do not commit the binaries.
+tools/_weirdutils/
+ichalaunch/data/weirdutils/
+
 # Local scratch
 _wiki_addons.wikitext
 *.log
@@ -56,4 +61,7 @@ IchaLaunch.exe
 # Official client MPQs are hosted as a GitHub release, not git blobs.
 ichalaunch/data/*.mpq
 /data/*.mpq
+
+# HOME gallery JPEGs are downloaded from ravencraft.io, not packed in the exe.
+ichalaunch/ui/theme/official_artworks/
 

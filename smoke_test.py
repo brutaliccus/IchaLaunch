@@ -16,10 +16,96 @@ sys.path.insert(0, str(ROOT))
 # Importing ichalaunch installs the opt-in crash hook. Never POST test
 # AssertionErrors / simulated worker failures to the sticky #58 issue.
 os.environ.setdefault("ICHALAUNCH_NO_CRASH_REPORT", "1")
+# MainWindow must not open a TCP socket to logon.ravencraft.io during tests.
+os.environ.setdefault("ICHALAUNCH_NO_REALM_PING", "1")
+
+# Isolate AppData before any ichalaunch import. Settings() loads/saves at
+# import time; a crash or missed finally used to wipe the live file.
+_APPDATA_OVERRIDE_ENV = "ICHALAUNCH_APPDATA"
+_TEST_APPDATA_DIR: tempfile.TemporaryDirectory[str] | None = None
+
+
+def _live_ichalaunch_appdata_root() -> Path:
+    """Real user AppData tree. Do not mkdir, read, or write this from tests."""
+    if sys.platform == "win32":
+        local = (os.environ.get("LOCALAPPDATA") or "").strip()
+        if local:
+            return Path(local) / "IchaLaunch"
+        return Path.home() / "AppData" / "Local" / "IchaLaunch"
+    xdg = (os.environ.get("XDG_CONFIG_HOME") or "").strip()
+    base = Path(xdg) if xdg else Path.home() / ".config"
+    return base / "IchaLaunch"
+
+
+def _isolate_test_appdata() -> Path:
+    """Redirect AppData to a temp dir. Safe to call if already redirected."""
+    global _TEST_APPDATA_DIR
+    existing = (os.environ.get(_APPDATA_OVERRIDE_ENV) or "").strip()
+    if existing:
+        root = Path(existing)
+        root.mkdir(parents=True, exist_ok=True)
+        return root
+    _TEST_APPDATA_DIR = tempfile.TemporaryDirectory(
+        prefix="ichalaunch-test-appdata-",
+        ignore_cleanup_errors=True,
+    )
+    root = Path(_TEST_APPDATA_DIR.name)
+    os.environ[_APPDATA_OVERRIDE_ENV] = str(root)
+    return root
+
+
+def _rebind_settings_if_already_imported() -> None:
+    """Drop live in-memory settings if Settings() was constructed too early."""
+    mod = sys.modules.get("ichalaunch.config.settings")
+    if mod is None:
+        return
+    s = getattr(mod, "settings", None)
+    if s is None:
+        return
+    try:
+        current = mod.settings_path().resolve()
+        current.relative_to(_live_ichalaunch_appdata_root().resolve())
+    except ValueError:
+        pass
+    except OSError:
+        pass
+    else:
+        # Still the live tree — do not reset (that would wipe the user file).
+        return
+    with s.allow_empty_paths():
+        s._data = json.loads(json.dumps(mod.DEFAULTS))
+    gh = sys.modules.get("ichalaunch.addons.github")
+    if gh is not None and hasattr(gh, "_URL_REACH_DISK_PATH"):
+        gh._URL_REACH_DISK_PATH = mod.appdata_root() / "git_url_reach_cache.json"
+
+
+_TEST_APPDATA_ROOT = _isolate_test_appdata()
+_rebind_settings_if_already_imported()
 
 from ichalaunch.addons.github import load_catalog, parse_github_url
 from ichalaunch.core.filesystem import is_protected_path, update_dlls_txt, write_dlls_txt, read_dlls_txt
 from ichalaunch.mods.installer import load_mod_catalog, detect_actual_state
+
+_rebind_settings_if_already_imported()
+
+
+def test_smoke_settings_isolated_from_live_appdata():
+    """settings_path during smoke tests must not be the live AppData file."""
+    from ichalaunch.config.settings import APPDATA_OVERRIDE_ENV, settings_path
+
+    assert APPDATA_OVERRIDE_ENV == _APPDATA_OVERRIDE_ENV
+    live = _live_ichalaunch_appdata_root().resolve()
+    path = settings_path().resolve()
+    try:
+        path.relative_to(live)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError(f"settings_path {path} is under live AppData {live}")
+    override = (os.environ.get(APPDATA_OVERRIDE_ENV) or "").strip()
+    assert override, f"{APPDATA_OVERRIDE_ENV} must be set for smoke tests"
+    assert path == (Path(override) / "settings.json").resolve()
+    print("OK smoke settings isolated from live AppData")
 
 
 def test_catalogs():
@@ -1350,11 +1436,15 @@ def test_stock_patch9_reacquire_detect():
 
 
 def test_stock_patch9_prompt_requires_wow_exe():
-    """No WoW.exe in the selected folder → no patch-9 reacquire prompt."""
+    """No WoW.exe in the configured folder → no patch-9 reacquire prompt."""
+    import inspect
+
     from ichalaunch.mods.stock_patch import (
         inspect_stock_patch9,
         should_offer_stock_patch9_reacquire,
     )
+    from ichalaunch.ui.main_window import MainWindow
+    from ichalaunch.ui.pages.client import ClientPage
 
     assert inspect_stock_patch9(None).state == "no_game"
     assert not should_offer_stock_patch9_reacquire(inspect_stock_patch9(None))
@@ -1373,7 +1463,64 @@ def test_stock_patch9_prompt_requires_wow_exe():
         missing_patch = inspect_stock_patch9(folder)
         assert missing_patch.state == "missing"
         assert should_offer_stock_patch9_reacquire(missing_patch)
+
+    prompt_src = inspect.getsource(MainWindow._maybe_prompt_stock_patch9)
+    banner_src = inspect.getsource(ClientPage._refresh_patch9_banner)
+    assert "detect_game" not in prompt_src
+    assert "discover_game_path_near_launcher" not in prompt_src
+    assert "configured_game_for_stock_patch9" in prompt_src
+    assert "detect_game" not in banner_src
+    assert "discover_game_path_near_launcher" not in banner_src
+    assert "configured_game_for_stock_patch9" in banner_src
     print("OK stock patch-9 prompt requires WoW.exe")
+
+
+def test_stock_patch9_prompt_ignores_nested_ravencraft():
+    """Parent folder without WoW.exe must not offer, even if RavenCraft/ has it."""
+    from ichalaunch.config import settings as settings_mod
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.game.launcher import detect_game
+    from ichalaunch.mods.stock_patch import (
+        configured_game_for_stock_patch9,
+        inspect_stock_patch9,
+        should_offer_stock_patch9_reacquire,
+    )
+
+    saved_game = s._data.get("game_path")
+    saved_addons = s._data.get("addons_path")
+    orig_path = settings_mod.settings_path
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            fake = Path(td) / "settings.json"
+            settings_mod.settings_path = lambda: fake
+            parent = Path(td) / "Games"
+            rc = parent / "RavenCraft"
+            rc.mkdir(parents=True)
+            (rc / "WoW.exe").write_bytes(b"MZ")
+            (rc / "Data").mkdir()
+
+            nested = inspect_stock_patch9(parent)
+            assert nested.state == "no_game"
+            assert not should_offer_stock_patch9_reacquire(nested)
+
+            s.set("game_path", str(parent))
+            assert configured_game_for_stock_patch9() is None
+            # Launch/install still walk into RavenCraft — prompt/banner must not.
+            assert detect_game().resolve() == rc.resolve()
+
+            with s.allow_empty_paths():
+                s.set("game_path", "")
+            assert configured_game_for_stock_patch9() is None
+
+            s.set("game_path", str(rc))
+            got = configured_game_for_stock_patch9()
+            assert got is not None and got.resolve() == rc.resolve()
+            assert should_offer_stock_patch9_reacquire(inspect_stock_patch9(rc))
+    finally:
+        settings_mod.settings_path = orig_path
+        s._data["game_path"] = saved_game
+        s._data["addons_path"] = saved_addons
+    print("OK stock patch-9 prompt ignores nested RavenCraft")
 
 
 def test_config_wtf_farclip_clamp():
@@ -1600,6 +1747,220 @@ def test_mod_toggle_resolution():
         for k in keys:
             s.set(k, saved[k])
     print("OK mod toggle deps/conflicts")
+
+
+_WU_IDS = (
+    "wu_worldmarkers",
+    "wu_outline",
+    "wu_pngscreenshots",
+    "wu_transmogfix",
+    "wu_customassets",
+    "wu_minimapicons",
+    "wu_logsessions",
+    "wu_dpslog",
+    "wu_weirdperformance",
+)
+_WU_HIDDEN_IDS = ("wu_interact", "wu_clickthrough", "wu_framecrash")
+_WU_LOCAL_IDS = ("wu_outline", "wu_dpslog")
+
+
+def test_weirdutils_advanced_catalog():
+    """Advanced tab rows: detect, dlls.txt, Codeberg git link, local vs release sources."""
+    from ichalaunch.mods.client_presets import preset_managed_mod_ids
+    from ichalaunch.mods.installer import load_mod_catalog, mod_version_label
+    from ichalaunch.ui.widgets.common import mod_git_url
+
+    catalog = {m["id"]: m for m in load_mod_catalog() if m.get("id")}
+    raw = {m["id"]: m for m in load_mod_catalog(include_hidden=True) if m.get("id")}
+    managed = preset_managed_mod_ids()
+    for mid in _WU_HIDDEN_IDS:
+        assert mid not in catalog, mid
+        hidden = raw[mid]
+        assert hidden.get("hidden") is True, mid
+        assert hidden.get("category") == "Advanced", mid
+    for mid in _WU_IDS:
+        mod = catalog[mid]
+        assert mod.get("category") == "Advanced", mid
+        assert mid not in managed, mid
+        detect = (mod.get("detect") or {}).get("any_files") or []
+        assert detect, mid
+        dlls = (mod.get("dlls_txt") or {}).get("add") or []
+        assert dlls, mid
+        assert dlls[0].lower().endswith(".dll"), mid
+        assert mod.get("kind") == "dll_file", mid
+        assert mod.get("author") == "MarcelineVQ", mid
+        assert mod_git_url(mod) == "https://codeberg.org/MarcelineVQ/WeirdUtils", mid
+        src = mod.get("source") or {}
+        if mid in _WU_LOCAL_IDS:
+            assert src.get("type") == "local", mid
+            assert str(src.get("path") or "").startswith("tools/_weirdutils/out/"), mid
+            assert mod_version_label(mod), mid
+        else:
+            assert src.get("type") == "raw", mid
+            assert "/releases/download/" in str(src.get("url") or ""), mid
+    heal = catalog["wu_healtextfix"]
+    assert heal.get("category") == "Client Enhancements"
+    assert heal.get("nest_under") == "superwow"
+    assert heal.get("requires") == ["superwow"]
+    assert "wu_healtextfix" not in _WU_IDS
+    for dropped in ("wu_all", "wu_noperf", "wu_bigcursor"):
+        assert dropped not in catalog
+    assert "wu_bigcursor" not in (catalog["dxvk_big_cursor"].get("conflicts") or [])
+    print("OK weirdutils advanced catalog")
+
+
+def test_weirdutils_local_source():
+    """type=local copies a real file and explains how to build when missing."""
+    from ichalaunch.mods.installer import (
+        LOCAL_BUILD_HINT,
+        _download_source,
+        _remote_identity,
+        resolve_local_source_path,
+    )
+
+    missing = {"type": "local", "path": "tools/_weirdutils/out/_missing_smoke.dll"}
+    try:
+        resolve_local_source_path(missing)
+        raise AssertionError("expected FileNotFoundError")
+    except FileNotFoundError as exc:
+        assert LOCAL_BUILD_HINT in str(exc)
+    assert _remote_identity(missing) is None
+
+    with tempfile.TemporaryDirectory() as tmp:
+        src = Path(tmp) / "outline.dll"
+        src.write_bytes(b"MZ" + b"\0" * 32)
+        source = {"type": "local", "path": str(src), "filename": "outline.dll", "version": "1.0"}
+        assert resolve_local_source_path(source) == src.resolve()
+        ident = _remote_identity(source)
+        assert ident and ident.get("kind") == "local"
+        assert ident.get("display") == "1.0"
+        work = Path(tmp) / "work"
+        work.mkdir()
+        copied = _download_source(source, work, None)
+        assert copied.is_file()
+        assert copied.read_bytes() == src.read_bytes()
+    print("OK weirdutils local source")
+
+
+def test_weirdutils_bundled_into_exe():
+    """Frozen Apply reads exe-packed copies; git never stores the DLLs."""
+    from ichalaunch.core import paths as paths_mod
+    from ichalaunch.mods.installer import resolve_local_source_path
+
+    spec = (ROOT / "IchaLaunch.spec").read_text(encoding="utf-8")
+    assert "ichalaunch/data/weirdutils" in spec
+    assert 'name != "official_artworks"' in spec
+    for name in ("outline.dll", "interact.dll", "framecrash.dll", "dpslog.dll"):
+        assert name in spec
+    gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
+    assert "tools/_weirdutils/" in gitignore
+    assert "ichalaunch/data/weirdutils/" in gitignore
+
+    with tempfile.TemporaryDirectory() as tmp:
+        bundled = Path(tmp) / "data" / "weirdutils" / "outline.dll"
+        bundled.parent.mkdir(parents=True)
+        bundled.write_bytes(b"MZ" + b"\0" * 32)
+        original = paths_mod.data_file
+
+        def fake_data_file(*parts: str) -> Path:
+            if parts and parts[0] == "weirdutils":
+                return Path(tmp) / "data" / Path(*parts)
+            return original(*parts)
+
+        paths_mod.data_file = fake_data_file
+        try:
+            source = {
+                "type": "local",
+                "path": "tools/_weirdutils/out/outline.dll",
+                "filename": "outline.dll",
+            }
+            assert resolve_local_source_path(source) == bundled.resolve()
+        finally:
+            paths_mod.data_file = original
+    print("OK weirdutils bundled into exe")
+
+
+def test_codeberg_download_headers_and_prebuilt_override():
+    """Codeberg rejects Chrome UA; local WeirdUtils prebuilts skip the network."""
+    from ichalaunch.core.process import _CODEBERG_UA, _download_headers
+    from ichalaunch.mods.installer import _download_source, _local_source_override
+
+    gh = _download_headers("https://github.com/balakethelock/SuperWoW/releases/latest")
+    assert "Mozilla" in gh["User-Agent"]
+    cb = _download_headers(
+        "https://codeberg.org/MarcelineVQ/WeirdUtils/releases/download/v0.7.0/healtextfix.dll"
+    )
+    assert cb["User-Agent"] == _CODEBERG_UA
+    prebuilt = _local_source_override(
+        {
+            "type": "raw",
+            "url": "https://codeberg.org/MarcelineVQ/WeirdUtils/releases/download/v0.7.0/healtextfix.dll",
+            "filename": "healtextfix.dll",
+        }
+    )
+    if prebuilt is not None:
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            copied = _download_source(
+                {
+                    "type": "raw",
+                    "url": "https://example.invalid/healtextfix.dll",
+                    "filename": "healtextfix.dll",
+                },
+                work,
+                None,
+            )
+            assert copied.is_file()
+            assert copied.read_bytes()[:2] == b"MZ"
+    print("OK codeberg download headers and prebuilt override")
+
+
+def test_weirdutils_combo_conflicts_and_presets():
+    """Individuals can mix; healtextfix needs SuperWoW; presets leave Advanced alone."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.mods.client_presets import PRESET_BASIC, PRESET_NONE, apply_client_preset
+    from ichalaunch.mods.installer import apply_mod_toggle, resolve_mod_toggle
+
+    keys = (
+        "desired_mods",
+        "user_set_mods",
+        "client_preset",
+        "client_preset_hd_ultra",
+    )
+    saved = {k: s.get(k) for k in keys}
+    try:
+        s.set("desired_mods", {"wu_worldmarkers": True})
+        s.set("user_set_mods", [])
+        on_perf = resolve_mod_toggle("wu_weirdperformance", True)
+        assert on_perf.get("wu_weirdperformance") is True
+        assert "wu_worldmarkers" not in on_perf
+
+        s.set("desired_mods", {})
+        apply_mod_toggle("wu_healtextfix", True)
+        assert not s.desired_mods.get("wu_healtextfix")
+        assert not s.desired_mods.get("superwow")
+
+        s.set("desired_mods", {"superwow": True})
+        apply_mod_toggle("wu_healtextfix", True)
+        assert s.desired_mods.get("wu_healtextfix")
+        apply_mod_toggle("superwow", False)
+        assert not s.desired_mods.get("wu_healtextfix")
+        assert not s.desired_mods.get("superwow")
+
+        s.set("desired_mods", {"wu_worldmarkers": True, "wu_outline": True})
+        s.set("user_set_mods", [])
+        apply_client_preset(PRESET_BASIC)
+        assert s.desired_mods.get("wu_worldmarkers") is True
+        assert s.desired_mods.get("wu_outline") is True
+
+        s.set("desired_mods", {"superwow": True, "wu_healtextfix": True})
+        apply_client_preset(PRESET_NONE)
+        assert not s.desired_mods.get("superwow")
+        assert not s.desired_mods.get("wu_healtextfix")
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+    print("OK weirdutils combo conflicts and presets")
 
 
 def test_client_preset_catalog_ids():
@@ -6215,6 +6576,12 @@ def test_home_art_featured_field_parse():
     assert zaeya["nudge_y"] == -5
     assert zaeya["shrink_w"] == 10
     assert zaeya["image"] == "zaeya_first_60.jpg"
+    assert "raw.githubusercontent.com/brutaliccus/IchaLaunch/" in zaeya["url"]
+    gallery = [s for s in bundled["slides"] if s["id"] != "zaeya_first_60"]
+    assert gallery, "official artworks must stay in the manifest"
+    for slide in gallery:
+        url = str(slide.get("url") or "")
+        assert url.startswith("https://ravencraft.io/build/assets/"), slide["id"]
     print("OK home art featured field parse")
 
 
@@ -8141,7 +8508,22 @@ def test_install_clears_readonly_data_mpqs():
         glue_dest.write_text("-- old", encoding="utf-8")
         os.chmod(glue_dest, stat.S_IREAD)
         _install_copy(glue_src, glue_dest, game_path=game)
+        assert glue_dest.read_text(encoding="utf-8") == "-- lua"
         assert glue_dest.stat().st_mode & stat.S_IWRITE
+
+        xml_src = glue / "AutoLogin-src.xml"
+        xml_dest = glue / "AutoLogin.xml"
+        xml_src.write_text("<ui>new</ui>", encoding="utf-8")
+        xml_dest.write_text("<ui>old</ui>", encoding="utf-8")
+        os.chmod(xml_dest, stat.S_IREAD)
+        if sys.platform == "win32":
+            import ctypes
+
+            # HIDDEN/SYSTEM dest blocks shutil.copy2 even after chmod S_IWRITE.
+            ctypes.windll.kernel32.SetFileAttributesW(str(xml_dest), 0x7)
+        _install_copy(xml_src, xml_dest, game_path=game)
+        assert xml_dest.read_text(encoding="utf-8") == "<ui>new</ui>"
+        assert xml_dest.stat().st_mode & stat.S_IWRITE
 
         src_dll = game / "nampower-src.dll"
         dest_dll = game / "nampower.dll"
@@ -8178,6 +8560,98 @@ def test_install_clears_readonly_data_mpqs():
 
         ensure_data_writable(game / "missing-file.bin", game)  # must not raise
     print("OK install clears readonly Data files only")
+
+
+def test_glue_autologin_skips_already_patched_wow_exe():
+    """Vanilla Auto Login update must not rewrite WoW.exe once the glue skip is on.
+
+    The old path always Path.write_bytes'd the live PE. A read-only bit or an
+    AV scan after that full-file read was then reported as "game still running".
+    """
+    import os
+    import stat
+
+    from ichalaunch.mods.installer import (
+        _GLUE_SIGNATURE_SKIP,
+        _glue_signature_skip_needed,
+        _mod_requires_game_closed,
+        apply_glue_signature_skip,
+        get_mod,
+        glue_signature_skip_applied,
+    )
+
+    mod = get_mod("auto_login")
+    assert mod and mod.get("kind") == "glue_autologin"
+    assert _mod_requires_game_closed(mod) is False
+    assert _mod_requires_game_closed({"kind": "zip_root"}) is True
+
+    size = max(_GLUE_SIGNATURE_SKIP) + 8
+    with tempfile.TemporaryDirectory() as td:
+        game = Path(td)
+        wow = game / "WoW.exe"
+        blob = bytearray(b"\x00" * size)
+        wow.write_bytes(blob)
+        assert _mod_requires_game_closed(mod, game) is True
+        assert _glue_signature_skip_needed(wow) is True
+
+        assert apply_glue_signature_skip(wow, game) is True
+        patched = wow.read_bytes()
+        assert glue_signature_skip_applied(patched)
+        assert (game / "WoW-OriginalBackup.exe").is_file()
+        assert _mod_requires_game_closed(mod, game) is False
+        mtime = wow.stat().st_mtime_ns
+        assert apply_glue_signature_skip(wow, game) is False
+        assert wow.stat().st_mtime_ns == mtime
+        assert wow.read_bytes() == patched
+
+        os.chmod(wow, stat.S_IREAD)
+        assert apply_glue_signature_skip(wow, game) is False
+        os.chmod(wow, stat.S_IREAD | stat.S_IWRITE)
+
+        wow.write_bytes(blob)
+        os.chmod(wow, stat.S_IREAD)
+        assert apply_glue_signature_skip(wow, game) is True
+        assert glue_signature_skip_applied(wow.read_bytes())
+        assert wow.stat().st_mode & stat.S_IWRITE
+    print("OK glue autologin skips already-patched WoW.exe")
+
+
+def test_file_in_use_hint_omits_end_task_when_game_not_running():
+    """Lock copy must name the file + AV/Explorer when WoW.exe is not running."""
+    from unittest.mock import patch
+
+    from ichalaunch.core.filesystem import is_sharing_violation
+    from ichalaunch.core.process import file_in_use_hint
+
+    ro = PermissionError(13, "Permission denied")
+    assert not is_sharing_violation(ro)
+    share = PermissionError(13, "used by another process")
+    share.winerror = 32  # type: ignore[attr-defined]
+    assert is_sharing_violation(share)
+    denied = OSError(13, "Access is denied")
+    denied.winerror = 5  # type: ignore[attr-defined]
+    assert not is_sharing_violation(denied)
+
+    xml = Path("Data") / "Interface" / "GlueXML" / "AutoLogin.xml"
+    with (
+        patch("ichalaunch.core.process.wow_exe_running", return_value=False),
+        patch("ichalaunch.core.process.processes_locking_paths", return_value=[]),
+    ):
+        hint = file_in_use_hint(xml, game_path=Path("."))
+        assert "AutoLogin.xml" in hint
+        assert "explorer" in hint.lower() or "antivirus" in hint.lower()
+        assert "end task" not in hint.lower()
+        assert "task manager" not in hint.lower()
+    with (
+        patch("ichalaunch.core.process.wow_exe_running", return_value=True),
+        patch("ichalaunch.core.process.processes_locking_paths", return_value=[]),
+    ):
+        running = file_in_use_hint(xml, game_path=Path("."))
+        assert "WoW.exe" in running
+        if sys.platform == "win32":
+            assert "task manager" in running.lower()
+            assert "end task" in running.lower()
+    print("OK file_in_use_hint omits End task when game is not running")
 
 
 def test_vanillafixes_zip_in_memory():
@@ -9026,10 +9500,13 @@ def test_linux_appdata_uses_xdg_and_migrates():
         real_platform = settings_mod.sys.platform
         real_home = settings_mod._user_home
         real_env = os.environ.get("XDG_CONFIG_HOME")
+        override_env = settings_mod.APPDATA_OVERRIDE_ENV
+        real_override = os.environ.get(override_env)
         try:
             settings_mod.sys.platform = "linux"
             settings_mod._user_home = lambda: home
             os.environ.pop("XDG_CONFIG_HOME", None)
+            os.environ.pop(override_env, None)
             root = settings_mod.appdata_root()
             assert root == xdg
             text = (xdg / "settings.json").read_text(encoding="utf-8")
@@ -9042,6 +9519,10 @@ def test_linux_appdata_uses_xdg_and_migrates():
                 os.environ.pop("XDG_CONFIG_HOME", None)
             else:
                 os.environ["XDG_CONFIG_HOME"] = real_env
+            if real_override is None:
+                os.environ.pop(override_env, None)
+            else:
+                os.environ[override_env] = real_override
     print("OK linux appdata uses XDG and migrates the newer tree")
 
 
@@ -11251,7 +11732,10 @@ def test_superwow_issue_detection():
 
     from ichalaunch.config.settings import settings as s
     from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.client_mod_hints import dll_security_exclusion_message
     from ichalaunch.mods.superwow_support import (
+        SUPERWOW_TROUBLESHOOT_BODY,
+        SUPERWOW_TROUBLESHOOT_TITLE,
         SuperWoWTrigger,
         detect_superwow_issues,
         maybe_show_superwow_troubleshoot,
@@ -11265,6 +11749,9 @@ def test_superwow_issue_detection():
     assert "_maybe_superwow_client_drift" not in client_src
     assert "ENABLE_BAD_DLL" not in SuperWoWTrigger.__members__
     assert "CLIENT_DRIFT" not in SuperWoWTrigger.__members__
+    assert "talent" not in SUPERWOW_TROUBLESHOOT_TITLE.lower()
+    assert "talent" not in SUPERWOW_TROUBLESHOOT_BODY.lower()
+    assert "talent" not in dll_security_exclusion_message("C:\\Games\\WoW").lower()
 
     keys = ("desired_mods", "game_path", "addons_path")
     saved = {k: s.get(k) for k in keys}
@@ -11800,7 +12287,417 @@ def test_loading_bar_reserves_update_button_slot():
     bar.reserve_trailing(0)
     assert bar.minimumWidth() == 320
     assert bar.maximumWidth() == 880
+    # Ping is overlaid right of PLAY — only UPDATE grows the cluster leftward.
+    bar.reserve_trailing(56 + 8)
+    assert bar.minimumWidth() == 220
+    assert bar.maximumWidth() == 880 - 64
     print("OK loading bar reserves update button slot")
+
+
+def test_realm_ping_quality_bands_and_tooltip():
+    """Green / yellow / red from RTT; grey + Offline when the logon port is down."""
+    from ichalaunch.game.realm_status import (
+        GREEN_MAX_MS,
+        LOGON_HOST,
+        LOGON_PORT,
+        YELLOW_MAX_MS,
+        RealmProbe,
+        logon_host,
+        quality_for,
+        realm_ping_disabled,
+        tooltip_for,
+    )
+
+    assert realm_ping_disabled() is True
+    assert logon_host() == "logon.ravencraft.io"
+    assert LOGON_HOST == "logon.ravencraft.io"
+    assert LOGON_PORT == 3724
+    assert quality_for(80) == "green"
+    assert quality_for(GREEN_MAX_MS - 1) == "green"
+    assert quality_for(GREEN_MAX_MS) == "yellow"
+    assert quality_for(YELLOW_MAX_MS - 1) == "yellow"
+    assert quality_for(YELLOW_MAX_MS) == "red"
+    assert quality_for(None, online=False) == "grey"
+    assert tooltip_for(None, checking=True) == "Checking…"
+    online = RealmProbe(
+        online=True,
+        latency_ms=132,
+        quality="green",
+        host=LOGON_HOST,
+        port=LOGON_PORT,
+    )
+    assert tooltip_for(online) == "132 ms"
+    offline = RealmProbe(
+        online=False,
+        latency_ms=None,
+        quality="grey",
+        host=LOGON_HOST,
+        port=LOGON_PORT,
+    )
+    assert tooltip_for(offline) == "Offline"
+    print("OK realm ping quality bands and tooltip")
+
+
+def test_realm_ping_probe_times_tcp_connect():
+    """Probe measures a TCP connect, not ICMP, and stays grey on timeout."""
+    import socket
+    import time
+    from unittest.mock import patch
+
+    from ichalaunch.game.realm_status import probe_logon
+
+    class _OkSock:
+        def settimeout(self, _t):
+            return None
+
+        def connect(self, _addr):
+            time.sleep(0.01)
+
+        def close(self):
+            return None
+
+    class _DownSock(_OkSock):
+        def connect(self, _addr):
+            raise TimeoutError("timed out")
+
+    addrinfo = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("1.2.3.4", 3724))]
+    with (
+        patch("ichalaunch.game.realm_status.socket.getaddrinfo", return_value=addrinfo),
+        patch("ichalaunch.game.realm_status.socket.socket", return_value=_OkSock()),
+    ):
+        result = probe_logon(host="logon.example", timeout=1.0)
+    assert result.online is True
+    assert result.latency_ms is not None and result.latency_ms >= 1
+    assert result.quality in ("green", "yellow", "red")
+    assert result.host == "logon.example"
+    assert result.port == 3724
+
+    with (
+        patch("ichalaunch.game.realm_status.socket.getaddrinfo", return_value=addrinfo),
+        patch("ichalaunch.game.realm_status.socket.socket", return_value=_DownSock()),
+    ):
+        down = probe_logon(host="logon.example", timeout=0.2)
+    assert down.online is False
+    assert down.latency_ms is None
+    assert down.quality == "grey"
+    print("OK realm ping probe times TCP connect")
+
+
+def test_realm_ping_dot_sits_beside_play_without_overlap():
+    """Ping sits right of PLAY; overlay must not shift PLAY or overlap the rail."""
+    from PySide6.QtCore import QPoint, QRect, Qt
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.game.realm_status import RealmProbe
+    from ichalaunch.ui.main_window import MainWindow
+    from ichalaunch.ui.widgets.realm_ping import (
+        PING_DOT_GAP,
+        PING_DOT_SIZE,
+        RealmPingDot,
+        ping_overlay_x,
+    )
+
+    app = QApplication.instance() or QApplication([])
+    win = MainWindow()
+    win.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    win.resize(1280, 800)
+    win.show()
+    for _ in range(20):
+        app.processEvents()
+    win._fit_bottom_progress()
+    app.processEvents()
+
+    row = win._play_cluster.layout()
+    widgets = [row.itemAt(i).widget() for i in range(row.count()) if row.itemAt(i).widget()]
+    assert isinstance(win.realm_ping, RealmPingDot)
+    assert win.realm_ping not in widgets
+    assert widgets == [win.update_btn, win.play_btn]
+    assert win.realm_ping.parentWidget() is win._bottom_bar
+    assert win.realm_ping.width() >= PING_DOT_SIZE
+    assert win.realm_ping.latency_text() == "Checking…"
+
+    reserved = win._play_cluster_trailing_px()
+    if win.update_btn.isHidden():
+        assert reserved == 0
+        assert win.progress.minimumWidth() == 320
+    else:
+        assert reserved == win.update_btn.width() + PING_DOT_GAP
+        assert win.progress.minimumWidth() == 220
+    assert win.progress.maximumWidth() == 880 - reserved
+
+    bar = win._bottom_bar
+    contrib_right = win._contributors.mapTo(bar, win._contributors.rect().topRight()).x()
+    cluster_left = win._play_cluster.mapTo(bar, win._play_cluster.rect().topLeft()).x()
+    play_left = win.play_btn.mapTo(bar, win.play_btn.rect().topLeft()).x()
+    play_right = win.play_btn.mapTo(bar, QPoint(win.play_btn.width(), 0)).x()
+    ping_left = win.realm_ping.mapTo(bar, win.realm_ping.rect().topLeft()).x()
+    ping_right = win.realm_ping.mapTo(bar, QPoint(win.realm_ping.width(), 0)).x()
+    border_right = win._realm_ping_gap_right(bar)
+    expected_x = ping_overlay_x(play_right, border_right, win.realm_ping.width())
+    expected_x = max(play_right, min(expected_x, max(play_right, min(bar.width(), border_right) - win.realm_ping.width())))
+    assert contrib_right <= cluster_left, (contrib_right, cluster_left)
+    assert contrib_right <= play_left, (contrib_right, play_left)
+    assert contrib_right <= ping_left, (contrib_right, ping_left)
+    assert ping_left >= play_right, (ping_left, play_right)
+    assert play_left == cluster_left, (play_left, cluster_left)
+    assert ping_left == expected_x, (ping_left, expected_x, play_right, border_right)
+    ping_cx = ping_left + win.realm_ping.width() / 2.0
+    gap_mid = (play_right + border_right) / 2.0
+    if win.realm_ping.width() < (border_right - play_right):
+        assert abs(ping_cx - gap_mid) <= 1.0, (ping_cx, gap_mid)
+    grip = win._play_grip
+    if grip is not None and not grip.isHidden():
+        grip_tl = grip.mapTo(bar, QPoint(0, 0))
+        ping_rect = win.realm_ping.geometry()
+        grip_rect = QRect(grip_tl, grip.size())
+        assert not ping_rect.intersects(grip_rect), (ping_rect, grip_rect)
+
+    play_x = play_left
+    win.realm_ping.hide()
+    win._fit_bottom_progress()
+    app.processEvents()
+    hidden_x = win.play_btn.mapTo(bar, win.play_btn.rect().topLeft()).x()
+    assert hidden_x == play_x, (hidden_x, play_x)
+    win.realm_ping.show()
+    win._fit_bottom_progress()
+    app.processEvents()
+    shown_x = win.play_btn.mapTo(bar, win.play_btn.rect().topLeft()).x()
+    assert shown_x == play_x, (shown_x, play_x)
+    assert win.realm_ping.mapTo(bar, win.realm_ping.rect().topLeft()).x() >= play_right
+
+    win.progress.show()
+    win._sync_contributors_with_progress()
+    for _ in range(10):
+        app.processEvents()
+    rail_right = win.progress.mapTo(bar, QPoint(win.progress.width(), 0)).x()
+    play_left = win.play_btn.mapTo(bar, win.play_btn.rect().topLeft()).x()
+    ping_left = win.realm_ping.mapTo(bar, win.realm_ping.rect().topLeft()).x()
+    assert rail_right <= play_left, (rail_right, play_left)
+    assert rail_right <= ping_left, (rail_right, ping_left)
+    win.progress.hide()
+    win._sync_contributors_with_progress()
+
+    win.realm_ping.set_probe(
+        RealmProbe(
+            online=True,
+            latency_ms=132,
+            quality="green",
+            host="logon.ravencraft.io",
+            port=3724,
+        )
+    )
+    assert win.realm_ping.quality == "green"
+    assert win.realm_ping.latency_text() == "132 ms"
+    win.realm_ping.set_offline()
+    assert win.realm_ping.quality == "grey"
+    assert win.realm_ping.latency_text() == "Offline"
+
+    win.close()
+    print("OK realm ping dot sits beside PLAY without overlap")
+
+
+def test_realm_ping_orb_stays_inside_radio_hole():
+    """Quality fill is concentric with the Off-ring well and stays off the silver."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QColor, QPixmap
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.game.realm_status import RealmProbe
+    from ichalaunch.ui.widgets.realm_ping import (
+        RealmPingDot,
+        _hole_fill_rect,
+        _mask_bounds,
+        _radio_chrome,
+    )
+
+    app = QApplication.instance() or QApplication([])
+    chrome = _radio_chrome()
+    if chrome.ring.isNull() or chrome.hole_mask.isNull():
+        print("SKIP realm ping orb hole (no radio art)")
+        return
+    hole = _mask_bounds(chrome.hole_mask)
+    fill = _hole_fill_rect(chrome.hole_mask)
+    assert hole.isValid() and fill.isValid(), (hole, fill)
+    assert hole.contains(fill), (hole, fill)
+    assert abs(fill.center().x() - hole.center().x()) <= 1, (fill.center(), hole.center())
+    assert abs(fill.center().y() - hole.center().y()) <= 1, (fill.center(), hole.center())
+
+    dot = RealmPingDot()
+    dot.set_probe(
+        RealmProbe(
+            online=True,
+            latency_ms=80,
+            quality="green",
+            host="logon.ravencraft.io",
+            port=3724,
+        )
+    )
+    pm = QPixmap(dot.size())
+    pm.fill(Qt.GlobalColor.transparent)
+    dot.render(pm)
+    img = pm.toImage()
+    ox = (dot.width() - chrome.ring.width()) // 2
+    oy = (dot.height() - chrome.ring.height()) // 2
+    cc = img.pixelColor(ox + hole.center().x(), oy + hole.center().y())
+    assert cc.alpha() > 80, cc.alpha()
+    assert cc.green() > cc.red(), (cc.red(), cc.green(), cc.blue())
+    # A silver ring pixel (opaque on the Off art, outside the hole) must not be fill green.
+    leaked = 0
+    fill_green = QColor("#3DCC6D")
+    for y in range(chrome.hole_mask.height()):
+        for x in range(chrome.hole_mask.width()):
+            if chrome.hole_mask.pixelColor(x, y).alpha() >= 20:
+                continue
+            ring_px = chrome.ring.toImage().pixelColor(x, y)
+            if ring_px.alpha() < 80:
+                continue
+            c = img.pixelColor(ox + x, oy + y)
+            if (
+                c.alpha() > 80
+                and abs(c.red() - fill_green.red()) < 36
+                and abs(c.green() - fill_green.green()) < 36
+                and abs(c.blue() - fill_green.blue()) < 36
+            ):
+                leaked += 1
+    assert leaked == 0, leaked
+    print("OK realm ping orb stays inside radio hole")
+
+
+def test_realm_ping_backoff_and_hover_does_not_probe():
+    """Failed probes double the wait; hover/tooltip never opens a logon socket."""
+    from unittest.mock import patch
+
+    from PySide6.QtCore import QEvent, QPointF
+    from PySide6.QtGui import QEnterEvent
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.game.realm_status import (
+        PROBE_BACKOFF_CAP_MS,
+        PROBE_INTERVAL_MS,
+        jittered_probe_delay_ms,
+        next_probe_backoff_ms,
+    )
+    from ichalaunch.ui.widgets.realm_ping import RealmPingDot
+
+    assert PROBE_INTERVAL_MS >= 45_000
+    assert next_probe_backoff_ms(success=True) == PROBE_INTERVAL_MS
+    assert next_probe_backoff_ms(success=False, previous_ms=PROBE_INTERVAL_MS) == (
+        PROBE_INTERVAL_MS * 2
+    )
+    assert next_probe_backoff_ms(success=False, previous_ms=PROBE_INTERVAL_MS * 2) == (
+        PROBE_INTERVAL_MS * 4
+    )
+    assert (
+        next_probe_backoff_ms(success=False, previous_ms=PROBE_INTERVAL_MS * 4)
+        == PROBE_BACKOFF_CAP_MS
+    )
+    assert (
+        next_probe_backoff_ms(success=True, previous_ms=PROBE_BACKOFF_CAP_MS)
+        == PROBE_INTERVAL_MS
+    )
+    assert jittered_probe_delay_ms(PROBE_INTERVAL_MS, jitter_ms=0) == PROBE_INTERVAL_MS
+
+    app = QApplication.instance() or QApplication([])
+    with patch("ichalaunch.game.realm_status.probe_logon") as mocked:
+        with patch("ichalaunch.ui.main_window.probe_logon", mocked):
+            dot = RealmPingDot()
+            dot.set_offline()
+            assert dot.latency_text() == "Offline"
+            ev = QEnterEvent(
+                QPointF(1, 1),
+                QPointF(1, 1),
+                QPointF(1, 1),
+            )
+            app.sendEvent(dot, ev)
+            dot.repaint()
+            app.processEvents()
+            assert ev.type() == QEvent.Type.Enter
+            mocked.assert_not_called()
+            from ichalaunch.ui.widgets.realm_ping import PingLatencyTip
+            from ichalaunch.ui.widgets.wow_tooltip import ContributorNameTip
+
+            tip = getattr(dot, "_latency_tip", None)
+            assert isinstance(tip, PingLatencyTip)
+            assert not isinstance(tip, ContributorNameTip)
+        del dot
+    print("OK realm ping backoff and hover does not probe")
+
+
+def test_realm_ping_hover_is_gold_text_popup():
+    """Ping hover is gold text in a frameless popup; may overflow the host."""
+    from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
+    from PySide6.QtGui import QEnterEvent
+    from PySide6.QtWidgets import QApplication, QWidget
+
+    from ichalaunch.game.realm_status import LOGON_HOST, LOGON_PORT, RealmProbe
+    from ichalaunch.ui.widgets.realm_ping import PingLatencyTip, RealmPingDot
+    from ichalaunch.ui.widgets.wow_tooltip import ContributorNameTip
+
+    app = QApplication.instance() or QApplication([])
+    host = QWidget()
+    host.resize(240, 80)
+    host.show()
+    app.processEvents()
+    dot = RealmPingDot(host)
+    dot.set_probe(
+        RealmProbe(
+            online=True,
+            latency_ms=132,
+            quality="green",
+            host=LOGON_HOST,
+            port=LOGON_PORT,
+        )
+    )
+    # Sit against the right chrome so centered "132 ms" hangs past the host.
+    dot.move(host.width() - dot.width(), (host.height() - dot.height()) // 2)
+    dot.show()
+    app.processEvents()
+
+    ev = QEnterEvent(QPointF(1, 1), QPointF(1, 1), QPointF(1, 1))
+    app.sendEvent(dot, ev)
+    app.processEvents()
+
+    tip = dot._latency_tip
+    assert isinstance(tip, PingLatencyTip)
+    assert not isinstance(tip, ContributorNameTip)
+    assert tip.isVisible()
+    assert tip.isWindow()
+    flags = int(tip.windowFlags())
+    assert flags & int(Qt.WindowType.FramelessWindowHint)
+    assert flags & int(Qt.WindowType.ToolTip) or flags & int(Qt.WindowType.Tool)
+    assert tip.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+    assert tip.testAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+    assert tip._text == "132 ms"
+
+    ping_top = dot.mapToGlobal(QPoint(dot.width() // 2, 0))
+    tip_origin = tip.mapToGlobal(QPoint(0, 0))
+    tip_center_x = tip_origin.x() + tip.width() // 2
+    assert abs(tip_center_x - ping_top.x()) <= 1
+    gap = ping_top.y() - (tip_origin.y() + tip.height())
+    assert 2 <= gap <= 4
+
+    host_right = host.mapToGlobal(QPoint(host.width(), 0)).x()
+    assert tip_origin.x() + tip.width() > host_right
+
+    pix = tip.grab()
+    assert not pix.isNull()
+    img = pix.toImage()
+    assert img.pixelColor(0, 0).alpha() == 0
+    gold = 0
+    for y in range(img.height()):
+        for x in range(img.width()):
+            c = img.pixelColor(x, y)
+            if c.alpha() > 180 and c.red() > 200 and 140 <= c.green() <= 220 and c.blue() < 80:
+                gold += 1
+    assert gold > 8, f"expected gold ink pixels, found {gold}"
+
+    app.sendEvent(dot, QEvent(QEvent.Type.Leave))
+    app.processEvents()
+    assert not tip.isVisible()
+
+    host.hide()
+    host.deleteLater()
+    print("OK realm ping hover is gold text popup")
 
 
 def test_launch_buttons_use_glue_panel_chrome():
@@ -13653,6 +14550,8 @@ def test_launch_settings_live_on_client_page():
     assert CATEGORY_ORDER[0] != LAUNCH_CATEGORY
     assert "Performance / Fixes" in CATEGORY_ORDER
     assert "Performance & Fixes" not in CATEGORY_ORDER
+    assert "Advanced" in CATEGORY_ORDER
+    assert CATEGORY_ORDER.index("Advanced") + 1 == CATEGORY_ORDER.index(LAUNCH_CATEGORY)
 
     settings_page = settings_page_mod.SettingsPage()
     for attr in (
@@ -13700,6 +14599,41 @@ def test_launch_settings_live_on_client_page():
     assert not hasattr(page.launch_settings, "cb_vf")
     page.deleteLater()
     print("OK launch settings live on client page")
+
+
+def test_healtextfix_nested_under_superwow():
+    """Heal Text Fix sits indented under SuperWoW and is locked until SuperWoW is on."""
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.ui.pages.client import ClientPage
+    from ichalaunch.ui.widgets.common import ModCheckRow
+
+    app = QApplication.instance() or QApplication([])
+    del app
+    keys = ("desired_mods", "user_set_mods")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        s.set("desired_mods", {})
+        s.set("user_set_mods", [])
+        page = ClientPage()
+        hx = page.rows["wu_healtextfix"]
+        assert page._row_meta["wu_healtextfix"]["category"] == "Client Enhancements"
+        assert hx._nested is True
+        assert not hx.cb.isEnabled()
+        host = page._cat_hosts["Client Enhancements"]
+        ids: list[str] = []
+        for i in range(host.count()):
+            item = host.itemAt(i)
+            w = item.widget() if item is not None else None
+            if isinstance(w, ModCheckRow):
+                ids.append(w.mod_id)
+        assert ids.index("superwow") + 1 == ids.index("wu_healtextfix"), ids
+        page.deleteLater()
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+    print("OK healtextfix nested under superwow")
 
 
 def test_chrome_buttons_clear_metal_tr():
@@ -15369,22 +16303,12 @@ def _drain_qt_threads(wait_ms: int = 3000) -> tuple[list[str], list[str]]:
 
 
 def main():
-    import ichalaunch.config.settings as settings_mod
+    from ichalaunch.addons import pending_updates as pending
 
-    real_path_fn = settings_mod.settings_path
     with tempfile.TemporaryDirectory() as td:
-        isolated = Path(td) / "settings.json"
-        settings_mod.settings_path = lambda: isolated
-        settings_mod.settings.load()
-        from ichalaunch.addons import pending_updates as pending
-
         pending_cache = Path(td) / "addon_pending_updates.json"
-        try:
-            with pending.isolated_pending_updates_cache(pending_cache):
-                _run_smoke_tests()
-        finally:
-            settings_mod.settings_path = real_path_fn
-            settings_mod.settings.load()
+        with pending.isolated_pending_updates_cache(pending_cache):
+            _run_smoke_tests()
 
 
 def test_detect_and_installer_drop_unused_imports():
@@ -15429,6 +16353,63 @@ def test_detect_and_installer_drop_unused_imports():
         assert mismatched == []
 
     print("OK detect/installer carry no unused module-level imports")
+
+
+def _seed_home_gallery(n: int = 4) -> dict:
+    """Local JPEGs for gallery UI tests after official_artworks left the bundle."""
+    from PySide6.QtGui import QImage
+
+    from ichalaunch.ui import home_art as ha
+    from ichalaunch.ui.widgets import talent_bg as tbg
+
+    tmp = Path(tempfile.mkdtemp(prefix="home_art_seed_"))
+    img_dir = tmp / "img"
+    img_dir.mkdir()
+    extras = []
+    for i in range(n):
+        name = f"seed_{i}.jpg"
+        img = QImage(160, 80, QImage.Format.Format_RGB888)
+        img.fill(0x334455 + i * 16)
+        img.save(str(img_dir / name), "JPG")
+        extras.append(
+            {
+                "id": f"seed_{i}",
+                "image": name,
+                "url": "",
+                "frame": "",
+                "frame_url": "",
+                "hold": 1.0,
+                "fit": "cover",
+                "nudge_x": 0,
+                "nudge_y": 0,
+                "shrink_w": 0,
+            }
+        )
+    combined = {"slides": list(ha.load_bundled_home_art().get("slides") or []) + extras}
+    patched = {
+        "ha_load": ha.load_home_art,
+        "ha_dir": ha.home_art_image_dir,
+        "tbg_load": tbg.load_home_art,
+        "tbg_refresh": tbg.refresh_home_art,
+        "tbg_fetch": tbg.fetch_missing_images,
+    }
+    ha.home_art_image_dir = lambda: img_dir
+    ha.load_home_art = lambda: combined
+    tbg.load_home_art = lambda: combined
+    tbg.refresh_home_art = lambda force=False: combined
+    tbg.fetch_missing_images = lambda manifest=None: None
+    return patched
+
+
+def _restore_home_gallery(patched: dict) -> None:
+    from ichalaunch.ui import home_art as ha
+    from ichalaunch.ui.widgets import talent_bg as tbg
+
+    ha.load_home_art = patched["ha_load"]
+    ha.home_art_image_dir = patched["ha_dir"]
+    tbg.load_home_art = patched["tbg_load"]
+    tbg.refresh_home_art = patched["tbg_refresh"]
+    tbg.fetch_missing_images = patched["tbg_fetch"]
 
 
 def test_home_art_width_fit_is_centred():
@@ -15484,45 +16465,49 @@ def test_home_gallery_page_arrows():
     from ichalaunch.ui.widgets.common import _SPELLBOOK_IDLE_OPACITY
 
     app = QApplication.instance() or QApplication([])
-    win = MainWindow()
-    win.resize(1500, 950)
-    win.show()
-    for _ in range(400):
-        app.processEvents()
+    seeded = _seed_home_gallery()
+    try:
+        win = MainWindow()
+        win.resize(1500, 950)
+        win.show()
+        for _ in range(400):
+            app.processEvents()
 
-    home = win.home
-    art, prev, nxt, dots = home.talent_bg, home.art_prev, home.art_next, home.art_dots
-    assert theme_file("UI-SpellbookIcon-NextPage-Disabled.PNG").is_file()
-    assert theme_file("UI-SpellbookIcon-PrevPage-Disabled.PNG").is_file()
-    assert getattr(prev, "_art", "") == "disabled"
-    assert getattr(nxt, "_art", "") == "disabled"
-    assert _SPELLBOOK_IDLE_OPACITY == 0.80
-    count = art.slide_count()
-    assert count > 1, "gallery needs at least two slides to page"
-    assert prev.isVisible() and nxt.isVisible()
+        home = win.home
+        art, prev, nxt, dots = home.talent_bg, home.art_prev, home.art_next, home.art_dots
+        assert theme_file("UI-SpellbookIcon-NextPage-Disabled.PNG").is_file()
+        assert theme_file("UI-SpellbookIcon-PrevPage-Disabled.PNG").is_file()
+        assert getattr(prev, "_art", "") == "disabled"
+        assert getattr(nxt, "_art", "") == "disabled"
+        assert _SPELLBOOK_IDLE_OPACITY == 0.80
+        count = art.slide_count()
+        assert count > 1, "gallery needs at least two slides to page"
+        assert prev.isVisible() and nxt.isVisible()
 
-    ag, pg, ng, dg = art.geometry(), prev.geometry(), nxt.geometry(), dots.geometry()
-    assert ag.left() <= pg.left() and ng.right() <= ag.right(), "indicator row overflowed the art"
-    assert pg.right() <= dg.left() and dg.right() <= ng.left(), "arrows do not hug the dots"
-    assert pg.center().y() == ng.center().y(), "arrows not level"
-    assert abs(pg.center().y() - dg.center().y()) <= 2, "prev not on the dots row"
-    assert abs(ng.center().y() - dg.center().y()) <= 2, "next not on the dots row"
-    assert pg.center().y() > ag.center().y(), "prev still mid-art instead of on the indicator"
+        ag, pg, ng, dg = art.geometry(), prev.geometry(), nxt.geometry(), dots.geometry()
+        assert ag.left() <= pg.left() and ng.right() <= ag.right(), "indicator row overflowed the art"
+        assert pg.right() <= dg.left() and dg.right() <= ng.left(), "arrows do not hug the dots"
+        assert pg.center().y() == ng.center().y(), "arrows not level"
+        assert abs(pg.center().y() - dg.center().y()) <= 2, "prev not on the dots row"
+        assert abs(ng.center().y() - dg.center().y()) <= 2, "next not on the dots row"
+        assert pg.center().y() > ag.center().y(), "prev still mid-art instead of on the indicator"
 
-    # _next_index is the target and is set the moment a turn begins, so this
-    # holds whether the turn crossfades or lands at once.
-    start = art._index
-    nxt.click()
-    assert art._next_index == (start + 1) % count, "next did not turn the gallery"
-    for _ in range(200):
-        app.processEvents()
+        # _next_index is the target and is set the moment a turn begins, so this
+        # holds whether the turn crossfades or lands at once.
+        start = art._index
+        nxt.click()
+        assert art._next_index == (start + 1) % count, "next did not turn the gallery"
+        for _ in range(200):
+            app.processEvents()
 
-    art._fade = None
-    art._index = 0
-    prev.click()
-    assert art._next_index == count - 1, "paging back from the first slide must wrap"
+        art._fade = None
+        art._index = 0
+        prev.click()
+        assert art._next_index == count - 1, "paging back from the first slide must wrap"
 
-    win.hide()
+        win.hide()
+    finally:
+        _restore_home_gallery(seeded)
     print("OK home gallery page arrows turn and wrap")
 
 
@@ -15533,31 +16518,35 @@ def test_home_gallery_position_dots():
     from ichalaunch.ui.main_window import MainWindow
 
     app = QApplication.instance() or QApplication([])
-    win = MainWindow()
-    win.resize(1500, 950)
-    win.show()
-    for _ in range(400):
-        app.processEvents()
+    seeded = _seed_home_gallery()
+    try:
+        win = MainWindow()
+        win.resize(1500, 950)
+        win.show()
+        for _ in range(400):
+            app.processEvents()
 
-    home = win.home
-    art, dots, logo, nxt = home.talent_bg, home.art_dots, home.logo, home.art_next
-    count = art.slide_count()
-    assert dots.isVisible()
+        home = win.home
+        art, dots, logo, nxt = home.talent_bg, home.art_dots, home.logo, home.art_next
+        count = art.slide_count()
+        assert dots.isVisible()
 
-    ag, dg, lg = art.geometry(), dots.geometry(), logo.geometry()
-    assert dg.width() <= ag.width(), "dot row wider than the art it sits on"
-    assert ag.left() <= dg.left() and dg.right() <= ag.right(), "dots outside the art"
-    assert dg.bottom() <= lg.top(), "dots collide with the wordmark"
-    assert abs(dg.center().x() - ag.center().x()) <= 2, "dots not centred"
+        ag, dg, lg = art.geometry(), dots.geometry(), logo.geometry()
+        assert dg.width() <= ag.width(), "dot row wider than the art it sits on"
+        assert ag.left() <= dg.left() and dg.right() <= ag.right(), "dots outside the art"
+        assert dg.bottom() <= lg.top(), "dots collide with the wordmark"
+        assert abs(dg.center().x() - ag.center().x()) <= 2, "dots not centred"
 
-    # The lit dot must move with the click, not with the crossfade that follows
-    # it; a row that waits out the fade reads as a click that did not register.
-    start = art.display_index()
-    nxt.click()
-    assert art.display_index() == (start + 1) % count, "shown slide did not advance"
-    assert dots._index == art.display_index(), "lit dot lags the gallery"
+        # The lit dot must move with the click, not with the crossfade that follows
+        # it; a row that waits out the fade reads as a click that did not register.
+        start = art.display_index()
+        nxt.click()
+        assert art.display_index() == (start + 1) % count, "shown slide did not advance"
+        assert dots._index == art.display_index(), "lit dot lags the gallery"
 
-    win.hide()
+        win.hide()
+    finally:
+        _restore_home_gallery(seeded)
     print("OK home gallery position dots track the shown slide")
 
 
@@ -15801,79 +16790,82 @@ def test_gallery_hand_turns_land_at_once_and_vignette_spares_the_bands():
 
     app = QApplication.instance() or QApplication([])
     del app
-
-    w, h = 880, 660
-    art = TalentFrameBackground()
-    art.set_frame(0, 0, w, h)
-    art.resize(w, h)
-    count = art.slide_count()
-    assert count > 2
-
-    # No settling anywhere below. The crossfade suits a gallery drifting on its
-    # own; asked for the next slide, waiting it out reads as a dead click.
-    art._index = 0
-    art.step(1)
-    assert art._index == 1, "a hand turn still waits on the crossfade"
-    art.step(-1)
-    assert art._index == 0
-    art.step(-1)
-    assert art._index == count - 1, "paging back off the first slide must wrap"
-
-    art.go_to(3)
-    assert art._index == 3, "go_to did not land"
-    art.go_to(-1)
-    art.go_to(count)
-    assert art._index == 3, "an out-of-range jump must be ignored"
-
-    # Each dot owns its whole pitch as a hit box, so the gaps are target too.
-    dots = GalleryDots()
-    dots.set_state(count, 0, w)
-    dots.resize(dots.width(), dots.height())
-    left = (dots.width() - count * dots._pitch) / 2.0
-    for target in (0, count // 2, count - 1):
-        assert dots._index_at(left + target * dots._pitch + 1) == target
-        assert dots._index_at(left + target * dots._pitch + dots._pitch - 1) == target
-    assert dots._index_at(left - 40) == -1, "a click left of the row is not a slide"
-    assert dots._index_at(left + count * dots._pitch + 40) == -1
-
-    # The featured slide is 2:1 in a taller rect, so it leaves transparent bands.
-    # The vignette is composited SourceAtop for exactly this reason: painted over
-    # the bands it would turn empty space into a black slab.
-    art.go_to(0)
-
-    def render():
-        img = QImage(w, h, QImage.Format.Format_ARGB32)
-        img.fill(0)
-        painter = QPainter(img)
-        art.render(painter, QPoint(0, 0))
-        painter.end()
-        return img
-
-    def lum(img, x, y):
-        c = img.pixelColor(x, y)
-        return (c.red() + c.green() + c.blue()) / 3.0
-
-    # Measured against the same frame with the gradient off, not against the
-    # picture's own centre. This art is already darker at its edges than in the
-    # middle, so comparing centre to edge passes whether the vignette runs or
-    # not - it reads as a test and asserts nothing.
-    shipped = render()
-    saved = talent_bg._VIGNETTE_ALPHA
+    seeded = _seed_home_gallery()
     try:
-        talent_bg._VIGNETTE_ALPHA = 0
-        plain = render()
+        w, h = 880, 660
+        art = TalentFrameBackground()
+        art.set_frame(0, 0, w, h)
+        art.resize(w, h)
+        count = art.slide_count()
+        assert count > 2
+
+        # No settling anywhere below. The crossfade suits a gallery drifting on its
+        # own; asked for the next slide, waiting it out reads as a dead click.
+        art._index = 0
+        art.step(1)
+        assert art._index == 1, "a hand turn still waits on the crossfade"
+        art.step(-1)
+        assert art._index == 0
+        art.step(-1)
+        assert art._index == count - 1, "paging back off the first slide must wrap"
+
+        art.go_to(3)
+        assert art._index == 3, "go_to did not land"
+        art.go_to(-1)
+        art.go_to(count)
+        assert art._index == 3, "an out-of-range jump must be ignored"
+
+        # Each dot owns its whole pitch as a hit box, so the gaps are target too.
+        dots = GalleryDots()
+        dots.set_state(count, 0, w)
+        dots.resize(dots.width(), dots.height())
+        left = (dots.width() - count * dots._pitch) / 2.0
+        for target in (0, count // 2, count - 1):
+            assert dots._index_at(left + target * dots._pitch + 1) == target
+            assert dots._index_at(left + target * dots._pitch + dots._pitch - 1) == target
+        assert dots._index_at(left - 40) == -1, "a click left of the row is not a slide"
+        assert dots._index_at(left + count * dots._pitch + 40) == -1
+
+        # The featured slide is 2:1 in a taller rect, so it leaves transparent bands.
+        # The vignette is composited SourceAtop for exactly this reason: painted over
+        # the bands it would turn empty space into a black slab.
+        art.go_to(0)
+
+        def render():
+            img = QImage(w, h, QImage.Format.Format_ARGB32)
+            img.fill(0)
+            painter = QPainter(img)
+            art.render(painter, QPoint(0, 0))
+            painter.end()
+            return img
+
+        def lum(img, x, y):
+            c = img.pixelColor(x, y)
+            return (c.red() + c.green() + c.blue()) / 3.0
+
+        # Measured against the same frame with the gradient off, not against the
+        # picture's own centre. This art is already darker at its edges than in the
+        # middle, so comparing centre to edge passes whether the vignette runs or
+        # not - it reads as a test and asserts nothing.
+        shipped = render()
+        saved = talent_bg._VIGNETTE_ALPHA
+        try:
+            talent_bg._VIGNETTE_ALPHA = 0
+            plain = render()
+        finally:
+            talent_bg._VIGNETTE_ALPHA = saved
+
+        band_y = (h - w // 2) // 4
+        assert shipped.pixelColor(w // 2, band_y).alpha() < 20, "the vignette filled the letterbox band"
+
+        edge = lum(shipped, 24, h // 2)
+        edge_plain = lum(plain, 24, h // 2)
+        centre = lum(shipped, w // 2, h // 2)
+        centre_plain = lum(plain, w // 2, h // 2)
+        assert edge < edge_plain - 1, f"the vignette did not darken the edge ({edge} vs {edge_plain})"
+        assert abs(centre - centre_plain) <= 1, "the vignette should leave the centre alone"
     finally:
-        talent_bg._VIGNETTE_ALPHA = saved
-
-    band_y = (h - w // 2) // 4
-    assert shipped.pixelColor(w // 2, band_y).alpha() < 20, "the vignette filled the letterbox band"
-
-    edge = lum(shipped, 24, h // 2)
-    edge_plain = lum(plain, 24, h // 2)
-    centre = lum(shipped, w // 2, h // 2)
-    centre_plain = lum(plain, w // 2, h // 2)
-    assert edge < edge_plain - 1, f"the vignette did not darken the edge ({edge} vs {edge_plain})"
-    assert abs(centre - centre_plain) <= 1, "the vignette should leave the centre alone"
+        _restore_home_gallery(seeded)
     print("OK gallery hand turns land at once and the vignette spares the bands")
 
 
@@ -16038,6 +17030,7 @@ def test_home_nav_does_not_spawn_toplevel_windows():
 
 
 def _run_smoke_tests():
+    test_smoke_settings_isolated_from_live_appdata()
     test_catalogs()
     test_tls_ca_env_sanitizer()
     test_bundle_pins_charset_normalizer_and_excludes_chardet()
@@ -16061,11 +17054,17 @@ def _run_smoke_tests():
     test_pretty_night_sky_migrates_off_fog_y()
     test_stock_patch9_reacquire_detect()
     test_stock_patch9_prompt_requires_wow_exe()
+    test_stock_patch9_prompt_ignores_nested_ravencraft()
     test_config_wtf_farclip_clamp()
     test_config_wtf_regenerate()
     test_config_wtf_restore()
     test_darker_nights_migration()
     test_mod_toggle_resolution()
+    test_weirdutils_advanced_catalog()
+    test_weirdutils_local_source()
+    test_weirdutils_bundled_into_exe()
+    test_codeberg_download_headers_and_prebuilt_override()
+    test_weirdutils_combo_conflicts_and_presets()
     test_client_preset_catalog_ids()
     test_client_preset_apply_basic()
     test_client_preset_downgrade_basic_plus_to_basic()
@@ -16187,6 +17186,8 @@ def _run_smoke_tests():
     test_sanitize_filename()
     test_robust_rmtree_readonly_git_pack()
     test_install_clears_readonly_data_mpqs()
+    test_glue_autologin_skips_already_patched_wow_exe()
+    test_file_in_use_hint_omits_end_task_when_game_not_running()
     test_vanillafixes_zip_in_memory()
     test_vanillafixes_preserves_dlls_txt()
     test_zip_root_never_writes_wtf_config()
@@ -16257,6 +17258,12 @@ def _run_smoke_tests():
     test_main_worker_ref_cleared_after_release()
     test_auto_update_sequence_is_launcher_addons_client()
     test_loading_bar_reserves_update_button_slot()
+    test_realm_ping_quality_bands_and_tooltip()
+    test_realm_ping_probe_times_tcp_connect()
+    test_realm_ping_dot_sits_beside_play_without_overlap()
+    test_realm_ping_orb_stays_inside_radio_hole()
+    test_realm_ping_backoff_and_hover_does_not_probe()
+    test_realm_ping_hover_is_gold_text_popup()
     test_launch_buttons_use_glue_panel_chrome()
     test_options_cog_uses_wow_art()
     test_addon_check_updates_gates_until_list_ready()
@@ -16290,6 +17297,7 @@ def _run_smoke_tests():
     test_client_hd_graphics_display_order()
     test_client_cat_nav_update_alert_badge()
     test_launch_settings_live_on_client_page()
+    test_healtextfix_nested_under_superwow()
     test_chrome_buttons_clear_metal_tr()
     test_play_stays_right_when_progress_hidden()
     test_wayland_window_move_and_resize_handoff()

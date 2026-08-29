@@ -46,6 +46,7 @@ from ichalaunch.mods.installer import (
 )
 from ichalaunch.mods.stock_patch import (
     STOCK_PATCH9_BANNER_TEXT,
+    configured_game_for_stock_patch9,
     inspect_stock_patch9,
     should_offer_stock_patch9_reacquire,
 )
@@ -79,6 +80,7 @@ from ichalaunch.ui.widgets.update_alert_badge import BadgeNavButton
 
 LAUNCH_CATEGORY = "Launch"
 PRESETS_CATEGORY = "Presets"
+ADVANCED_CATEGORY = "Advanced"
 
 CATEGORY_ORDER = [
     PRESETS_CATEGORY,
@@ -86,6 +88,7 @@ CATEGORY_ORDER = [
     "Client Enhancements",
     "HD Graphics",
     "Visual / QoL",
+    ADVANCED_CATEGORY,
     LAUNCH_CATEGORY,
     "Custom",
 ]
@@ -578,6 +581,8 @@ class ClientPage(QWidget):
         row.settings_clicked.connect(self._open_mod_config)
         row.set_git_url(mod_git_url(mod))
         row.set_open_url(mod_open_url(mod))
+        if str(mod.get("nest_under") or "").strip():
+            row.set_nested(True)
         self._row_meta[mid] = {
             "category": cat,
             "name": str(mod.get("name") or mid),
@@ -977,6 +982,28 @@ class ClientPage(QWidget):
         for i, b in enumerate(self.cat_btns):
             b.setChecked(i == idx)
 
+    def _sync_requirement_locks(self) -> None:
+        """Grey nested options whose catalog ``requires`` are not desired."""
+        desired = settings.desired_mods
+        catalog = {m["id"]: m for m in load_mod_catalog() if m.get("id")}
+        for mid, row in self.rows.items():
+            reqs = [
+                str(x)
+                for x in (catalog.get(mid) or {}).get("requires") or []
+                if x
+            ]
+            if not reqs:
+                row.set_feature_locked(False)
+                continue
+            missing = [r for r in reqs if not desired.get(r)]
+            if not missing:
+                row.set_feature_locked(False)
+                continue
+            names = ", ".join(
+                str((catalog.get(r) or {}).get("name") or r) for r in missing
+            )
+            row.set_feature_locked(True, f"Requires {names} to be enabled first.")
+
     def _on_toggle(self, mod_id: str, enabled: bool) -> None:
         if self._game_edit_locked:
             row = self.rows.get(mod_id)
@@ -1008,6 +1035,14 @@ class ClientPage(QWidget):
                     row.cb.blockSignals(False)
                 return
         changes = apply_mod_toggle(mod_id, enabled)
+        if enabled and not bool(settings.desired_mods.get(mod_id, False)):
+            row = self.rows.get(mod_id)
+            if row is not None:
+                row.cb.blockSignals(True)
+                row.cb.setChecked(False)
+                row.cb.blockSignals(False)
+            self._sync_requirement_locks()
+            return
         if not enabled and mod_id == "vanilla_helpers" and not changes:
             row = self.rows.get(mod_id)
             if row is not None:
@@ -1037,6 +1072,7 @@ class ClientPage(QWidget):
         if not self._applying_preset:
             mark_custom_preset()
             self._sync_preset_radios()
+        self._sync_requirement_locks()
         self.refresh_plan()
 
     def _confirm_disable_cascade(self, mod_id: str, cascade_ids: list[str]) -> bool:
@@ -1070,7 +1106,7 @@ class ClientPage(QWidget):
         return confirm(self, "Also disable related mods?", body)
 
     def _refresh_patch9_banner(self) -> None:
-        game = detect_game()
+        game = configured_game_for_stock_patch9()
         status = inspect_stock_patch9(game) if game else None
         if should_offer_stock_patch9_reacquire(status):
             self.patch9_lbl.setText(STOCK_PATCH9_BANNER_TEXT)
@@ -1173,6 +1209,7 @@ class ClientPage(QWidget):
                 self._set_status_style(row.status_lbl, "StatusMuted")
                 row.set_update_available(False)
                 row.set_reinstall_visible(False)
+        self._sync_requirement_locks()
         if self._search_q:
             self._apply_search()
         self.refresh_plan()

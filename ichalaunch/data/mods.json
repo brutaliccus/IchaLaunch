@@ -125,6 +125,43 @@
     "author": "balakethelock"
   },
   {
+    "id": "wu_healtextfix",
+    "name": "Heal Text Fix",
+    "category": "Client Enhancements",
+    "description": "Fixes duplicate floating heal numbers from SuperWoW 1.5.",
+    "info_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "repo_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "detect": {
+      "any_files": [
+        "healtextfix.dll"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://codeberg.org/MarcelineVQ/WeirdUtils/releases/download/v0.7.0/healtextfix.dll",
+      "filename": "healtextfix.dll"
+    },
+    "files": [
+      {
+        "match": "healtextfix.dll",
+        "destination": "healtextfix.dll"
+      }
+    ],
+    "dlls_txt": {
+      "add": [
+        "healtextfix.dll"
+      ]
+    },
+    "kind": "dll_file",
+    "nest_under": "superwow",
+    "requires": [
+      "superwow"
+    ],
+    "dependencies": [],
+    "conflicts": [],
+    "author": "MarcelineVQ"
+  },
+  {
     "id": "nampower",
     "name": "Nampower",
     "category": "Client Enhancements",
@@ -992,5 +1029,408 @@
     ],
     "conflicts": [],
     "author": "RetroCro"
+  },
+  {
+    "id": "wu_worldmarkers",
+    "name": "World Markers",
+    "category": "Advanced",
+    "description": "Place up to 5 animated world markers (Cataclysm style). Requires party/raid leader or assist. Syncs with group members who also have this module.",
+    "info_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "repo_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "detect": {
+      "any_files": [
+        "worldmarkers.dll"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://codeberg.org/MarcelineVQ/WeirdUtils/releases/download/v0.7.1/worldmarkers.dll",
+      "filename": "worldmarkers.dll"
+    },
+    "files": [
+      {
+        "match": "worldmarkers.dll",
+        "destination": "worldmarkers.dll"
+      }
+    ],
+    "dlls_txt": {
+      "add": [
+        "worldmarkers.dll"
+      ]
+    },
+    "kind": "dll_file",
+    "dependencies": [],
+    "conflicts": [],
+    "author": "MarcelineVQ"
+  },
+  {
+    "id": "wu_outline",
+    "name": "Outlines",
+    "category": "Advanced",
+    "description": "Glowing colored outlines around units. Toggle with /outlines or /ol. Built from WeirdUtils source.",
+    "info_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "repo_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "detect": {
+      "any_files": [
+        "outline.dll"
+      ]
+    },
+    "source": {
+      "type": "local",
+      "path": "tools/_weirdutils/out/outline.dll",
+      "filename": "outline.dll",
+      "version": "1.0"
+    },
+    "files": [
+      {
+        "match": "outline.dll",
+        "destination": "outline.dll"
+      }
+    ],
+    "dlls_txt": {
+      "add": [
+        "outline.dll"
+      ]
+    },
+    "kind": "dll_file",
+    "dependencies": [],
+    "conflicts": [],
+    "author": "MarcelineVQ"
+  },
+  {
+    "id": "wu_interact",
+    "name": "Interact",
+    "category": "Advanced",
+    "hidden": true,
+    "description": "Interact Nearest and Loot All Corpses helpers. Changes client hit-testing — follow your server's rules. Built from WeirdUtils source.",
+    "info_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "repo_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "detect": {
+      "any_files": [
+        "interact.dll"
+      ]
+    },
+    "source": {
+      "type": "local",
+      "path": "tools/_weirdutils/out/interact.dll",
+      "filename": "interact.dll",
+      "version": "1.1.0"
+    },
+    "files": [
+      {
+        "match": "interact.dll",
+        "destination": "interact.dll"
+      }
+    ],
+    "dlls_txt": {
+      "add": [
+        "interact.dll"
+      ]
+    },
+    "kind": "dll_file",
+    "dependencies": [],
+    "conflicts": [],
+    "author": "MarcelineVQ"
+  },
+  {
+    "id": "wu_pngscreenshots",
+    "name": "PNG Screenshots",
+    "category": "Advanced",
+    "description": "Save screenshots as compressed PNG instead of TGA. screenshotQuality CVar (1–9, 0 = TGA).",
+    "info_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "repo_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "detect": {
+      "any_files": [
+        "pngscreenshots.dll"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://codeberg.org/MarcelineVQ/WeirdUtils/releases/download/v0.7.0/pngscreenshots.dll",
+      "filename": "pngscreenshots.dll"
+    },
+    "files": [
+      {
+        "match": "pngscreenshots.dll",
+        "destination": "pngscreenshots.dll"
+      }
+    ],
+    "dlls_txt": {
+      "add": [
+        "pngscreenshots.dll"
+      ]
+    },
+    "kind": "dll_file",
+    "dependencies": [],
+    "conflicts": [],
+    "author": "MarcelineVQ"
+  },
+  {
+    "id": "wu_framecrash",
+    "name": "Crash Fix",
+    "category": "Advanced",
+    "hidden": true,
+    "description": "Prevents crashes from stale UI frame anchor pointers. No configuration. Built from WeirdUtils source.",
+    "info_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "repo_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "detect": {
+      "any_files": [
+        "framecrash.dll"
+      ]
+    },
+    "source": {
+      "type": "local",
+      "path": "tools/_weirdutils/out/framecrash.dll",
+      "filename": "framecrash.dll",
+      "version": "1.0"
+    },
+    "files": [
+      {
+        "match": "framecrash.dll",
+        "destination": "framecrash.dll"
+      }
+    ],
+    "dlls_txt": {
+      "add": [
+        "framecrash.dll"
+      ]
+    },
+    "kind": "dll_file",
+    "dependencies": [],
+    "conflicts": [],
+    "author": "MarcelineVQ"
+  },
+  {
+    "id": "wu_transmogfix",
+    "name": "Transmog Fix",
+    "category": "Advanced",
+    "description": "Stops FPS drops from rapid transmog visual updates when items lose durability.",
+    "info_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "repo_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "detect": {
+      "any_files": [
+        "transmogfix.dll"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://codeberg.org/MarcelineVQ/WeirdUtils/releases/download/v0.7.0/transmogfix.dll",
+      "filename": "transmogfix.dll"
+    },
+    "files": [
+      {
+        "match": "transmogfix.dll",
+        "destination": "transmogfix.dll"
+      }
+    ],
+    "dlls_txt": {
+      "add": [
+        "transmogfix.dll"
+      ]
+    },
+    "kind": "dll_file",
+    "dependencies": [],
+    "conflicts": [],
+    "author": "MarcelineVQ"
+  },
+  {
+    "id": "wu_customassets",
+    "name": "Custom Data/ Assets",
+    "category": "Advanced",
+    "description": "Load loose files from Data/ without repacking MPQs, and allow multi-character patch names (patch-12.mpq, patch-jimbo.mpq).",
+    "info_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "repo_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "detect": {
+      "any_files": [
+        "customassets.dll"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://codeberg.org/MarcelineVQ/WeirdUtils/releases/download/v0.7.0/customassets.dll",
+      "filename": "customassets.dll"
+    },
+    "files": [
+      {
+        "match": "customassets.dll",
+        "destination": "customassets.dll"
+      }
+    ],
+    "dlls_txt": {
+      "add": [
+        "customassets.dll"
+      ]
+    },
+    "kind": "dll_file",
+    "dependencies": [],
+    "conflicts": [],
+    "author": "MarcelineVQ"
+  },
+  {
+    "id": "wu_minimapicons",
+    "name": "Utility Minimap Trackings",
+    "category": "Advanced",
+    "description": "TBC/WotLK-style minimap tracking for NPC types, objects, and quest givers. Preferences saved per character.",
+    "info_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "repo_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "detect": {
+      "any_files": [
+        "minimapicons.dll"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://codeberg.org/MarcelineVQ/WeirdUtils/releases/download/v0.7.0/minimapicons.dll",
+      "filename": "minimapicons.dll"
+    },
+    "files": [
+      {
+        "match": "minimapicons.dll",
+        "destination": "minimapicons.dll"
+      }
+    ],
+    "dlls_txt": {
+      "add": [
+        "minimapicons.dll"
+      ]
+    },
+    "kind": "dll_file",
+    "dependencies": [],
+    "conflicts": [],
+    "author": "MarcelineVQ"
+  },
+  {
+    "id": "wu_clickthrough",
+    "name": "Clickthrough",
+    "category": "Advanced",
+    "hidden": true,
+    "description": "Prioritizes lootable corpses, interactable objects, then NPCs along the cursor ray. Changes hit-testing — follow your server's rules. Disable SuperAPI corpse-clickthrough if you want this.",
+    "info_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "repo_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "detect": {
+      "any_files": [
+        "clickthrough.dll"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://codeberg.org/MarcelineVQ/WeirdUtils/releases/download/v0.7.0/clickthrough.dll",
+      "filename": "clickthrough.dll"
+    },
+    "files": [
+      {
+        "match": "clickthrough.dll",
+        "destination": "clickthrough.dll"
+      }
+    ],
+    "dlls_txt": {
+      "add": [
+        "clickthrough.dll"
+      ]
+    },
+    "kind": "dll_file",
+    "dependencies": [],
+    "conflicts": [],
+    "author": "MarcelineVQ"
+  },
+  {
+    "id": "wu_logsessions",
+    "name": "Log Sessions",
+    "category": "Advanced",
+    "description": "Per-character, per-day combat and chat logs under Logs\\<Realm>\\<Character>\\.",
+    "info_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "repo_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "detect": {
+      "any_files": [
+        "logsessions.dll"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://codeberg.org/MarcelineVQ/WeirdUtils/releases/download/v0.7.0/logsessions.dll",
+      "filename": "logsessions.dll"
+    },
+    "files": [
+      {
+        "match": "logsessions.dll",
+        "destination": "logsessions.dll"
+      }
+    ],
+    "dlls_txt": {
+      "add": [
+        "logsessions.dll"
+      ]
+    },
+    "kind": "dll_file",
+    "dependencies": [],
+    "conflicts": [],
+    "author": "MarcelineVQ"
+  },
+  {
+    "id": "wu_dpslog",
+    "name": "DPSLog",
+    "category": "Advanced",
+    "description": "WotLK-style COMBAT_LOG_EVENT_UNFILTERED plus GetSpellInfo, UnitCastingInfo, and UnitChannelInfo. Built from WeirdUtils source.",
+    "info_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "repo_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "detect": {
+      "any_files": [
+        "dpslog.dll"
+      ]
+    },
+    "source": {
+      "type": "local",
+      "path": "tools/_weirdutils/out/dpslog.dll",
+      "filename": "dpslog.dll",
+      "version": "0.1"
+    },
+    "files": [
+      {
+        "match": "dpslog.dll",
+        "destination": "dpslog.dll"
+      }
+    ],
+    "dlls_txt": {
+      "add": [
+        "dpslog.dll"
+      ]
+    },
+    "kind": "dll_file",
+    "dependencies": [],
+    "conflicts": [],
+    "author": "MarcelineVQ"
+  },
+  {
+    "id": "wu_weirdperformance",
+    "name": "WeirdPerformance",
+    "category": "Advanced",
+    "description": "Engine-level SIMD, faster decompression, MPQ file cache, timer calibration, and Lua runtime optimizations.",
+    "info_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "repo_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
+    "detect": {
+      "any_files": [
+        "weirdperformance.dll"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://codeberg.org/MarcelineVQ/WeirdUtils/releases/download/v0.7.0/weirdperformance.dll",
+      "filename": "weirdperformance.dll"
+    },
+    "files": [
+      {
+        "match": "weirdperformance.dll",
+        "destination": "weirdperformance.dll"
+      }
+    ],
+    "dlls_txt": {
+      "add": [
+        "weirdperformance.dll"
+      ]
+    },
+    "kind": "dll_file",
+    "dependencies": [],
+    "conflicts": [],
+    "author": "MarcelineVQ"
   }
 ]
