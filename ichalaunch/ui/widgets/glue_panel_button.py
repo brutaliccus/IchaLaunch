@@ -11,7 +11,7 @@ from PySide6.QtWidgets import QPushButton, QSizePolicy
 
 from ichalaunch.core.paths import theme_file
 from ichalaunch.ui.widgets.cursors import apply_open_hand
-from ichalaunch.ui.theme_fonts import chrome_family
+from ichalaunch.ui.theme_fonts import chrome_family, ink_centered_rect
 
 _UP_NAME = "Glue-Panel-Button-Up-v2.PNG"
 _DOWN_NAME = "Glue-Panel-Button-Down-v2.PNG"
@@ -49,12 +49,23 @@ _TEXT_DIM = QColor("#8f8574")
 # These were purple, hues 265 to 275, and purple appears nowhere on
 # ravencraft.io: the site frames everything in brown and bronze stonework with
 # gold headings. The hues now sit on the site's own gold, which measures hue 37
-# for the bronze and 45 for the heading gold. Saturation and value scales are
-# unchanged, so the bevel and hover relationships that were tuned against the
-# original red art still hold.
-_FILL_STANDARD = (36, 100, 1.05)   # hue, sat, value scale
-_FILL_PRIMARY = (38, 175, 1.25)
-_FILL_PRIMARY_BRIGHT = (42, 200, 1.35)
+# for the bronze and 45 for the heading gold.
+#
+# All three value scales are down. STANDARD from 1.05 to 0.82. That is a contrast
+# change, not a taste one: against the old lighter fill the label measured
+# 5.64:1, which clears AA and stops there. On this deeper bronze the same warm
+# parchment measures 7.90:1, which is AAA, and the plate still reads as bronze
+# rather than going muddy.
+#
+# PRIMARY went 1.25 to 0.95 and PRIMARY_BRIGHT 1.35 to 0.95 for the same reason,
+# and those were the worse offenders: the label measured 4.94:1 on primary and
+# 4.29:1 on primary-bright, which FAILS AA outright on the one button in the row
+# most likely to be clicked. A primary action should stand out by saturation,
+# which is still 175 and 200 against standard's 100, rather than by sitting so
+# close to its own label in luminance that the label stops being readable.
+_FILL_STANDARD = (36, 100, 0.82)   # hue, sat, value scale
+_FILL_PRIMARY = (38, 175, 0.95)
+_FILL_PRIMARY_BRIGHT = (42, 200, 0.95)
 
 # Square UPDATE plate: keep L/R metal caps, compress only the middle fill.
 # Caps are the trimmed metal (~16–20px), not the padded 32px of the 512 source
@@ -832,6 +843,12 @@ class GluePanelButton(QPushButton):
         # keeps the site's warm parchment rather than going to flat white.
         color = _TEXT_DIM if not self.isEnabled() else _TEXT
         text_rect = rect.adjusted(0, 1 if self.isDown() else 0, 0, 0)
+        # Qt's AlignCenter centres the LINE BOX, not the ink. Folkard carries a
+        # tall ascent with the capitals sitting low inside it, so the label rode
+        # high enough that the R on "Rescan" touched the plate's top edge while
+        # a wide gap sat under the baseline. theme_fonts already solves this and
+        # the launch plate has used it all along; this widget never adopted it.
+        text_rect = ink_centered_rect(text_rect, font, text)
         painter.setPen(QColor(0, 0, 0, 140))
         painter.drawText(text_rect.adjusted(1, 1, 1, 1), Qt.AlignmentFlag.AlignCenter, text)
         painter.setPen(color)
