@@ -21,7 +21,7 @@ _PITCH_PX = 18
 _BAND_PAD_PX = 5
 
 _ACTIVE = QColor("#F1C22D")
-_IDLE = QColor("#9990ab")
+_IDLE = QColor("#a8977c")
 _IDLE_ALPHA = 90
 
 

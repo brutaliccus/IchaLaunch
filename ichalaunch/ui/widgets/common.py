@@ -479,7 +479,7 @@ class _DownloadGlyph(QWidget):
         del event
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        color = QColor("#6e6678" if self._muted else "#C4A35A")
+        color = QColor("#7a6e58" if self._muted else "#C4A35A")
         painter.setPen(QPen(color, 1.4))
         painter.setBrush(color)
         w, h = self.width(), self.height()
@@ -527,7 +527,7 @@ class AddonDownloadCount(QWidget):
         muted = text == "—"
         self._icon.set_muted(muted)
         self._label.setText(text)
-        color = "#6e6678" if muted else "#C4A35A"
+        color = "#7a6e58" if muted else "#C4A35A"
         self._label.setStyleSheet(f"color: {color}; font-size: 11px; font-weight: 600;")
         self.setToolTip(download_badge_tooltip(entry))
         self.show()
@@ -856,8 +856,8 @@ class AddonRowInstallButton(QPushButton):
             side=_UPDATE_BTN_SIDE,
         )
         if pm.isNull():
-            painter.setPen(QColor("#7a6e88"))
-            painter.setBrush(QColor("#4a2f7a"))
+            painter.setPen(QColor("#94836a"))
+            painter.setBrush(QColor("#6b4a1e"))
             painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 6, 6)
         else:
             painter.drawPixmap(rect, pm)
@@ -1010,8 +1010,8 @@ class AddonRowUpdateButton(QPushButton):
             side=_UPDATE_BTN_SIDE,
         )
         if pm.isNull():
-            painter.setPen(QColor("#7a6e88"))
-            painter.setBrush(QColor("#4a2f7a"))
+            painter.setPen(QColor("#94836a"))
+            painter.setBrush(QColor("#6b4a1e"))
             painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 6, 6)
         else:
             painter.drawPixmap(rect, pm)
@@ -2661,7 +2661,7 @@ class AddonRow(QWidget):
         show_update = self._update_available and not self._never_update
         if self._never_update:
             self.status_lbl.setText("Never update")
-            self.status_lbl.setStyleSheet("color: #6e6678;")
+            self.status_lbl.setStyleSheet("color: #7a6e58;")
         else:
             self.status_lbl.setText(self._status_text)
             self._apply_status_style(self._status_text)
@@ -2694,9 +2694,9 @@ class AddonRow(QWidget):
         if status.startswith("Update"):
             self.status_lbl.setStyleSheet("color: #F1C22D;")
         elif status.startswith("Up to date") or status == "Installed":
-            self.status_lbl.setStyleSheet("color: #7c5cc4;")
+            self.status_lbl.setStyleSheet("color: #c9953f;")
         elif status.startswith("Never update"):
-            self.status_lbl.setStyleSheet("color: #6e6678;")
+            self.status_lbl.setStyleSheet("color: #7a6e58;")
         else:
             self.status_lbl.setObjectName("Muted")
             self.status_lbl.setStyleSheet("")

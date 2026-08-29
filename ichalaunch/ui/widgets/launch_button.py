@@ -26,7 +26,10 @@ from ichalaunch.ui.theme_fonts import chrome_family, ink_centered_rect
 _GOLD = QColor("#F1C22D")
 _GOLD_SOFT = QColor("#E8C878")
 _MUTED = QColor("#6a6358")
-_PURPLE = QColor("#7c5cc4")
+# The Glue plate art is red in the original WoW textures. It is recoloured to
+# the site's bronze rather than the launcher's old purple: purple appears nowhere
+# on ravencraft.io and read as the most off-brand element in the window.
+_PLATE_TINT = QColor("#c9953f")
 
 _PLAY_W = 200
 _PLAY_H = 56
@@ -140,7 +143,7 @@ def _check_button_glow() -> QPixmap:
 class LaunchButton(QPushButton):
     """PLAY / INSTALL / REGISTER chrome button (objectName PlayButton).
 
-    Uses taller WoW Glue-Panel art: red fill is shifted to purple, then a
+    Uses taller WoW Glue-Panel art: red fill is shifted to the site bronze, then a
     bottom-weighted gradient and gold underline are painted the same way
     (per-pixel). Hover stays on the Up plate; Down art is click-only.
     """
@@ -230,7 +233,7 @@ class LaunchButton(QPushButton):
         painter.setBrush(QColor(18, 14, 12))
         painter.drawRoundedRect(inner, 3, 3)
         # bottom glow
-        glow = QColor(_PURPLE)
+        glow = QColor(_PLATE_TINT)
         for i in range(18):
             glow.setAlpha(max(0, 140 - i * 8))
             y = inner.bottom() - i

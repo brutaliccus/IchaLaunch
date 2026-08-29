@@ -25,9 +25,9 @@ _ARROW_DOWN = "UI-ScrollBar-ScrollDownButton-Down.PNG"
 _ARROW_UP_EXT = Path(r"F:\wow-ui-textures\Buttons") / _ARROW_UP
 _ARROW_DOWN_EXT = Path(r"F:\wow-ui-textures\Buttons") / _ARROW_DOWN
 
-_TEXT = QColor("#e6e0ee")
+_TEXT = QColor("#ece3d2")
 _TEXT_DIM = QColor("#8a8490")
-_BORDER = QColor(124, 92, 196, 110)
+_BORDER = QColor(201, 149, 63, 110)
 # Caret art: 34×34 (~5% over prior 32×32). Idle: +2 X, +2 Y below V-center.
 # Depressed (pressed / popup open / Down art): idle + (−2 X, +3 Y).
 _ARROW_SIZE = 34
@@ -87,18 +87,18 @@ class _MarbleComboView(QListView):
             "  border: none;"
             "  outline: none;"
             "  padding: 4px;"
-            "  color: #e6e0ee;"
+            "  color: #ece3d2;"
             "}"
             "QListView#GlueComboPopup::item {"
             "  min-height: 28px;"
             "  padding: 4px 10px;"
             "  border-radius: 4px;"
-            "  color: #e6e0ee;"
+            "  color: #ece3d2;"
             "  text-align: center;"
             "}"
             "QListView#GlueComboPopup::item:hover,"
             "QListView#GlueComboPopup::item:selected {"
-            "  background-color: rgba(124, 92, 196, 0.42);"
+            "  background-color: rgba(201, 149, 63, 0.42);"
             "  color: #ffffff;"
             "}"
         )
@@ -572,8 +572,8 @@ class GlueComboBox(QComboBox):
             disabled=not self.isEnabled(),
         )
         if pm.isNull():
-            painter.setPen(QColor("#7a6e88"))
-            painter.setBrush(QColor("#2c2632"))
+            painter.setPen(QColor("#94836a"))
+            painter.setBrush(QColor("#2e2820"))
             painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 6, 6)
         else:
             painter.drawPixmap(rect, pm)

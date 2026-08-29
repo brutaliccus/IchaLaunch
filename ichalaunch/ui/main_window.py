@@ -105,7 +105,7 @@ _NAV_BOTTOM_BANNER_PANEL_OVERLAP = 6
 _BOTTOM_BAR_H = 88
 _CORNER_RADIUS_F = float(_CORNER_RADIUS)
 # Main ContentPanel floor — opaque RavenCraft base, then tiles + wash on top.
-_FLOOR_BASE = QColor("#181315")
+_FLOOR_BASE = QColor("#1b1512")
 # Generic-metal chrome — single edge + TL corner sources (BorderFrameArt /
 # CornerFrameArt). Edges are rotated/flipped so the light-grey lip faces
 # outward; TR/BL/BR corners are mirrors of the TL source.
@@ -122,7 +122,7 @@ _METAL_CORNER_HANG = 1
 # Hairline where tiled edges meet corner arm tips (not a tuck-under stub).
 _METAL_ARM_JOIN = 1
 # Floor past each metal dest (AA / hang) so desktop cannot peek.
-# Keep this small — a wide band reads as a #181315 outline.
+# Keep this small — a wide band reads as a #1b1512 outline.
 _METAL_FLOOR_OUTSET = 2
 # Side rails run down to the solid banner bar (not the crystal tip, not the
 # spike valleys). +2 tucks under the opaque bar so the join has no hairline.
@@ -433,7 +433,7 @@ def _client_mod_failure_dialog_body(
     )
 
 
-# Widget-scoped: kills the app-wide QPushButton 1px #7a6e88 frame. Size rules are
+# Widget-scoped: kills the app-wide QPushButton 1px #94836a frame. Size rules are
 # repeated so this sheet cannot drop the file-QSS box model.
 _TAB_BASE_QSS = (
     "QPushButton {"
@@ -470,7 +470,7 @@ class NavTabButton(QPushButton):
         self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
         self.setAutoFillBackground(False)
         self.setFlat(True)
-        # Widget-scoped: kill the app-wide QPushButton 1px #7a6e88 frame.
+        # Widget-scoped: kill the app-wide QPushButton 1px #94836a frame.
         # Repeat size rules so this sheet cannot drop the file-QSS box model.
         self._apply_chrome_font()
         self._badge = False
@@ -533,8 +533,8 @@ class NavTabButton(QPushButton):
         if self.isChecked():
             return QColor("#F1C22D")
         if self.underMouse():
-            return QColor("#e6e0ee")
-        return QColor("#9990ab")
+            return QColor("#ece3d2")
+        return QColor("#a8977c")
 
     def paintEvent(self, event) -> None:  # noqa: N802
         del event
@@ -1427,7 +1427,7 @@ class BottomBar(QWidget):
 class NavBannerUnderFill(QWidget):
     """Body + play fills behind nav_bottom.png (same rect as the banner).
 
-    Play black (#100d0c / _MIST_BASE) first, then body (#181315 / _FLOOR_BASE)
+    Play black (#100d0c / _MIST_BASE) first, then body (#1b1512 / _FLOOR_BASE)
     on the solid-bar half so they meet on the opaque bar. Spike-valley and
     PNG-pad alpha are not see-through. Stacked under metal / portrait / PNG
     so the fill never sits on top of the banner art. Click-through.

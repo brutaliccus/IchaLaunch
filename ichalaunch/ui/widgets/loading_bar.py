@@ -20,8 +20,8 @@ _FILL = "Loading-BarFill.PNG"
 _SPARK = "UI-LoadingBar-Spark.PNG"
 
 # RavenCraft purple shift for fill only (spark stays natural glow).
-_FILL_MULTIPLY = QColor("#7c5cc4")
-_FILL_GLAZE = QColor(74, 47, 122, 90)  # #4a2f7a warm dark purple
+_FILL_MULTIPLY = QColor("#c9953f")
+_FILL_GLAZE = QColor(107, 74, 30, 90)  # #6b4a1e warm dark purple
 
 # Frame-v2 is a hollow 1024×64 rail with ~40px ornate end caps and a near-uniform
 # middle. Draw as end-caps + horizontally tiled center (never stretch the full
@@ -312,14 +312,14 @@ class ThemeLoadingBar(QWidget):
             spark_x = fill_rect.right()
         elif fill_w > 0.5:
             fill_rect = QRectF(trough.left(), trough.top(), fill_w, trough.height())
-            painter.fillRect(fill_rect, QColor(74, 47, 122, 210))
+            painter.fillRect(fill_rect, QColor(107, 74, 30, 210))
             spark_x = fill_rect.right()
 
         # Frame-v2: end caps + tiled middle (not a single stretched strip).
         if not self._border.isNull():
             _draw_frame_tiled(painter, self._border, border_rect)
         else:
-            painter.setPen(QColor(124, 92, 196, 160))
+            painter.setPen(QColor(201, 149, 63, 160))
             painter.drawRect(border_rect)
 
         # Spark at leading edge — natural PNG glow only.
@@ -339,5 +339,5 @@ class ThemeLoadingBar(QWidget):
             text = self._format.replace("%p", str(int(round(frac * 100)))).replace(
                 "%v", str(self._value)
             )
-            painter.setPen(QColor("#e6e0ee"))
+            painter.setPen(QColor("#ece3d2"))
             painter.drawText(border_rect.toRect(), Qt.AlignmentFlag.AlignCenter, text)

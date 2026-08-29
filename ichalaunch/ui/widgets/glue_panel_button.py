@@ -34,14 +34,19 @@ GLUE_ROW_MENU_W = 28
 
 _GOLD = QColor("#F1C22D")
 _GOLD_SOFT = QColor("#E8C878")
-_TEXT = QColor("#e6e0ee")
-_TEXT_DIM = QColor("#8a8490")
+_TEXT = QColor("#ece3d2")
+_TEXT_DIM = QColor("#8f8574")
 
 # HSV targets for the red *fill* only (border greys are left alone).
-# Standard = muted greyish purple; primary = RavenCraft bright purple.
-_FILL_STANDARD = (275, 95, 1.05)   # hue, sat, value scale
-_FILL_PRIMARY = (268, 175, 1.25)
-_FILL_PRIMARY_BRIGHT = (265, 200, 1.35)
+# These were purple, hues 265 to 275, and purple appears nowhere on
+# ravencraft.io: the site frames everything in brown and bronze stonework with
+# gold headings. The hues now sit on the site's own gold, which measures hue 37
+# for the bronze and 45 for the heading gold. Saturation and value scales are
+# unchanged, so the bevel and hover relationships that were tuned against the
+# original red art still hold.
+_FILL_STANDARD = (36, 100, 1.05)   # hue, sat, value scale
+_FILL_PRIMARY = (38, 175, 1.25)
+_FILL_PRIMARY_BRIGHT = (42, 200, 1.35)
 
 # Square UPDATE plate: keep L/R metal caps, compress only the middle fill.
 # Caps are the trimmed metal (~16–20px), not the padded 32px of the 512 source
@@ -50,7 +55,7 @@ _LAUNCH_SQUARE_SIDE = 56
 _LAUNCH_SQUARE_CAP = 20
 
 # ContentPanel floor / _FLOOR_BASE — tab plates tint toward this, not purple.
-GLUE_FLOOR_TINT = QColor("#181315")
+GLUE_FLOOR_TINT = QColor("#1b1512")
 # Typical luminance of the glue-plate red fill (center ~107,0,0) so idle
 # fill maps onto GLUE_FLOOR_TINT while metal bevels keep relative contrast.
 _FLOOR_REF_LUM = 32.0
@@ -785,8 +790,8 @@ class GluePanelButton(QPushButton):
         painter.end()
 
     def _paint_fallback(self, painter: QPainter, rect: QRect) -> None:
-        fill = QColor("#4a2f7a") if self._role == "primary" else QColor("#2c2632")
-        painter.setPen(QColor("#7a6e88"))
+        fill = QColor("#6b4a1e") if self._role == "primary" else QColor("#2e2820")
+        painter.setPen(QColor("#94836a"))
         painter.setBrush(fill)
         painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 6, 6)
 

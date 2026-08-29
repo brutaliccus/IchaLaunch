@@ -208,7 +208,7 @@ class ThemeCheckBox(QAbstractButton):
                     max(0, self.width() - indicator.right() - 1 - _LABEL_SPACING),
                     self.height(),
                 )
-                painter.setPen(QColor("#e6e0ee"))
+                painter.setPen(QColor("#ece3d2"))
                 flags = int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
                 if self.isEnabled():
                     painter.drawText(label, flags, text)
@@ -246,8 +246,8 @@ class ThemeCheckBox(QAbstractButton):
             if self._hover and enabled and not depress.isNull():
                 painter.drawPixmap(fx, fy, depress)
         else:
-            painter.setPen(QColor(150, 131, 158, 80))
-            painter.setBrush(QColor(120, 100, 150, 30))
+            painter.setPen(QColor(163, 140, 106, 80))
+            painter.setBrush(QColor(150, 122, 78, 30))
             painter.drawRoundedRect(dest.adjusted(1, 1, -1, -1), 4, 4)
             if self.isChecked():
                 if not mark.isNull():

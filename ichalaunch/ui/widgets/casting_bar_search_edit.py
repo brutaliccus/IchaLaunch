@@ -20,7 +20,7 @@ _MID_TILE_SRC_W = 16
 
 _FILL = QColor(28, 24, 34, 210)
 _FILL_FOCUS = QColor(36, 28, 48, 230)
-_FALLBACK_BORDER = QColor(124, 92, 196, 160)
+_FALLBACK_BORDER = QColor(201, 149, 63, 160)
 _FALLBACK_FOCUS = QColor("#F1C22D")
 
 # ~10% taller than previous 37px rail so frame art scales with height.
@@ -150,8 +150,8 @@ class CastingBarSearchEdit(QLineEdit):
             "  border: none;"
             "  border-radius: 0;"
             "  padding: 0px;"
-            "  color: #e6e0ee;"
-            "  selection-background-color: #7c5cc4;"
+            "  color: #ece3d2;"
+            "  selection-background-color: #c9953f;"
             "}"
             f"QLineEdit#{name}:hover,"
             f"QLineEdit#{name}:focus {{"

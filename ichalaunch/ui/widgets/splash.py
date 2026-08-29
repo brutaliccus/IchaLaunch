@@ -27,7 +27,7 @@ _SMOKE_PX = 536
 # Mid purple VFX layer — a bit smaller than the black Worgen smoke behind it.
 _SMOKE_PURPLE_PX = 440
 # Theme dark RavenCraft purple (stylesheet pressed / ApplyReadyButton:pressed).
-_SMOKE_PURPLE = QColor(58, 36, 96)  # #3a2460
+_SMOKE_PURPLE = QColor(58, 36, 96)  # #4a3314
 _WINDOW_PX = 560
 # Fraction of the square side used as a soft border fade (not a radial circle).
 _EDGE_FEATHER = 0.14

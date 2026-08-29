@@ -31,10 +31,10 @@ from ichalaunch.ui.widgets.common import Card
 _BUNDLED_NAME = "UI-Background-Marble.PNG"
 _EXTERNAL = Path(r"F:\wow-ui-textures\FrameGeneral\UI-Background-Marble.PNG")
 
-_BASE = QColor("#181315")
+_BASE = QColor("#1b1512")
 _TILE_OPACITY = 0.50
-_BORDER = QColor(124, 92, 196, 76)
-_BORDER_GREY = QColor(150, 131, 158, 46)
+_BORDER = QColor(201, 149, 63, 76)
+_BORDER_GREY = QColor(163, 140, 106, 46)
 _BORDER_INSET = 1
 
 

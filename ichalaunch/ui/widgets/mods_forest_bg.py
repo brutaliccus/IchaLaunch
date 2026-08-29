@@ -19,10 +19,42 @@ from ichalaunch.core.paths import theme_file
 from ichalaunch.ui.widgets.common import Card
 
 _BUNDLED_NAME = "darkforest_tree_011.png"
+# ravencraft.io frames every content panel with ornate metal corner brackets. The
+# launcher already does this on its outer window and the Contributors divider, so
+# the mods drawer was the odd one out. These are the same 48px corner sources the
+# window frame uses, so the panel matches the chrome rather than inventing a
+# second ornament language.
+_CORNER_NAMES = (
+    ("metal_corner_tl.png", 0),
+    ("metal_corner_tr.png", 1),
+    ("metal_corner_bl.png", 2),
+    ("metal_corner_br.png", 3),
+)
+_CORNER_PX = 26
+_CORNER_INSET = 3
+_CORNER_CACHE: dict[str, QPixmap] = {}
+
+
+def _corner(name: str) -> QPixmap:
+    """One corner ornament, scaled to the panel's bracket size and cached."""
+    hit = _CORNER_CACHE.get(name)
+    if hit is not None:
+        return hit
+    path = theme_file(name)
+    pm = QPixmap(str(path)) if path and Path(path).is_file() else QPixmap()
+    if not pm.isNull():
+        pm = pm.scaled(
+            _CORNER_PX,
+            _CORNER_PX,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+    _CORNER_CACHE[name] = pm
+    return pm
 _EXTERNAL = Path(r"F:\wow-ui-textures\GLUES\Models\UI_SCOURGE\DarkForest_Tree_011.PNG")
 
 # Soft enough that gold category labels / list text stay readable.
-_CARD_BASE = QColor("#181315")
+_CARD_BASE = QColor("#1b1512")
 _ART_OPACITY = 0.42
 _WASH = QColor(24, 19, 21, 168)
 _RADIUS = 10.0
@@ -135,6 +167,18 @@ class HomeModsCard(Card):
             painter.drawPixmap(0, 0, layer)
             painter.setOpacity(1.0)
             painter.fillPath(path, _WASH)
+
+        # Corner brackets last, and outside the art clip, so they read as frame
+        # rather than as something printed on the texture.
+        painter.setClipping(False)
+        i = _CORNER_INSET
+        for name, slot in _CORNER_NAMES:
+            pm = _corner(name)
+            if pm.isNull():
+                continue
+            x = i if slot in (0, 2) else rect.width() - pm.width() - i
+            y = i if slot in (0, 1) else rect.height() - pm.height() - i
+            painter.drawPixmap(x, y, pm)
 
         painter.end()
         super().paintEvent(event)
