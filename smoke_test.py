@@ -16268,6 +16268,67 @@ def test_linux_game_running_guard():
     print("OK linux game running guard")
 
 
+def test_discord_presence_is_opt_in_and_never_raises():
+    """Presence is off by default, silent without an app id, and cannot break launch."""
+    import struct
+    from unittest.mock import patch
+
+    from ichalaunch.config.settings import DEFAULTS, settings
+    from ichalaunch.core import discord_presence as dp
+
+    # Opt-in. A social nicety must not switch itself on for everyone.
+    assert DEFAULTS.get(dp.SETTING_ENABLED) is False
+
+    # No application id shipped -> inert, whatever the setting says.
+    assert dp.APPLICATION_ID == "", "an application id must not be committed by accident"
+    prev = settings.get(dp.SETTING_ENABLED, False)
+    try:
+        settings.set(dp.SETTING_ENABLED, True)
+        assert dp.is_enabled() is False, "enabled without an app id"
+        with patch.object(dp, "APPLICATION_ID", "123456789012345678"):
+            assert dp.is_enabled() is True
+            # Every failure is swallowed: a dead socket must return False, not raise.
+            with patch.object(dp._Connection, "connect", lambda self: False):
+                assert dp.set_activity(dp.playing_activity()) is False
+            with patch.object(dp._Connection, "connect", lambda self: (_ for _ in ()).throw(OSError("boom"))):
+                assert dp.set_activity(dp.playing_activity()) is False
+        settings.set(dp.SETTING_ENABLED, False)
+        with patch.object(dp, "APPLICATION_ID", "123456789012345678"):
+            assert dp.is_enabled() is False
+            assert dp.set_activity(dp.playing_activity()) is False
+    finally:
+        settings.set(dp.SETTING_ENABLED, prev)
+
+    # Payload is plain strings, bounded, and carries no user-supplied markup.
+    act = dp.Activity(details="d" * 500, state="s" * 500, large_text="t" * 500)
+    pay = act.payload()
+    assert len(pay["details"]) == 128 and len(pay["state"]) == 128
+    assert len(pay["assets"]["large_text"]) == 128
+    assert dp.Activity().payload() == {}, "an empty activity must send nothing"
+
+    # Socket discovery covers the numbered sockets and the sandboxed runtimes.
+    paths = dp._candidate_paths()
+    assert len(paths) >= 10 and any(p.endswith("discord-ipc-0") for p in paths)
+
+    # A peer claiming a huge frame must be refused rather than allocated for.
+    class _Fake(dp._Connection):
+        def __init__(self, blob):
+            super().__init__()
+            self._blob = blob
+        def _read_exact(self, n):
+            out, self._blob = self._blob[:n], self._blob[n:]
+            if len(out) < n:
+                raise OSError("short read")
+            return out
+    try:
+        _Fake(struct.pack("<II", 1, 999_999_999)).recv()
+        raise AssertionError("accepted an oversized frame")
+    except ValueError:
+        pass
+
+    print("OK discord presence opt-in and failure-safe")
+
+
 def _drain_qt_threads(wait_ms: int = 3000) -> tuple[list[str], list[str]]:
     """Wait out any QThread still running, so the process can exit cleanly.
 
@@ -17317,6 +17378,7 @@ def _run_smoke_tests():
     test_gallery_hand_turns_land_at_once_and_vignette_spares_the_bands()
     test_rivet_frame_and_title_lockups()
     test_home_nav_does_not_spawn_toplevel_windows()
+    test_discord_presence_is_opt_in_and_never_raises()
     joined, stuck = _drain_qt_threads()
     if joined:
         names = ", ".join(sorted(set(joined)))

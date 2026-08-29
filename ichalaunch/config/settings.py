@@ -135,6 +135,9 @@ def normalize_addons_filter(value: Any) -> str:
 
 
 DEFAULTS: dict[str, Any] = {
+    # Off unless asked for: presence tells the player's friends what they are
+    # doing, which is theirs to opt into rather than ours to assume.
+    "discord_rich_presence": False,
     "game_path": "",
     # Linux launch. Empty proton path means "resolve and then pin".
     "linux_umu_path": "",
