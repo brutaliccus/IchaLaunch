@@ -190,6 +190,10 @@ def main() -> int:
     load_stylesheet(app)
     icon = load_app_icon(app)
 
+    # Capture must not block on first-run privacy dialogs.
+    MainWindow._run_startup_opt_in_prompts = lambda self: None  # type: ignore[method-assign]
+    MainWindow._flush_pending_toc_mismatch_prompt = lambda self: None  # type: ignore[method-assign]
+
     win = MainWindow()
     if icon is not None:
         win.setWindowIcon(icon)
@@ -199,6 +203,19 @@ def main() -> int:
     app.processEvents()
 
     QTimer.singleShot(_FAILSAFE_MS, app.quit)
+
+    def _freeze_featured_slide() -> None:
+        """Hold the first Zaeya slide so Home shots match the 1.5 well."""
+        bg = win.home.talent_bg
+        fade = getattr(bg, "_fade", None)
+        if fade is not None:
+            fade.stop()
+            bg._fade = None
+        bg._timer.stop()
+        if bg.slide_count() > 0 and bg.display_index() != 0:
+            bg.go_to(0)
+            bg._timer.stop()
+        win.home._sync_brand_layout()
 
     def grab_pages(idx: int = 0) -> None:
         if idx >= len(SHOTS):
@@ -224,6 +241,8 @@ def main() -> int:
         name, page, loading = SHOTS[idx]
         win._nav(page)
         _set_loading_bar(win, loading)
+        if page == 0:
+            _freeze_featured_slide()
         app.processEvents()
         win._position_frame_stroke()
         win._position_rc_logo()
