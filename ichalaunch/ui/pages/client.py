@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from ichalaunch.ui.widgets.gradient_label import AnimatedLavaLabel
 from ichalaunch.config.settings import settings
 from ichalaunch.core.filesystem import LOCK_AV_VERIFY_MESSAGE
 from ichalaunch.core.process import wow_exe_running
@@ -121,7 +122,7 @@ class ClientPage(QWidget):
         root.setContentsMargins(16, 6, 16, 12)
         root.setSpacing(8)
 
-        title = QLabel("Client Fixes, Tweaks & Patches")
+        title = AnimatedLavaLabel("Client Fixes, Tweaks & Patches")
         title.setObjectName("SectionTitle")
         title.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         title.setContentsMargins(_HEADER_LEFT_INSET, 0, 0, 0)

@@ -12,6 +12,7 @@ QLabel#SectionTitle,
 QLabel#CardTitle,
 QLabel#Subtitle,
 QLabel#HomeModCategory,
+QLabel#PlayStatus,
 QLabel#SectionSubtitle,
 QLabel#HomeModCategorySub,
 QLabel#ThemedDialogTitle,
@@ -69,6 +70,24 @@ QToolTip {
 
 /* Section headers, including Available / Installed on the Addons tab. 16px was
    too small to read comfortably on a 5K panel. */
+/* The play-bar status word: Ready, Working, Updated, and the rest. It shared
+   the generic Muted style, which is a cold small grey, so the one line of live
+   feedback in the window was also the quietest thing in it. On the chrome face
+   in the site's gold instead.
+
+   30px is not arbitrary: it is what the PLAY label ACTUALLY renders at, read
+   by instrumenting the widget rather than by reimplementing its fit loop. A
+   hand replication gave 25 and was wrong, because the real loop applies letter
+   tracking and measures the ink rather than the line box. So the status word,
+   the Contributors label and the launch button all read at one size across the
+   bar. If the plate is ever resized this wants re-measuring the same way. */
+QLabel#PlayStatus {
+    color: #F1C22D;
+    font-size: 30px;
+    font-weight: 600;
+    background: transparent;
+}
+
 QLabel#SectionTitle {
     color: #F1C22D;
     font-size: 21px;

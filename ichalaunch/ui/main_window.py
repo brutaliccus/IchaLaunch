@@ -47,6 +47,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ichalaunch.ui.widgets.gradient_label import AnimatedLavaLabel
 from ichalaunch.ui.widgets import dialogs as themed
 
 # How long a launched client is watched for an early failure, and how often.
@@ -102,7 +103,7 @@ _NAV_BOTTOM_BANNER_OVERDRAW_X = 12
 _NAV_BOTTOM_BANNER_PANEL_OVERLAP = 6
 # Play/status strip — PLAY 56 + 80px UPDATE glow. Height only; do not inset
 # L/R to "fix" height. Under-banner play fill is a dedicated layer, not 88px.
-_BOTTOM_BAR_H = 88
+_BOTTOM_BAR_H = 86
 _CORNER_RADIUS_F = float(_CORNER_RADIUS)
 # Main ContentPanel floor — opaque RavenCraft base, then tiles + wash on top.
 _FLOOR_BASE = QColor("#1b1512")
@@ -197,6 +198,11 @@ from ichalaunch.ui.widgets.gradient_label import (
     SWEEP_PERIOD_MS,
     gold_pen,
     lava_rim_pixmap,
+    GradientLabel,
+    RIM_FROST_BLUE,
+    RIM_NEON_PINK,
+    RIM_PINK_WHITE,
+    lava_flicker,
     lava_text_pen,
     soft_halo,
 )
@@ -468,8 +474,8 @@ _TAB_BASE_QSS = (
 )
 
 
-_TAB_HALO_PAD = 14
-_TAB_HALO_BLUR = 5
+_TAB_HALO_PAD = 22
+_TAB_HALO_BLUR = 9
 
 
 class NavTabButton(QPushButton):
@@ -607,11 +613,11 @@ class NavTabButton(QPushButton):
                 # a hard outline, then the travelling heat round the outline.
                 pad = _TAB_HALO_PAD
                 soft = soft_halo(pm, "#F1C22D", pad, _TAB_HALO_BLUR)
-                painter.setOpacity(0.55)
+                painter.setOpacity(0.55 * lava_flicker(self._sweep_deg * 0.6))
                 painter.drawPixmap(dest.adjusted(-pad, -pad, pad, pad), soft)
-                rim = lava_rim_pixmap(pm, self._sweep_deg)
-                painter.setOpacity(0.62)
-                painter.drawPixmap(dest.adjusted(-4, -4, 4, 4), rim)
+                rim = lava_rim_pixmap(soft, self._sweep_deg)
+                painter.setOpacity(0.62 * lava_flicker(self._sweep_deg))
+                painter.drawPixmap(dest.adjusted(-pad, -pad, pad, pad), rim)
                 painter.setOpacity(1.0)
             painter.drawPixmap(dest, pm)
 
@@ -1811,11 +1817,17 @@ class MainWindow(QMainWindow):
         # 80px UPDATE glow (hole-matched to the 56 plate) needs this height.
         bottom.setFixedHeight(_BOTTOM_BAR_H)
         bot_l = QHBoxLayout(bottom)
-        bot_l.setContentsMargins(16, 4, 4, 4)
+        # Symmetric top and bottom so PLAY sits centred between the metal
+        # separator above and the window edge below. The bar is sized to the
+        # launch plate plus its glow margin and nothing more.
+        bot_l.setContentsMargins(16, 3, 4, 3)
         bot_l.setSpacing(14)
 
-        self.status_lbl = QLabel("Ready")
-        self.status_lbl.setObjectName("Muted")
+        # GradientLabel, not QLabel: the status word carries the same gold ramp
+        # as the tabs and the launch plate, so the three places the eye lands in
+        # this bar agree with each other.
+        self.status_lbl = AnimatedLavaLabel("Ready")
+        self.status_lbl.setObjectName("PlayStatus")
         self.status_lbl.setWordWrap(True)
         self.status_lbl.setMinimumWidth(120)
         self.status_lbl.setMaximumWidth(240)
@@ -1866,15 +1878,20 @@ class MainWindow(QMainWindow):
         contributors.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
         )
-        contrib_l = QVBoxLayout(contributors)
+        # Label beside the portraits rather than above them: stacked, it made
+        # the cluster tall enough to fight the launch plate for the bar's
+        # height, and the bar is now sized to the plate.
+        contrib_l = QHBoxLayout(contributors)
         contrib_l.setContentsMargins(0, 0, 0, 0)
-        contrib_l.setSpacing(2)
+        contrib_l.setSpacing(8)
         contrib_l.setAlignment(
             Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
         )
-        contributors_label = QLabel("Contributors")
-        contributors_label.setObjectName("Muted")
-        contributors_label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        contributors_label = AnimatedLavaLabel("Contributors")
+        contributors_label.setObjectName("PlayStatus")
+        contributors_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
         portraits = QHBoxLayout()
         portraits.setContentsMargins(0, 0, 0, 0)
         portraits.setSpacing(6)
@@ -1885,6 +1902,7 @@ class MainWindow(QMainWindow):
                 border_name="CheckButtonGlow-Pink.PNG",
                 url="https://discord.com/users/1080557702339633222",
                 tooltip="Mynie",
+                glow_ramp=RIM_NEON_PINK,
             )
         )
         portraits.addWidget(
@@ -1894,6 +1912,7 @@ class MainWindow(QMainWindow):
                 fill_mode="circle_cutout",
                 url="https://discord.com/users/608476640271663129",
                 tooltip="Valheru",
+                glow_ramp=RIM_PINK_WHITE,
             )
         )
         portraits.addWidget(
@@ -1902,9 +1921,11 @@ class MainWindow(QMainWindow):
                 border_name="CheckButtonHilight-Blue.PNG",
                 crop_mode="cover",
                 fill_mode="outer",
+                tooltip="Icha",
+                glow_ramp=RIM_FROST_BLUE,
             )
         )
-        contrib_l.addWidget(contributors_label, 0, Qt.AlignmentFlag.AlignHCenter)
+        contrib_l.addWidget(contributors_label, 0, Qt.AlignmentFlag.AlignVCenter)
         contrib_l.addLayout(portraits)
         self._contributors = contributors
 
@@ -3086,7 +3107,7 @@ class MainWindow(QMainWindow):
 
     def _set_busy_status(self, msg: str) -> None:
         self._busy_status_base = (msg or "").strip()
-        self.status_lbl.setText(self._format_busy_status(self._busy_status_base or "Working…"))
+        self.set_status(self._format_busy_status(self._busy_status_base or "Working…"))
 
     def _lock_addon_filters(self, extra_busy: bool = False) -> None:
         """Disable addons filter combos while a scan or _busy worker is running."""
@@ -3126,6 +3147,31 @@ class MainWindow(QMainWindow):
             if self.progress.maximum() == 0:
                 self._hide_progress_bar()
 
+
+    # Failure colour for the play-bar status. A failed launch that shimmers in
+    # molten gold reads as decoration, and the one line in the window whose job
+    # is to say something went wrong should not look pleased about it.
+    _STATUS_ERROR_COLOUR = "#ff8a6b"
+    _STATUS_ERROR_MARKERS = (
+        "failed", "error", "cannot", "could not", "unable", "refus",
+        "invalid", "missing", "denied", "timed out", "no game",
+    )
+
+    def set_status(self, text: str, *, error: bool | None = None) -> None:
+        """Set the play-bar status, dropping the animation when it is bad news.
+
+        ``error`` may be passed explicitly by a known failure path. Otherwise
+        the text is sniffed, which is imperfect on purpose: a missed error only
+        costs a shimmer, while hard-wiring every call site would be a much
+        larger change for the same result.
+        """
+        self.status_lbl.setText(text)
+        bad = error
+        if bad is None:
+            low = (text or "").lower()
+            bad = any(m in low for m in self._STATUS_ERROR_MARKERS)
+        self.status_lbl.set_plain(self._STATUS_ERROR_COLOUR if bad else None)
+
     def _fail_play_launch(self, status: str) -> None:
         self._play_launch_lock_until = 0.0
         self._play_launch_timer.stop()
@@ -3135,10 +3181,10 @@ class MainWindow(QMainWindow):
             self._refresh_play_button()
             if self.progress.maximum() == 0:
                 self._hide_progress_bar()
-        self.status_lbl.setText(status)
+        self.set_status(status, error=True)
 
     def _show_play_launch_progress(self, msg: str) -> None:
-        self.status_lbl.setText(msg)
+        self.set_status(msg)
         if not self._worker_busy():
             self.progress.show()
             self.progress.setRange(0, 0)
@@ -3161,7 +3207,7 @@ class MainWindow(QMainWindow):
         else:
             self._hide_progress_bar()
             self._busy_status_base = ""
-            self.status_lbl.setText(msg or "Ready")
+            self.set_status(msg or "Ready")
 
     def _on_progress_pct(self, pct: int) -> None:
         """Update bottom bar: determinate 0–100, or busy when pct < 0."""
@@ -3217,14 +3263,14 @@ class MainWindow(QMainWindow):
             # when still showing a checking… message.
             current = (self.status_lbl.text() or "").strip().lower()
             if current.startswith("checking"):
-                self.status_lbl.setText("Ready")
+                self.set_status("Ready")
             return
 
         self.progress.show()
         self.progress.setRange(0, 100)
         self.progress.setValue(self._combined_check_pct())
         self.progress.setFormat("%p%")
-        self.status_lbl.setText(msg)
+        self.set_status(msg)
 
     def _on_addon_check_status(self, msg: str) -> None:
         """Worker status → bottom-left label (repair text, then per-addon check)."""
@@ -3417,7 +3463,7 @@ class MainWindow(QMainWindow):
             return
         try:
             if set_farclip(game):
-                self.status_lbl.setText("Set Config.wtf farclip to 777")
+                self.set_status("Set Config.wtf farclip to 777")
             else:
                 self._farclip_prompted = False
         except OSError as exc:
@@ -3576,7 +3622,7 @@ class MainWindow(QMainWindow):
             except Exception as exc:  # noqa: BLE001
                 log.exception("Post-worker handler failed")
                 themed.error(self, "Error", str(exc))
-                self.status_lbl.setText(f"Failed: {str(exc)[:80]}")
+                self.set_status(f"Failed: {str(exc)[:80]}")
                 if self._pump_addon_queue():
                     return
                 self._set_busy_ui(False, f"Failed: {str(exc)[:80]}")
@@ -3620,13 +3666,13 @@ class MainWindow(QMainWindow):
         """
         if _safe_worker_running(self._launcher_update_worker):
             if not silent:
-                self.status_lbl.setText("Launcher update check already running…")
+                self.set_status("Launcher update check already running…")
             return
 
         if rate_limit_exhausted():
             if silent:
                 log.info("Skipping launcher update check — GitHub rate limit exhausted")
-                self.status_lbl.setText(RATE_LIMIT_STATUS)
+                self.set_status(RATE_LIMIT_STATUS)
                 return
             themed.error(self, "Launcher update check failed", RATE_LIMIT_STATUS)
             return
@@ -3643,7 +3689,7 @@ class MainWindow(QMainWindow):
             return
 
         if not silent:
-            self.status_lbl.setText("Checking for launcher updates…")
+            self.set_status("Checking for launcher updates…")
 
         worker = Worker(check_latest_launcher_release)
 
@@ -3652,7 +3698,7 @@ class MainWindow(QMainWindow):
             if isinstance(result, LauncherReleaseInfo) and result.update_available:
                 self._latest_launcher_release = result
                 if not silent:
-                    self.status_lbl.setText(f"Launcher update available: v{result.version}")
+                    self.set_status(f"Launcher update available: v{result.version}")
                 else:
                     # Quiet: badge + square update button only; leave status for other work.
                     log.info("Launcher update available: v%s", result.version)
@@ -3662,9 +3708,9 @@ class MainWindow(QMainWindow):
             self._refresh_play_button()
             if not silent:
                 if result is None:
-                    self.status_lbl.setText("No launcher release asset found")
+                    self.set_status("No launcher release asset found")
                 else:
-                    self.status_lbl.setText("Launcher is up to date")
+                    self.set_status("Launcher is up to date")
 
         def fail(msg: str):
             self._launcher_update_worker = None
@@ -3675,7 +3721,7 @@ class MainWindow(QMainWindow):
                 log.warning("Launcher update check failed: %s", msg)
                 # Rate-limit is worth surfacing; other silent failures stay in the log.
                 if "rate limit" in brief.lower():
-                    self.status_lbl.setText(RATE_LIMIT_STATUS)
+                    self.set_status(RATE_LIMIT_STATUS)
             else:
                 themed.error(self, "Launcher update check failed", msg)
 
@@ -3697,9 +3743,9 @@ class MainWindow(QMainWindow):
             except Exception as exc:  # noqa: BLE001
                 log.exception("Launcher self-replace failed")
                 themed.error(self, "Update failed", str(exc))
-                self.status_lbl.setText(f"Update failed: {str(exc)[:80]}")
+                self.set_status(f"Update failed: {str(exc)[:80]}")
                 return False
-            self.status_lbl.setText("Installing update and restarting…")
+            self.set_status("Installing update and restarting…")
             # Helper waits for this process to exit, then swaps the EXE and relaunches.
             # Return True so _on_worker_ok skips UI refresh (quit tears down widgets).
             QApplication.instance().quit()
@@ -3750,7 +3796,7 @@ class MainWindow(QMainWindow):
                     )
                 if parts:
                     line = "Synced client mods before launch: " + ", ".join(parts)
-                    self.status_lbl.setText(line)
+                    self.set_status(line)
                     log.info("%s — +%s -%s", line, installed, removed)
                 if verify_warns:
                     title, body = format_mod_verify_warning(verify_warns)
@@ -3776,7 +3822,7 @@ class MainWindow(QMainWindow):
             prep = prepare_for_launch()
             if prep.fixes:
                 line = prep.status_line or "Pre-launch fixes applied"
-                self.status_lbl.setText(line)
+                self.set_status(line)
                 log.info("%s — %s", line, "; ".join(prep.fixes))
             if prep.warnings:
                 themed.warning(self, "Before launch", "\n".join(prep.warnings))
@@ -3805,7 +3851,7 @@ class MainWindow(QMainWindow):
             themed.error(self, "Launch failed", str(exc))
 
     def _launch_succeeded(self) -> None:
-        self.status_lbl.setText("Game launched")
+        self.set_status("Game launched")
         themed.close_open_themed_dialogs(self)
         if settings.get("close_on_launch"):
             self.close()
@@ -3886,7 +3932,7 @@ class MainWindow(QMainWindow):
 
         def on_ok(_result) -> None:
             self.client.clear_pending_update(mod_id)
-            self.status_lbl.setText(f"Reinstalled {mod_id}")
+            self.set_status(f"Reinstalled {mod_id}")
             self._launch_prepared()
 
         def on_fail(msg: str) -> None:
@@ -3942,7 +3988,7 @@ class MainWindow(QMainWindow):
             log.info("User chose to continue despite permission issues in %s", scan.game)
             return True
 
-        self.status_lbl.setText("Repairing game folder permissions…")
+        self.set_status("Repairing game folder permissions…")
         fix = fix_game_permissions(scan.game)
         if fix.fixes:
             log.info("Permission repair: %s", "; ".join(fix.fixes))
@@ -3974,7 +4020,7 @@ class MainWindow(QMainWindow):
             "Permissions repaired.\n\n"
             + ("\n".join(fix.fixes) if fix.fixes else "Your user can now modify the game folder."),
         )
-        self.status_lbl.setText("Ready")
+        self.set_status("Ready")
         return True
 
     def _check_game_permissions(self) -> None:
@@ -4033,7 +4079,7 @@ class MainWindow(QMainWindow):
             return
 
         # Zip discovery / magic / size / extract run in Worker after this dialog.
-        self.status_lbl.setText("Preparing…")
+        self.set_status("Preparing…")
         app = QApplication.instance()
         if app is not None:
             app.processEvents()
@@ -4052,12 +4098,12 @@ class MainWindow(QMainWindow):
             ],
         )
         if choice == themed.DialogResult.Cancel:
-            self.status_lbl.setText("Ready")
+            self.set_status("Ready")
             return
         if choice == themed.DialogResult.Browse:
             zipped = self._pick_client_zip()
             if zipped is None:
-                self.status_lbl.setText("Ready")
+                self.set_status("Ready")
                 return
             self._begin_client_install(p, zip_path=zipped)
             return
@@ -4092,7 +4138,7 @@ class MainWindow(QMainWindow):
             self.home.refresh()
             self.settings_page.refresh()
             self._refresh_play_button()
-            self.status_lbl.setText("Ready")
+            self.set_status("Ready")
             # Defer the modal so _on_worker_ok can hide the busy bar first.
             # Must not return True — that skips _set_busy_ui(False) (self-update quit).
             QTimer.singleShot(
@@ -4130,7 +4176,7 @@ class MainWindow(QMainWindow):
                 ],
             )
             if choice == themed.DialogResult.Cancel:
-                self.status_lbl.setText("Install cancelled")
+                self.set_status("Install cancelled")
                 return
             if choice == themed.DialogResult.Ok:
                 self._begin_client_install(dest, auto_download=True)
@@ -4242,7 +4288,7 @@ class MainWindow(QMainWindow):
             ]
             detail = "; ".join(status_lines[:4]) if status_lines else "no changes"
             more = f" (+{len(status_lines) - 4} more)" if len(status_lines) > 4 else ""
-            self.status_lbl.setText(f"Client mods applied: {detail}{more}")
+            self.set_status(f"Client mods applied: {detail}{more}")
             # Per-mod lock/AV failures are tolerated by apply — surface them
             # loudly here so a stuck removal is never silent (nag loop).
             _installed, _removed, verify_warns, failures = split_mod_apply_results(lines)
@@ -4279,7 +4325,7 @@ class MainWindow(QMainWindow):
         worker = Worker(install_from_github, url, folder)
 
         def on_ok(result_name):
-            self.status_lbl.setText(f"Installed {result_name or name}")
+            self.set_status(f"Installed {result_name or name}")
 
         self._busy(
             f"Installing {name}…",
@@ -4298,7 +4344,7 @@ class MainWindow(QMainWindow):
 
         def on_ok(result_name):
             display = result_name or "addon"
-            self.status_lbl.setText(f"Installed from GitHub: {display}")
+            self.set_status(f"Installed from GitHub: {display}")
             # Best-effort catalog suggestion — never blocks or undoes install.
             self._maybe_auto_submit_git_import(url, display_name=str(display))
 
@@ -4325,7 +4371,7 @@ class MainWindow(QMainWindow):
                 return  # already in catalog
             if getattr(result, "ok", False):
                 base = f"Installed from GitHub: {display_name}" if display_name else "Installed from GitHub"
-                self.status_lbl.setText(f"{base} · suggested for catalog")
+                self.set_status(f"{base} · suggested for catalog")
             else:
                 log.info(
                     "Auto catalog submit after git import: %s",
@@ -4354,11 +4400,11 @@ class MainWindow(QMainWindow):
                 name = mod.get("name") or mid or "DLL"
                 if mod.get("matched_existing"):
                     cat = mod.get("category") or "Client"
-                    self.status_lbl.setText(f"Matched catalog mod: {name} ({cat})")
+                    self.set_status(f"Matched catalog mod: {name} ({cat})")
                 else:
-                    self.status_lbl.setText(f"Custom DLL installed: {name}")
+                    self.set_status(f"Custom DLL installed: {name}")
             else:
-                self.status_lbl.setText("Custom DLL installed")
+                self.set_status("Custom DLL installed")
 
         worker = Worker(install_custom_dll_from_github, url)
         self._busy("Installing custom DLL from GitHub…", worker, on_ok=on_ok)
@@ -4371,7 +4417,7 @@ class MainWindow(QMainWindow):
 
         def on_ok(_result):
             self.addons.clear_pending_update(folder)
-            self.status_lbl.setText(f"Updated {folder}")
+            self.set_status(f"Updated {folder}")
 
         self._busy(
             f"Updating {folder}…",
@@ -4447,7 +4493,7 @@ class MainWindow(QMainWindow):
 
         def on_ok(_result):
             self.addons.clear_pending_update(folder)
-            self.status_lbl.setText(f"Reinstalled {folder}")
+            self.set_status(f"Reinstalled {folder}")
 
         install_kwargs: dict = {}
         if prefer and not tag:
@@ -4471,7 +4517,7 @@ class MainWindow(QMainWindow):
             if f and not settings.is_addon_never_update(str(f))
         ]
         if not folders:
-            self.status_lbl.setText("No updates available — run Check Updates first.")
+            self.set_status("No updates available — run Check Updates first.")
             return
         if not is_installed():
             themed.warning(self, "No game", "Set a valid game path first.")
@@ -4507,9 +4553,9 @@ class MainWindow(QMainWindow):
             if failed:
                 names = ", ".join(f for f, _ in failed[:5])
                 more = f" (+{len(failed) - 5} more)" if len(failed) > 5 else ""
-                self.status_lbl.setText(f"Updated {n_ok}/{total}; failed: {names}{more}")
+                self.set_status(f"Updated {n_ok}/{total}; failed: {names}{more}")
             else:
-                self.status_lbl.setText(f"Updated {n_ok} addon(s)")
+                self.set_status(f"Updated {n_ok} addon(s)")
 
         worker = Worker(run_all)
         self._busy(
@@ -4535,7 +4581,7 @@ class MainWindow(QMainWindow):
         """Quiet background check — status bar only, never blocks PLAY or shows a popup."""
         if not is_installed():
             if not silent:
-                self.status_lbl.setText("Set a game path before checking updates")
+                self.set_status("Set a game path before checking updates")
             return
         # Gate on the busy flag as well as the QThread: finished_ok clears the
         # worker attribute while UI apply (set_updates / list patch) can still be
@@ -4546,7 +4592,7 @@ class MainWindow(QMainWindow):
             or _safe_worker_running(self._update_worker)
         ):
             if not silent:
-                self.status_lbl.setText("Update check already running…")
+                self.set_status("Update check already running…")
             return
         # Manual AND silent/startup must wait until lists are idle. Starting a
         # worker (or applying set_updates) into a half-built / mid-reveal list
@@ -4559,7 +4605,7 @@ class MainWindow(QMainWindow):
             if silent or periodic:
                 self._arm_silent_addon_check_retry(periodic=periodic)
                 return
-            self.status_lbl.setText("Addons list still loading…")
+            self.set_status("Addons list still loading…")
             return
 
         # Cooldown gate for automatic (silent/periodic) checks: skip if a scan ran
@@ -4576,7 +4622,7 @@ class MainWindow(QMainWindow):
         self._silent_addon_check_retry_armed = False
         self._silent_addon_check_retries = 0
         self._addon_check_status = "Checking addon updates…"
-        self.status_lbl.setText("Checking addon updates…")
+        self.set_status("Checking addon updates…")
         self._checking_addons = True
         self._addon_check_settling = False
         self._check_addon_pct = 0
@@ -4683,13 +4729,13 @@ class MainWindow(QMainWindow):
                         self.addons.set_updates(updates)
                     if not self._checking_mods:
                         if status:
-                            self.status_lbl.setText(status)
+                            self.set_status(status)
                         elif updates:
-                            self.status_lbl.setText(
+                            self.set_status(
                                 f"{len(updates)} addon update(s) available"
                             )
                         else:
-                            self.status_lbl.setText("Addons up to date")
+                            self.set_status("Addons up to date")
                     log.info(
                         "Addon update check applied (%d update(s))",
                         len(updates),
@@ -4703,7 +4749,7 @@ class MainWindow(QMainWindow):
         def fail(msg: str):
             self._addon_check_status = ""
             if not self._checking_mods:
-                self.status_lbl.setText(f"Update check failed: {msg[:80]}")
+                self.set_status(f"Update check failed: {msg[:80]}")
             settle_tries = 0
 
             def _settle() -> None:
@@ -4772,11 +4818,11 @@ class MainWindow(QMainWindow):
     def _check_mod_updates(self, silent: bool = False, periodic: bool = False, force: bool = False) -> None:
         if not is_installed():
             if not silent:
-                self.status_lbl.setText("Set a game path before checking updates")
+                self.set_status("Set a game path before checking updates")
             return
         if self._checking_mods or _safe_worker_running(self._mod_update_worker):
             if not silent:
-                self.status_lbl.setText("Client mod update check already running…")
+                self.set_status("Client mod update check already running…")
             return
         if (silent or periodic) and not force and recently_checked_mod_updates():
             log.info(
@@ -4786,7 +4832,7 @@ class MainWindow(QMainWindow):
             )
             return
 
-        self.status_lbl.setText("Checking client mod updates…")
+        self.set_status("Checking client mod updates…")
         self._checking_mods = True
         self._check_mod_pct = 0
         self._refresh_check_loading()
@@ -4806,11 +4852,11 @@ class MainWindow(QMainWindow):
                 self.client.set_updates(updates)
                 if not self._checking_addons:
                     if status:
-                        self.status_lbl.setText(status)
+                        self.set_status(status)
                     elif updates:
-                        self.status_lbl.setText(f"{len(updates)} client mod update(s) available")
+                        self.set_status(f"{len(updates)} client mod update(s) available")
                     else:
-                        self.status_lbl.setText("Client mods up to date")
+                        self.set_status("Client mods up to date")
             except Exception:  # noqa: BLE001
                 log.exception("Client mod update-check UI apply failed")
             finally:
@@ -4824,7 +4870,7 @@ class MainWindow(QMainWindow):
 
         def fail(msg: str):
             if not self._checking_addons:
-                self.status_lbl.setText(f"Client mod check failed: {msg[:80]}")
+                self.set_status(f"Client mod check failed: {msg[:80]}")
 
             def _settle() -> None:
                 self._checking_mods = False
@@ -4850,7 +4896,7 @@ class MainWindow(QMainWindow):
 
         def on_ok(_result):
             self.client.clear_pending_update(mod_id)
-            self.status_lbl.setText(f"Updated {mod_id}")
+            self.set_status(f"Updated {mod_id}")
 
         worker = Worker(update_mod, mod_id)
         self._busy(f"Updating {mod_id}…", worker, on_ok=on_ok)
@@ -4865,7 +4911,7 @@ class MainWindow(QMainWindow):
 
         def on_ok(_result):
             self.client.clear_pending_update(mod_id)
-            self.status_lbl.setText(f"Reinstalled {mod_id}")
+            self.set_status(f"Reinstalled {mod_id}")
 
         def on_fail(msg: str) -> None:
             if mod_id == "superwow":
@@ -4884,7 +4930,7 @@ class MainWindow(QMainWindow):
             return
 
         def on_ok(_result):
-            self.status_lbl.setText("Reacquired official patch-9")
+            self.set_status("Reacquired official patch-9")
 
         worker = Worker(reacquire_stock_patch9, force=True)
         self._busy("Reacquiring patch-9…", worker, on_ok=on_ok)
@@ -4896,7 +4942,7 @@ class MainWindow(QMainWindow):
         catalog = {m["id"]: m for m in load_mod_catalog()}
         url = mod_git_url(catalog.get(mod_id) or {})
         if not url:
-            self.status_lbl.setText(f"No git link for {mod_id}")
+            self.set_status(f"No git link for {mod_id}")
             return
         open_url_in_browser(url)
 
@@ -4904,7 +4950,7 @@ class MainWindow(QMainWindow):
         pending = self.client.pending_updates
         ids = [u.get("id") for u in pending if u.get("id")]
         if not ids:
-            self.status_lbl.setText("No client mod updates — run Check Updates first.")
+            self.set_status("No client mod updates — run Check Updates first.")
             return
         if not is_installed():
             themed.warning(self, "No game", "Set a valid game path first.")
@@ -4913,7 +4959,7 @@ class MainWindow(QMainWindow):
 
         def on_ok(_result):
             self.client.set_updates([])
-            self.status_lbl.setText(f"Updated {total} client mod(s)")
+            self.set_status(f"Updated {total} client mod(s)")
 
         worker = Worker(update_mods, ids)
         self._busy(f"Updating {total} client mod(s)…", worker, on_ok=on_ok)

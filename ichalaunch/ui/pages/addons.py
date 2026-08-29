@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ichalaunch.ui.widgets.gradient_label import AnimatedLavaLabel
 from ichalaunch.addons.catalog import (
     RAVENCRAFT_CATEGORY,
     apply_turtle_custom_flags,
@@ -262,7 +263,7 @@ class AddonsPage(QWidget):
         self.updates_lbl = QLabel("")
         self.updates_lbl.setStyleSheet("color: #F1C22D;")
 
-        self.installed_hdr = QLabel("Installed")
+        self.installed_hdr = AnimatedLavaLabel("Installed")
         self.installed_hdr.setObjectName("SectionTitle")
 
         # MarbleListWidget scrolls inside its viewport — won't stretch the window
@@ -276,7 +277,7 @@ class AddonsPage(QWidget):
         self.installed_list.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
         self.installed_list.hide()
 
-        self.avail_hdr = QLabel("Available")
+        self.avail_hdr = AnimatedLavaLabel("Available")
         self.avail_hdr.setObjectName("SectionTitle")
 
         self.list = MarbleListWidget(self)

@@ -26,6 +26,7 @@ from ichalaunch.ui.widgets.cursors import apply_open_hand
 from ichalaunch.ui.widgets.glue_panel_button import launch_glue_chrome
 from ichalaunch.ui.widgets.gradient_label import (
     LAVA_RIM,
+    lava_flicker,
     soft_halo,
     gold_pen,
     lava_rim_pixmap,
@@ -57,9 +58,16 @@ _SWEEP_MS = 33          # ~30fps; one button, and only while the pointer is on i
 _SWEEP_PERIOD_MS = 4200  # a full turn; slow reads as molten, fast reads as a loading spinner
 _SWEEP_ALPHA = 0.62
 # Halo. Padding gives the blur room to spread past the plate; the radius is what
-# turns a hard silhouette into light falling off into the dark.
-_HALO_PAD = 16
+# turns a hard silhouette into light falling off into the dark. Both are
+# generous on purpose: a tight blur still reads as an outline with soft edges,
+# and the target is a warm bulb, where you cannot say where the light stops.
+_HALO_PAD = 14
 _HALO_BLUR = 6
+# Breathing room inside the widget for the halo to fall off in. Without it the
+# blur is clipped to the widget bounds and reads as a hard rectangle. It also
+# sets the widget's real size: the plate plus twice this. At 26 the plate came
+# to 108px tall inside an 88px bar, which is why the bar could not shrink.
+_GLOW_MARGIN = 12
 # Lava, not a flat gold band. The ramp runs ember, through orange, to a
 # white-hot core and back, which is the same journey the site's own heading
 # gradient makes (#F1C22D to #FF7757) taken further in both directions. The
@@ -198,7 +206,13 @@ class LaunchButton(QPushButton):
         apply_open_hand(self)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        self.setFixedSize(width, height)
+        # The widget is the plate PLUS a margin, and the plate is drawn inset
+        # into it. Qt clips painting to the widget's own rectangle, so a glow
+        # drawn outside it is cut off at exactly a rectangle, which is what a
+        # halo around a plate-sized widget looked like however wide the blur
+        # was. The margin is where the light is allowed to live.
+        self._glow_margin = _GLOW_MARGIN
+        self.setFixedSize(width + _GLOW_MARGIN * 2, height + _GLOW_MARGIN * 2)
         # Let paintEvent own the look — strip QSS chrome for this widget.
         self.setFlat(True)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
@@ -246,7 +260,9 @@ class LaunchButton(QPushButton):
         painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
 
-        rect = self.rect()
+        rect = self.rect().adjusted(
+            self._glow_margin, self._glow_margin, -self._glow_margin, -self._glow_margin
+        )
         chrome = self._pick_chrome()
         if (
             chrome is not None
@@ -302,22 +318,27 @@ class LaunchButton(QPushButton):
         # instead of ending on a hard outline.
         soft = soft_halo(self._glow_pixmap(chrome), _GLOW_TINT.name(), _HALO_PAD, _HALO_BLUR)
         if not soft.isNull():
-            painter.setOpacity(_GLOW_ALPHA * 2.4)
+            painter.setOpacity(_GLOW_ALPHA * 2.4 * lava_flicker(self._sweep_deg * 0.6))
             painter.drawPixmap(rect.adjusted(-_HALO_PAD, -_HALO_PAD, _HALO_PAD, _HALO_PAD), soft)
             painter.setOpacity(1.0)
 
         # The travelling arc. A conical gradient is built at the plate's centre
         # and masked by the silhouette, so a bright band runs round the outline
         # instead of a ring being drawn over the top of it.
-        sweep = lava_rim_pixmap(halo, self._sweep_deg)
+        # Mask the sweep with the BLURRED silhouette, not the sharp one. Masking
+        # with the plate itself produced a crisp band of lava ending on a hard
+        # rectangle, which is the opposite of the warm bulb this wants to be.
+        sweep = lava_rim_pixmap(soft, self._sweep_deg)
 
         # ONE pass, deliberately. Drawing the rotating cone at several scales
         # put the same moving gradient on screen at three different sizes, and
         # they beat against each other as it turned, which read as flicker
         # rather than as flow. The bloom above already supplies the depth.
-        painter.setOpacity(_SWEEP_ALPHA)
-        grow = 2 * _GLOW_STEP_PX
-        painter.drawPixmap(rect.adjusted(-grow, -grow, grow, grow), sweep)
+        flick = lava_flicker(self._sweep_deg)
+        painter.setOpacity(_SWEEP_ALPHA * flick)
+        painter.drawPixmap(
+            rect.adjusted(-_HALO_PAD, -_HALO_PAD, _HALO_PAD, _HALO_PAD), sweep
+        )
         painter.setOpacity(1.0)
         painter.restore()
 

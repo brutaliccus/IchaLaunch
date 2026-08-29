@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ichalaunch.ui.widgets.gradient_label import AnimatedLavaLabel
 from ichalaunch.core.paths import theme_file
 from ichalaunch.game.launcher import detect_game, is_installed
 from ichalaunch.mods.installer import detect_actual_state, load_mod_catalog
@@ -146,6 +147,13 @@ class HomePage(QWidget):
         left_l.addWidget(links, 0, Qt.AlignmentFlag.AlignHCenter)
 
         self.summary = HomeModsCard()
+        # Card insets its contents by 16px all round, which held the scrollbar
+        # that far inboard of the panel's own edge and left a dead strip beside
+        # it. Dropping the RIGHT inset only moves the bar out to the card edge
+        # and hands those 16px back to the list, which is where they were doing
+        # nothing. Left, top and bottom keep the card's normal padding.
+        _m = self.summary.body.contentsMargins()
+        self.summary.body.setContentsMargins(_m.left(), _m.top(), 0, _m.bottom())
         self.summary.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
@@ -614,7 +622,7 @@ class HomePage(QWidget):
 
         # Gradient rather than flat gold: the site clips a vertical ramp to its
         # heading glyphs, and QSS cannot express that. See GradientLabel.
-        title = GradientLabel(category)
+        title = AnimatedLavaLabel(category)
         title.setObjectName("HomeModCategory")
         # Kept on: the drawer is narrow, and a non-wrapping QLabel reports its
         # full text width as its MINIMUM, which is what dragged the old display

@@ -98,8 +98,12 @@ def _load_background() -> QPixmap:
 
 def tooltip_font(base: QFont | None = None) -> QFont:
     font = QFont(base) if base is not None else QFont()
-    font.setFamily("Segoe UI")
-    font.setPixelSize(12)
+    # The chrome face, like Ready, Contributors and PLAY. The default UI face
+    # made the one hover label in the bar the only thing not speaking it.
+    from ichalaunch.ui.theme_fonts import chrome_family
+
+    font.setFamily(chrome_family())
+    font.setPixelSize(15)
     font.setWeight(QFont.Weight.DemiBold)
     return font
 
@@ -153,11 +157,12 @@ def _tile_v(painter: QPainter, dest: QRect, tile: QPixmap) -> None:
     painter.restore()
 
 
-def paint_wow_tooltip(
+def paint_wow_tooltip(  # noqa: PLR0913
     painter: QPainter,
     rect: QRect,
     text: str,
     font: QFont | None = None,
+    pen=None,
 ) -> None:
     tiles = _load_tiles()
     tl, t, tr = tiles["tl"], tiles["t"], tiles["tr"]
@@ -201,7 +206,7 @@ def paint_wow_tooltip(
         return
     face = font or tooltip_font()
     painter.setFont(face)
-    painter.setPen(_TEXT)
+    painter.setPen(pen if pen is not None else _TEXT)
     painter.drawText(inner, int(Qt.AlignmentFlag.AlignCenter), name)
 
 
@@ -223,6 +228,7 @@ class ContributorNameTip(QWidget):
         super().__init__(parent)
         self._text = ""
         self._face = tooltip_font()
+        self._ramp = None
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
@@ -230,6 +236,10 @@ class ContributorNameTip(QWidget):
         self.setAutoFillBackground(False)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.hide()
+
+    def set_ramp(self, stops) -> None:
+        """Colour stops for the animated text, sampled from the portrait art."""
+        self._ramp = stops
 
     def set_name(self, text: str) -> None:
         self._text = (text or "").strip()
@@ -254,8 +264,14 @@ class ContributorNameTip(QWidget):
         self.move(x, y)
         self.show()
         self.raise_()
+        from ichalaunch.ui.widgets.gradient_label import lava_ticker
+
+        lava_ticker().subscribe(self)
 
     def dismiss(self) -> None:
+        from ichalaunch.ui.widgets.gradient_label import lava_ticker
+
+        lava_ticker().unsubscribe(self)
         self.hide()
 
     def paintEvent(self, event) -> None:  # noqa: ANN001, N802
@@ -265,5 +281,8 @@ class ContributorNameTip(QWidget):
         painter = QPainter(self)
         if not painter.isActive():
             return
-        paint_wow_tooltip(painter, self.rect(), self._text, self._face)
+        from ichalaunch.ui.widgets.gradient_label import lava_text_pen, lava_ticker
+
+        pen = lava_text_pen(self.rect(), lava_ticker().phase, self._ramp)
+        paint_wow_tooltip(painter, self.rect(), self._text, self._face, pen)
         painter.end()

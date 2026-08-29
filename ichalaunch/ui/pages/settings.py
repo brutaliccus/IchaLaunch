@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from ichalaunch import __version__
+from ichalaunch.ui.widgets.gradient_label import AnimatedLavaLabel
 from ichalaunch.core.logging_setup import log_dir
 from ichalaunch.config.settings import settings
 from ichalaunch.ui.widgets.casting_bar_search_edit import (
@@ -65,7 +66,7 @@ class SettingsPage(QWidget):
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
 
-        title = QLabel("Settings")
+        title = AnimatedLavaLabel("Settings")
         title.setObjectName("SectionTitle")
 
         game_card = MarbleCard()
