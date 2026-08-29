@@ -192,6 +192,7 @@ from ichalaunch.ui.theme_fonts import (
     chrome_family,
     ink_centered_rect,
 )
+from ichalaunch.ui.widgets.gradient_label import gold_pen
 from ichalaunch.ui.widgets.update_alert_badge import paint_update_alert_badge
 
 _RC_CAPTION_FONT_PATH = theme_file("fonts", "LifeCraft_Font.ttf")
@@ -560,7 +561,14 @@ class NavTabButton(QPushButton):
         text_rect = ink_centered_rect(text_rect, font, text)
         painter.setPen(QColor(0, 0, 0, 140))
         painter.drawText(text_rect.adjusted(1, 1, 1, 1), Qt.AlignmentFlag.AlignCenter, text)
-        painter.setPen(self._label_color())
+        # The selected tab is the site's gold, so it takes the site's gradient
+        # rather than a flat fill. Hover and idle stay solid: the ramp is what
+        # marks the active tab, and running it on every tab would spend the
+        # signal.
+        if self.isChecked():
+            painter.setPen(gold_pen(text_rect))
+        else:
+            painter.setPen(self._label_color())
         painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, text)
 
         if self._badge:

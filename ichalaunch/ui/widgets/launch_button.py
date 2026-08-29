@@ -20,6 +20,7 @@ from PySide6.QtWidgets import QPushButton, QSizePolicy
 from ichalaunch.core.paths import theme_file
 from ichalaunch.ui.widgets.cursors import apply_open_hand
 from ichalaunch.ui.widgets.glue_panel_button import launch_glue_chrome
+from ichalaunch.ui.widgets.gradient_label import gold_pen
 from ichalaunch.ui.theme_fonts import chrome_family, ink_centered_rect
 
 # RavenCraft palette
@@ -322,7 +323,12 @@ class LaunchButton(QPushButton):
             flags |= Qt.TextFlag.TextWordWrap
         painter.setPen(shadow)
         painter.drawText(text_rect.adjusted(1, 2, 1, 2), flags, draw)
-        painter.setPen(color)
+        # Gold label takes the site ramp. Disabled and pressed keep their flat
+        # colours, so the plate still reads as unavailable or held down.
+        if color is _GOLD:
+            painter.setPen(gold_pen(text_rect))
+        else:
+            painter.setPen(color)
         painter.drawText(text_rect, flags, draw)
 
     def enterEvent(self, event) -> None:

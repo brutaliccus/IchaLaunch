@@ -27,6 +27,25 @@ GOLD_TOP = "#F1C22D"
 GOLD_BOTTOM = "#FF7757"
 
 
+def gold_ramp(rect) -> QLinearGradient:
+    """The site's vertical gold ramp, spanning *rect* top to bottom."""
+    ramp = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.bottom())
+    ramp.setColorAt(0.0, GOLD_TOP)
+    ramp.setColorAt(1.0, GOLD_BOTTOM)
+    return ramp
+
+
+def gold_pen(rect) -> QPen:
+    """A pen that paints text with the ramp instead of a flat colour.
+
+    Shared by the nav tabs and the launch plate so all three places that show a
+    gold label agree, rather than each carrying its own pair of stops.
+    """
+    pen = QPen()
+    pen.setBrush(gold_ramp(rect))
+    return pen
+
+
 class GradientLabel(QLabel):
     """Draws its text with the site's vertical gold ramp."""
 
