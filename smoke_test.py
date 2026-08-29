@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import sys
@@ -9967,6 +9968,169 @@ def test_launcher_release_cache():
     print("OK launcher release cache")
 
 
+
+def test_mod_download_hash_pinning():
+    """Pinned mod downloads: verified, refused, or explicitly unpinned."""
+    import hashlib
+    import json as _json
+    from pathlib import Path as _Path
+    from tempfile import TemporaryDirectory
+
+    from ichalaunch.mods.verify import (
+        SourceHashMismatch,
+        expected_digest,
+        normalized_digest,
+        unpinned_source_ids,
+        verify_payload,
+    )
+
+    payload = b"pretend this is SuperWoWhook.dll"
+    digest = hashlib.sha256(payload).hexdigest()
+
+    # No pin -> installs as before, and says so by returning None.
+    assert verify_payload({"type": "raw"}, payload) is None
+
+    # Matching pin -> returns the digest actually seen.
+    assert verify_payload({"sha256": digest}, payload) == digest
+
+    # Digests pasted from Get-FileHash / sha256sum work unedited.
+    assert verify_payload({"sha256": f"SHA256:{digest.upper()}  "}, payload) == digest
+
+    # A wrong digest refuses, and the message names both sides.
+    try:
+        verify_payload({"sha256": "0" * 64}, payload, label="SuperWoW.dll")
+    except SourceHashMismatch as exc:
+        assert "SuperWoW.dll" in str(exc) and digest in str(exc)
+    else:
+        raise AssertionError("tampered payload was accepted")
+
+    # A malformed pin is "no pin", never an accidental permanent refusal.
+    for junk in ("", "not-a-hash", digest[:-1], "zz" + digest[2:], None, 12345):
+        assert normalized_digest(junk) is None
+        assert verify_payload({"sha256": junk}, payload) is None
+
+    # Files are hashed by streaming, and an unreadable payload refuses.
+    with TemporaryDirectory(prefix="ichalaunch_pin_") as tmp:
+        good = _Path(tmp) / "mod.dll"
+        good.write_bytes(payload)
+        assert verify_payload({"sha256": digest}, good) == digest
+        missing = _Path(tmp) / "not-there.dll"
+        try:
+            verify_payload({"sha256": digest}, missing)
+        except SourceHashMismatch:
+            pass
+        else:
+            raise AssertionError("unreadable payload was accepted")
+
+    # Every pin shipped in the catalog is well formed.
+    catalog = _json.loads(
+        (_Path("ichalaunch") / "data" / "mods.json").read_text(encoding="utf-8")
+    )
+    for mod in catalog:
+        for key in ("source", "addon_source"):
+            src = mod.get(key)
+            if isinstance(src, dict) and "sha256" in src:
+                assert expected_digest(src) is not None, (
+                    f"{mod.get('id')}.{key} has an unusable sha256"
+                )
+
+    # Coverage is complete, so the invariant is simply that it stays complete:
+    # a catalog entry that downloads anything carries a digest. Adding a mod
+    # without pinning it should fail here rather than in a player's install.
+    unpinned = unpinned_source_ids(catalog)
+    assert not unpinned, f"catalog sources with no sha256: {unpinned}"
+    pinned = sum(
+        1
+        for m in catalog
+        for k in ("source", "addon_source")
+        if isinstance(m.get(k), dict) and expected_digest(m[k])
+    )
+    print(f"OK mod download hash pinning ({pinned} catalog sources pinned)")
+
+
+def test_download_source_enforces_pins():
+    """The installer's own download path refuses bytes that miss the pin."""
+    import hashlib
+
+    from ichalaunch.mods import installer as I
+    from ichalaunch.mods.verify import SourceHashMismatch
+
+    served = b"bytes the upstream actually served"
+    digest = hashlib.sha256(served).hexdigest()
+    calls = []
+
+    def fake_fetch(source, work, progress):
+        calls.append(source.get("type"))
+        return served
+
+    original = I._download_source_unverified
+    I._download_source_unverified = fake_fetch  # type: ignore[assignment]
+    try:
+        # Correct pin: the payload is handed back untouched.
+        assert I._download_source({"type": "raw", "sha256": digest}, None, None) == served
+
+        # Swapped upstream asset: refused before anything is written.
+        try:
+            I._download_source(
+                {"type": "raw", "sha256": "f" * 64, "filename": "nampower.dll"},
+                None,
+                None,
+            )
+        except SourceHashMismatch as exc:
+            assert "nampower.dll" in str(exc)
+        else:
+            raise AssertionError("installer installed unverified bytes")
+
+        # Unpinned entries keep working.
+        assert I._download_source({"type": "raw"}, None, None) == served
+    finally:
+        I._download_source_unverified = original  # type: ignore[assignment]
+
+    assert len(calls) == 3
+    print("OK installer refuses unpinned-mismatch downloads")
+
+
+def test_update_button_cannot_discard_a_pin():
+    """prefer_latest must not rebuild a pinned source without its digest."""
+    from ichalaunch.mods import installer as I
+    from ichalaunch.mods.verify import expected_digest
+
+    # The Update path converts a fixed-url github_release source into a
+    # "whatever is newest" source. Rebuilding the dict is how a digest gets
+    # dropped, and a dropped digest means an unverified install.
+    pinned = {
+        "type": "github_release",
+        "url": "https://github.com/o/r/releases/download/v1/thing-1.0.zip",
+        "sha256": "a" * 64,
+    }
+    unpinned = {
+        "type": "github_release",
+        "url": "https://github.com/o/r/releases/download/v1/thing-1.0.zip",
+    }
+
+    src = inspect.getsource(I.install_mod)
+    assert "expected_digest(source)" in src, (
+        "install_mod no longer guards the prefer_latest conversion on the pin"
+    )
+    assert expected_digest(pinned) is not None
+    assert expected_digest(unpinned) is None
+
+    # The conversion is guarded by a single boolean; assert both arms of it.
+    def would_convert(source, prefer_latest, mod_id="superwow"):
+        return bool(
+            prefer_latest
+            and source
+            and source.get("type") == "github_release"
+            and mod_id != I._VANILLA_TWEAKS_OLD_ID
+            and not expected_digest(source)
+        )
+
+    assert would_convert(unpinned, True), "unpinned sources should still follow latest"
+    assert not would_convert(pinned, True), "a pinned source must never be re-pointed"
+    assert not would_convert(pinned, False)
+    print("OK update button keeps the pin")
+
+
 def test_update_signature_verification():
     """Signed-update verification: fails closed in every direction."""
     import base64
@@ -17304,6 +17468,9 @@ def _run_smoke_tests():
     test_linux_game_running_guard()
     test_detect_and_installer_drop_unused_imports()
     test_update_signature_verification()
+    test_mod_download_hash_pinning()
+    test_download_source_enforces_pins()
+    test_update_button_cannot_discard_a_pin()
     test_update_signing_keys_are_pinned()
     test_signature_sidecar_url_and_unverified_exe_is_deleted()
     test_home_art_width_fit_is_centred()

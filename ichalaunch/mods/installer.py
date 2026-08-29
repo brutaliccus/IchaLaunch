@@ -86,6 +86,11 @@ from ichalaunch.game.launcher import (
     vf_mode_display,
     wow_exe_in,
 )
+from ichalaunch.mods.verify import (
+    SourceHashMismatch,
+    expected_digest,
+    verify_payload,
+)
 
 ProgressCb = Callable[[str], None]
 UA = {"User-Agent": "IchaLaunch/0.1"}
@@ -2253,8 +2258,38 @@ def _pick_dxvk_win32_d3d9(search_root: Path) -> Path:
     return min(candidates, key=lambda p: len(p.parts))
 
 
+def _source_label(source: dict[str, Any]) -> str:
+    """Something human-sized to name a source in a refusal message."""
+    for key in ("filename", "folder", "repo", "url", "id"):
+        value = source.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip().split("/")[-1].split("?")[0] or value.strip()
+    return str(source.get("type") or "download")
+
+
 def _download_source(source: dict[str, Any], work: Path, progress: ProgressCb | None) -> Path | bytes:
-    """Download a catalog source.
+    """Download a catalog source and refuse it if it misses its pinned digest.
+
+    Every download the installer performs funnels through here, so wrapping the
+    fetch is what makes the check unbypassable: a new source type added later
+    inherits verification without anyone remembering to ask for it.
+
+    Sources with no ``sha256`` install exactly as before. See
+    ``ichalaunch.mods.verify`` for why an unpinned entry is a maintainer
+    decision rather than a hole an attacker can open.
+    """
+    payload = _download_source_unverified(source, work, progress)
+    digest = verify_payload(source, payload, label=_source_label(source))
+    if digest:
+        log.info("Verified %s against pinned sha256 %s", _source_label(source), digest)
+    return payload
+
+
+def _download_source_unverified(
+    source: dict[str, Any], work: Path, progress: ProgressCb | None
+) -> Path | bytes:
+    """Fetch the bytes for a catalog source. Callers must go through
+    :func:`_download_source`, which adds the pinned-digest check.
 
     Zip archives are kept in memory so Windows Defender cannot quarantine the
     tempfile between download and ``ZipFile`` open (VanillaFixes.exe / patcher
@@ -3097,6 +3132,14 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 and source
                 and source.get("type") == "github_release"
                 and mod_id != _VANILLA_TWEAKS_OLD_ID
+                # A pinned source has already had its version chosen by a
+                # maintainer who tested those exact bytes. Re-pointing it at
+                # whatever upstream published since would rebuild the source
+                # dict without the digest, and installing unverified bytes is
+                # the one thing this path must never do. The update scan still
+                # reports that something newer exists; adopting it is a catalog
+                # edit, not a button press.
+                and not expected_digest(source)
             ):
                 repo = _repo_from_github_url(source.get("url") or "")
                 if repo:
