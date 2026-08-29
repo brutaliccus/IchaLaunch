@@ -9967,6 +9967,56 @@ def test_launcher_release_cache():
     print("OK launcher release cache")
 
 
+
+def test_addon_install_cannot_escape_the_addons_folder():
+    """A .toc name inside a downloaded zip must not aim the installer at Interface."""
+    import shutil
+    import tempfile
+    from pathlib import Path as _P
+
+    from ichalaunch.core.filesystem import (
+        AddonDestinationRefused,
+        place_install_addon_root,
+    )
+
+    with tempfile.TemporaryDirectory(prefix="ichalaunch_esc_") as tmp:
+        base = _P(tmp)
+        interface = base / "Interface"
+        addons = interface / "AddOns"
+        addons.mkdir(parents=True)
+        (interface / "FrameXML").mkdir()
+        keep = addons / "RealAddon"
+        keep.mkdir()
+        (keep / "RealAddon.toc").write_text("## Interface: 11200", encoding="utf-8")
+
+        # The destination folder is taken from the .toc filename found inside the
+        # archive, and ".. " strips to "..", which points one level up at Interface.
+        # place_install_addon_root removes the destination before copying, so
+        # accepting this would delete every addon and the saved variables with them.
+        for hostile in (".. .toc", " .. .toc"):
+            payload = base / "payload"
+            payload.mkdir()
+            (payload / hostile).write_text("## Interface: 11200", encoding="utf-8")
+            try:
+                place_install_addon_root(payload, addons, "innocent-looking-name")
+            except AddonDestinationRefused:
+                pass
+            else:
+                raise AssertionError(f"{hostile!r} was accepted as a destination")
+            shutil.rmtree(payload)
+
+        assert interface.is_dir(), "Interface was removed"
+        assert (interface / "FrameXML").is_dir(), "FrameXML was removed"
+        assert keep.is_dir(), "an unrelated installed addon was removed"
+
+        # An ordinary addon still installs under its .toc stem.
+        good = base / "good"
+        good.mkdir()
+        (good / "Nice.toc").write_text("## Interface: 11200", encoding="utf-8")
+        name, mismatch = place_install_addon_root(good, addons, "ignored")
+        assert name == "Nice" and (addons / "Nice").is_dir(), "normal install broke"
+    print("OK addon install stays inside AddOns")
+
 def test_update_signature_verification():
     """Signed-update verification: fails closed in every direction."""
     import base64
@@ -17304,6 +17354,7 @@ def _run_smoke_tests():
     test_linux_game_running_guard()
     test_detect_and_installer_drop_unused_imports()
     test_update_signature_verification()
+    test_addon_install_cannot_escape_the_addons_folder()
     test_update_signing_keys_are_pinned()
     test_signature_sidecar_url_and_unverified_exe_is_deleted()
     test_home_art_width_fit_is_centred()

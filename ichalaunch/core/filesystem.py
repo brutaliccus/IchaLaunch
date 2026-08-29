@@ -1142,6 +1142,40 @@ def rename_addon_folder_to_toc(
     )
 
 
+class AddonDestinationRefused(Exception):
+    """An addon asked to be installed somewhere that is not its own folder."""
+
+
+def _require_direct_child(addons_dir: Path, dest: Path, dest_name: str) -> None:
+    """Refuse a destination that is not a folder directly inside AddOns.
+
+    The destination folder name comes from the ``.toc`` filename found INSIDE a
+    downloaded archive, so it is attacker controlled for any catalog entry.
+    A ``.toc`` named ``".. .toc"`` yields the stem ``".. "``, which ``.strip()``
+    turns into ``".."``, which makes the destination the Interface folder. The
+    next line removes the destination before copying, so installing that addon
+    would delete every installed addon and the player's saved variables.
+
+    This is checked structurally rather than by rejecting known-bad names. A
+    blocklist has to anticipate the next trick (trailing dots, reserved device
+    names, separators, unicode that normalises to a separator on one platform).
+    Requiring that the resolved destination be a direct child of AddOns holds
+    without knowing what the trick is.
+    """
+    try:
+        root = addons_dir.resolve()
+        target = dest.resolve()
+    except OSError as exc:  # pragma: no cover - unreadable mount
+        raise AddonDestinationRefused(
+            f"Refusing to install {dest_name!r}: destination could not be resolved ({exc})."
+        ) from exc
+    if target == root or target.parent != root:
+        raise AddonDestinationRefused(
+            f"Refusing to install {dest_name!r}: it resolves to {target}, which is not a "
+            f"folder inside {root}. Nothing has been removed or written."
+        )
+
+
 def place_install_addon_root(
     root: Path,
     addons_dir: Path,
@@ -1161,6 +1195,7 @@ def place_install_addon_root(
     dest_name = (canonical or dest_name or root.name).strip() or root.name
 
     dest = addons_dir / dest_name
+    _require_direct_child(addons_dir, dest, dest_name)
     if dest.exists():
         safe_remove(dest)
     copy_tree(root, dest)
