@@ -217,17 +217,17 @@ class ThemedDialog(QDialog):
 
         # Soft accent tint by kind (info / warning / error / question)
         accents = {
-            "info": "#7c5cc4",
+            "info": "#c9953f",
             "warning": "#F1C22D",
             "error": "#c62828",
             "question": "#F1C22D",
         }
-        accent = accents.get(kind, "#7c5cc4")
+        accent = accents.get(kind, "#c9953f")
         self.setStyleSheet(
             f"QDialog#ThemedDialog {{ background: transparent; }}"
             f"QWidget#ThemedDialogCard {{"
             f"  background-color: #100d0c;"
-            f"  border: 1px solid rgba(150, 131, 158, 0.22);"
+            f"  border: 1px solid rgba(163, 140, 106, 0.22);"
             f"  border-top: 3px solid {accent};"
             f"  border-radius: 10px;"
             f"}}"
@@ -307,7 +307,7 @@ class DllSecurityExclusionDialog(QDialog):
             "QDialog#ThemedDialog { background: transparent; }"
             "QWidget#ThemedDialogCard {"
             "  background-color: #100d0c;"
-            "  border: 1px solid rgba(150, 131, 158, 0.22);"
+            "  border: 1px solid rgba(163, 140, 106, 0.22);"
             "  border-top: 3px solid #F1C22D;"
             "  border-radius: 10px;"
             "}"
@@ -369,7 +369,7 @@ class MpqPatchWarningDialog(QDialog):
             "QDialog#ThemedDialog { background: transparent; }"
             "QWidget#ThemedDialogCard {"
             "  background-color: #100d0c;"
-            "  border: 1px solid rgba(150, 131, 158, 0.22);"
+            "  border: 1px solid rgba(163, 140, 106, 0.22);"
             "  border-top: 3px solid #F1C22D;"
             "  border-radius: 10px;"
             "}"
@@ -404,6 +404,125 @@ def dll_security_exclusion_dialog(
     if dlg.exec() != QDialog.DialogCode.Accepted:
         return False
     return dlg.dismissed_permanently()
+
+
+class DiscordPresenceOptInDialog(QDialog):
+    """One-shot Discord activity opt-in with the same six field filters as Settings."""
+
+    def __init__(self, parent: QWidget | None) -> None:
+        super().__init__(parent)
+        from ichalaunch.game.discord_presence import (
+            BROADCAST_FIELD_KEYS,
+            BROADCAST_FIELD_LABELS,
+            DISCORD_PRESENCE_OPT_IN_TEXT,
+            DISCORD_PRESENCE_OPT_IN_TITLE,
+            normalize_broadcast_fields,
+        )
+
+        self.setObjectName("ThemedDialog")
+        self.setWindowFlags(_themed_dialog_flags())
+        self.setModal(True)
+        self.setMinimumWidth(460)
+        self.setMaximumWidth(620)
+        self._result = DialogResult.Cancel
+        self._field_boxes: dict[str, ThemeCheckBox] = {}
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        card = QWidget()
+        card.setObjectName("ThemedDialogCard")
+        body = QVBoxLayout(card)
+        body.setContentsMargins(22, 18, 22, 18)
+        body.setSpacing(12)
+
+        title_lbl = QLabel(DISCORD_PRESENCE_OPT_IN_TITLE)
+        title_lbl.setObjectName("ThemedDialogTitle")
+        title_lbl.setWordWrap(True)
+        body.addWidget(title_lbl)
+
+        msg = QLabel(DISCORD_PRESENCE_OPT_IN_TEXT)
+        msg.setObjectName("ThemedDialogBody")
+        msg.setWordWrap(True)
+        msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        body.addWidget(msg)
+
+        fields = normalize_broadcast_fields()
+        for key in BROADCAST_FIELD_KEYS:
+            box = ThemeCheckBox(BROADCAST_FIELD_LABELS[key], card)
+            box.setChecked(bool(fields.get(key, True)))
+            box.setMinimumHeight(28)
+            box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            body.addWidget(box)
+            self._field_boxes[key] = box
+
+        row = QHBoxLayout()
+        row.setSpacing(10)
+        row.addStretch(1)
+        decline = GluePanelButton(
+            "No, Do Not Show Again",
+            card,
+            role="standard",
+            width=200,
+            height=GLUE_BTN_H,
+        )
+        decline.clicked.connect(lambda: self._finish(DialogResult.No))
+        save = GluePanelButton(
+            "Save",
+            card,
+            role="primary",
+            width=_dialog_glue_width("Save"),
+            height=GLUE_BTN_H,
+        )
+        save.clicked.connect(lambda: self._finish(DialogResult.Yes))
+        row.addWidget(decline)
+        row.addWidget(save)
+        body.addLayout(row)
+
+        root.addWidget(card)
+        self.setStyleSheet(
+            "QDialog#ThemedDialog { background: transparent; }"
+            "QWidget#ThemedDialogCard {"
+            "  background-color: #100d0c;"
+            "  border: 1px solid rgba(163, 140, 106, 0.22);"
+            "  border-top: 3px solid #F1C22D;"
+            "  border-radius: 10px;"
+            "}"
+        )
+
+    def selected_fields(self) -> dict[str, bool]:
+        from ichalaunch.game.discord_presence import BROADCAST_FIELD_KEYS
+
+        return {key: bool(self._field_boxes[key].isChecked()) for key in BROADCAST_FIELD_KEYS}
+
+    def _finish(self, result: DialogResult) -> None:
+        self._result = result
+        if result == DialogResult.Yes:
+            self.accept()
+        else:
+            self.reject()
+
+    @property
+    def result_value(self) -> DialogResult:
+        return self._result
+
+
+def discord_presence_opt_in_dialog(
+    parent: QWidget | None,
+) -> tuple[DialogResult, dict[str, bool]]:
+    """One-shot Discord activity opt-in.
+
+    Returns:
+      - ``(DialogResult.Yes, fields)`` — Save
+      - ``(DialogResult.No, fields)`` — No, Do Not Show Again (or dismiss)
+    """
+    dlg = DiscordPresenceOptInDialog(parent)
+    dlg.exec()
+    result = dlg.result_value
+    if result not in (DialogResult.Yes, DialogResult.No):
+        result = DialogResult.No
+    return result, dlg.selected_fields()
 
 
 def crash_reporting_opt_in_dialog(parent: QWidget | None) -> DialogResult:
@@ -566,13 +685,13 @@ class GitHubImportDialog(QDialog):
             "QDialog#ThemedDialog { background: transparent; }"
             "QWidget#ThemedDialogCard {"
             "  background-color: #100d0c;"
-            "  border: 1px solid rgba(150, 131, 158, 0.22);"
+            "  border: 1px solid rgba(163, 140, 106, 0.22);"
             "  border-top: 3px solid #F1C22D;"
             "  border-radius: 10px;"
             "}"
             "QWidget#GitHubPreviewMeta {"
-            "  background-color: rgba(120, 100, 150, 0.10);"
-            "  border: 1px solid rgba(150, 131, 158, 0.22);"
+            "  background-color: rgba(150, 122, 78, 0.10);"
+            "  border: 1px solid rgba(163, 140, 106, 0.22);"
             "  border-radius: 8px;"
             "}"
             "QLabel#PreviewRepoName {"
@@ -581,7 +700,7 @@ class GitHubImportDialog(QDialog):
             "  font-weight: 700;"
             "}"
             "QLabel#PreviewDesc {"
-            "  color: #e6e0ee;"
+            "  color: #ece3d2;"
             "  font-size: 13px;"
             "}"
             "QLabel#PreviewMetaLine {"
@@ -589,8 +708,8 @@ class GitHubImportDialog(QDialog):
             "  font-size: 12px;"
             "}"
             "QLabel#PreviewPill {"
-            "  color: #e6e0ee;"
-            "  background-color: rgba(74, 47, 122, 0.45);"
+            "  color: #ece3d2;"
+            "  background-color: rgba(107, 74, 30, 0.45);"
             "  border: 1px solid rgba(241, 194, 45, 0.35);"
             "  border-radius: 6px;"
             "  padding: 4px 8px;"
@@ -602,11 +721,11 @@ class GitHubImportDialog(QDialog):
             "}"
             "QTextBrowser#ThemedPreviewBrowser {"
             "  background-color: #181412;"
-            "  color: #e6e0ee;"
-            "  border: 1px solid rgba(150, 131, 158, 0.22);"
+            "  color: #ece3d2;"
+            "  border: 1px solid rgba(163, 140, 106, 0.22);"
             "  border-radius: 8px;"
             "  padding: 10px;"
-            "  selection-background-color: #4a2f7a;"
+            "  selection-background-color: #6b4a1e;"
             "  selection-color: #ffffff;"
             "}"
         )
@@ -984,23 +1103,23 @@ class ThemedPreviewDialog(QDialog):
             "QDialog#ThemedDialog { background: transparent; }"
             "QWidget#ThemedDialogCard {"
             "  background-color: #100d0c;"
-            "  border: 1px solid rgba(150, 131, 158, 0.22);"
+            "  border: 1px solid rgba(163, 140, 106, 0.22);"
             "  border-top: 3px solid #F1C22D;"
             "  border-radius: 10px;"
             "}"
             "QWidget#GitHubPreviewMeta {"
-            "  background-color: rgba(120, 100, 150, 0.10);"
-            "  border: 1px solid rgba(150, 131, 158, 0.22);"
+            "  background-color: rgba(150, 122, 78, 0.10);"
+            "  border: 1px solid rgba(163, 140, 106, 0.22);"
             "  border-radius: 8px;"
             "}"
             "QLabel#PreviewRepoName {"
             "  color: #F1C22D; font-size: 15px; font-weight: 700;"
             "}"
-            "QLabel#PreviewDesc { color: #e6e0ee; font-size: 13px; }"
+            "QLabel#PreviewDesc { color: #ece3d2; font-size: 13px; }"
             "QTextBrowser#ThemedPreviewBrowser {"
             "  background-color: #181412;"
-            "  color: #e6e0ee;"
-            "  border: 1px solid rgba(150, 131, 158, 0.22);"
+            "  color: #ece3d2;"
+            "  border: 1px solid rgba(163, 140, 106, 0.22);"
             "  border-radius: 8px;"
             "  padding: 10px;"
             "}"
@@ -1142,7 +1261,7 @@ class GitHubTokenPromptDialog(QDialog):
             "QDialog#ThemedDialog { background: transparent; }"
             "QWidget#ThemedDialogCard {"
             "  background-color: #100d0c;"
-            "  border: 1px solid rgba(150, 131, 158, 0.22);"
+            "  border: 1px solid rgba(163, 140, 106, 0.22);"
             "  border-top: 3px solid #F1C22D;"
             "  border-radius: 10px;"
             "}"
@@ -1341,14 +1460,14 @@ class AddonInstallPickerDialog(QDialog):
       "QDialog#ThemedDialog { background: transparent; }"
       "QWidget#ThemedDialogCard {"
       "  background-color: #100d0c;"
-      "  border: 1px solid rgba(150, 131, 158, 0.22);"
+      "  border: 1px solid rgba(163, 140, 106, 0.22);"
       "  border-top: 3px solid #F1C22D;"
       "  border-radius: 10px;"
       "}"
       "QTextBrowser#ThemedPreviewBrowser {"
       "  background-color: #181412;"
-      "  color: #e6e0ee;"
-      "  border: 1px solid rgba(150, 131, 158, 0.22);"
+      "  color: #ece3d2;"
+      "  border: 1px solid rgba(163, 140, 106, 0.22);"
       "  border-radius: 8px;"
       "  padding: 10px;"
       "}"
@@ -1902,14 +2021,14 @@ class AddonSettingsDialog(QDialog):
       "QDialog#ThemedDialog { background: transparent; }"
       "QWidget#ThemedDialogCard {"
       "  background-color: #100d0c;"
-      "  border: 1px solid rgba(150, 131, 158, 0.22);"
+      "  border: 1px solid rgba(163, 140, 106, 0.22);"
       "  border-top: 3px solid #F1C22D;"
       "  border-radius: 10px;"
       "}"
       "QTextBrowser#ThemedPreviewBrowser {"
       "  background-color: #181412;"
-      "  color: #e6e0ee;"
-      "  border: 1px solid rgba(150, 131, 158, 0.22);"
+      "  color: #ece3d2;"
+      "  border: 1px solid rgba(163, 140, 106, 0.22);"
       "  border-radius: 8px;"
       "  padding: 10px;"
       "}"
@@ -2673,7 +2792,7 @@ class VanillaTweaksSettingsDialog(QDialog):
             "QDialog#ThemedDialog { background: transparent; }"
             "QWidget#ThemedDialogCard {"
             "  background-color: #100d0c;"
-            "  border: 1px solid rgba(150, 131, 158, 0.22);"
+            "  border: 1px solid rgba(163, 140, 106, 0.22);"
             "  border-top: 3px solid #F1C22D;"
             "  border-radius: 10px;"
             "}"
@@ -3687,7 +3806,7 @@ class CatalogSuggestDialog(QDialog):
             "QDialog#ThemedDialog { background: transparent; }"
             "QWidget#ThemedDialogCard {"
             "  background-color: #100d0c;"
-            "  border: 1px solid rgba(150, 131, 158, 0.22);"
+            "  border: 1px solid rgba(163, 140, 106, 0.22);"
             "  border-top: 3px solid #F1C22D;"
             "  border-radius: 10px;"
             "}"
@@ -3715,9 +3834,9 @@ class CatalogSuggestDialog(QDialog):
                 "border: 1px solid rgba(129, 199, 132, 0.55);"
             ),
             "info": (
-                "color: #e6e0ee;"
-                "background-color: rgba(150, 131, 158, 0.14);"
-                "border: 1px solid rgba(150, 131, 158, 0.35);"
+                "color: #ece3d2;"
+                "background-color: rgba(163, 140, 106, 0.14);"
+                "border: 1px solid rgba(163, 140, 106, 0.35);"
             ),
         }
         tone = styles.get(kind, styles["info"])

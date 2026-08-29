@@ -4,3 +4,5 @@ certifi
 PyInstaller>=6.0
 # Ed25519 verification for signed launcher updates (core/signing.py).
 cryptography>=42
+# Opt-in Discord Rich Presence (game/discord_presence.py). IPC no-ops if Discord is closed.
+pypresence>=4.3

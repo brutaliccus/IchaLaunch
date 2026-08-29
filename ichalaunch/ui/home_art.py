@@ -4,8 +4,9 @@ Authored in ``ichalaunch/data/home_art.json`` (same publish path as the addon
 catalog). Launchers prefer a fresh remote copy, then an appdata cache, then
 the bundled file shipped with the build.
 
-Image URLs are fetched only from allowlisted hosts (this repo's raw GitHub
-and ravencraft.io). Cached JPEGs live next to the manifest cache.
+Gallery stills come from ravencraft.io (see ``url`` on each slide) and are
+cached under appdata. They are not packed into the exe. Image URLs are fetched
+only from allowlisted hosts (this repo's raw GitHub and ravencraft.io).
 """
 
 from __future__ import annotations

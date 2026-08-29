@@ -1046,10 +1046,12 @@ def sync_desired_mods_from_disk() -> dict[str, bool]:
             if mod_id == "vanilla_tweaks_old" and not desired.get(mod_id):
                 # New catalog id: never auto-enable Old for existing users.
                 continue
+            # Hash detect False (stub / wrong bytes) must not flip the box on.
             desired[mod_id] = bool(present)
     desired = enforce_vanilla_helpers_for_hd_desired(desired)
     desired = reconcile_exclusive_desired_mods(desired, actual=actual)
     settings.set("desired_mods", desired)
+    settings.sync_discord_presence_mod_desired()
     # Launch uses desired_mods, not disk actual. Stamping vanillafixes_enabled
     # from a missing exe used to uncheck launch while the Client box stayed on.
     sync_vanillafixes_enabled_from_desired(desired)

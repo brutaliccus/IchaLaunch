@@ -29,13 +29,23 @@ datas = [
     *_theme_datas(),
 ]
 
-# Source-built WeirdUtils variants (gitignored). Fail the build if missing.
-# Outline / DPSLog stay offered; Interact / Crash Fix stay packed but hidden.
+# Source-built WeirdUtils DLLs (gitignored). Fail the build if missing.
+# Crash Fix / Interact / Clickthrough are packed but stay hidden in the catalog.
+# Heal Text Fix is Client Enhancements, not Advanced, but ships in this package.
 _WEIRDUTILS_VARIANT_DLLS = (
+    "worldmarkers.dll",
     "outline.dll",
     "interact.dll",
+    "pngscreenshots.dll",
     "framecrash.dll",
+    "transmogfix.dll",
+    "customassets.dll",
+    "minimapicons.dll",
+    "clickthrough.dll",
+    "logsessions.dll",
     "dpslog.dll",
+    "weirdperformance.dll",
+    "healtextfix.dll",
 )
 _weirdutils_out = os.path.join("tools", "_weirdutils", "out")
 for _name in _WEIRDUTILS_VARIANT_DLLS:
@@ -45,6 +55,20 @@ for _name in _WEIRDUTILS_VARIANT_DLLS:
             f"Missing {_src}. Run: python tools/build_weirdutils.py --build-only"
         )
     datas.append((_src, "ichalaunch/data/weirdutils"))
+
+# Hidden Discord status DLL (gitignored). Build it if missing, then fail clearly.
+_discord_dll = os.path.join("tools", "_discord_presence", "out", "ichalaunch_discord.dll")
+if not os.path.isfile(_discord_dll):
+    _build = os.path.join("tools", "build_discord_presence.py")
+    if os.path.isfile(_build):
+        import subprocess
+
+        subprocess.check_call([sys.executable, _build])
+if not os.path.isfile(_discord_dll):
+    raise SystemExit(
+        f"Missing {_discord_dll}. Run: python tools/build_discord_presence.py"
+    )
+datas.append((_discord_dll, "ichalaunch/data/discord_wow"))
 binaries: list[tuple[str, str]] = []
 hiddenimports = [
     # Ed25519 verification for signed launcher updates.
@@ -54,6 +78,8 @@ hiddenimports = [
     "PySide6.QtWidgets",
     "shiboken6",
     "PySide6.support.deprecated",
+    # Opt-in Discord Rich Presence (imported lazily by game.discord_presence).
+    "pypresence",
 ]
 
 # certifi CA bundle — every HTTPS stack in the onefile (catalog, addons, updates).

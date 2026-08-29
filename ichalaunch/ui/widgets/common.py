@@ -160,25 +160,30 @@ class OptionsCogButton(QPushButton):
     def paintEvent(self, event) -> None:  # noqa: N802
         del event
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        rect = self.rect()
-        icon = self._icon
-        if icon.isNull():
-            painter.setPen(Qt.GlobalColor.yellow)
-            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "⚙")
+        try:
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            rect = self.rect()
+            icon = self._icon
+            if icon.isNull():
+                painter.setPen(Qt.GlobalColor.yellow)
+                painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "⚙")
+                painter.end()
+                return
+            if self.isDown():
+                painter.setOpacity(0.75)
+            elif self.underMouse():
+                painter.setOpacity(1.0)
+            else:
+                painter.setOpacity(0.92)
+            x = rect.center().x() - icon.width() // 2
+            y = rect.center().y() - icon.height() // 2 + (1 if self.isDown() else 0)
+            painter.drawPixmap(x, y, icon)
             painter.end()
-            return
-        if self.isDown():
-            painter.setOpacity(0.75)
-        elif self.underMouse():
-            painter.setOpacity(1.0)
-        else:
-            painter.setOpacity(0.92)
-        x = rect.center().x() - icon.width() // 2
-        y = rect.center().y() - icon.height() // 2 + (1 if self.isDown() else 0)
-        painter.drawPixmap(x, y, icon)
-        painter.end()
 
+
+        finally:
+            if painter.isActive():
+                painter.end()
 
 def _pass_icon_pixmap(pressed: bool) -> QPixmap:
     """Bundled WoW GroupLoot Pass art for the addon-row Remove control."""
@@ -261,30 +266,35 @@ class RefreshReinstallButton(QPushButton):
     def paintEvent(self, event) -> None:  # noqa: N802
         del event
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        rect = self.rect()
-        icon = self._icon
-        if icon.isNull():
-            painter.setPen(Qt.GlobalColor.yellow)
-            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "↻")
+        try:
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            rect = self.rect()
+            icon = self._icon
+            if icon.isNull():
+                painter.setPen(Qt.GlobalColor.yellow)
+                painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "↻")
+                painter.end()
+                return
+            if self.isDown():
+                painter.setOpacity(0.75)
+            elif self.underMouse():
+                painter.setOpacity(1.0)
+            else:
+                painter.setOpacity(0.92)
+            x = rect.center().x() - icon.width() // 2
+            y = (
+                rect.center().y()
+                - icon.height() // 2
+                + _REINSTALL_ICON_Y_NUDGE
+                + (1 if self.isDown() else 0)
+            )
+            painter.drawPixmap(x, y, icon)
             painter.end()
-            return
-        if self.isDown():
-            painter.setOpacity(0.75)
-        elif self.underMouse():
-            painter.setOpacity(1.0)
-        else:
-            painter.setOpacity(0.92)
-        x = rect.center().x() - icon.width() // 2
-        y = (
-            rect.center().y()
-            - icon.height() // 2
-            + _REINSTALL_ICON_Y_NUDGE
-            + (1 if self.isDown() else 0)
-        )
-        painter.drawPixmap(x, y, icon)
-        painter.end()
 
+
+        finally:
+            if painter.isActive():
+                painter.end()
 
 def _folder_icon_pixmap() -> QPixmap:
     """Bundled folder glyph, scaled to the same size as Reinstall / Remove."""
@@ -343,25 +353,30 @@ class FolderOpenButton(QPushButton):
     def paintEvent(self, event) -> None:  # noqa: N802
         del event
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        rect = self.rect()
-        icon = self._icon
-        if icon.isNull():
-            painter.setPen(Qt.GlobalColor.yellow)
-            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "[]")
+        try:
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            rect = self.rect()
+            icon = self._icon
+            if icon.isNull():
+                painter.setPen(Qt.GlobalColor.yellow)
+                painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "[]")
+                painter.end()
+                return
+            if self.isDown():
+                painter.setOpacity(0.75)
+            elif self.underMouse():
+                painter.setOpacity(1.0)
+            else:
+                painter.setOpacity(0.92)
+            x = rect.center().x() - icon.width() // 2
+            y = rect.center().y() - icon.height() // 2 + (1 if self.isDown() else 0)
+            painter.drawPixmap(x, y, icon)
             painter.end()
-            return
-        if self.isDown():
-            painter.setOpacity(0.75)
-        elif self.underMouse():
-            painter.setOpacity(1.0)
-        else:
-            painter.setOpacity(0.92)
-        x = rect.center().x() - icon.width() // 2
-        y = rect.center().y() - icon.height() // 2 + (1 if self.isDown() else 0)
-        painter.drawPixmap(x, y, icon)
-        painter.end()
 
+
+        finally:
+            if painter.isActive():
+                painter.end()
 
 class OpenGitButton(QPushButton):
     """Open in Git — row/dialog plates, or a compact inline control beside the title."""
@@ -423,45 +438,50 @@ class OpenGitButton(QPushButton):
     def paintEvent(self, event) -> None:  # noqa: N802
         del event
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        rect = self.rect()
-        chrome_down = bool(self.isDown())
-        press_dy = _UPDATE_PRESS_DY if chrome_down else 0
-        icon = open_git_icon_pixmap(
-            pressed=chrome_down,
-            disabled=not self.isEnabled(),
-            side=self._side,
-        )
-        if icon.isNull():
-            painter.setPen(Qt.GlobalColor.yellow)
-            align = (
-                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
-                if self._plate == "inline"
-                else Qt.AlignmentFlag.AlignCenter
+        try:
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            rect = self.rect()
+            chrome_down = bool(self.isDown())
+            press_dy = _UPDATE_PRESS_DY if chrome_down else 0
+            icon = open_git_icon_pixmap(
+                pressed=chrome_down,
+                disabled=not self.isEnabled(),
+                side=self._side,
             )
-            painter.drawText(
-                rect.adjusted(0, press_dy, 0, press_dy),
-                align,
-                "Git",
-            )
+            if icon.isNull():
+                painter.setPen(Qt.GlobalColor.yellow)
+                align = (
+                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+                    if self._plate == "inline"
+                    else Qt.AlignmentFlag.AlignCenter
+                )
+                painter.drawText(
+                    rect.adjusted(0, press_dy, 0, press_dy),
+                    align,
+                    "Git",
+                )
+                painter.end()
+                return
+            if chrome_down:
+                painter.setOpacity(0.85)
+            elif self.underMouse():
+                painter.setOpacity(1.0)
+            else:
+                painter.setOpacity(0.94)
+            # Inline: left-align glyph so any accidental hit-box slack sits to the right
+            # of the icon (next to the name), not as empty space before it.
+            if self._plate == "inline":
+                x = 0
+            else:
+                x = rect.center().x() - icon.width() // 2
+            y = rect.center().y() - icon.height() // 2 + press_dy
+            painter.drawPixmap(x, y, icon)
             painter.end()
-            return
-        if chrome_down:
-            painter.setOpacity(0.85)
-        elif self.underMouse():
-            painter.setOpacity(1.0)
-        else:
-            painter.setOpacity(0.94)
-        # Inline: left-align glyph so any accidental hit-box slack sits to the right
-        # of the icon (next to the name), not as empty space before it.
-        if self._plate == "inline":
-            x = 0
-        else:
-            x = rect.center().x() - icon.width() // 2
-        y = rect.center().y() - icon.height() // 2 + press_dy
-        painter.drawPixmap(x, y, icon)
-        painter.end()
 
+
+        finally:
+            if painter.isActive():
+                painter.end()
 
 class _DownloadGlyph(QWidget):
     """Small downward-arrow tray used next to the addon download count."""
@@ -478,23 +498,28 @@ class _DownloadGlyph(QWidget):
     def paintEvent(self, event) -> None:  # noqa: N802
         del event
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        color = QColor("#6e6678" if self._muted else "#C4A35A")
-        painter.setPen(QPen(color, 1.4))
-        painter.setBrush(color)
-        w, h = self.width(), self.height()
-        # Shaft
-        painter.drawLine(w // 2, 1, w // 2, h - 5)
-        # Arrow head
-        painter.drawPolygon(
-            [
-                QPoint(2, h - 6),
-                QPoint(w - 2, h - 6),
-                QPoint(w // 2, h - 2),
-            ]
-        )
-        painter.end()
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            color = QColor("#7a6e58" if self._muted else "#C4A35A")
+            painter.setPen(QPen(color, 1.4))
+            painter.setBrush(color)
+            w, h = self.width(), self.height()
+            # Shaft
+            painter.drawLine(w // 2, 1, w // 2, h - 5)
+            # Arrow head
+            painter.drawPolygon(
+                [
+                    QPoint(2, h - 6),
+                    QPoint(w - 2, h - 6),
+                    QPoint(w // 2, h - 2),
+                ]
+            )
+            painter.end()
 
+
+        finally:
+            if painter.isActive():
+                painter.end()
 
 class AddonDownloadCount(QWidget):
     """Download glyph + latest-release count to the right of Open-in-Git."""
@@ -527,7 +552,7 @@ class AddonDownloadCount(QWidget):
         muted = text == "—"
         self._icon.set_muted(muted)
         self._label.setText(text)
-        color = "#6e6678" if muted else "#C4A35A"
+        color = "#7a6e58" if muted else "#C4A35A"
         self._label.setStyleSheet(f"color: {color}; font-size: 11px; font-weight: 600;")
         self.setToolTip(download_badge_tooltip(entry))
         self.show()
@@ -576,24 +601,29 @@ class PassRemoveButton(QPushButton):
     def paintEvent(self, event) -> None:  # noqa: N802
         del event
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        rect = self.rect()
-        icon = _pass_icon_pixmap(self.isDown())
-        if icon.isNull():
-            painter.setPen(Qt.GlobalColor.white)
-            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "×")
-        else:
-            if self.isDown():
-                painter.setOpacity(0.75)
-            elif self.underMouse():
-                painter.setOpacity(1.0)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            rect = self.rect()
+            icon = _pass_icon_pixmap(self.isDown())
+            if icon.isNull():
+                painter.setPen(Qt.GlobalColor.white)
+                painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "×")
             else:
-                painter.setOpacity(0.92)
-            x = rect.center().x() - icon.width() // 2
-            y = rect.center().y() - icon.height() // 2 + (1 if self.isDown() else 0)
-            painter.drawPixmap(x, y, icon)
-        painter.end()
+                if self.isDown():
+                    painter.setOpacity(0.75)
+                elif self.underMouse():
+                    painter.setOpacity(1.0)
+                else:
+                    painter.setOpacity(0.92)
+                x = rect.center().x() - icon.width() // 2
+                y = rect.center().y() - icon.height() // 2 + (1 if self.isDown() else 0)
+                painter.drawPixmap(x, y, icon)
+            painter.end()
 
+
+        finally:
+            if painter.isActive():
+                painter.end()
 
 def _knockout_spellbook_well(pm: QPixmap) -> QPixmap:
     """Treat BLP-style black wells as transparent so the glyph sits on the wash."""
@@ -706,45 +736,49 @@ class SpellbookPageButton(QPushButton):
     def paintEvent(self, event) -> None:  # noqa: N802
         del event
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        rect = self.rect()
-        pressed = bool(self.isDown())
-        icon = _spellbook_page_pixmap(self._direction, pressed=pressed, art=self._art)
-        if icon.isNull():
-            painter.setPen(Qt.GlobalColor.yellow)
-            label = "◀" if self._direction == "prev" else "▶"
-            painter.drawText(
-                rect.adjusted(0, _UPDATE_PRESS_DY if pressed else 0, 0, 0),
-                Qt.AlignmentFlag.AlignCenter,
-                label,
-            )
-            painter.end()
-            return
-        if not self.isEnabled():
-            painter.setOpacity(_SPELLBOOK_DISABLED_OPACITY)
-        elif self._art == "disabled":
-            if pressed:
+        try:
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            rect = self.rect()
+            pressed = bool(self.isDown())
+            icon = _spellbook_page_pixmap(self._direction, pressed=pressed, art=self._art)
+            if icon.isNull():
+                painter.setPen(Qt.GlobalColor.yellow)
+                label = "◀" if self._direction == "prev" else "▶"
+                painter.drawText(
+                    rect.adjusted(0, _UPDATE_PRESS_DY if pressed else 0, 0, 0),
+                    Qt.AlignmentFlag.AlignCenter,
+                    label,
+                )
+                painter.end()
+                return
+            if not self.isEnabled():
+                painter.setOpacity(_SPELLBOOK_DISABLED_OPACITY)
+            elif self._art == "disabled":
+                if pressed:
+                    painter.setOpacity(_SPELLBOOK_PRESS_OPACITY)
+                elif self.underMouse():
+                    painter.setOpacity(_SPELLBOOK_HOVER_OPACITY)
+                else:
+                    painter.setOpacity(_SPELLBOOK_IDLE_OPACITY)
+            elif pressed:
                 painter.setOpacity(_SPELLBOOK_PRESS_OPACITY)
             elif self.underMouse():
                 painter.setOpacity(_SPELLBOOK_HOVER_OPACITY)
             else:
-                painter.setOpacity(_SPELLBOOK_IDLE_OPACITY)
-        elif pressed:
-            painter.setOpacity(_SPELLBOOK_PRESS_OPACITY)
-        elif self.underMouse():
-            painter.setOpacity(_SPELLBOOK_HOVER_OPACITY)
-        else:
-            painter.setOpacity(0.94)
-        press_dy = _UPDATE_PRESS_DY if pressed else 0
-        x = rect.center().x() - icon.width() // 2
-        y = rect.center().y() - icon.height() // 2 + press_dy
-        painter.drawPixmap(x, y, icon)
-        painter.end()
+                painter.setOpacity(0.94)
+            press_dy = _UPDATE_PRESS_DY if pressed else 0
+            x = rect.center().x() - icon.width() // 2
+            y = rect.center().y() - icon.height() // 2 + press_dy
+            painter.drawPixmap(x, y, icon)
+            painter.end()
 
 
-# Addon-row Update: square glowing plate (side == Reinstall height) — arrow only.
-# Chrome matches GluePanelButton("Reinstall", … height=GLUE_ROW_H); glow may
-# enlarge the widget around that plate (AlignVCenter keeps plates flush).
+            # Addon-row Update: square glowing plate (side == Reinstall height) — arrow only.
+            # Chrome matches GluePanelButton("Reinstall", … height=GLUE_ROW_H); glow may
+            # enlarge the widget around that plate (AlignVCenter keeps plates flush).
+        finally:
+            if painter.isActive():
+                painter.end()
 _UPDATE_BTN_SIDE = GLUE_ROW_H  # chrome W == H == Reinstall button height
 _UPDATE_ARROW = "UI-MicroStream-Yellow.PNG"
 _UPDATE_ARROW_EXTERNAL = Path(r"F:\wow-ui-textures\Buttons") / _UPDATE_ARROW
@@ -846,45 +880,50 @@ class AddonRowInstallButton(QPushButton):
     def paintEvent(self, event) -> None:  # noqa: N802
         del event
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        rect = self.rect()
-        chrome_down = bool(self.isDown())
-        pm = glue_row_square_chrome(
-            pressed=chrome_down,
-            role="primary",
-            disabled=not self.isEnabled(),
-            side=_UPDATE_BTN_SIDE,
-        )
-        if pm.isNull():
-            painter.setPen(QColor("#7a6e88"))
-            painter.setBrush(QColor("#4a2f7a"))
-            painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 6, 6)
-        else:
-            painter.drawPixmap(rect, pm)
-
-        press_dy = _UPDATE_PRESS_DY if chrome_down else 0
-        icon = self._arrow_icon()
-        if icon.isNull():
-            painter.setPen(QColor("#F1C22D"))
-            painter.drawText(
-                rect.adjusted(0, press_dy + _UPDATE_ARROW_Y_NUDGE, 0, press_dy + _UPDATE_ARROW_Y_NUDGE),
-                Qt.AlignmentFlag.AlignCenter,
-                "↓",
+        try:
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            rect = self.rect()
+            chrome_down = bool(self.isDown())
+            pm = glue_row_square_chrome(
+                pressed=chrome_down,
+                role="primary",
+                disabled=not self.isEnabled(),
+                side=_UPDATE_BTN_SIDE,
             )
-        else:
-            if not self.isEnabled():
-                painter.setOpacity(0.45)
-            ax = rect.center().x() - icon.width() // 2
-            ay = (
-                rect.center().y()
-                - icon.height() // 2
-                + _UPDATE_ARROW_Y_NUDGE
-                + press_dy
-            )
-            painter.drawPixmap(ax, ay, icon)
-            painter.setOpacity(1.0)
-        painter.end()
+            if pm.isNull():
+                painter.setPen(QColor("#94836a"))
+                painter.setBrush(QColor("#6b4a1e"))
+                painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 6, 6)
+            else:
+                painter.drawPixmap(rect, pm)
 
+            press_dy = _UPDATE_PRESS_DY if chrome_down else 0
+            icon = self._arrow_icon()
+            if icon.isNull():
+                painter.setPen(QColor("#F1C22D"))
+                painter.drawText(
+                    rect.adjusted(0, press_dy + _UPDATE_ARROW_Y_NUDGE, 0, press_dy + _UPDATE_ARROW_Y_NUDGE),
+                    Qt.AlignmentFlag.AlignCenter,
+                    "↓",
+                )
+            else:
+                if not self.isEnabled():
+                    painter.setOpacity(0.45)
+                ax = rect.center().x() - icon.width() // 2
+                ay = (
+                    rect.center().y()
+                    - icon.height() // 2
+                    + _UPDATE_ARROW_Y_NUDGE
+                    + press_dy
+                )
+                painter.drawPixmap(ax, ay, icon)
+                painter.setOpacity(1.0)
+            painter.end()
+
+
+        finally:
+            if painter.isActive():
+                painter.end()
 
 class AddonRowUpdateButton(QPushButton):
     """Square glowing Update control matching Reinstall plate height.
@@ -998,52 +1037,56 @@ class AddonRowUpdateButton(QPushButton):
     def paintEvent(self, event) -> None:  # noqa: N802
         del event
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
 
-        self._paint_glow(painter)
-        rect = self._chrome_rect()
-        chrome_down = bool(self.isDown())
-        pm = glue_row_square_chrome(
-            pressed=chrome_down,
-            role="primary",
-            disabled=not self.isEnabled(),
-            side=_UPDATE_BTN_SIDE,
-        )
-        if pm.isNull():
-            painter.setPen(QColor("#7a6e88"))
-            painter.setBrush(QColor("#4a2f7a"))
-            painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 6, 6)
-        else:
-            painter.drawPixmap(rect, pm)
-
-        press_dy = _UPDATE_PRESS_DY if chrome_down else 0
-
-        # Update arrow — centered in the square plate.
-        icon = self._icon
-        if icon.isNull():
-            painter.setPen(QColor("#F1C22D"))
-            painter.drawText(
-                rect.adjusted(0, press_dy + _UPDATE_ARROW_Y_NUDGE, 0, press_dy + _UPDATE_ARROW_Y_NUDGE),
-                Qt.AlignmentFlag.AlignCenter,
-                "↑",
+            self._paint_glow(painter)
+            rect = self._chrome_rect()
+            chrome_down = bool(self.isDown())
+            pm = glue_row_square_chrome(
+                pressed=chrome_down,
+                role="primary",
+                disabled=not self.isEnabled(),
+                side=_UPDATE_BTN_SIDE,
             )
-        else:
-            if not self.isEnabled():
-                painter.setOpacity(0.45)
-            ax = rect.center().x() - icon.width() // 2
-            ay = (
-                rect.center().y()
-                - icon.height() // 2
-                + _UPDATE_ARROW_Y_NUDGE
-                + press_dy
-            )
-            painter.drawPixmap(ax, ay, icon)
-            painter.setOpacity(1.0)
+            if pm.isNull():
+                painter.setPen(QColor("#94836a"))
+                painter.setBrush(QColor("#6b4a1e"))
+                painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 6, 6)
+            else:
+                painter.drawPixmap(rect, pm)
 
-        painter.end()
+            press_dy = _UPDATE_PRESS_DY if chrome_down else 0
+
+            # Update arrow — centered in the square plate.
+            icon = self._icon
+            if icon.isNull():
+                painter.setPen(QColor("#F1C22D"))
+                painter.drawText(
+                    rect.adjusted(0, press_dy + _UPDATE_ARROW_Y_NUDGE, 0, press_dy + _UPDATE_ARROW_Y_NUDGE),
+                    Qt.AlignmentFlag.AlignCenter,
+                    "↑",
+                )
+            else:
+                if not self.isEnabled():
+                    painter.setOpacity(0.45)
+                ax = rect.center().x() - icon.width() // 2
+                ay = (
+                    rect.center().y()
+                    - icon.height() // 2
+                    + _UPDATE_ARROW_Y_NUDGE
+                    + press_dy
+                )
+                painter.drawPixmap(ax, ay, icon)
+                painter.setOpacity(1.0)
+
+            painter.end()
 
 
-# Back-compat alias for previews / older imports.
+            # Back-compat alias for previews / older imports.
+        finally:
+            if painter.isActive():
+                painter.end()
 AddonRowUpdateSplit = AddonRowUpdateButton
 
 
@@ -2661,7 +2704,7 @@ class AddonRow(QWidget):
         show_update = self._update_available and not self._never_update
         if self._never_update:
             self.status_lbl.setText("Never update")
-            self.status_lbl.setStyleSheet("color: #6e6678;")
+            self.status_lbl.setStyleSheet("color: #7a6e58;")
         else:
             self.status_lbl.setText(self._status_text)
             self._apply_status_style(self._status_text)
@@ -2696,7 +2739,7 @@ class AddonRow(QWidget):
         elif status.startswith("Up to date") or status == "Installed":
             self.status_lbl.setStyleSheet("color: #7c5cc4;")
         elif status.startswith("Never update"):
-            self.status_lbl.setStyleSheet("color: #6e6678;")
+            self.status_lbl.setStyleSheet("color: #7a6e58;")
         else:
             self.status_lbl.setObjectName("Muted")
             self.status_lbl.setStyleSheet("")

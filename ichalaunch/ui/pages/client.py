@@ -14,7 +14,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from ichalaunch.config.settings import settings
+from ichalaunch.config.settings import DISCORD_WOW_STATUS_MOD_ID, settings
+from ichalaunch.ui.widgets.gradient_label import GradientLabel
 from ichalaunch.core.filesystem import LOCK_AV_VERIFY_MESSAGE
 from ichalaunch.core.process import wow_exe_running
 from ichalaunch.game.launcher import detect_game, sync_vanillafixes_enabled_from_desired
@@ -31,6 +32,7 @@ from ichalaunch.mods.client_presets import (
     mark_custom_preset,
 )
 from ichalaunch.mods.installer import (
+    _pinned_dest_needs_replace,
     apply_mod_toggle,
     apply_vanillafixes_dxvk_choice,
     detect_actual_state,
@@ -121,7 +123,7 @@ class ClientPage(QWidget):
         root.setContentsMargins(16, 6, 16, 12)
         root.setSpacing(8)
 
-        title = QLabel("Client Fixes, Tweaks & Patches")
+        title = GradientLabel("Client Fixes, Tweaks & Patches")
         title.setObjectName("SectionTitle")
         title.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         title.setContentsMargins(_HEADER_LEFT_INSET, 0, 0, 0)
@@ -171,7 +173,7 @@ class ClientPage(QWidget):
         status_l.addLayout(self.loading_row)
 
         self.updates_lbl = QLabel("")
-        self.updates_lbl.setStyleSheet("color: #F1C22D;")
+        self.updates_lbl.setStyleSheet("color: #FFE9A8;")
         status_l.addWidget(self.updates_lbl)
         self._status_host.hide()
         root.addWidget(self._status_host)
@@ -779,7 +781,15 @@ class ClientPage(QWidget):
         self._sync_status_host()
 
     def set_updates(self, updates: list[dict]) -> None:
-        self._pending_updates = {u["id"]: u for u in updates if u.get("id")}
+        self._pending_updates = {
+            u["id"]: u
+            for u in updates
+            if u.get("id")
+            and (
+                u["id"] == DISCORD_WOW_STATUS_MOD_ID
+                or not (get_mod(u["id"]) or {}).get("hidden")
+            )
+        }
         self._client_mods_scan_done = True
         n = len(self._pending_updates)
         if n:
@@ -1180,6 +1190,10 @@ class ClientPage(QWidget):
             pending = self._pending_updates.get(mid)
             meta_inst = installed_meta.get(mid)
             unverified = mod_is_unverified(mid, meta_inst if isinstance(meta_inst, dict) else None)
+            stale_pin = bool(game and _pinned_dest_needs_replace(mod_entry, game))
+            if pending and pending.get("kind") == "pin" and not stale_pin:
+                self._pending_updates.pop(mid, None)
+                pending = None
             if pending:
                 detail = f"{pending.get('local', '?')} → {pending.get('remote', '?')}"
                 row.status_lbl.setText(f"Update available ({detail})")
@@ -1187,6 +1201,22 @@ class ClientPage(QWidget):
                 self._set_status_style(row.status_lbl, "StatusUpdate")
                 row.set_update_available(True, detail)
                 row.set_reinstall_visible(can_ri)
+            elif stale_pin:
+                detail = "Replace with catalog file"
+                row.status_lbl.setText("Update available (replace)")
+                row.status_lbl.setToolTip(
+                    "This file is present but is not the pinned catalog bytes."
+                )
+                self._set_status_style(row.status_lbl, "StatusUpdate")
+                row.set_update_available(True, detail)
+                row.set_reinstall_visible(can_ri)
+                if mid not in self._pending_updates:
+                    self._pending_updates[mid] = {
+                        "id": mid,
+                        "local": "on disk",
+                        "remote": "catalog",
+                        "kind": "pin",
+                    }
             elif unverified and (actual.get(mid) or desired.get(mid)):
                 row.status_lbl.setText("Unverified")
                 row.status_lbl.setToolTip(LOCK_AV_VERIFY_MESSAGE)
@@ -1209,6 +1239,13 @@ class ClientPage(QWidget):
                 self._set_status_style(row.status_lbl, "StatusMuted")
                 row.set_update_available(False)
                 row.set_reinstall_visible(False)
+        n_upd = len(self._pending_updates)
+        if n_upd:
+            self.updates_lbl.setText(f"{n_upd} client mod update(s) available")
+        else:
+            self.updates_lbl.setText("")
+        self._sync_status_host()
+        self.update_all_btn.setEnabled(n_upd > 0)
         self._sync_requirement_locks()
         if self._search_q:
             self._apply_search()

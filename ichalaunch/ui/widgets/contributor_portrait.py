@@ -22,6 +22,11 @@ _DEFAULT_BORDER = "CheckButtonGlow-Pink.PNG"
 # Display size shared by every contributor icon in the play-bar row.
 # Soft CheckButton* glow (46–56px pad-trimmed) fits fully; bright ring ~38px.
 _DISPLAY = 52
+# Glow margin for the portraits. Proportional to the plate's: 12px around a
+# 200x56 plate is roughly 8 around a 52px portrait.
+_GLOW_MARGIN = 9
+_GLOW_HALO_PAD = 9
+_GLOW_HALO_BLUR = 4
 # CheckButtonHilight-Blue soft pad is larger than Glow, so fit-to-box leaves
 # its bright ring ~38px vs Glow's ~42px. Slight overscale matches footprint;
 # outer soft still reaches the box edge (only faint pad clips).
@@ -473,10 +478,20 @@ class ContributorPortrait(QWidget):
         border_scale: float = 1.0,
         fill_mode: str = "hole",
         url: str = "",
+        glow_ramp=None,
     ):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        self.setFixedSize(_DISPLAY, _DISPLAY)
+        # Portrait plus a margin for its glow to fall off in. Qt clips painting
+        # to the widget rect, so without the margin the halo ends on a square.
+        # Scaled to the portrait rather than reusing the launch plate's numbers:
+        # 52px of art does not want 12px of glow around it. Because the glow is
+        # contained by the widget, adjacent portraits cannot bleed into each
+        # other however bright they get.
+        self._glow_ramp = glow_ramp
+        self._glow_margin = _GLOW_MARGIN if glow_ramp else 0
+        side = _DISPLAY + self._glow_margin * 2
+        self.setFixedSize(side, side)
         self._url = (url or "").strip()
         self._tip_name = (tooltip or "").strip()
         self._name_tip: ContributorNameTip | None = None
@@ -496,6 +511,14 @@ class ContributorPortrait(QWidget):
     def _ensure_name_tip(self) -> ContributorNameTip:
         if self._name_tip is None:
             self._name_tip = ContributorNameTip(self.window())
+            # Sampled from this portrait's own art, so the label and the glow
+            # cannot disagree and swapping the picture retints both.
+            from ichalaunch.ui.widgets.gradient_label import sample_ramp_from_pixmap
+
+            try:
+                self._name_tip.set_ramp(sample_ramp_from_pixmap(self._pix))
+            except Exception:  # noqa: BLE001 - a tooltip must never break a hover
+                pass
             self._name_tip.set_name(self._tip_name)
             self._name_tip.destroyed.connect(self._clear_name_tip)
         return self._name_tip
@@ -503,15 +526,29 @@ class ContributorPortrait(QWidget):
     def _clear_name_tip(self, *_args) -> None:
         self._name_tip = None
 
+    def _sync_glow_ticks(self, on: bool) -> None:
+        """Subscribe to the shared phase only while hovered."""
+        if not self._glow_ramp:
+            return
+        from ichalaunch.ui.widgets.gradient_label import lava_ticker
+
+        if on:
+            lava_ticker().subscribe(self)
+        else:
+            lava_ticker().unsubscribe(self)
+        self.update()
+
     def enterEvent(self, event) -> None:  # noqa: ANN001, N802
         if self._tip_name:
             self._ensure_name_tip().popup_above(self)
         super().enterEvent(event)
+        self._sync_glow_ticks(True)
 
     def leaveEvent(self, event) -> None:  # noqa: ANN001, N802
         if self._name_tip is not None:
             self._name_tip.dismiss()
         super().leaveEvent(event)
+        self._sync_glow_ticks(False)
 
     def hideEvent(self, event) -> None:  # noqa: ANN001, N802
         if self._name_tip is not None:
@@ -536,5 +573,31 @@ class ContributorPortrait(QWidget):
         if self._pix.isNull():
             return
         p = QPainter(self)
-        p.drawPixmap(0, 0, self._pix)
-        p.end()
+        try:
+            p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            m = self._glow_margin
+            if self._glow_ramp and self.underMouse() and self.isEnabled():
+                # Same three layers as the launch plate, driven by the same shared
+                # phase, differing only in the colour stops handed to them.
+                from ichalaunch.ui.widgets.gradient_label import (
+                    lava_flicker,
+                    lava_rim_pixmap,
+                    lava_ticker,
+                    soft_halo,
+                )
+
+                deg = lava_ticker().phase
+                peak = self._glow_ramp[len(self._glow_ramp) // 2][1]
+                soft = soft_halo(self._pix, peak, _GLOW_HALO_PAD, _GLOW_HALO_BLUR)
+                pad = _GLOW_HALO_PAD
+                box = self.rect().adjusted(m - pad, m - pad, -(m - pad), -(m - pad))
+                p.setOpacity(0.55 * lava_flicker(deg * 0.6))
+                p.drawPixmap(box, soft)
+                rim = lava_rim_pixmap(soft, deg, self._glow_ramp)
+                p.setOpacity(0.70 * lava_flicker(deg))
+                p.drawPixmap(box, rim)
+                p.setOpacity(1.0)
+            p.drawPixmap(m, m, self._pix)
+        finally:
+            if p.isActive():
+                p.end()

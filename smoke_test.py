@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import sys
@@ -347,6 +348,51 @@ def test_tls_ca_env_sanitizer_leaves_unset_vars_unset():
         _restore()
 
     print("OK tls ca env sanitizer leaves unset vars unset")
+
+
+def test_widget_painters_end_in_finally():
+    """A paintEvent QPainter(self) must be released in finally so Qt cannot segfault."""
+    import ast
+
+    missing: list[str] = []
+    for path in sorted((ROOT / "ichalaunch" / "ui").rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.FunctionDef) or node.name != "paintEvent":
+                continue
+            names: list[str] = []
+            for sub in ast.walk(node):
+                if not isinstance(sub, ast.Assign) or not isinstance(sub.value, ast.Call):
+                    continue
+                func = sub.value.func
+                if not isinstance(func, ast.Name) or func.id != "QPainter":
+                    continue
+                args = sub.value.args
+                if not args or not isinstance(args[0], ast.Name) or args[0].id != "self":
+                    continue
+                for target in sub.targets:
+                    if isinstance(target, ast.Name):
+                        names.append(target.id)
+            if not names:
+                continue
+            ended: set[str] = set()
+            for sub in ast.walk(node):
+                if not isinstance(sub, ast.Try):
+                    continue
+                for stmt in sub.finalbody:
+                    for call in ast.walk(stmt):
+                        if (
+                            isinstance(call, ast.Call)
+                            and isinstance(call.func, ast.Attribute)
+                            and call.func.attr == "end"
+                            and isinstance(call.func.value, ast.Name)
+                        ):
+                            ended.add(call.func.value.id)
+            for name in names:
+                if name not in ended:
+                    missing.append(f"{path.relative_to(ROOT)}:{node.lineno} {name}")
+    assert not missing, "widget painters missing finally end():\n  " + "\n  ".join(missing)
+    print(f"OK widget painters end in finally ({len(missing)} missing)")
 
 
 def test_bundle_pins_charset_normalizer_and_excludes_chardet():
@@ -892,12 +938,15 @@ def test_detect_state():
         (game / "nampower.dll").write_bytes(b"x")
         (game / "WDB").write_text("")
         (game / "vanillahelpers.dll").write_bytes(b"MZ")
+        (game / "SuperWoWhook.dll").write_bytes(b"x")
         clear_fs_caches()
         state = detect_actual_state(game)
-        assert state["nampower"] is True
+        # nampower / VanillaHelpers dest == downloaded payload: dummy bytes
+        # are not the pin. SuperWoW is a zip extract — filename detect.
+        assert state["nampower"] is False
         assert state["wdb_block"] is True
-        assert state["superwow"] is False
-        assert state["vanilla_helpers"] is True
+        assert state["superwow"] is True
+        assert state["vanilla_helpers"] is False
         assert state["vanilla_tweaks"] is False
 
         glue = game / "Data" / "Interface" / "GlueXML"
@@ -1177,8 +1226,12 @@ def test_mod_remove_desired_state():
             (game / "WoW.exe").write_bytes(b"MZ")
             data = game / "Data"
             data.mkdir()
-            mpq = data / "patch-N.mpq"
-            mpq.write_bytes(b"MPQ")
+            from ichalaunch.mods import installer as I
+
+            l_size = int((I.mod_catalog_map()["hd_patch_l"] or {}).get("size_bytes") or 0)
+            mpq = data / "patch-L.mpq"
+            with open(mpq, "wb") as fh:
+                fh.truncate(l_size)
             s.set("game_path", str(game))
             s.set("addons_path", "")
             s.set("desired_mods", {})
@@ -1187,23 +1240,23 @@ def test_mod_remove_desired_state():
             s.set("user_mods", [])
             clear_fs_caches()
 
-            # First run / no desired set: detected state seeds the checkbox on.
+            # Size matches the catalog body, so detect seeds the checkbox on.
             desired = sync_desired_mods_from_disk()
-            assert desired.get("hd_patch_n") is True
+            assert desired.get("hd_patch_l") is True
 
-            # User unchecks Reforged Patch-N — an explicit choice.
-            s.set_desired_mod("hd_patch_n", False)
-            assert "hd_patch_n" in s.user_set_mods
+            # User unchecks — an explicit choice.
+            s.set_desired_mod("hd_patch_l", False)
+            assert "hd_patch_l" in s.user_set_mods
             # HD is off; do not schedule a VanillaHelpers download (apply refuses
             # DLL installs while WoW.exe is already running).
             s.set_desired_mod("vanilla_helpers", False)
             plan = plan_changes()
             assert any(
-                c["action"] == "remove" and c["id"] == "hd_patch_n" for c in plan
+                c["action"] == "remove" and c["id"] == "hd_patch_l" for c in plan
             ), plan
 
             out = apply_desired_state()
-            assert "- hd_patch_n" in out, out
+            assert "- hd_patch_l" in out, out
             assert not mpq.exists()
 
             # Immediately after apply (inside the 4s listing-cache TTL) the plan
@@ -1212,14 +1265,14 @@ def test_mod_remove_desired_state():
 
             # Rescan syncs actual but must not flip the user's choice back on.
             desired = sync_desired_mods_from_disk()
-            assert desired.get("hd_patch_n") is False
-            assert detect_actual_state(game).get("hd_patch_n") is False
+            assert desired.get("hd_patch_l") is False
+            assert detect_actual_state(game).get("hd_patch_l") is False
 
-            # Even if the file reappears (manual copy), desired stays off.
+            # Even if a stub reappears (manual copy), hash/size reject it.
             mpq.write_bytes(b"MPQ")
             clear_fs_caches()
             desired = sync_desired_mods_from_disk()
-            assert desired.get("hd_patch_n") is False
+            assert desired.get("hd_patch_l") is False
 
             # Shared ownership: the same MPQ owned by another enabled mod is kept.
             shared_mpq = data / "patch-Z.mpq"
@@ -1900,22 +1953,94 @@ def test_mod_toggle_resolution():
 
 
 _WU_IDS = (
+    "wu_pngscreenshots",
+    "wu_customassets",
+    "wu_logsessions",
+    "wu_weirdperformance",
     "wu_worldmarkers",
     "wu_outline",
-    "wu_pngscreenshots",
     "wu_transmogfix",
-    "wu_customassets",
     "wu_minimapicons",
-    "wu_logsessions",
     "wu_dpslog",
-    "wu_weirdperformance",
 )
-_WU_HIDDEN_IDS = ("wu_interact", "wu_clickthrough", "wu_framecrash")
-_WU_LOCAL_IDS = ("wu_outline", "wu_dpslog")
+_WU_HIDDEN_IDS = (
+    "wu_interact",
+    "wu_clickthrough",
+    "wu_framecrash",
+)
+_WU_REMOTE_IDS = (
+    "wu_weirdperformance",
+    "wu_worldmarkers",
+    "wu_transmogfix",
+    "wu_minimapicons",
+    "wu_pngscreenshots",
+    "wu_customassets",
+    "wu_logsessions",
+)
+_WU_HIDDEN_REMOTE_IDS = ("wu_clickthrough",)
+_WU_REMOTE_FILES = {
+    "wu_weirdperformance": "weirdperformance.dll",
+    "wu_worldmarkers": "worldmarkers.dll",
+    "wu_transmogfix": "transmogfix.dll",
+    "wu_minimapicons": "minimapicons.dll",
+    "wu_pngscreenshots": "pngscreenshots.dll",
+    "wu_customassets": "customassets.dll",
+    "wu_logsessions": "logsessions.dll",
+    "wu_clickthrough": "clickthrough.dll",
+}
+_WU_REMOTE_URLS = {
+    "wu_weirdperformance": (
+        "https://codeberg.org/MarcelineVQ/WeirdUtils/releases/download/"
+        "v0.7.0/weirdperformance.dll"
+    ),
+    "wu_worldmarkers": (
+        "https://codeberg.org/MarcelineVQ/WeirdUtils/releases/download/"
+        "v0.7.1/worldmarkers.dll"
+    ),
+    "wu_transmogfix": (
+        "https://codeberg.org/MarcelineVQ/WeirdUtils/releases/download/"
+        "v0.7.0/transmogfix.dll"
+    ),
+    "wu_minimapicons": (
+        "https://codeberg.org/MarcelineVQ/WeirdUtils/releases/download/"
+        "v0.7.0/minimapicons.dll"
+    ),
+    "wu_pngscreenshots": (
+        "https://codeberg.org/MarcelineVQ/WeirdUtils/releases/download/"
+        "v0.7.0/pngscreenshots.dll"
+    ),
+    "wu_customassets": (
+        "https://codeberg.org/MarcelineVQ/WeirdUtils/releases/download/"
+        "v0.7.0/customassets.dll"
+    ),
+    "wu_logsessions": (
+        "https://codeberg.org/MarcelineVQ/WeirdUtils/releases/download/"
+        "v0.7.0/logsessions.dll"
+    ),
+    "wu_clickthrough": (
+        "https://codeberg.org/MarcelineVQ/WeirdUtils/releases/download/"
+        "v0.7.0/clickthrough.dll"
+    ),
+}
+_WU_DLL_NAMES = (
+    "worldmarkers.dll",
+    "outline.dll",
+    "interact.dll",
+    "pngscreenshots.dll",
+    "framecrash.dll",
+    "transmogfix.dll",
+    "customassets.dll",
+    "minimapicons.dll",
+    "clickthrough.dll",
+    "logsessions.dll",
+    "dpslog.dll",
+    "weirdperformance.dll",
+    "healtextfix.dll",
+)
 
 
 def test_weirdutils_advanced_catalog():
-    """Advanced tab rows: detect, dlls.txt, Codeberg git link, local vs release sources."""
+    """Advanced tab rows: detect, dlls.txt, Codeberg git link, local vs official remotes."""
     from ichalaunch.mods.client_presets import preset_managed_mod_ids
     from ichalaunch.mods.installer import load_mod_catalog, mod_version_label
     from ichalaunch.ui.widgets.common import mod_git_url
@@ -1928,6 +2053,17 @@ def test_weirdutils_advanced_catalog():
         hidden = raw[mid]
         assert hidden.get("hidden") is True, mid
         assert hidden.get("category") == "Advanced", mid
+        src = hidden.get("source") or {}
+        if mid in _WU_HIDDEN_REMOTE_IDS:
+            assert src.get("type") == "raw", mid
+            assert src.get("url") == _WU_REMOTE_URLS[mid], mid
+            assert src.get("skip_local_override") is True, mid
+            assert src.get("filename") == _WU_REMOTE_FILES[mid], mid
+            assert not src.get("path"), mid
+        else:
+            assert src.get("type") == "local", mid
+            assert not src.get("url"), mid
+            assert str(src.get("path") or "").startswith("tools/_weirdutils/out/"), mid
     for mid in _WU_IDS:
         mod = catalog[mid]
         assert mod.get("category") == "Advanced", mid
@@ -1941,18 +2077,62 @@ def test_weirdutils_advanced_catalog():
         assert mod.get("author") == "MarcelineVQ", mid
         assert mod_git_url(mod) == "https://codeberg.org/MarcelineVQ/WeirdUtils", mid
         src = mod.get("source") or {}
-        if mid in _WU_LOCAL_IDS:
-            assert src.get("type") == "local", mid
-            assert str(src.get("path") or "").startswith("tools/_weirdutils/out/"), mid
-            assert mod_version_label(mod), mid
-        else:
+        if mid in _WU_REMOTE_IDS:
             assert src.get("type") == "raw", mid
             assert "/releases/download/" in str(src.get("url") or ""), mid
+            assert src.get("skip_local_override") is True, mid
+            assert src.get("filename") == _WU_REMOTE_FILES[mid], mid
+            assert src.get("url") == _WU_REMOTE_URLS[mid], mid
+            assert not src.get("path"), mid
+            assert src.get("bundle") != "weirdutils" or not src.get("bundle")
+        else:
+            assert src.get("type") == "local", mid
+            assert not src.get("url"), mid
+            assert str(src.get("path") or "").startswith("tools/_weirdutils/out/"), mid
+            assert src.get("bundle") == "weirdutils", mid
+            assert "http" not in str(src.get("path") or "").lower(), mid
+            assert mod_version_label(mod), mid
+    advanced = [m for m in raw.values() if m.get("category") == "Advanced"]
+    assert {m["id"] for m in advanced} == set(_WU_IDS) | set(_WU_HIDDEN_IDS)
+    for mod in advanced:
+        if mod["id"] in _WU_REMOTE_IDS or mod["id"] in _WU_HIDDEN_REMOTE_IDS:
+            continue
+        src = mod.get("source") or {}
+        blob = json.dumps(src)
+        assert "http://" not in blob and "https://" not in blob, mod.get("id")
     heal = catalog["wu_healtextfix"]
+    assert heal.get("hidden") is not True
     assert heal.get("category") == "Client Enhancements"
     assert heal.get("nest_under") == "superwow"
     assert heal.get("requires") == ["superwow"]
     assert "wu_healtextfix" not in _WU_IDS
+    heal_src = heal.get("source") or {}
+    assert heal_src.get("type") == "raw"
+    assert (
+        heal_src.get("url")
+        == "https://codeberg.org/MarcelineVQ/WeirdUtils/releases/download/v0.7.0/healtextfix.dll"
+    )
+    assert heal_src.get("filename") == "healtextfix.dll"
+    assert heal_src.get("skip_local_override") is True
+    assert not heal_src.get("path")
+    desc = str(heal.get("description") or "")
+    assert "1.5" in desc
+    assert "SuperWowHeal" in desc or "Heal Text Fix" in desc
+    perf = catalog["wu_weirdperformance"]
+    assert perf.get("hidden") is not True
+    assert (perf.get("source") or {}).get("url") == _WU_REMOTE_URLS["wu_weirdperformance"]
+    for mid, url in _WU_REMOTE_URLS.items():
+        row = catalog.get(mid) or raw.get(mid)
+        assert row, mid
+        if mid in _WU_HIDDEN_REMOTE_IDS:
+            assert row.get("hidden") is True, mid
+        else:
+            assert row.get("hidden") is not True, mid
+        src = row.get("source") or {}
+        assert src.get("type") == "raw", mid
+        assert src.get("url") == url, mid
+        assert src.get("skip_local_override") is True, mid
+        assert src.get("filename") == _WU_REMOTE_FILES[mid], mid
     for dropped in ("wu_all", "wu_noperf", "wu_bigcursor"):
         assert dropped not in catalog
     assert "wu_bigcursor" not in (catalog["dxvk_big_cursor"].get("conflicts") or [])
@@ -1977,13 +2157,24 @@ def test_weirdutils_local_source():
     assert _remote_identity(missing) is None
 
     with tempfile.TemporaryDirectory() as tmp:
-        src = Path(tmp) / "outline.dll"
+        src = Path(tmp) / "_smoke_outline.dll"
         src.write_bytes(b"MZ" + b"\0" * 32)
-        source = {"type": "local", "path": str(src), "filename": "outline.dll", "version": "1.0"}
+        source = {
+            "type": "local",
+            "path": str(src),
+            "filename": "_smoke_outline.dll",
+            "version": "1.0",
+        }
         assert resolve_local_source_path(source) == src.resolve()
         ident = _remote_identity(source)
         assert ident and ident.get("kind") == "local"
         assert ident.get("display") == "1.0"
+        from ichalaunch.core.filesystem import sha256_file
+
+        digest = sha256_file(src)
+        assert digest
+        assert ident.get("key") == digest
+        assert ident.get("sha") == digest
         work = Path(tmp) / "work"
         work.mkdir()
         copied = _download_source(source, work, None)
@@ -2000,8 +2191,25 @@ def test_weirdutils_bundled_into_exe():
     spec = (ROOT / "IchaLaunch.spec").read_text(encoding="utf-8")
     assert "ichalaunch/data/weirdutils" in spec
     assert 'name != "official_artworks"' in spec
-    for name in ("outline.dll", "interact.dll", "framecrash.dll", "dpslog.dll"):
+    for name in _WU_DLL_NAMES:
         assert name in spec
+    patch = ROOT / "tools" / "weirdutils_patches" / "framecrash.zig"
+    assert patch.is_file()
+    patch_text = patch.read_text(encoding="utf-8")
+    assert "fn classifySite" in patch_text
+    assert "fn tryAttach" in patch_text
+    assert "e9_superwow" in patch_text
+    assert "GET_FRAME_FROM_LUA" not in patch_text
+    assert "g_cached_uiparent" in patch_text
+    hx_patch = ROOT / "tools" / "weirdutils_patches" / "healtextfix.zig"
+    assert hx_patch.is_file()
+    hx_text = hx_patch.read_text(encoding="utf-8")
+    assert "IsBadReadPtr" in hx_text
+    assert "never write a JMP to 0" in hx_text or "va == 0" in hx_text
+    assert "SUPERWOW_VERSION" in hx_text or "detectVersion" in hx_text
+    build_py = (ROOT / "tools" / "build_weirdutils.py").read_text(encoding="utf-8")
+    assert "wantsCoreWowHooks" in build_py
+    assert "healtextfix.zig" in build_py
     gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
     assert "tools/_weirdutils/" in gitignore
     assert "ichalaunch/data/weirdutils/" in gitignore
@@ -2044,8 +2252,8 @@ def test_codeberg_download_headers_and_prebuilt_override():
     prebuilt = _local_source_override(
         {
             "type": "raw",
-            "url": "https://codeberg.org/MarcelineVQ/WeirdUtils/releases/download/v0.7.0/healtextfix.dll",
-            "filename": "healtextfix.dll",
+            "url": "https://codeberg.org/MarcelineVQ/WeirdUtils/releases/download/v0.7.0/interact.dll",
+            "filename": "interact.dll",
         }
     )
     if prebuilt is not None:
@@ -2054,8 +2262,8 @@ def test_codeberg_download_headers_and_prebuilt_override():
             copied = _download_source(
                 {
                     "type": "raw",
-                    "url": "https://example.invalid/healtextfix.dll",
-                    "filename": "healtextfix.dll",
+                    "url": "https://example.invalid/interact.dll",
+                    "filename": "interact.dll",
                 },
                 work,
                 None,
@@ -2065,11 +2273,54 @@ def test_codeberg_download_headers_and_prebuilt_override():
     print("OK codeberg download headers and prebuilt override")
 
 
+def test_official_wu_remote_skips_local_override():
+    """Heal Text Fix and WeirdPerformance never copy bundled Zig over the URL."""
+    from ichalaunch.mods.installer import _local_source_override
+
+    for name in (
+        "healtextfix.dll",
+        "weirdperformance.dll",
+        "minimapicons.dll",
+        "transmogfix.dll",
+        "worldmarkers.dll",
+        "pngscreenshots.dll",
+        "customassets.dll",
+        "logsessions.dll",
+        "clickthrough.dll",
+    ):
+        assert (
+            _local_source_override(
+                {
+                    "type": "raw",
+                    "url": (
+                        "https://codeberg.org/MarcelineVQ/WeirdUtils/"
+                        f"releases/download/v0.7.0/{name}"
+                    ),
+                    "filename": name,
+                    "skip_local_override": True,
+                    "path": f"tools/_weirdutils/out/{name}",
+                }
+            )
+            is None
+        ), name
+        assert (
+            _local_source_override(
+                {
+                    "type": "raw",
+                    "url": f"https://example.invalid/{name}",
+                    "filename": name,
+                }
+            )
+            is None
+        ), name
+    print("OK official WU remote skips local override")
+
+
 def test_weirdutils_combo_conflicts_and_presets():
-    """Individuals can mix; healtextfix needs SuperWoW; presets leave Advanced alone."""
+    """Individuals can mix; presets leave Advanced alone."""
     from ichalaunch.config.settings import settings as s
     from ichalaunch.mods.client_presets import PRESET_BASIC, PRESET_NONE, apply_client_preset
-    from ichalaunch.mods.installer import apply_mod_toggle, resolve_mod_toggle
+    from ichalaunch.mods.installer import resolve_mod_toggle
 
     keys = (
         "desired_mods",
@@ -2079,38 +2330,211 @@ def test_weirdutils_combo_conflicts_and_presets():
     )
     saved = {k: s.get(k) for k in keys}
     try:
-        s.set("desired_mods", {"wu_worldmarkers": True})
+        s.set("desired_mods", {"wu_pngscreenshots": True})
         s.set("user_set_mods", [])
         on_perf = resolve_mod_toggle("wu_weirdperformance", True)
         assert on_perf.get("wu_weirdperformance") is True
-        assert "wu_worldmarkers" not in on_perf
+        assert "wu_pngscreenshots" not in on_perf
 
-        s.set("desired_mods", {})
-        apply_mod_toggle("wu_healtextfix", True)
-        assert not s.desired_mods.get("wu_healtextfix")
-        assert not s.desired_mods.get("superwow")
-
-        s.set("desired_mods", {"superwow": True})
-        apply_mod_toggle("wu_healtextfix", True)
-        assert s.desired_mods.get("wu_healtextfix")
-        apply_mod_toggle("superwow", False)
-        assert not s.desired_mods.get("wu_healtextfix")
-        assert not s.desired_mods.get("superwow")
-
-        s.set("desired_mods", {"wu_worldmarkers": True, "wu_outline": True})
+        s.set("desired_mods", {"wu_pngscreenshots": True, "wu_customassets": True})
         s.set("user_set_mods", [])
         apply_client_preset(PRESET_BASIC)
-        assert s.desired_mods.get("wu_worldmarkers") is True
-        assert s.desired_mods.get("wu_outline") is True
+        assert s.desired_mods.get("wu_pngscreenshots") is True
+        assert s.desired_mods.get("wu_customassets") is True
 
-        s.set("desired_mods", {"superwow": True, "wu_healtextfix": True})
+        s.set("desired_mods", {"superwow": True})
         apply_client_preset(PRESET_NONE)
         assert not s.desired_mods.get("superwow")
-        assert not s.desired_mods.get("wu_healtextfix")
     finally:
         for k in keys:
             s.set(k, saved[k])
     print("OK weirdutils combo conflicts and presets")
+
+
+def test_weirdutils_bundled_hash_update():
+    """Installed bundled DLLs report SHA drift; hidden ones are not listed or first-installed."""
+    from unittest.mock import patch
+
+    from ichalaunch.config.settings import settings
+    from ichalaunch.core.filesystem import invalidate_dir_listing, sha256_file
+    from ichalaunch.mods.installer import (
+        check_mod_updates,
+        ensure_bundled_local_dlls_current,
+        load_mod_catalog,
+        plan_changes,
+        prepare_for_launch,
+        update_mod,
+    )
+
+    visible = {m["id"] for m in load_mod_catalog() if m.get("id")}
+    for mid in _WU_HIDDEN_IDS:
+        assert mid not in visible, mid
+
+    pe = b"MZ" + b"\0" * 1024
+    old_bytes = pe + b"old-bundled-wu"
+    new_bytes = pe + b"new-bundled-wu"
+    assert old_bytes != new_bytes
+
+    prev_desired = settings.desired_mods
+    prev_installed = settings.installed_mods
+    prev_game = settings.game_path
+    prev_user = list(settings.user_set_mods)
+    prev_check = settings.get("last_mod_update_check")
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td) / "game"
+            game.mkdir()
+            (game / "WoW.exe").write_bytes(pe)
+            bundled = Path(td) / "bundled"
+            bundled.mkdir()
+            for name in ("outline.dll", "framecrash.dll", "interact.dll"):
+                (bundled / name).write_bytes(new_bytes)
+            settings.set("game_path", str(game))
+            settings.set("installed_mods", {})
+            settings.set(
+                "desired_mods",
+                {
+                    "wu_outline": True,
+                    "superwow": True,
+                    "wu_interact": True,
+                    "wu_framecrash": True,
+                },
+            )
+            settings.set("user_set_mods", [])
+
+            def fake_resolve(source):
+                name = str(source.get("filename") or Path(str(source.get("path") or "")).name)
+                return (bundled / name).resolve()
+
+            with patch(
+                "ichalaunch.mods.installer.resolve_local_source_path",
+                side_effect=fake_resolve,
+            ):
+                # Hidden leftover desired + missing dest: never first-install.
+                assert not (game / "interact.dll").exists()
+                assert not any(
+                    ch.get("action") == "install" and ch.get("id") == "wu_interact"
+                    for ch in plan_changes()
+                )
+                prepare_for_launch()
+                assert not (game / "interact.dll").exists()
+                assert ensure_bundled_local_dlls_current() == []
+
+                (game / "outline.dll").write_bytes(old_bytes)
+                (game / "framecrash.dll").write_bytes(old_bytes)
+                invalidate_dir_listing(game)
+
+                result = check_mod_updates()
+                ids = [u.get("id") for u in result.updates]
+                assert "wu_outline" in ids, result.updates
+                assert "wu_healtextfix" not in ids, result.updates
+                assert "wu_logsessions" not in ids, result.updates
+                assert "wu_framecrash" in ids, result.updates
+                assert "wu_interact" not in ids, result.updates
+                outline_hit = next(u for u in result.updates if u.get("id") == "wu_outline")
+                assert outline_hit.get("kind") == "local"
+
+                update_mod("wu_outline")
+                assert (game / "outline.dll").read_bytes() == new_bytes
+                assert sha256_file(game / "outline.dll") == sha256_file(bundled / "outline.dll")
+
+                prep = prepare_for_launch()
+                assert not any("Heal Text Fix" in str(fix) for fix in (prep.fixes or [])), prep.fixes
+                assert any("Crash Fix" in str(fix) for fix in (prep.fixes or [])), prep.fixes
+                assert not (game / "healtextfix.dll").exists()
+                assert (game / "framecrash.dll").read_bytes() == new_bytes
+                assert not (game / "interact.dll").exists()
+
+                result_ok = check_mod_updates()
+                ok_ids = [u.get("id") for u in result_ok.updates]
+                assert "wu_outline" not in ok_ids, result_ok.updates
+                assert "wu_healtextfix" not in ok_ids, result_ok.updates
+                assert "wu_framecrash" not in ok_ids, result_ok.updates
+    finally:
+        settings.set("game_path", prev_game)
+        settings.set("desired_mods", prev_desired)
+        settings.set("installed_mods", prev_installed)
+        settings.set("user_set_mods", prev_user)
+        settings.set("last_mod_update_check", prev_check)
+    print("OK weirdutils bundled hash update")
+
+
+def test_official_remote_wu_replaces_leftover_zig():
+    """On-disk Zig leftovers for official-remote WU mods are treated as needing the URL."""
+    from unittest.mock import patch
+
+    from ichalaunch.config.settings import settings
+    from ichalaunch.core.filesystem import invalidate_dir_listing
+    from ichalaunch.mods.installer import (
+        _official_remote_needs_replace_of_zig,
+        get_mod,
+        plan_changes,
+    )
+
+    pe = b"MZ" + b"\0" * 1024
+    zig_bytes = pe + b"zig-leftover-wu"
+    official_bytes = pe + b"official-repo-wu"
+    assert zig_bytes != official_bytes
+
+    heal = get_mod("wu_healtextfix")
+    perf = get_mod("wu_weirdperformance")
+    assert heal and (heal.get("source") or {}).get("type") == "raw"
+    assert perf and (perf.get("source") or {}).get("type") == "raw"
+
+    prev_desired = settings.desired_mods
+    prev_installed = settings.installed_mods
+    prev_game = settings.game_path
+    prev_user = list(settings.user_set_mods)
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td) / "game"
+            game.mkdir()
+            (game / "WoW.exe").write_bytes(pe)
+            zig_dir = Path(td) / "zig"
+            zig_dir.mkdir()
+            (zig_dir / "healtextfix.dll").write_bytes(zig_bytes)
+            (zig_dir / "weirdperformance.dll").write_bytes(zig_bytes)
+            (game / "healtextfix.dll").write_bytes(zig_bytes)
+            (game / "weirdperformance.dll").write_bytes(official_bytes)
+            invalidate_dir_listing(game)
+            settings.set("game_path", str(game))
+            settings.set("installed_mods", {})
+            settings.set(
+                "desired_mods",
+                {
+                    "superwow": True,
+                    "wu_healtextfix": True,
+                    "wu_weirdperformance": True,
+                },
+            )
+            settings.set("user_set_mods", [])
+
+            def fake_zig(mod):
+                name = str((mod.get("source") or {}).get("filename") or "")
+                return (zig_dir / name).resolve()
+
+            with patch(
+                "ichalaunch.mods.installer._leftover_zig_build_path",
+                side_effect=fake_zig,
+            ):
+                assert _official_remote_needs_replace_of_zig(heal, game) is True
+                assert _official_remote_needs_replace_of_zig(perf, game) is False
+                changes = plan_changes()
+                install_ids = [
+                    ch.get("id")
+                    for ch in changes
+                    if ch.get("action") == "install"
+                ]
+                assert "wu_healtextfix" in install_ids, changes
+                # Dummy official_bytes are not the catalog pin, so hash detect
+                # also plans replace. Zig leftover is still heal-only.
+                assert "wu_weirdperformance" in install_ids, changes
+    finally:
+        settings.set("game_path", prev_game)
+        settings.set("desired_mods", prev_desired)
+        settings.set("installed_mods", prev_installed)
+        settings.set("user_set_mods", prev_user)
+    print("OK official remote WU replaces leftover zig")
 
 
 def test_client_preset_catalog_ids():
@@ -2830,21 +3254,32 @@ def test_dxvk_layers_detect_dll_not_conf_comment():
                 encoding="utf-8",
             )
             clear_fs_caches()
+            from ichalaunch.mods import installer as I
+
+            cursor = I.mod_catalog_map()["dxvk_big_cursor"]
             actual2 = detect_actual_state(game)
             assert actual2.get("hd_dxvk") is False
-            assert actual2.get("dxvk_big_cursor") is True
+            # Dest hash is not the cursor pin; leftover enlargeHardwareCursor is not proof.
+            assert actual2.get("dxvk_big_cursor") is False
+            assert I._pinned_dest_needs_replace(cursor, game) is False
             assert any(
                 c.get("action") == "install" and c.get("id") == "hd_dxvk"
                 for c in plan_changes()
             )
 
-            # Both desired: cursor may own the DLL if the 2.7.1 conf remains.
+            # Both desired: leftover 2.7.1 conf still counts the HD layer; cursor
+            # is not installed until dest matches its pin (Apply can replace).
             s.set("desired_mods", {"dxvk": True, "hd_dxvk": True, "dxvk_big_cursor": True})
             clear_fs_caches()
             actual3 = detect_actual_state(game)
             assert actual3.get("hd_dxvk") is True
-            assert actual3.get("dxvk_big_cursor") is True
+            assert actual3.get("dxvk_big_cursor") is False
+            assert I._pinned_dest_needs_replace(cursor, game) is True
             assert not any(c.get("id") == "hd_dxvk" for c in plan_changes())
+            assert any(
+                c.get("action") == "install" and c.get("id") == "dxvk_big_cursor"
+                for c in plan_changes()
+            )
 
             assert _order_d3d9_layers(
                 ["dxvk_big_cursor", "nampower", "hd_dxvk", "dxvk"]
@@ -3133,8 +3568,16 @@ def test_hd_patch_lt_exclusive_planning():
             data = game / "Data"
             data.mkdir()
             (game / "WoW.exe").write_bytes(b"MZ")
-            (data / "patch-L.mpq").write_bytes(b"mpq")
-            (data / "patch-T.mpq").write_bytes(b"mpq")
+            from ichalaunch.mods import installer as I
+
+            def _seed_pair(l_id: str, t_id: str) -> None:
+                catalog = I.mod_catalog_map()
+                with open(data / "patch-L.mpq", "wb") as fh:
+                    fh.truncate(int((catalog[l_id] or {}).get("size_bytes") or 0))
+                with open(data / "patch-T.mpq", "wb") as fh:
+                    fh.truncate(int((catalog[t_id] or {}).get("size_bytes") or 0))
+                clear_fs_caches()
+
             s.set("game_path", str(game))
             s.set("addons_path", "")
             clear_fs_caches()
@@ -3170,7 +3613,9 @@ def test_hd_patch_lt_exclusive_planning():
                 if desired.get("hd_patch_t_ultra"):
                     assert "hd_patch_t" not in remove_ids, remove_ids
 
+            _seed_pair("hd_patch_l", "hd_patch_t_ultra")
             assert_lt_clean({"hd_patch_l": True, "hd_patch_t_ultra": True})
+            _seed_pair("hd_patch_l_less_thicc", "hd_patch_t")
             assert_lt_clean({"hd_patch_l_less_thicc": True, "hd_patch_t": True})
     finally:
         for k in keys:
@@ -3299,7 +3744,8 @@ def test_hd_patch_exclusive_variant_swap():
                 c["id"] for c in plan_changes() if c.get("action") == "remove"
             }
 
-            # Detection must reflect the recorded variant, not desired wish.
+            # A stub named patch-L.mpq is not either catalog body. The install
+            # record cannot override the bytes; desired less-thicc still plans.
             s.set("installed_mods", {"hd_patch_l": {"variant_id": "hd_patch_l"}})
             s.set(
                 "desired_mods",
@@ -3308,7 +3754,7 @@ def test_hd_patch_exclusive_variant_swap():
             from ichalaunch.mods.installer import detect_actual_state
 
             actual = detect_actual_state(game)
-            assert actual.get("hd_patch_l") and not actual.get("hd_patch_l_less_thicc"), actual
+            assert not actual.get("hd_patch_l") and not actual.get("hd_patch_l_less_thicc"), actual
             assert "hd_patch_l_less_thicc" in plan_install_ids()
     finally:
         for k in keys:
@@ -3390,8 +3836,17 @@ def test_backfill_installed_mods_on_detect():
             data = game / "Data"
             data.mkdir()
             (game / "WoW.exe").write_bytes(b"MZ")
-            (data / "patch-L.mpq").write_bytes(b"regular")
-            (data / "patch-A.mpq").write_bytes(b"a")
+            from ichalaunch.mods import installer as I
+
+            l_size = int((I.mod_catalog_map()["hd_patch_l"] or {}).get("size_bytes") or 0)
+            with open(data / "patch-L.mpq", "wb") as fh:
+                fh.truncate(l_size)
+            a_size = int((I.mod_catalog_map()["hd_patch_a"] or {}).get("size_bytes") or 0)
+            if a_size:
+                with open(data / "patch-A.mpq", "wb") as fh:
+                    fh.truncate(a_size)
+            else:
+                (data / "patch-A.mpq").write_bytes(b"a")
             s.set("game_path", str(game))
             s.set("addons_path", "")
             s.set("installed_mods", {})
@@ -4018,7 +4473,7 @@ def test_vanilla_helpers_hd_dependency():
             s.set("game_path", str(game))
             s.set("addons_path", "")
             s.set("desired_mods", {"hd_patch_a": True})
-            s.set("user_set_mods", [])
+            s.set("user_set_mods", ["hd_patch_a"])
             clear_fs_caches()
 
             desired = sync_desired_mods_from_disk()
@@ -4029,7 +4484,9 @@ def test_vanilla_helpers_hd_dependency():
             assert any(
                 c["action"] == "install" and c["id"] == "vanilla_helpers" for c in plan
             ), plan
-            assert not any(
+            # A stub named patch-A.mpq is not the catalog body, so Apply
+            # still plans the real download.
+            assert any(
                 c["action"] == "install" and c["id"] == "hd_patch_a" for c in plan
             ), plan
 
@@ -5691,6 +6148,1164 @@ def test_crash_reporting_opt_in_prompt_one_shot():
     print("OK crash reporting opt-in prompt one-shot")
 
 
+def test_discord_presence_default_off():
+    """Rich Presence is opt-in; fresh settings stay off."""
+    from ichalaunch.config.settings import (
+        DEFAULTS,
+        DISCORD_CHARACTER_STATUS_KEY,
+        Settings,
+        settings_path,
+    )
+    from ichalaunch.game import discord_presence as dp
+
+    assert dp.SETTING_KEY == "discord_rich_presence_enabled"
+    assert dp.CHARACTER_STATUS_KEY == DISCORD_CHARACTER_STATUS_KEY
+    assert DISCORD_CHARACTER_STATUS_KEY == "discord_rich_presence_character_status"
+    assert DEFAULTS["discord_rich_presence_enabled"] is False
+    assert DEFAULTS["discord_rich_presence_character_status"] is False
+    assert DEFAULTS["discord_presence_prompted"] is False
+    assert DEFAULTS["discord_broadcast_fields"] == {
+        "name": True,
+        "guild": True,
+        "faction": True,
+        "class": True,
+        "level": True,
+        "zone": True,
+    }
+    merged, _ = Settings.__new__(Settings)._merge_loaded({})
+    assert merged["discord_rich_presence_enabled"] is False
+    assert merged["discord_rich_presence_character_status"] is False
+    assert merged["discord_presence_prompted"] is False
+    assert merged["discord_broadcast_fields"]["name"] is True
+    live = _live_ichalaunch_appdata_root().resolve()
+    try:
+        settings_path().resolve().relative_to(live)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("discord presence tests must not use live AppData")
+    print("OK discord presence default off")
+
+
+def test_discord_presence_setting_is_stored():
+    """Enabling the setting persists through save/load on isolated AppData."""
+    import json
+
+    from ichalaunch.config.settings import DISCORD_WOW_STATUS_MOD_ID, settings, settings_path
+
+    prev = settings.discord_rich_presence_enabled()
+    prev_child = settings.discord_rich_presence_character_status()
+    try:
+        settings.set_discord_rich_presence_enabled(True)
+        assert settings.discord_rich_presence_enabled() is True
+        assert settings.discord_rich_presence_character_status() is False
+        assert settings.discord_presence_dll_enabled() is False
+        assert not settings.desired_mods.get(DISCORD_WOW_STATUS_MOD_ID)
+        data = json.loads(settings_path().read_text(encoding="utf-8"))
+        assert data["discord_rich_presence_enabled"] is True
+        assert data["discord_rich_presence_character_status"] is False
+        settings.load()
+        assert settings.discord_rich_presence_enabled() is True
+        settings.set_discord_rich_presence_character_status(True)
+        assert settings.discord_rich_presence_character_status() is True
+        assert settings.discord_presence_dll_enabled() is True
+        assert settings.desired_mods.get(DISCORD_WOW_STATUS_MOD_ID) is True
+        data = json.loads(settings_path().read_text(encoding="utf-8"))
+        assert data["discord_rich_presence_character_status"] is True
+        settings.set_discord_rich_presence_enabled(False)
+        assert settings.discord_rich_presence_enabled() is False
+        assert settings.discord_rich_presence_character_status() is False
+        assert settings.discord_presence_dll_enabled() is False
+        assert not settings.desired_mods.get(DISCORD_WOW_STATUS_MOD_ID)
+        data = json.loads(settings_path().read_text(encoding="utf-8"))
+        assert data["discord_rich_presence_enabled"] is False
+        assert data["discord_rich_presence_character_status"] is False
+        settings.set_discord_rich_presence_character_status(True)
+        assert settings.discord_rich_presence_character_status() is False
+    finally:
+        settings.set_discord_rich_presence_enabled(prev)
+        settings.set_discord_rich_presence_character_status(prev_child)
+    print("OK discord presence setting is stored")
+
+
+def test_discord_presence_activity_strings_are_private():
+    """Idle shows In Launcher; in-game without a snapshot omits details/state."""
+    from ichalaunch.game import discord_presence as dp
+
+    ingame = dp.presence_activity(game_running=True)
+    idle = dp.presence_activity(game_running=False)
+    assert ingame == {}
+    assert idle == {
+        "details": dp.STATE_IN_LAUNCHER,
+        "large_image": "ravencraft",
+        "large_text": "RavenCraft",
+    }
+    assert idle["details"] == "In Launcher"
+    for payload in (ingame, idle):
+        blob = " ".join(payload.values())
+        assert "IchaLaunch" not in blob
+        assert "ichalaunch" not in blob.lower()
+        assert "\\" not in blob
+        assert "/" not in blob
+        assert "game_path" not in blob
+        assert "token" not in blob.lower()
+    assert "IchaLaunch" not in dp.STATE_IN_GAME
+    assert "IchaLaunch" not in dp.STATE_IN_LAUNCHER
+    print("OK discord presence activity strings are private")
+
+
+def test_configured_game_running_falls_back_to_any_wow():
+    """Presence treats any WoW/VanillaFixes process as in-game if the folder lock misses."""
+    from pathlib import Path
+    from unittest.mock import patch
+
+    from ichalaunch.game import discord_presence as dp
+
+    game = Path(r"F:\RavenCraft")
+
+    with patch.object(dp, "configured_game_dir", return_value=game):
+        with patch("ichalaunch.core.process.wow_exe_running", return_value=True) as probe:
+            assert dp.configured_game_running() is True
+            probe.assert_called_once_with(game)
+
+        calls: list[object] = []
+
+        def _miss_folder_then_any(target=None, **_kw):
+            calls.append(target)
+            return target is None
+
+        with patch("ichalaunch.core.process.wow_exe_running", side_effect=_miss_folder_then_any):
+            assert dp.configured_game_running() is True
+        assert calls == [game, None]
+
+        with patch("ichalaunch.core.process.wow_exe_running", return_value=False) as probe:
+            assert dp.configured_game_running() is False
+            assert probe.call_count == 2
+
+    with patch.object(dp, "configured_game_dir", return_value=None):
+        with patch("ichalaunch.core.process.wow_exe_running", return_value=True) as probe:
+            assert dp.configured_game_running() is True
+            probe.assert_called_once_with(None)
+        with patch("ichalaunch.core.process.wow_exe_running", return_value=False):
+            assert dp.configured_game_running() is False
+    print("OK configured game running falls back to any WoW")
+
+
+def test_discord_presence_missing_ipc_is_silent():
+    """No Discord pipe / missing pypresence must not raise on poll or clear."""
+    from unittest.mock import MagicMock, patch
+
+    from ichalaunch.config.settings import settings
+    from ichalaunch.game import discord_presence as dp
+
+    prev = settings.discord_rich_presence_enabled()
+    boom = MagicMock()
+    boom.connect.side_effect = OSError("Discord IPC pipe missing")
+    factory = MagicMock(return_value=boom)
+    try:
+        settings.set_discord_rich_presence_enabled(True)
+        with patch.object(dp, "DISCORD_APPLICATION_ID", "123456789012345678"):
+            with patch.object(dp, "configured_game_running", return_value=False):
+                session = dp.DiscordPresenceSession(presence_factory=factory)
+                session.tick()
+                session.tick()
+                session.clear()
+        factory.assert_called()
+        boom.update.assert_not_called()
+
+        session = dp.DiscordPresenceSession(presence_factory=None)
+        with patch.object(dp, "load_presence_class", return_value=None):
+            session.tick()
+            session.clear()
+    finally:
+        settings.set_discord_rich_presence_enabled(prev)
+    print("OK discord presence missing IPC is silent")
+
+
+def test_discord_presence_configured_id_attempts_connect():
+    """Configured Application ID attempts IPC via the factory; no live Discord."""
+    from unittest.mock import MagicMock, patch
+
+    from ichalaunch.config.settings import settings
+    from ichalaunch.game import discord_presence as dp
+
+    assert dp.DISCORD_APPLICATION_ID == "1543077511343374479"
+    assert dp.application_id_configured() is True
+    prev = settings.discord_rich_presence_enabled()
+    rpc = MagicMock()
+    factory = MagicMock(return_value=rpc)
+    try:
+        settings.set_discord_rich_presence_enabled(True)
+        session = dp.DiscordPresenceSession(presence_factory=factory)
+        with patch.object(dp, "configured_game_running", return_value=True):
+            session.tick()
+        factory.assert_called_once_with("1543077511343374479")
+        rpc.connect.assert_called_once()
+        rpc.update.assert_called_once()
+
+        factory.reset_mock()
+        with patch.object(dp, "DISCORD_APPLICATION_ID", dp.DISCORD_APPLICATION_ID_PLACEHOLDER):
+            skipped = dp.DiscordPresenceSession(presence_factory=factory)
+            with patch.object(dp, "configured_game_running", return_value=True):
+                skipped.tick()
+            factory.assert_not_called()
+    finally:
+        settings.set_discord_rich_presence_enabled(prev)
+    print("OK discord presence configured id attempts connect")
+
+
+def test_discord_presence_update_and_clear_with_mock_rpc():
+    """Idle is In Launcher; PLAY / in-game drops it; disable clears IPC."""
+    from unittest.mock import MagicMock, patch
+
+    from ichalaunch.config.settings import settings
+    from ichalaunch.game import discord_presence as dp
+
+    prev = settings.discord_rich_presence_enabled()
+    rpc = MagicMock()
+    factory = MagicMock(return_value=rpc)
+    try:
+        settings.set_discord_rich_presence_enabled(True)
+        with patch.object(dp, "DISCORD_APPLICATION_ID", "123456789012345678"):
+            with patch.object(dp, "configured_game_running", return_value=False):
+                session = dp.DiscordPresenceSession(presence_factory=factory)
+                session.tick()
+                rpc.connect.assert_called_once()
+                rpc.update.assert_called_once_with(
+                    details=dp.STATE_IN_LAUNCHER,
+                    large_image="ravencraft",
+                    large_text="RavenCraft",
+                )
+                rpc.update.reset_mock()
+                session.tick()
+                rpc.update.assert_not_called()
+            with patch.object(dp, "configured_game_running", return_value=True):
+                session.tick()
+                rpc.update.assert_called_once_with()
+                rpc.update.reset_mock()
+            with patch.object(dp, "configured_game_running", return_value=False):
+                session.tick()
+                rpc.update.assert_called_once_with(
+                    details=dp.STATE_IN_LAUNCHER,
+                    large_image="ravencraft",
+                    large_text="RavenCraft",
+                )
+            settings.set_discord_rich_presence_enabled(False)
+            session.tick()
+            rpc.clear.assert_called()
+            rpc.close.assert_called()
+    finally:
+        settings.set_discord_rich_presence_enabled(prev)
+    print("OK discord presence update and clear with mock RPC")
+
+
+def test_discord_presence_settings_checkbox():
+    """Privacy checkbox stores the setting and starts unchecked."""
+    from PySide6.QtWidgets import QApplication
+
+    import ichalaunch.ui.pages.settings as settings_page_mod
+    from ichalaunch.config.settings import DISCORD_WOW_STATUS_MOD_ID, settings
+
+    app = QApplication.instance() or QApplication([])
+    assert app is not None
+    prev = settings.discord_rich_presence_enabled()
+    prev_child = settings.discord_rich_presence_character_status()
+    prev_fields = settings.discord_broadcast_fields()
+    prev_prompted = settings.discord_presence_prompted()
+    try:
+        settings.set_discord_rich_presence_enabled(False)
+        settings.set_discord_broadcast_fields({k: True for k in prev_fields})
+        page = settings_page_mod.SettingsPage()
+        assert hasattr(page, "cb_discord_presence")
+        assert hasattr(page, "cb_discord_character")
+        assert page.cb_discord_presence.text() == "Show status on Discord"
+        assert "IchaLaunch" not in page.cb_discord_presence.toolTip()
+        assert page.cb_discord_character.text() == (
+            "Show character details (name, race, class, guild, zone, level)"
+        )
+        assert page.cb_discord_presence.isChecked() is False
+        assert page.cb_discord_character.isChecked() is False
+        assert page.cb_discord_character.isEnabled() is False
+        nest = page._discord_character_nest.layout()
+        assert nest.contentsMargins().left() == 22
+        assert hasattr(page, "cb_discord_fields")
+        from ichalaunch.game.discord_presence import BROADCAST_FIELD_KEYS, BROADCAST_FIELD_LABELS
+
+        assert tuple(page.cb_discord_fields) == BROADCAST_FIELD_KEYS
+        for key, box in page.cb_discord_fields.items():
+            assert box.text() == BROADCAST_FIELD_LABELS[key]
+            assert box.isChecked() is True
+            assert box.isEnabled() is False
+        page.cb_discord_presence.setChecked(True)
+        assert settings.discord_rich_presence_enabled() is True
+        assert settings.discord_rich_presence_character_status() is False
+        assert not settings.desired_mods.get(DISCORD_WOW_STATUS_MOD_ID)
+        assert page.cb_discord_character.isEnabled() is True
+        assert page.cb_discord_character.isChecked() is False
+        page.cb_discord_character.setChecked(True)
+        assert settings.discord_rich_presence_character_status() is True
+        assert settings.discord_presence_dll_enabled() is True
+        for box in page.cb_discord_fields.values():
+            assert box.isEnabled() is True
+        page.cb_discord_fields["name"].setChecked(False)
+        assert settings.discord_broadcast_fields()["name"] is False
+        page.cb_discord_presence.setChecked(False)
+        assert settings.discord_rich_presence_enabled() is False
+        assert settings.discord_rich_presence_character_status() is False
+        assert page.cb_discord_character.isEnabled() is False
+        assert page.cb_discord_character.isChecked() is False
+        settings.set_discord_rich_presence_enabled(False)
+        page.refresh()
+        assert page.cb_discord_presence.isChecked() is False
+        assert page.cb_discord_character.isEnabled() is False
+    finally:
+        settings.set_discord_rich_presence_enabled(prev)
+        settings.set_discord_rich_presence_character_status(prev_child)
+        settings.set_discord_broadcast_fields(prev_fields)
+        settings.set_discord_presence_prompted(prev_prompted)
+    print("OK discord presence settings checkbox")
+
+
+def test_discord_wow_status_reader_and_presence_strings():
+    """JSON protocol: ignore stale; map name/race/class/guild/zone/level; no paths."""
+    import json
+    import time
+
+    from ichalaunch.config.settings import appdata_root, settings
+    from ichalaunch.game import discord_presence as dp
+
+    live = _live_ichalaunch_appdata_root().resolve()
+    try:
+        appdata_root().resolve().relative_to(live)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("discord wow status tests must not use live AppData")
+
+    assert dp.faction_for_race(1) == "alliance"
+    assert dp.faction_for_race(3) == "alliance"
+    assert dp.faction_for_race(4) == "alliance"
+    assert dp.faction_for_race(7) == "alliance"
+    assert dp.faction_for_race(11) == "alliance"
+    assert dp.faction_for_race(16) == "alliance"
+    assert dp.faction_for_race(2) == "horde"
+    assert dp.faction_for_race(5) == "horde"
+    assert dp.faction_for_race(6) == "horde"
+    assert dp.faction_for_race(8) == "horde"
+    assert dp.faction_for_race(9) == "horde"
+    assert dp.faction_for_race(10) == "horde"
+    assert dp.faction_for_race(12) == ""
+    assert dp.faction_for_race(0) == ""
+    assert dp.class_for_id(1) == "Warrior"
+    assert dp.class_for_id(3) == "Hunter"
+    assert dp.class_for_id(11) == "Druid"
+    assert dp.class_for_id(6) == ""
+    assert dp.race_for_id(1) == "Human"
+    assert dp.race_for_id(4) == "Night Elf"
+    assert dp.race_for_id(9) == "Goblin"
+    assert dp.race_for_id(10) == "Blood Elf"
+    assert dp.race_for_id(11) == "Draenei"
+    assert dp.race_for_id(16) == "High Elf"
+    assert dp.race_for_id(12) == ""
+
+    path = dp.wow_status_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    now = 1_700_000_000.0
+
+    path.write_text(
+        json.dumps(
+            {
+                "v": 1,
+                "ts": now - 120,
+                "ok": True,
+                "in_world": True,
+                "name": "Thrall",
+                "zone": "Orgrimmar",
+                "level": 60,
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert dp.read_wow_status(now=now) is None
+
+    path.write_text(
+        json.dumps(
+            {
+                "v": 1,
+                "ts": now,
+                "ok": False,
+                "in_world": False,
+                "err": "offsets",
+                "name": "Thrall",
+                "zone": "Orgrimmar",
+                "level": 24,
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert dp.read_wow_status(now=now) is None
+
+    path.write_text(
+        json.dumps(
+            {
+                "v": 1,
+                "ts": now,
+                "ok": True,
+                "in_world": True,
+                "name": "Thrall",
+                "zone": "Orgrimmar",
+                "level": 24,
+                "faction": "horde",
+                "x": 12.5,
+                "y": 44.0,
+                "game_path": r"F:\RavenCraft",
+            }
+        ),
+        encoding="utf-8",
+    )
+    status = dp.read_wow_status(now=now)
+    assert status is not None
+    assert status["name"] == "Thrall"
+    assert status["zone"] == "Orgrimmar"
+    assert status["level"] == 24
+    assert status["faction"] == "horde"
+    assert "class" not in status
+    assert "guild" not in status
+    assert "race" not in status
+    assert "game_path" not in status
+    assert "x" not in status
+    assert "y" not in status
+
+    activity = dp.presence_activity(game_running=True, wow_status=status)
+    assert activity == {
+        "details": "Thrall · Lvl 24 · Horde",
+        "state": "Orgrimmar",
+        "large_image": "ravencraft",
+        "large_text": "RavenCraft",
+    }
+    assert "small_image" not in activity
+    assert "small_text" not in activity
+    blob = " ".join(activity.values())
+    assert dp.STATE_IN_GAME not in blob
+    assert "Orgrimmar" not in activity["details"]
+    assert " - " not in activity["details"]
+    assert activity["state"] == "Orgrimmar"
+    assert "Horde" in activity["details"]
+    assert "F:" not in blob
+    assert "12.5" not in blob
+    assert "\\" not in blob
+    assert "/" not in blob
+
+    alliance = dict(status)
+    alliance["faction"] = "alliance"
+    assert dp.presence_activity(game_running=True, wow_status=alliance) == {
+        "details": "Thrall · Lvl 24 · Alliance",
+        "state": "Orgrimmar",
+        "large_image": "ravencraft",
+        "large_text": "RavenCraft",
+    }
+    unknown = dict(status)
+    unknown["faction"] = ""
+    unknown["race"] = 99
+    unknown["class"] = "None"
+    unknown["guild"] = "None"
+    assert dp.presence_activity(game_running=True, wow_status=unknown) == {
+        "details": "Thrall · Lvl 24",
+        "state": "Orgrimmar",
+        "large_image": "ravencraft",
+        "large_text": "RavenCraft",
+    }
+
+    with_guild = {
+        "name": "Ichabaddie",
+        "zone": "Stonetalon Mountains",
+        "level": 26,
+        "faction": "alliance",
+        "race": "Night Elf",
+        "class": "Hunter",
+        "guild": "Shadowglen",
+    }
+    assert dp.presence_activity(game_running=True, wow_status=with_guild) == {
+        "details": "Ichabaddie <Shadowglen> · Lvl 26 Hunter · Alliance",
+        "state": "Stonetalon Mountains",
+        "large_image": "ravencraft",
+        "large_text": "RavenCraft",
+    }
+    no_guild = dict(with_guild)
+    no_guild["guild"] = ""
+    assert dp.presence_activity(game_running=True, wow_status=no_guild) == {
+        "details": "Ichabaddie · Lvl 26 Hunter · Alliance",
+        "state": "Stonetalon Mountains",
+        "large_image": "ravencraft",
+        "large_text": "RavenCraft",
+    }
+    class_only = dict(no_guild)
+    class_only["race"] = ""
+    class_only_activity = dp.presence_activity(game_running=True, wow_status=class_only)
+    assert class_only_activity["details"] == "Ichabaddie · Lvl 26 Hunter · Alliance"
+    assert class_only_activity["state"] == "Stonetalon Mountains"
+    assert class_only_activity["large_image"] == "ravencraft"
+    assert class_only_activity["large_text"] == "RavenCraft"
+    assert "Alliance" in class_only_activity["details"]
+    assert "Night Elf" not in class_only_activity["details"]
+    assert "Night Elf" not in class_only_activity["state"]
+    assert "small_image" not in class_only_activity
+    assert "small_text" not in class_only_activity
+    long_guild = dict(with_guild)
+    long_guild["guild"] = "A" * 48
+    long_guild["zone"] = "B" * 64
+    # Zone is on state, so name+guild stays on details even at 128-wide zone.
+    fits = dp.presence_activity(game_running=True, wow_status=long_guild)
+    assert fits["details"] == f"Ichabaddie <{'A' * 48}> · Lvl 26 Hunter · Alliance"
+    assert fits["state"] == "B" * 64
+    assert len(fits["details"]) <= 128
+    assert len(fits["state"]) <= 128
+    overflow_name = dict(long_guild)
+    overflow_name["name"] = "IchabaddieNightelf"
+    overflow = dp.presence_activity(game_running=True, wow_status=overflow_name)
+    assert overflow["details"] == (
+        f"IchabaddieNightelf <{'A' * 48}> · Lvl 26 Hunter · Alliance"
+    )
+    assert overflow["state"] == "B" * 64
+    assert len(overflow["details"]) <= 128
+    assert len(overflow["state"]) <= 128
+    assert "None" not in overflow["details"]
+    assert "IchaLaunch" not in overflow["details"]
+    assert " - " not in overflow["details"]
+    clipped = dp._state_line("Z" * 200)
+    assert clipped == "Z" * 128
+    assert len(clipped) == 128
+
+    path.write_text(
+        json.dumps(
+            {
+                "v": 1,
+                "ts": now,
+                "ok": True,
+                "in_world": True,
+                "name": "Jaina",
+                "zone": "Theramore Isle",
+                "level": 60,
+                "race": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+    from_race = dp.read_wow_status(now=now)
+    assert from_race is not None
+    assert from_race["faction"] == "alliance"
+    assert from_race["race"] == "Human"
+
+    path.write_text(
+        json.dumps(
+            {
+                "v": 1,
+                "ts": now,
+                "ok": True,
+                "in_world": True,
+                "name": "Ichabaddie",
+                "zone": "Stonetalon Mountains",
+                "level": 26,
+                "faction": "alliance",
+                "class": 3,
+                "guild": "Shadowglen",
+                "race": 4,
+            }
+        ),
+        encoding="utf-8",
+    )
+    mapped = dp.read_wow_status(now=now)
+    assert mapped is not None
+    assert mapped["class"] == "Hunter"
+    assert mapped["guild"] == "Shadowglen"
+    assert mapped["race"] == "Night Elf"
+    mapped_activity = dp.presence_activity(game_running=True, wow_status=mapped)
+    assert mapped_activity == {
+        "details": "Ichabaddie <Shadowglen> · Lvl 26 Hunter · Alliance",
+        "state": "Stonetalon Mountains",
+        "large_image": "ravencraft",
+        "large_text": "RavenCraft",
+    }
+    assert "Night Elf" not in mapped_activity["details"]
+    assert "Night Elf" not in mapped_activity["state"]
+    assert "Alliance" in mapped_activity["details"]
+    assert "of Shadowglen" not in mapped_activity["details"]
+    assert "—" not in mapped_activity["details"]
+    assert " - " not in mapped_activity["details"]
+    assert "small_image" not in mapped_activity
+    assert "small_text" not in mapped_activity
+
+    # Class is details text; large art is always ravencraft (not the class key).
+    for display, key in (
+        ("Warrior", "warrior"),
+        ("Paladin", "paladin"),
+        ("Hunter", "hunter"),
+        ("Rogue", "rogue"),
+        ("Priest", "priest"),
+        ("Shaman", "shaman"),
+        ("Mage", "mage"),
+        ("Warlock", "warlock"),
+        ("Druid", "druid"),
+    ):
+        class_payload = dp.presence_activity(
+            game_running=True,
+            wow_status={
+                "name": "Thrall",
+                "zone": "Orgrimmar",
+                "level": 24,
+                "class": display,
+            },
+        )
+        assert class_payload["large_image"] == "ravencraft"
+        assert class_payload["large_text"] == "RavenCraft"
+        assert class_payload["details"] == f"Thrall · Lvl 24 {display}"
+        assert class_payload["state"] == "Orgrimmar"
+        assert class_payload["large_image"] != key
+        assert "small_image" not in class_payload
+        assert "small_text" not in class_payload
+
+    fallback = dp.presence_activity(game_running=True, wow_status=None)
+    assert fallback == {}
+    idle = dp.presence_activity(game_running=False, wow_status=status)
+    assert idle == {
+        "details": dp.STATE_IN_LAUNCHER,
+        "large_image": "ravencraft",
+        "large_text": "RavenCraft",
+    }
+    for payload in (activity, fallback, idle):
+        blob = " ".join(payload.values())
+        assert "IchaLaunch" not in blob
+        assert "ichalaunch" not in blob.lower()
+
+    path.unlink(missing_ok=True)
+    assert dp.read_wow_status(now=now) is None
+    assert settings.discord_rich_presence_enabled() in (True, False)
+
+    from unittest.mock import MagicMock, patch
+
+    path.write_text(
+        json.dumps(
+            {
+                "v": 1,
+                "ts": time.time(),
+                "ok": True,
+                "in_world": True,
+                "name": "Jeb",
+                "zone": "Elwynn Forest",
+                "level": 12,
+                "faction": "alliance",
+            }
+        ),
+        encoding="utf-8",
+    )
+    prev = settings.discord_rich_presence_enabled()
+    prev_child = settings.discord_rich_presence_character_status()
+    rpc = MagicMock()
+    factory = MagicMock(return_value=rpc)
+    try:
+        settings.set_discord_rich_presence_enabled(True)
+        settings.set_discord_rich_presence_character_status(False)
+        session = dp.DiscordPresenceSession(presence_factory=factory)
+        with patch.object(dp, "configured_game_running", return_value=True):
+            session.tick()
+        rpc.update.assert_called_once_with()
+        rpc.update.reset_mock()
+        settings.set_discord_rich_presence_character_status(True)
+        with patch.object(dp, "configured_game_running", return_value=True):
+            session.tick()
+        rpc.update.assert_called_once_with(
+            details="Jeb · Lvl 12 · Alliance",
+            state="Elwynn Forest",
+            large_image="ravencraft",
+            large_text="RavenCraft",
+        )
+        session.clear()
+    finally:
+        settings.set_discord_rich_presence_enabled(prev)
+        settings.set_discord_rich_presence_character_status(prev_child)
+        path.unlink(missing_ok=True)
+    print("OK discord wow status reader and presence strings")
+
+
+def test_discord_wow_status_dll_catalog_and_opt_in_wiring():
+    """Hidden local DLL is bundled like WeirdUtils and follows both Discord opt-ins."""
+    from unittest.mock import patch
+
+    from ichalaunch.config.settings import DISCORD_WOW_STATUS_MOD_ID, settings
+    from ichalaunch.core.filesystem import read_dlls_txt
+    from ichalaunch.mods.client_presets import preset_managed_mod_ids
+    from ichalaunch.mods.installer import (
+        apply_discord_presence_dll,
+        get_mod,
+        load_mod_catalog,
+        resolve_local_source_path,
+    )
+
+    visible = {m["id"] for m in load_mod_catalog() if m.get("id")}
+    assert DISCORD_WOW_STATUS_MOD_ID not in visible
+    assert DISCORD_WOW_STATUS_MOD_ID not in preset_managed_mod_ids()
+    mod = get_mod(DISCORD_WOW_STATUS_MOD_ID)
+    assert mod is not None
+    assert mod.get("hidden") is True
+    assert mod.get("kind") == "dll_file"
+    assert (mod.get("dlls_txt") or {}).get("add") == ["ichalaunch_discord.dll"]
+    src = mod.get("source") or {}
+    assert src.get("type") == "local"
+    assert src.get("filename") == "ichalaunch_discord.dll"
+    assert src.get("bundle") == "discord_wow"
+    assert "superwow" not in (mod.get("requires") or [])
+    assert "superwow" not in (mod.get("dependencies") or [])
+
+    spec = (ROOT / "IchaLaunch.spec").read_text(encoding="utf-8")
+    assert "ichalaunch_discord.dll" in spec
+    assert "ichalaunch/data/discord_wow" in spec
+    gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
+    assert "tools/_discord_presence/out/" in gitignore
+    assert "ichalaunch/data/discord_wow/" in gitignore
+
+    proto = (ROOT / "tools" / "_discord_presence" / "ichalaunch_discord.c").read_text(
+        encoding="utf-8"
+    )
+    assert "discord_wow_status.json" in proto
+    assert "discord_broadcast_flags" in proto
+    assert "FLAG_NAME" in proto
+    assert "FLAG_ZONE" in proto
+    assert "IchaLaunch" in proto
+    assert '"faction"' in proto
+    assert '"class"' in proto
+    assert '"guild"' in proto
+    assert '"race"' in proto
+    assert "Warrior" in proto
+    assert "Night Elf" in proto
+    assert "0x90u" in proto
+    assert "0x2FCu" in proto
+    assert "alliance" in proto
+    assert "horde" in proto
+    assert "STARTUP_DELAY_MS" in proto
+    assert "ReadProcessMemory" in proto
+    assert "AddVectoredExceptionHandler" in proto
+    assert "EXCEPTION_EXECUTE_HANDLER" in proto
+    assert "can_walk_om" in proto
+    assert "pypresence" not in proto.lower()
+    assert "discord-rpc" not in proto.lower()
+
+    dummy = b"MZ" + b"\0" * 1024
+    prev_discord = settings.discord_rich_presence_enabled()
+    prev_child = settings.discord_rich_presence_character_status()
+    prev_desired = settings.desired_mods
+    prev_game = settings.game_path
+    prev_user = list(settings.user_set_mods)
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td) / "game"
+            game.mkdir()
+            (game / "WoW.exe").write_bytes(dummy)
+            bundled = Path(td) / "ichalaunch_discord.dll"
+            bundled.write_bytes(dummy)
+            settings.set("game_path", str(game))
+            settings.set_discord_rich_presence_enabled(True)
+            settings.set_discord_rich_presence_character_status(False)
+            assert settings.desired_mods.get(DISCORD_WOW_STATUS_MOD_ID) is not True
+            with patch(
+                "ichalaunch.mods.installer.resolve_local_source_path",
+                return_value=bundled.resolve(),
+            ):
+                apply_discord_presence_dll()
+            listed = [n.lower() for n in read_dlls_txt(game)]
+            assert "ichalaunch_discord.dll" not in listed
+
+            settings.set_discord_rich_presence_character_status(True)
+            assert settings.desired_mods.get(DISCORD_WOW_STATUS_MOD_ID) is True
+            with patch(
+                "ichalaunch.mods.installer.resolve_local_source_path",
+                return_value=bundled.resolve(),
+            ):
+                apply_discord_presence_dll()
+            installed = game / "ichalaunch_discord.dll"
+            assert installed.is_file()
+            assert installed.read_bytes()[:2] == b"MZ"
+            listed = [n.lower() for n in read_dlls_txt(game)]
+            assert "ichalaunch_discord.dll" in listed
+
+            settings.set_discord_rich_presence_character_status(False)
+            assert settings.desired_mods.get(DISCORD_WOW_STATUS_MOD_ID) is False
+            with patch(
+                "ichalaunch.mods.installer.resolve_local_source_path",
+                return_value=bundled.resolve(),
+            ):
+                apply_discord_presence_dll()
+            listed = [n.lower() for n in read_dlls_txt(game)]
+            assert "ichalaunch_discord.dll" not in listed
+
+            settings.set_discord_rich_presence_character_status(True)
+            with patch(
+                "ichalaunch.mods.installer.resolve_local_source_path",
+                return_value=bundled.resolve(),
+            ):
+                apply_discord_presence_dll()
+            listed = [n.lower() for n in read_dlls_txt(game)]
+            assert "ichalaunch_discord.dll" in listed
+            settings.set_discord_rich_presence_enabled(False)
+            assert settings.discord_rich_presence_character_status() is False
+            assert settings.desired_mods.get(DISCORD_WOW_STATUS_MOD_ID) is False
+            with patch(
+                "ichalaunch.mods.installer.resolve_local_source_path",
+                return_value=bundled.resolve(),
+            ):
+                apply_discord_presence_dll()
+            listed = [n.lower() for n in read_dlls_txt(game)]
+            assert "ichalaunch_discord.dll" not in listed
+    finally:
+        settings.set("game_path", prev_game)
+        settings.set_discord_rich_presence_enabled(prev_discord)
+        settings.set_discord_rich_presence_character_status(prev_child)
+        settings.set("desired_mods", prev_desired)
+        settings.set("user_set_mods", prev_user)
+
+    missing = {
+        "type": "local",
+        "path": "tools/_discord_presence/out/_missing_smoke.dll",
+        "filename": "_missing_smoke.dll",
+        "bundle": "discord_wow",
+        "build_hint": "Run: python tools/build_discord_presence.py",
+    }
+    try:
+        resolve_local_source_path(missing)
+        raise AssertionError("expected FileNotFoundError")
+    except FileNotFoundError as exc:
+        assert "build_discord_presence.py" in str(exc)
+    print("OK discord wow status dll catalog and opt-in wiring")
+
+
+def test_discord_wow_status_dll_hash_update():
+    """Stale on-disk SHA is replaced automatically; missing file is never created."""
+    from unittest.mock import patch
+
+    from ichalaunch.config.settings import DISCORD_WOW_STATUS_MOD_ID, settings
+    from ichalaunch.core.filesystem import (
+        invalidate_dir_listing,
+        read_dlls_txt,
+        sha256_file,
+    )
+    from ichalaunch.mods.client_presets import preset_managed_mod_ids
+    from ichalaunch.mods.installer import (
+        _remote_identity,
+        _sync_dlls_txt_for_desired_mods,
+        check_mod_updates,
+        ensure_desired_mods_synced,
+        ensure_discord_helper_current,
+        get_mod,
+        load_mod_catalog,
+        plan_changes,
+        plan_sync_changes,
+        prepare_for_launch,
+    )
+
+    mid = DISCORD_WOW_STATUS_MOD_ID
+    assert mid not in {m["id"] for m in load_mod_catalog() if m.get("id")}
+    assert mid not in preset_managed_mod_ids()
+    mod = get_mod(mid)
+    assert mod is not None
+    assert mod.get("hidden") is True
+    dest_name = "ichalaunch_discord.dll"
+    pe = b"MZ" + b"\0" * 1024
+    old_bytes = pe + b"old-discord-helper"
+    new_bytes = pe + b"new-discord-helper"
+    assert old_bytes != new_bytes
+
+    prev_discord = settings.discord_rich_presence_enabled()
+    prev_child = settings.discord_rich_presence_character_status()
+    prev_desired = settings.desired_mods
+    prev_installed = settings.installed_mods
+    prev_game = settings.game_path
+    prev_user = list(settings.user_set_mods)
+    prev_check = settings.get("last_mod_update_check")
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            game = Path(td) / "game"
+            game.mkdir()
+            (game / "WoW.exe").write_bytes(pe)
+            bundled = Path(td) / dest_name
+            bundled.write_bytes(new_bytes)
+            dest = game / dest_name
+            settings.set("game_path", str(game))
+            settings.set("installed_mods", {})
+            settings.set("desired_mods", {})
+            settings.set("user_set_mods", [])
+            settings.set_discord_rich_presence_enabled(True)
+            settings.set_discord_rich_presence_character_status(True)
+            assert settings.desired_mods.get(mid) is True
+
+            with patch(
+                "ichalaunch.mods.installer.resolve_local_source_path",
+                return_value=bundled.resolve(),
+            ):
+                # Desired but not on disk: never inject the DLL.
+                assert not dest.exists()
+                assert not any(ch.get("id") == mid for ch in plan_sync_changes())
+                assert not any(
+                    ch.get("action") == "install" and ch.get("id") == mid
+                    for ch in plan_changes()
+                )
+                assert ensure_discord_helper_current() is False
+                ensure_desired_mods_synced()
+                prepare_for_launch()
+                assert not dest.exists()
+                _sync_dlls_txt_for_desired_mods(game)
+                assert dest_name.lower() not in [n.lower() for n in read_dlls_txt(game)]
+
+                dest.write_bytes(old_bytes)
+                invalidate_dir_listing(game)
+                remote = _remote_identity(mod.get("source") or {})
+                assert remote and remote.get("key") == sha256_file(bundled)
+                assert sha256_file(dest) != remote.get("key")
+                result = check_mod_updates()
+                ids = [u.get("id") for u in result.updates]
+                assert mid in ids, result.updates
+                hit = next(u for u in result.updates if u.get("id") == mid)
+                assert hit.get("kind") == "local"
+                assert not any(ch.get("id") == mid for ch in plan_sync_changes())
+                assert not any(
+                    ch.get("id") in ("superwow", "nampower") for ch in plan_changes()
+                )
+
+                # Stale hash: replace without Apply / plan_changes.
+                done = ensure_desired_mods_synced()
+                assert any(str(line).startswith(f"+ {mid}") for line in done), done
+                assert dest.read_bytes() == new_bytes
+                assert sha256_file(dest) == sha256_file(bundled)
+
+                # Matching hash is a no-op.
+                assert ensure_discord_helper_current() is False
+                assert ensure_desired_mods_synced() == []
+                prep = prepare_for_launch()
+                assert not any(
+                    "Discord" in str(fix) for fix in (prep.fixes or [])
+                )
+                assert dest.read_bytes() == new_bytes
+
+                dest.write_bytes(old_bytes)
+                invalidate_dir_listing(game)
+                prep_stale = prepare_for_launch()
+                assert any(
+                    "Discord" in str(fix) for fix in (prep_stale.fixes or [])
+                ), prep_stale.fixes
+                assert dest.read_bytes() == new_bytes
+
+                result_ok = check_mod_updates()
+                assert mid not in [u.get("id") for u in result_ok.updates], result_ok.updates
+                assert not any(
+                    ch.get("action") == "install" and ch.get("id") == mid
+                    for ch in plan_changes()
+                )
+    finally:
+        settings.set("game_path", prev_game)
+        settings.set_discord_rich_presence_enabled(prev_discord)
+        settings.set_discord_rich_presence_character_status(prev_child)
+        settings.set("desired_mods", prev_desired)
+        settings.set("installed_mods", prev_installed)
+        settings.set("user_set_mods", prev_user)
+        settings.set("last_mod_update_check", prev_check)
+    print("OK discord wow status dll hash update")
+
+
+def test_discord_broadcast_fields_and_opt_in_prompt():
+    """Persist six broadcast filters; one-shot prompt Save / No; Privacy is home."""
+    import json
+    import tempfile
+    from pathlib import Path
+    from unittest import mock
+
+    from PySide6.QtWidgets import QApplication, QLabel, QWidget
+
+    from ichalaunch.config import settings as settings_mod
+    from ichalaunch.config.settings import Settings
+    from ichalaunch.game import discord_presence as dp
+    from ichalaunch.ui.pages import settings as settings_page_mod
+    from ichalaunch.ui.widgets.dialogs import (
+        DialogResult,
+        DiscordPresenceOptInDialog,
+        discord_presence_opt_in_dialog,
+    )
+    from ichalaunch.ui.main_window import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    assert app is not None
+
+    assert dp.PROMPTED_KEY == "discord_presence_prompted"
+    assert dp.BROADCAST_FIELDS_KEY == "discord_broadcast_fields"
+    assert dp.BROADCAST_FIELD_KEYS == (
+        "name",
+        "guild",
+        "faction",
+        "class",
+        "level",
+        "zone",
+    )
+    assert "Settings → Privacy" in dp.DISCORD_PRESENCE_OPT_IN_TEXT
+    assert "broadcast" in dp.DISCORD_PRESENCE_OPT_IN_TEXT.lower()
+    assert dp.BROADCAST_FLAGS_ALL == 63
+    assert dp.broadcast_flags_word({k: True for k in dp.BROADCAST_FIELD_KEYS}) == 63
+    assert dp.broadcast_flags_word({k: False for k in dp.BROADCAST_FIELD_KEYS}) == 0
+    name_off = {k: True for k in dp.BROADCAST_FIELD_KEYS}
+    name_off["name"] = False
+    assert dp.broadcast_flags_word(name_off) == 63 - 1
+
+    snapshot = {
+        "name": "Thrall",
+        "zone": "Orgrimmar",
+        "level": 24,
+        "faction": "horde",
+        "class": "Shaman",
+        "guild": "Frostwolf",
+        "race": "Orc",
+    }
+    all_on = dp.presence_activity(game_running=True, wow_status=snapshot)
+    assert "Thrall" in all_on["details"]
+    assert "Frostwolf" in all_on["details"]
+    assert "Horde" in all_on["details"]
+    assert "Shaman" in all_on["details"]
+    assert "Lvl 24" in all_on["details"]
+    assert all_on["state"] == "Orgrimmar"
+
+    no_name = dp.presence_activity(
+        game_running=True, wow_status=snapshot, fields=name_off
+    )
+    blob = " ".join(no_name.values())
+    assert "Thrall" not in blob
+    assert "Frostwolf" in no_name["details"]
+    assert no_name["state"] == "Orgrimmar"
+
+    no_zone = dict(name_off)
+    no_zone["name"] = True
+    no_zone["zone"] = False
+    zoned = dp.presence_activity(
+        game_running=True, wow_status=snapshot, fields=no_zone
+    )
+    assert "Orgrimmar" not in " ".join(zoned.values())
+    assert "Thrall" in zoned["details"]
+
+    no_faction = {k: True for k in dp.BROADCAST_FIELD_KEYS}
+    no_faction["faction"] = False
+    faction_off = dp.presence_activity(
+        game_running=True, wow_status=snapshot, fields=no_faction
+    )
+    assert "Horde" not in " ".join(faction_off.values())
+    assert "Thrall" in faction_off["details"]
+
+    flags_path = dp.write_broadcast_flags(name_off)
+    assert flags_path.name == "discord_broadcast_flags"
+    assert flags_path.read_text(encoding="ascii").strip() == str(
+        dp.broadcast_flags_word(name_off)
+    )
+
+    live = _live_ichalaunch_appdata_root().resolve()
+    try:
+        flags_path.resolve().relative_to(live)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("broadcast flags tests must not use live AppData")
+
+    prev = settings_mod.settings.discord_rich_presence_enabled()
+    prev_child = settings_mod.settings.discord_rich_presence_character_status()
+    prev_fields = settings_mod.settings.discord_broadcast_fields()
+    prev_prompted = settings_mod.settings.discord_presence_prompted()
+    try:
+        settings_mod.settings.set_discord_broadcast_fields(name_off)
+        data = json.loads(settings_mod.settings_path().read_text(encoding="utf-8"))
+        assert data["discord_broadcast_fields"]["name"] is False
+        assert data["discord_broadcast_fields"]["zone"] is True
+        settings_mod.settings.load()
+        loaded = settings_mod.settings.discord_broadcast_fields()
+        assert loaded["name"] is False
+        assert loaded["guild"] is True
+        assert loaded["zone"] is True
+    finally:
+        settings_mod.settings.set_discord_rich_presence_enabled(prev)
+        settings_mod.settings.set_discord_rich_presence_character_status(prev_child)
+        settings_mod.settings.set_discord_broadcast_fields(prev_fields)
+        settings_mod.settings.set_discord_presence_prompted(prev_prompted)
+
+    with tempfile.TemporaryDirectory() as td:
+        fake = Path(td) / "settings.json"
+        orig_path = settings_mod.settings_path
+        orig_singleton = settings_mod.settings
+        settings_mod.settings_path = lambda: fake
+        try:
+            settings_mod.settings = Settings()
+            with mock.patch(
+                "ichalaunch.core.crash_report.reporting_suppressed",
+                return_value=False,
+            ):
+                assert dp.should_prompt_discord_presence_opt_in() is True
+                assert settings_mod.settings.discord_rich_presence_enabled() is False
+
+                dp.mark_discord_presence_prompted()
+                assert json.loads(fake.read_text(encoding="utf-8"))[
+                    "discord_presence_prompted"
+                ] is True
+                assert dp.should_prompt_discord_presence_opt_in() is False
+                assert settings_mod.settings.discord_rich_presence_enabled() is False
+
+                settings_mod.settings = Settings()
+                assert settings_mod.settings.discord_presence_prompted() is True
+                assert dp.should_prompt_discord_presence_opt_in() is False
+
+                settings_mod.settings.set_discord_presence_prompted(False)
+                settings_mod.settings.set_discord_rich_presence_enabled(True)
+                assert dp.should_prompt_discord_presence_opt_in() is False
+                assert settings_mod.settings.discord_presence_prompted() is True
+
+                settings_mod.settings.set_discord_presence_prompted(False)
+                settings_mod.settings.set_discord_rich_presence_enabled(False)
+                settings_mod.settings.set_discord_rich_presence_character_status(False)
+                dp.enable_discord_presence_from_opt_in(name_off)
+                assert settings_mod.settings.discord_rich_presence_enabled() is True
+                assert settings_mod.settings.discord_rich_presence_character_status() is True
+                assert settings_mod.settings.discord_presence_prompted() is True
+                assert settings_mod.settings.discord_broadcast_fields()["name"] is False
+                assert dp.should_prompt_discord_presence_opt_in() is False
+
+                settings_mod.settings = Settings()
+                settings_mod.settings.set_discord_presence_prompted(False)
+                settings_mod.settings.set_discord_rich_presence_enabled(False)
+                dp.decline_discord_presence_opt_in()
+                assert settings_mod.settings.discord_rich_presence_enabled() is False
+                assert settings_mod.settings.discord_presence_prompted() is True
+                assert dp.should_prompt_discord_presence_opt_in() is False
+        finally:
+            settings_mod.settings_path = orig_path
+            settings_mod.settings = orig_singleton
+
+    page = settings_page_mod.SettingsPage()
+    titles = [
+        w.text()
+        for w in page.findChildren(QLabel)
+        if w.objectName() == "CardTitle"
+    ]
+    assert "Privacy" in titles
+    assert hasattr(page, "cb_discord_fields")
+    assert set(page.cb_discord_fields) == set(dp.BROADCAST_FIELD_KEYS)
+
+    root = QWidget()
+    dlg = DiscordPresenceOptInDialog(root)
+    assert dlg.minimumWidth() >= 460
+    assert "Settings → Privacy" in dp.DISCORD_PRESENCE_OPT_IN_TEXT
+    assert tuple(dlg._field_boxes) == dp.BROADCAST_FIELD_KEYS
+    for key, box in dlg._field_boxes.items():
+        assert box.text() == dp.BROADCAST_FIELD_LABELS[key]
+        assert box.isChecked() is True
+    assert callable(discord_presence_opt_in_dialog)
+    show_src = inspect.getsource(MainWindow.showEvent)
+    prompt_src = inspect.getsource(MainWindow._maybe_prompt_discord_presence_opt_in)
+    assert "_run_startup_opt_in_prompts" in show_src
+    assert "discord_presence_opt_in_dialog" in prompt_src
+    assert "launch_game" not in prompt_src
+    dlg.close()
+    print("OK discord broadcast fields and opt-in prompt")
+
+
 def test_mod_remote_identity_uses_tip_index():
     """Client mod release checks prefer the shared tip index over REST."""
     from ichalaunch.addons import tip_index as tips
@@ -7010,6 +8625,24 @@ def test_catalog_turtle_custom_annotation():
         f"OK catalog turtle_custom annotation "
         f"({len(mentioned)} mention rows flagged; SortBags-vanilla newly marked)"
     )
+
+
+def test_catalog_approve_and_lazypig_rows():
+    """Catalog-approve PRs 400-404 and LazyPig #415 landed in the bundled list."""
+    from ichalaunch.addons.catalog import load_bundled_catalog
+
+    by_repo = {e.get("repo"): e for e in load_bundled_catalog()}
+    assert "https://github.com/Schaka/GetSpellInfoVanilla" in by_repo
+    assert "https://github.com/KrekoG/SpecialTalentUI" in by_repo
+    tomtom = by_repo["https://github.com/laytya/TomTom-TWOW"]
+    assert tomtom.get("turtle_custom") is True
+    auctionator = by_repo["https://github.com/brues-code/Auctionator"]
+    assert auctionator.get("name") == "Auctionator (ClassicAPI)"
+    octo = by_repo["https://github.com/roby-brok/pfQuest-octo"]
+    assert octo.get("turtle_custom") is True
+    lazy = by_repo["https://github.com/Otari98/_LazyPig"]
+    assert lazy.get("turtle_custom") is True
+    print("OK catalog-approve rows and Otari98 LazyPig")
 
 
 def test_addons_page_ravencraft_category_option():
@@ -9017,19 +10650,19 @@ def test_apply_desired_state_restores_dlls_txt():
         with tempfile.TemporaryDirectory() as td:
             game = Path(td)
             (game / "WoW.exe").write_bytes(b"MZ")
-            (game / "nampower.dll").write_bytes(b"MZ")
-            (game / "dlls.txt").write_text("nampower.dll\n", encoding="utf-8")
+            (game / "SuperWoWhook.dll").write_bytes(b"MZ")
+            (game / "dlls.txt").write_text("SuperWoWhook.dll\n", encoding="utf-8")
             s.set("game_path", str(game))
             s.set("addons_path", "")
-            s.set("desired_mods", {"nampower": True})
-            s.set("user_set_mods", ["nampower"])
+            s.set("desired_mods", {"superwow": True})
+            s.set("user_set_mods", ["superwow"])
             clear_fs_caches()
-            # Simulate VanillaFixes zip shipping a bare template without nampower.
+            # Simulate VanillaFixes zip shipping a bare template without SuperWoW.
             (game / "dlls.txt").write_text(
-                "# template\nSuperWoWhook.dll\n", encoding="utf-8"
+                "# template\nnampower.dll\n", encoding="utf-8"
             )
             out = apply_desired_state()
-            assert "nampower.dll" in (game / "dlls.txt").read_text(encoding="utf-8"), out
+            assert "SuperWoWhook.dll" in (game / "dlls.txt").read_text(encoding="utf-8"), out
     finally:
         for k in keys:
             s.set(k, saved[k])
@@ -10189,6 +11822,619 @@ def test_launcher_release_cache():
         settings._data["cached_launcher_release"] = old_cache
         settings.save()
     print("OK launcher release cache")
+
+
+def test_mod_download_hash_pinning():
+    """Pinned mod downloads: verified, refused, or explicitly unpinned."""
+    import hashlib
+    import json as _json
+    from pathlib import Path as _Path
+    from tempfile import TemporaryDirectory
+
+    from ichalaunch.mods.verify import (
+        SourceHashMismatch,
+        expected_digest,
+        normalized_digest,
+        unpinned_source_ids,
+        verify_payload,
+    )
+
+    payload = b"pretend this is SuperWoWhook.dll"
+    digest = hashlib.sha256(payload).hexdigest()
+
+    assert verify_payload({"type": "raw"}, payload) is None
+    assert verify_payload({"sha256": digest}, payload) == digest
+    assert verify_payload({"sha256": f"SHA256:{digest.upper()}  "}, payload) == digest
+
+    try:
+        verify_payload({"sha256": "0" * 64}, payload, label="SuperWoW.dll")
+    except SourceHashMismatch as exc:
+        assert "SuperWoW.dll" in str(exc) and digest in str(exc)
+    else:
+        raise AssertionError("tampered payload was accepted")
+
+    for junk in ("", "not-a-hash", digest[:-1], "zz" + digest[2:], None, 12345):
+        assert normalized_digest(junk) is None
+        assert verify_payload({"sha256": junk}, payload) is None
+
+    with TemporaryDirectory(prefix="ichalaunch_pin_") as tmp:
+        good = _Path(tmp) / "mod.dll"
+        good.write_bytes(payload)
+        assert verify_payload({"sha256": digest}, good) == digest
+        missing = _Path(tmp) / "not-there.dll"
+        try:
+            verify_payload({"sha256": digest}, missing)
+        except SourceHashMismatch:
+            pass
+        else:
+            raise AssertionError("unreadable payload was accepted")
+
+    catalog = _json.loads(
+        (_Path("ichalaunch") / "data" / "mods.json").read_text(encoding="utf-8")
+    )
+    for mod in catalog:
+        for key in ("source", "addon_source"):
+            src = mod.get(key)
+            if isinstance(src, dict) and "sha256" in src:
+                assert expected_digest(src) is not None, (
+                    f"{mod.get('id')}.{key} has an unusable sha256"
+                )
+
+    unpinned = unpinned_source_ids(catalog)
+    assert not unpinned, f"catalog sources with no sha256: {unpinned}"
+    pinned = sum(
+        1
+        for m in catalog
+        for k in ("source", "addon_source")
+        if isinstance(m.get(k), dict) and expected_digest(m[k])
+    )
+    print(f"OK mod download hash pinning ({pinned} catalog sources pinned)")
+
+
+def test_download_source_enforces_pins():
+    """The installer's own download path refuses bytes that miss the pin."""
+    import hashlib
+
+    from ichalaunch.mods import installer as I
+    from ichalaunch.mods.verify import SourceHashMismatch
+
+    served = b"bytes the upstream actually served"
+    digest = hashlib.sha256(served).hexdigest()
+
+    def fake_fetch(source, work, progress):
+        return served
+
+    original = I._download_source_unverified
+    I._download_source_unverified = fake_fetch  # type: ignore[assignment]
+    try:
+        assert I._download_source({"type": "raw", "sha256": digest}, None, None) == served
+        try:
+            I._download_source(
+                {"type": "raw", "sha256": "f" * 64, "filename": "nampower.dll"},
+                None,
+                None,
+            )
+        except SourceHashMismatch as exc:
+            assert "nampower.dll" in str(exc)
+        else:
+            raise AssertionError("installer installed unverified bytes")
+        assert I._download_source({"type": "raw"}, None, None) == served
+    finally:
+        I._download_source_unverified = original  # type: ignore[assignment]
+    print("OK installer refuses unpinned-mismatch downloads")
+
+
+def test_update_button_cannot_discard_a_pin():
+    """prefer_latest must not rebuild a pinned source without its digest."""
+    from ichalaunch.mods import installer as I
+    from ichalaunch.mods.verify import expected_digest
+
+    pinned = {
+        "type": "github_release",
+        "url": "https://github.com/o/r/releases/download/v1/thing-1.0.zip",
+        "sha256": "a" * 64,
+    }
+    unpinned = {
+        "type": "github_release",
+        "url": "https://github.com/o/r/releases/download/v1/thing-1.0.zip",
+    }
+
+    src = inspect.getsource(I.install_mod)
+    assert "expected_digest(source)" in src, (
+        "install_mod no longer guards the prefer_latest conversion on the pin"
+    )
+    assert expected_digest(pinned) is not None
+    assert expected_digest(unpinned) is None
+
+    def would_convert(source, prefer_latest, mod_id="superwow"):
+        return bool(
+            prefer_latest
+            and source
+            and source.get("type") == "github_release"
+            and mod_id != I._VANILLA_TWEAKS_OLD_ID
+            and not expected_digest(source)
+        )
+
+    assert would_convert(unpinned, True), "unpinned sources should still follow latest"
+    assert not would_convert(pinned, True), "a pinned source must never be re-pointed"
+    assert not would_convert(pinned, False)
+    print("OK update button keeps the pin")
+
+
+def test_addon_install_cannot_escape_the_addons_folder():
+    """A .toc name inside a downloaded zip must not aim the installer at Interface."""
+    import shutil
+    from pathlib import Path as _P
+
+    from ichalaunch.core.filesystem import (
+        AddonDestinationRefused,
+        place_install_addon_root,
+    )
+
+    with tempfile.TemporaryDirectory(prefix="ichalaunch_esc_") as tmp:
+        base = _P(tmp)
+        interface = base / "Interface"
+        addons = interface / "AddOns"
+        addons.mkdir(parents=True)
+        (interface / "FrameXML").mkdir()
+        keep = addons / "RealAddon"
+        keep.mkdir()
+        (keep / "RealAddon.toc").write_text("## Interface: 11200", encoding="utf-8")
+
+        for hostile in (".. .toc", " .. .toc"):
+            payload = base / "payload"
+            payload.mkdir()
+            (payload / hostile).write_text("## Interface: 11200", encoding="utf-8")
+            try:
+                place_install_addon_root(payload, addons, "innocent-looking-name")
+            except AddonDestinationRefused:
+                pass
+            else:
+                raise AssertionError(f"{hostile!r} was accepted as a destination")
+            shutil.rmtree(payload)
+
+        assert interface.is_dir(), "Interface was removed"
+        assert (interface / "FrameXML").is_dir(), "FrameXML was removed"
+        assert keep.is_dir(), "an unrelated installed addon was removed"
+
+        good = base / "good"
+        good.mkdir()
+        (good / "Nice.toc").write_text("## Interface: 11200", encoding="utf-8")
+        name, mismatch = place_install_addon_root(good, addons, "ignored")
+        assert name == "Nice" and (addons / "Nice").is_dir(), "normal install broke"
+    print("OK addon install stays inside AddOns")
+
+
+def test_pinned_mod_detects_by_hash_not_filename():
+    """A same-named stub is not 'installed'; the pinned bytes are."""
+    import hashlib
+
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods import installer as I
+
+    real = b"this is the catalog patch-H.mpq"
+    digest = hashlib.sha256(real).hexdigest()
+    mod = {
+        "id": "pink_herbs_hash_probe",
+        "kind": "mpq_file",
+        "destination": "Data/patch-H.mpq",
+        "source": {"type": "raw", "filename": "patch-H.mpq", "sha256": digest},
+        "detect": {"data_mpq": ["patch-H.mpq"]},
+    }
+    with tempfile.TemporaryDirectory(prefix="ichalaunch_pin_det_") as td:
+        game = Path(td)
+        data = game / "Data"
+        data.mkdir()
+        (game / "WoW.exe").write_bytes(b"MZ")
+        target = data / "patch-H.mpq"
+        target.write_bytes(b"random bytes with the right name")
+        clear_fs_caches()
+        assert I._detect_pinned_payload(game, mod) is False
+        assert I._detect_mod(game, mod) is False
+        target.write_bytes(real)
+        clear_fs_caches()
+        assert I._detect_pinned_payload(game, mod) is True
+        assert I._detect_mod(game, mod) is True
+    print("OK pinned mod detect uses hash not filename")
+
+
+def test_stale_pinned_dest_plans_replace():
+    """Dest exists, wrong hash, desired on → plan install (update/replace)."""
+    import hashlib
+
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import plan_changes
+
+    real = b"catalog pin replace payload"
+    digest = hashlib.sha256(real).hexdigest()
+    probe = {
+        "id": "pin_replace_probe",
+        "name": "Pin Replace Probe",
+        "kind": "mpq_file",
+        "destination": "Data/patch-PINREPLACE.mpq",
+        "source": {"type": "raw", "filename": "patch-PINREPLACE.mpq", "sha256": digest},
+        "detect": {"data_mpq": ["patch-PINREPLACE.mpq"]},
+    }
+    keys = ("desired_mods", "user_set_mods", "installed_mods", "user_mods", "game_path", "addons_path")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory(prefix="ichalaunch_stale_pin_") as td:
+            game = Path(td)
+            data = game / "Data"
+            data.mkdir()
+            (game / "WoW.exe").write_bytes(b"MZ")
+            (data / "patch-PINREPLACE.mpq").write_bytes(b"wrong bytes same name")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("user_mods", [probe])
+            s.set("desired_mods", {"pin_replace_probe": True})
+            s.set("user_set_mods", ["pin_replace_probe"])
+            s.set("installed_mods", {})
+            clear_fs_caches()
+            from ichalaunch.mods import installer as I
+
+            assert I._detect_pinned_payload(game, probe) is False
+            assert I._pinned_dest_needs_replace(probe, game) is True
+            plan = plan_changes()
+            assert any(
+                c.get("action") == "install" and c.get("id") == "pin_replace_probe"
+                for c in plan
+            ), plan
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK stale pinned dest plans replace")
+
+
+def test_pinned_dest_hash_match_is_installed():
+    """Dest exists, correct hash → detect True, plan clean (manual install)."""
+    import hashlib
+
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.detect import sync_desired_mods_from_disk
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import detect_actual_state, plan_changes
+
+    real = b"manual install matching pin"
+    digest = hashlib.sha256(real).hexdigest()
+    probe = {
+        "id": "pin_manual_probe",
+        "name": "Pin Manual Probe",
+        "kind": "mpq_file",
+        "destination": "Data/patch-PINOK.mpq",
+        "source": {"type": "raw", "filename": "patch-PINOK.mpq", "sha256": digest},
+        "detect": {"data_mpq": ["patch-PINOK.mpq"]},
+    }
+    keys = ("desired_mods", "user_set_mods", "installed_mods", "user_mods", "game_path", "addons_path")
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory(prefix="ichalaunch_pin_ok_") as td:
+            game = Path(td)
+            data = game / "Data"
+            data.mkdir()
+            (game / "WoW.exe").write_bytes(b"MZ")
+            (data / "patch-PINOK.mpq").write_bytes(real)
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("user_mods", [probe])
+            s.set("desired_mods", {})
+            s.set("user_set_mods", [])
+            s.set("installed_mods", {})
+            clear_fs_caches()
+            from ichalaunch.mods import installer as I
+
+            assert I._detect_pinned_payload(game, probe) is True
+            assert detect_actual_state(game).get("pin_manual_probe") is True
+            desired = sync_desired_mods_from_disk()
+            assert desired.get("pin_manual_probe") is True
+            assert I._pinned_dest_needs_replace(probe, game) is False
+            assert not any(
+                c.get("id") == "pin_manual_probe" for c in plan_changes()
+            ), plan_changes()
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK matching pin is installed and plan is clean")
+
+
+def test_stale_pinned_dest_does_not_seed_desired():
+    """Wrong hash, never toggled → do not seed installed; still offer replace."""
+    import hashlib
+
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.detect import sync_desired_mods_from_disk
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import check_mod_updates, detect_actual_state
+
+    real = b"catalog bytes for never-toggled stub"
+    digest = hashlib.sha256(real).hexdigest()
+    probe = {
+        "id": "pin_noseed_probe",
+        "name": "Pin No Seed Probe",
+        "kind": "mpq_file",
+        "destination": "Data/patch-PINNOSEED.mpq",
+        "source": {"type": "raw", "filename": "patch-PINNOSEED.mpq", "sha256": digest},
+        "detect": {"data_mpq": ["patch-PINNOSEED.mpq"]},
+    }
+    keys = (
+        "desired_mods",
+        "user_set_mods",
+        "installed_mods",
+        "user_mods",
+        "game_path",
+        "addons_path",
+        "last_mod_update_check",
+    )
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory(prefix="ichalaunch_pin_noseed_") as td:
+            game = Path(td)
+            data = game / "Data"
+            data.mkdir()
+            (game / "WoW.exe").write_bytes(b"MZ")
+            (data / "patch-PINNOSEED.mpq").write_bytes(b"stub not the pin")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("user_mods", [probe])
+            s.set("desired_mods", {})
+            s.set("user_set_mods", [])
+            s.set("installed_mods", {})
+            s.set("last_mod_update_check", 0)
+            clear_fs_caches()
+            from ichalaunch.mods import installer as I
+
+            assert detect_actual_state(game).get("pin_noseed_probe") is False
+            desired = sync_desired_mods_from_disk()
+            assert desired.get("pin_noseed_probe") is not True
+            assert "pin_noseed_probe" not in s.user_set_mods
+            assert I._pinned_dest_needs_replace(probe, game) is True
+            result = check_mod_updates()
+            assert any(u.get("id") == "pin_noseed_probe" for u in result.updates), (
+                result.updates
+            )
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK stale dest does not seed desired and offers replace")
+
+
+def _dest_pin_probe(mid: str, dest: str, payload: bytes) -> dict:
+    import hashlib
+
+    name = Path(dest).name
+    digest = hashlib.sha256(payload).hexdigest()
+    return {
+        "id": mid,
+        "name": mid,
+        "kind": "dll_file",
+        "source": {"type": "raw", "filename": name, "sha256": digest},
+        "files": [{"match": name, "destination": dest}],
+        "detect": {"any_files": [dest]},
+    }
+
+
+def test_shared_dest_sibling_pin_not_offered_as_update():
+    """Shared dest: sibling pin / junk / desired-on vs unique-dest replace offer."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.detect import sync_desired_mods_from_disk
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import (
+        check_mod_updates,
+        detect_actual_state,
+        plan_changes,
+    )
+
+    dest = "shared_slot.dll"
+    a_bytes = b"mod-A dest pin body"
+    b_bytes = b"mod-B dest pin body"
+    junk = b"neither pin"
+    mod_a = _dest_pin_probe("shared_dest_a", dest, a_bytes)
+    mod_b = _dest_pin_probe("shared_dest_b", dest, b_bytes)
+    keys = (
+        "desired_mods",
+        "user_set_mods",
+        "installed_mods",
+        "user_mods",
+        "game_path",
+        "addons_path",
+        "last_mod_update_check",
+    )
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory(prefix="ichalaunch_shared_dest_") as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("user_mods", [mod_a, mod_b])
+            s.set("desired_mods", {})
+            s.set("user_set_mods", [])
+            s.set("installed_mods", {})
+            s.set("last_mod_update_check", 0)
+            from ichalaunch.mods import installer as I
+
+            (game / dest).write_bytes(a_bytes)
+            clear_fs_caches()
+            actual = detect_actual_state(game)
+            assert actual.get("shared_dest_a") is True
+            assert actual.get("shared_dest_b") is False
+            assert I._detect_pinned_payload(game, mod_b) is False
+            assert I._pinned_dest_needs_replace(mod_b, game) is False
+            assert I._pinned_dest_needs_replace(mod_a, game) is False
+            desired = sync_desired_mods_from_disk()
+            assert desired.get("shared_dest_b") is not True
+            assert not any(
+                c.get("id") == "shared_dest_b" for c in plan_changes()
+            ), plan_changes()
+
+            s.set("desired_mods", {"shared_dest_b": True})
+            s.set("user_set_mods", ["shared_dest_b"])
+            clear_fs_caches()
+            assert I._pinned_dest_needs_replace(mod_b, game) is False
+            assert any(
+                c.get("action") == "install" and c.get("id") == "shared_dest_b"
+                for c in plan_changes()
+            ), plan_changes()
+
+            (game / dest).write_bytes(b_bytes)
+            s.set("desired_mods", {})
+            s.set("user_set_mods", [])
+            s.set("installed_mods", {})
+            clear_fs_caches()
+            actual_b = detect_actual_state(game)
+            assert actual_b.get("shared_dest_b") is True
+            assert actual_b.get("shared_dest_a") is False
+            assert I._pinned_dest_needs_replace(mod_b, game) is False
+            assert I._pinned_dest_needs_replace(mod_a, game) is False
+
+            (game / dest).write_bytes(junk)
+            s.set("desired_mods", {})
+            s.set("user_set_mods", [])
+            s.set("installed_mods", {})
+            s.set("last_mod_update_check", 0)
+            clear_fs_caches()
+            assert detect_actual_state(game).get("shared_dest_b") is False
+            assert I._pinned_dest_needs_replace(mod_b, game) is False
+            assert not any(
+                u.get("id") == "shared_dest_b" for u in check_mod_updates().updates
+            ), check_mod_updates().updates
+
+            s.set("desired_mods", {"shared_dest_b": True})
+            s.set("user_set_mods", ["shared_dest_b"])
+            clear_fs_caches()
+            assert I._pinned_dest_needs_replace(mod_b, game) is True
+            assert any(
+                c.get("action") == "install" and c.get("id") == "shared_dest_b"
+                for c in plan_changes()
+            ), plan_changes()
+
+            s.set("desired_mods", {})
+            s.set("user_set_mods", [])
+            s.set("installed_mods", {"shared_dest_b": {"url": "stale-b"}})
+            clear_fs_caches()
+            assert I._pinned_dest_needs_replace(mod_b, game) is True
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK shared dest sibling pin is not an unchecked update")
+
+
+def test_catalog_d3d9_unchecked_sibling_not_update():
+    """Foreign / sibling d3d9.dll must not offer Update on unchecked dxvk_big_cursor."""
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.detect import sync_desired_mods_from_disk
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import (
+        check_mod_updates,
+        detect_actual_state,
+        plan_changes,
+    )
+    from ichalaunch.mods import installer as I
+
+    cursor = I.mod_catalog_map()["dxvk_big_cursor"]
+    keys = (
+        "desired_mods",
+        "user_set_mods",
+        "installed_mods",
+        "user_mods",
+        "game_path",
+        "addons_path",
+        "last_mod_update_check",
+    )
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory(prefix="ichalaunch_d3d9_sib_") as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            (game / "d3d9.dll").write_bytes(b"MZ-standard-dxvk-not-cursor")
+            (game / "dxvk.conf").write_text("d3d9.maxFrameRate = 141\n", encoding="utf-8")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("user_mods", [])
+            s.set("desired_mods", {"dxvk": True, "dxvk_big_cursor": False})
+            s.set("user_set_mods", ["dxvk"])
+            s.set("installed_mods", {})
+            s.set("last_mod_update_check", 0)
+            clear_fs_caches()
+
+            assert I._detect_pinned_payload(game, cursor) is False
+            actual = detect_actual_state(game)
+            assert actual.get("dxvk_big_cursor") is False
+            assert I._pinned_dest_needs_replace(cursor, game) is False
+            desired = sync_desired_mods_from_disk()
+            assert desired.get("dxvk_big_cursor") is not True
+            assert not any(
+                u.get("id") == "dxvk_big_cursor" for u in check_mod_updates().updates
+            ), check_mod_updates().updates
+            assert not any(
+                c.get("id") == "dxvk_big_cursor" for c in plan_changes()
+            ), plan_changes()
+
+            s.set("desired_mods", {"dxvk": True, "dxvk_big_cursor": True})
+            s.set("user_set_mods", ["dxvk", "dxvk_big_cursor"])
+            clear_fs_caches()
+            assert I._pinned_dest_needs_replace(cursor, game) is True
+            assert any(
+                c.get("action") == "install" and c.get("id") == "dxvk_big_cursor"
+                for c in plan_changes()
+            ), plan_changes()
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK catalog d3d9 sibling does not offer unchecked cursor update")
+
+
+def test_raw_dll_pin_detects_by_hash():
+    """Raw DLL dest == downloaded payload: hash detect, not filename."""
+    import hashlib
+
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods import installer as I
+
+    real = b"raw dll catalog body"
+    digest = hashlib.sha256(real).hexdigest()
+    mod = {
+        "id": "raw_dll_pin_probe",
+        "kind": "dll_file",
+        "source": {
+            "type": "raw",
+            "filename": "probe.dll",
+            "sha256": digest,
+        },
+        "files": [{"match": "probe.dll", "destination": "probe.dll"}],
+        "detect": {"any_files": ["probe.dll"]},
+    }
+    zip_mod = {
+        "id": "zip_extract_pin_probe",
+        "kind": "dll_bundle",
+        "source": {
+            "type": "github_release",
+            "asset_contains": "SuperProbe",
+            "sha256": digest,
+        },
+        "files": [{"match": "ProbeHook.dll", "destination": "ProbeHook.dll"}],
+        "detect": {"any_files": ["ProbeHook.dll"]},
+    }
+    with tempfile.TemporaryDirectory(prefix="ichalaunch_raw_dll_pin_") as td:
+        game = Path(td)
+        (game / "probe.dll").write_bytes(b"wrong")
+        (game / "ProbeHook.dll").write_bytes(b"wrong")
+        clear_fs_caches()
+        assert I._detect_pinned_payload(game, mod) is False
+        assert I._detect_mod(game, mod) is False
+        assert I._detect_pinned_payload(game, zip_mod) is None
+        assert I._detect_mod(game, zip_mod) is True
+        (game / "probe.dll").write_bytes(real)
+        clear_fs_caches()
+        assert I._detect_pinned_payload(game, mod) is True
+        assert I._detect_mod(game, mod) is True
+    print("OK raw DLL pin detect; zip extract stays on filename")
 
 
 def test_update_signature_verification():
@@ -12924,6 +15170,24 @@ def test_realm_ping_hover_is_gold_text_popup():
     print("OK realm ping hover is gold text popup")
 
 
+def test_realm_ping_uses_open_hand_cursor():
+    """Latency orb uses the same open-hand cursor as interactable buttons."""
+    from PySide6.QtWidgets import QApplication, QWidget
+
+    from ichalaunch.ui.widgets.cursors import apply_open_hand
+    from ichalaunch.ui.widgets.realm_ping import RealmPingDot
+
+    app = QApplication.instance() or QApplication([])
+    ref = QWidget()
+    apply_open_hand(ref)
+    dot = RealmPingDot()
+    assert dot.cursor().shape() == ref.cursor().shape()
+    assert dot.cursor().hotSpot() == ref.cursor().hotSpot()
+    ref.deleteLater()
+    dot.deleteLater()
+    print("OK realm ping uses open-hand cursor")
+
+
 def test_launch_buttons_use_glue_panel_chrome():
     """PLAY / UPDATE / REGISTER use purple glue-panel art with a gold underline."""
     from PySide6.QtWidgets import QApplication
@@ -14684,6 +16948,85 @@ def test_nav_tab_glue_floor_chrome():
     print("OK nav tab glue floor chrome")
 
 
+def test_nav_tab_hover_lava_stays_inside_glyphs():
+    """Hover lava is glyph ink only — no solid bar in front of the tab label."""
+    from PySide6.QtCore import QRect, Qt
+    from PySide6.QtGui import QFont, QImage, QPainter
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.main_window import NavTabButton
+    from ichalaunch.ui.widgets.gradient_label import lava_ink_rect, paint_lava_glyphs
+    from ichalaunch.ui.widgets.launch_button import _GLOW_MARGIN
+
+    app = QApplication.instance() or QApplication([])
+    del app
+
+    def _is_lava(c) -> bool:
+        return c.alpha() > 80 and c.red() > 150 and c.red() > c.blue() + 30 and c.green() > 40
+
+    def _assert_glyphs_not_bar(img: QImage, label: str) -> None:
+        w, h = img.width(), img.height()
+        lava = [
+            (x, y)
+            for y in range(h)
+            for x in range(w)
+            if _is_lava(img.pixelColor(x, y))
+        ]
+        assert len(lava) > 20, f"{label}: expected lava in the letters"
+        xs = [p[0] for p in lava]
+        ys = [p[1] for p in lava]
+        bw = max(xs) - min(xs) + 1
+        bh = max(ys) - min(ys) + 1
+        coverage = len(lava) / max(1, bw * bh)
+        assert coverage < 0.70, (
+            f"{label}: lava is a solid bar (coverage {coverage:.2f} of {bw}x{bh})"
+        )
+        mid = min(ys) + bh // 2
+        gutters = sum(
+            1 for x in range(min(xs), max(xs) + 1) if not _is_lava(img.pixelColor(x, mid))
+        )
+        assert gutters > 4, f"{label}: no holes in the glyph box (solid rectangle)"
+        for x, y in ((1, 1), (w - 2, 1), (1, h - 2), (w - 2, h - 2)):
+            assert not _is_lava(img.pixelColor(x, y)), (label, x, y)
+
+    # Shared helper: a padded layout box must not leak a lava fill.
+    img = QImage(200, 80, QImage.Format.Format_ARGB32)
+    img.fill(0)
+    painter = QPainter(img)
+    try:
+        font = QFont()
+        font.setPixelSize(16)
+        font.setBold(True)
+        box = QRect(0, 0, 200, 80)
+        flags = int(Qt.AlignmentFlag.AlignCenter)
+        paint_lava_glyphs(painter, box, "SETTINGS", flags, 90.0, font=font)
+    finally:
+        if painter.isActive():
+            painter.end()
+    ink = lava_ink_rect(box, font, "SETTINGS", flags)
+    assert ink.isValid()
+    pad = ink.adjusted(-2, -2, 2, 2)
+    for y in range(img.height()):
+        for x in range(img.width()):
+            if img.pixelColor(x, y).alpha() <= 20:
+                continue
+            assert pad.contains(x, y), f"lava at {(x, y)} outside ink {pad}"
+    _assert_glyphs_not_bar(img, "helper SETTINGS")
+
+    # Real tab paint (SETTINGS is the tab the solid bar covered).
+    for label, width in (("HOME", 120), ("SETTINGS", 160)):
+        btn = NavTabButton(label)
+        btn.resize(width, 44)
+        btn._ensure_sweep()
+        btn._sweep_deg = 40.0
+        btn._sweep_timer.start()
+        _assert_glyphs_not_bar(btn.grab().toImage(), f"tab {label}")
+
+    # PLAY never grew a glow pad back; its lava is a pen on the label box.
+    assert _GLOW_MARGIN == 0
+    print("OK nav tab hover lava stays inside glyphs")
+
+
 def test_client_hd_graphics_display_order():
     """Client HD Graphics rows must keep hd_dxvk first (layout order, not dict order)."""
     from PySide6.QtWidgets import QApplication
@@ -14853,6 +17196,9 @@ def test_healtextfix_nested_under_superwow():
             if isinstance(w, ModCheckRow):
                 ids.append(w.mod_id)
         assert ids.index("superwow") + 1 == ids.index("wu_healtextfix"), ids
+        wp = page.rows["wu_weirdperformance"]
+        assert page._row_meta["wu_weirdperformance"]["category"] == "Advanced"
+        assert wp._nested is False
         page.deleteLater()
     finally:
         for k in keys:
@@ -14890,6 +17236,54 @@ def test_chrome_buttons_clear_metal_tr():
         assert name in src
         assert theme_file(name).is_file(), name
     print("OK minimize/close clear metal TR/rail; portrait overlay crops present")
+
+
+def test_rc_crest_overhangs_metal_inside_window():
+    """Crest hangs above the metal rail but stays inside the HWND / mask."""
+    from PySide6.QtCore import QPoint, Qt
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.main_window import MainWindow, _rc_crest_overhang_pad
+
+    app = QApplication.instance() or QApplication([])
+    win = MainWindow()
+    win.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    win.resize(1280, 800)
+    win.show()
+    for _ in range(40):
+        app.processEvents()
+    win._position_rc_logo()
+    win._update_window_mask()
+    app.processEvents()
+
+    logo = win._rc_logo
+    root = win.centralWidget()
+    content = win._content_panel
+    assert logo is not None and not logo.isHidden()
+    assert root is not None and content is not None
+    assert logo.testAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+
+    crest_top = logo.mapTo(root, QPoint(0, logo.logo_offset_y)).y()
+    content_top = content.mapTo(root, QPoint(0, 0)).y()
+    pad = _rc_crest_overhang_pad(logo)
+    assert pad > 0
+    assert root.layout().contentsMargins().top() == pad
+    assert crest_top < content_top, (crest_top, content_top)
+    assert crest_top >= 0, crest_top
+    assert logo.y() >= 0, logo.y()
+    assert logo.y() + logo.height() <= root.height()
+
+    peak = logo.mapTo(win, QPoint(logo.width() // 2, logo.logo_offset_y))
+    mask = win.mask()
+    assert not mask.isEmpty()
+    assert mask.contains(peak), (peak, mask.boundingRect())
+
+    btn_y = win._btn_close.mapTo(root, QPoint(0, 0)).y()
+    assert btn_y >= content_top, (btn_y, content_top)
+    assert win.play_btn.parentWidget() is win._play_cluster
+
+    win.close()
+    print("OK RC crest overhangs metal inside window/mask")
 
 
 def test_play_stays_right_when_progress_hidden():
@@ -17261,6 +19655,7 @@ def _run_smoke_tests():
     test_backup_refuses_outside_paths_and_empty_restore_is_survivable()
     test_bundle_pins_charset_normalizer_and_excludes_chardet()
     test_no_control_flow_escapes_a_finally_block()
+    test_widget_painters_end_in_finally()
     test_launcher_ca_env_does_not_reach_the_game()
     test_github_parse()
     test_gitlab_parse_and_install_url()
@@ -17291,6 +19686,9 @@ def _run_smoke_tests():
     test_weirdutils_bundled_into_exe()
     test_codeberg_download_headers_and_prebuilt_override()
     test_weirdutils_combo_conflicts_and_presets()
+    test_weirdutils_bundled_hash_update()
+    test_official_wu_remote_skips_local_override()
+    test_official_remote_wu_replaces_leftover_zig()
     test_client_preset_catalog_ids()
     test_client_preset_apply_basic()
     test_client_preset_downgrade_basic_plus_to_basic()
@@ -17358,6 +19756,18 @@ def _run_smoke_tests():
     test_download_file_retries_transient_http_not_404()
     test_crash_reporting_opt_in_skipped_when_reporting_suppressed()
     test_crash_reporting_opt_in_prompt_one_shot()
+    test_discord_presence_default_off()
+    test_discord_presence_setting_is_stored()
+    test_discord_presence_activity_strings_are_private()
+    test_configured_game_running_falls_back_to_any_wow()
+    test_discord_presence_missing_ipc_is_silent()
+    test_discord_presence_configured_id_attempts_connect()
+    test_discord_presence_update_and_clear_with_mock_rpc()
+    test_discord_presence_settings_checkbox()
+    test_discord_wow_status_reader_and_presence_strings()
+    test_discord_wow_status_dll_catalog_and_opt_in_wiring()
+    test_discord_wow_status_dll_hash_update()
+    test_discord_broadcast_fields_and_opt_in_prompt()
     test_mod_remote_identity_uses_tip_index()
     test_addon_toc_folder_name_required()
     test_multi_toc_primary_stem_resolve()
@@ -17378,6 +19788,7 @@ def _run_smoke_tests():
     test_release_download_sort_raven_first()
     test_ravencraft_category_filter()
     test_catalog_turtle_custom_annotation()
+    test_catalog_approve_and_lazypig_rows()
     test_addons_page_ravencraft_category_option()
     test_release_download_fork_vs_main_repo()
     test_apply_published_fork_does_not_inherit_main_count()
@@ -17491,6 +19902,7 @@ def _run_smoke_tests():
     test_realm_ping_orb_stays_inside_radio_hole()
     test_realm_ping_backoff_and_hover_does_not_probe()
     test_realm_ping_hover_is_gold_text_popup()
+    test_realm_ping_uses_open_hand_cursor()
     test_launch_buttons_use_glue_panel_chrome()
     test_options_cog_uses_wow_art()
     test_addon_check_updates_gates_until_list_ready()
@@ -17521,16 +19933,29 @@ def _run_smoke_tests():
     test_floor_lighting_overlay()
     test_nav_tab_update_alert_badge()
     test_nav_tab_glue_floor_chrome()
+    test_nav_tab_hover_lava_stays_inside_glyphs()
     test_client_hd_graphics_display_order()
     test_client_cat_nav_update_alert_badge()
     test_launch_settings_live_on_client_page()
     test_healtextfix_nested_under_superwow()
     test_chrome_buttons_clear_metal_tr()
+    test_rc_crest_overhangs_metal_inside_window()
     test_play_stays_right_when_progress_hidden()
     test_wayland_window_move_and_resize_handoff()
     test_linux_game_running_guard()
     test_detect_and_installer_drop_unused_imports()
     test_update_signature_verification()
+    test_mod_download_hash_pinning()
+    test_download_source_enforces_pins()
+    test_update_button_cannot_discard_a_pin()
+    test_addon_install_cannot_escape_the_addons_folder()
+    test_pinned_mod_detects_by_hash_not_filename()
+    test_stale_pinned_dest_plans_replace()
+    test_pinned_dest_hash_match_is_installed()
+    test_stale_pinned_dest_does_not_seed_desired()
+    test_shared_dest_sibling_pin_not_offered_as_update()
+    test_catalog_d3d9_unchecked_sibling_not_update()
+    test_raw_dll_pin_detects_by_hash()
     test_update_signing_keys_are_pinned()
     test_signature_sidecar_url_and_unverified_exe_is_deleted()
     test_home_art_width_fit_is_centred()

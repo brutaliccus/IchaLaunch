@@ -45,6 +45,11 @@ tools/_signing_keys/
 tools/_weirdutils/
 ichalaunch/data/weirdutils/
 
+# Discord status DLL build output. Packed into IchaLaunch.exe at build time.
+tools/_discord_presence/out/
+tools/_discord_presence/.zig-cache/
+ichalaunch/data/discord_wow/
+
 # Local scratch
 _wiki_addons.wikitext
 *.log

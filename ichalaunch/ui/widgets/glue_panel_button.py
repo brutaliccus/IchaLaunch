@@ -6,12 +6,12 @@ import math
 from pathlib import Path
 
 from PySide6.QtCore import QRect, Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen, QPixmap
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QPushButton, QSizePolicy
 
 from ichalaunch.core.paths import theme_file
 from ichalaunch.ui.widgets.cursors import apply_open_hand
-from ichalaunch.ui.theme_fonts import chrome_family
+from ichalaunch.ui.theme_fonts import chrome_family, ink_centered_rect
 
 _UP_NAME = "Glue-Panel-Button-Up-v2.PNG"
 _DOWN_NAME = "Glue-Panel-Button-Down-v2.PNG"
@@ -32,16 +32,40 @@ GLUE_ROW_W = 100
 GLUE_ROW_H = 28
 GLUE_ROW_MENU_W = 28
 
+# Label metrics. The type grows until the ink spans this fraction of the plate's
+# inner width, so the label fills its button instead of floating in padding.
+_LABEL_FILL = 0.86
+_LABEL_SIDE_PAD = 10
+_LABEL_TOP_PAD = 6
+_LABEL_MIN_PX = 10
+_LABEL_MAX_PX = 22
+
 _GOLD = QColor("#F1C22D")
 _GOLD_SOFT = QColor("#E8C878")
-_TEXT = QColor("#e6e0ee")
-_TEXT_DIM = QColor("#8a8490")
+_TEXT = QColor("#fff3d6")
+_TEXT_DIM = QColor("#8f8574")
 
-# HSV targets for the red *fill* only (border greys are left alone).
-# Standard = muted greyish purple; primary = RavenCraft bright purple.
-_FILL_STANDARD = (275, 95, 1.05)   # hue, sat, value scale
-_FILL_PRIMARY = (268, 175, 1.25)
-_FILL_PRIMARY_BRIGHT = (265, 200, 1.35)
+# HSV targets for the red *fill* only (metal rims are tinted to the Zaeya bronze).
+# These were purple, hues 265 to 275, and purple appears nowhere on
+# ravencraft.io: the site frames everything in brown and bronze stonework with
+# gold headings. The hues now sit on the site's own gold, which measures hue 37
+# for the bronze and 45 for the heading gold.
+#
+# All three value scales are down. STANDARD from 1.05 to 0.82. That is a contrast
+# change, not a taste one: against the old lighter fill the label measured
+# 5.64:1, which clears AA and stops there. On this deeper bronze the same warm
+# parchment measures 7.90:1, which is AAA, and the plate still reads as bronze
+# rather than going muddy.
+#
+# PRIMARY went 1.25 to 0.95 and PRIMARY_BRIGHT 1.35 to 0.95 for the same reason,
+# and those were the worse offenders: the label measured 4.94:1 on primary and
+# 4.29:1 on primary-bright, which FAILS AA outright on the one button in the row
+# most likely to be clicked. A primary action should stand out by saturation,
+# which is still 175 and 200 against standard's 100, rather than by sitting so
+# close to its own label in luminance that the label stops being readable.
+_FILL_STANDARD = (36, 100, 0.82)   # hue, sat, value scale
+_FILL_PRIMARY = (38, 175, 0.95)
+_FILL_PRIMARY_BRIGHT = (42, 200, 0.95)
 
 # Square UPDATE plate: keep L/R metal caps, compress only the middle fill.
 # Caps are the trimmed metal (~16–20px), not the padded 32px of the 512 source
@@ -50,7 +74,7 @@ _LAUNCH_SQUARE_SIDE = 56
 _LAUNCH_SQUARE_CAP = 20
 
 # ContentPanel floor / _FLOOR_BASE — tab plates tint toward this, not purple.
-GLUE_FLOOR_TINT = QColor("#181315")
+GLUE_FLOOR_TINT = QColor("#1b1512")
 # Typical luminance of the glue-plate red fill (center ~107,0,0) so idle
 # fill maps onto GLUE_FLOOR_TINT while metal bevels keep relative contrast.
 _FLOOR_REF_LUM = 32.0
@@ -98,6 +122,37 @@ def _is_red_fill(c: QColor) -> bool:
     return (h <= 18 or h >= 345) and c.saturation() >= 70 and c.value() >= 25
 
 
+def _tint_metal_rim(img: QImage) -> QImage:
+    """Colorize glue-plate metal (non-fill) toward the Zaeya home rim."""
+    if img.isNull():
+        return QImage()
+    if img.format() != QImage.Format.Format_ARGB32:
+        img = img.convertToFormat(QImage.Format.Format_ARGB32)
+    from ichalaunch.ui.widgets.wow_tooltip import home_rim_gold
+
+    gold = home_rim_gold()
+    ref = max(_luminance(gold), 1.0)
+    tr, tg, tb = gold.red(), gold.green(), gold.blue()
+    out = img.copy()
+    for y in range(out.height()):
+        for x in range(out.width()):
+            c = QColor.fromRgba(out.pixel(x, y))
+            if c.alpha() < 8 or _is_red_fill(c):
+                continue
+            factor = _luminance(c) / ref
+            out.setPixel(
+                x,
+                y,
+                QColor(
+                    max(0, min(255, int(round(tr * factor)))),
+                    max(0, min(255, int(round(tg * factor)))),
+                    max(0, min(255, int(round(tb * factor)))),
+                    c.alpha(),
+                ).rgba(),
+            )
+    return out
+
+
 def _recolor_fill(src: QImage, hue: int, sat: int, value_scale: float) -> QPixmap:
     if src.isNull():
         return QPixmap()
@@ -118,7 +173,7 @@ def _colored_pm(bundled: str, external: Path, role: str, disabled: bool) -> QPix
     hit = _RECOLOR.get(key)
     if hit is not None:
         return hit
-    src = _load_image(bundled, external)
+    src = _tint_metal_rim(_load_image(bundled, external))
     if role == "primary_bright":
         hue, sat, scale = _FILL_PRIMARY_BRIGHT
     elif role == "primary":
@@ -160,7 +215,7 @@ def glue_chrome_pixmap(
     disabled: bool = False,
     variant: str = _CHROME_PANEL,
 ) -> QPixmap:
-    """Recolored Glue-Panel / BiggerButton Up/Down art (red fill → purple)."""
+    """Recolored Glue-Panel / BiggerButton Up/Down art (fill + Zaeya-bronze rim)."""
     if role not in ("standard", "primary", "primary_bright"):
         role = "standard"
     name, ext = _chrome_sources(pressed=pressed, variant=variant)
@@ -326,20 +381,51 @@ def tint_pixmap_toward_color(
     return QPixmap.fromImage(out) if not out.isNull() else QPixmap()
 
 
-def _tint_art_toward_floor(src: QImage, target: QColor, lift: float) -> QPixmap:
-    """Pixel-filter every opaque texel toward ``target``, keeping bevel contrast.
+def _tint_floor_fill_and_rim(src: QImage, lift: float) -> QPixmap:
+    """Floor-tint the red fill; colorize metal rims toward the Zaeya bronze.
 
-    Fill luminance (~32) maps onto the target; brighter metal stays relatively
-    lighter so the plate still reads as Glue-Panel chrome, not a flat swatch.
+    Fill luminance (~32) maps onto ``GLUE_FLOOR_TINT`` so idle/hover/selected
+    still read as the ContentPanel. Border texels use the same rim gold as
+    window chrome, not the floor swatch.
     """
     if src.isNull():
         return QPixmap()
-    out = tint_image_toward_color(src, target, lift=lift)
-    return QPixmap.fromImage(out) if not out.isNull() else QPixmap()
+    if src.format() != QImage.Format.Format_ARGB32:
+        src = src.convertToFormat(QImage.Format.Format_ARGB32)
+    from ichalaunch.ui.widgets.wow_tooltip import home_rim_gold
+
+    gold = home_rim_gold()
+    gold_ref = max(_luminance(gold), 1.0)
+    fr, fg, fb = GLUE_FLOOR_TINT.red(), GLUE_FLOOR_TINT.green(), GLUE_FLOOR_TINT.blue()
+    gr, gg, gb = gold.red(), gold.green(), gold.blue()
+    out = src.copy()
+    for y in range(out.height()):
+        for x in range(out.width()):
+            c = QColor.fromRgba(out.pixel(x, y))
+            a = c.alpha()
+            if a < 8:
+                continue
+            if _is_red_fill(c):
+                factor = (_luminance(c) / _FLOOR_REF_LUM) * lift
+                tr, tg, tb = fr, fg, fb
+            else:
+                factor = _luminance(c) / gold_ref
+                tr, tg, tb = gr, gg, gb
+            out.setPixel(
+                x,
+                y,
+                QColor(
+                    max(0, min(255, int(round(tr * factor)))),
+                    max(0, min(255, int(round(tg * factor)))),
+                    max(0, min(255, int(round(tb * factor)))),
+                    a,
+                ).rgba(),
+            )
+    return QPixmap.fromImage(out)
 
 
 def glue_floor_chrome_pixmap(*, pressed: bool = False, shade: str = "idle") -> QPixmap:
-    """Standard Glue-Panel Up/Down art tinted to the ContentPanel floor color."""
+    """Glue-Panel Up/Down: floor-tinted fill, Zaeya-bronze metal rim."""
     if shade not in _FLOOR_SHADE_LIFT:
         shade = "idle"
     key = (bool(pressed), shade)
@@ -347,9 +433,8 @@ def glue_floor_chrome_pixmap(*, pressed: bool = False, shade: str = "idle") -> Q
     if hit is not None:
         return hit
     name, ext = (_DOWN_NAME, _DOWN_EXTERNAL) if pressed else (_UP_NAME, _UP_EXTERNAL)
-    pm = _tint_art_toward_floor(
+    pm = _tint_floor_fill_and_rim(
         _load_image(name, ext),
-        GLUE_FLOOR_TINT,
         _FLOOR_SHADE_LIFT[shade],
     )
     if not pm.isNull():
@@ -363,13 +448,15 @@ def glue_floor_chrome_pixmap(*, pressed: bool = False, shade: str = "idle") -> Q
 def _embellish_launch_fill(src: QImage) -> QPixmap:
     """Red fill → primary purple, then PLAY-style bottom glow + a soft gold underline.
 
-    Same pixel walk as toolbar recolor: metal borders stay untouched. Fill
+    Same pixel walk as toolbar recolor: metal rims are Zaeya-bronze. Fill
     value is darkened at the top and lifted toward the bottom so the taller
     PLAY / REGISTER / UPDATE plates match the old launch chrome gradient.
     """
     if src.isNull():
         return QPixmap()
-    out = src.copy()
+    out = _tint_metal_rim(src)
+    if out.isNull():
+        return QPixmap()
     w, h = out.width(), out.height()
     hue, sat, base_scale = _FILL_PRIMARY
 
@@ -635,7 +722,7 @@ def check_button_glow_for_plate(plate_w: int, plate_h: int) -> QPixmap:
 class GluePanelButton(QPushButton):
     """Main toolbar button painted with Glue-Panel Up/Down PNGs.
 
-    Recolors only the red fill to purple; metal borders stay original.
+    Recolors only the red fill; metal rims tint to the Zaeya bronze.
     Not used for PLAY / REGISTER HERE (LaunchButton) or inline row actions.
     """
 
@@ -758,35 +845,38 @@ class GluePanelButton(QPushButton):
     def paintEvent(self, event) -> None:  # noqa: N802
         del event
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
 
-        if getattr(self, "_glowing", False) and not self._glow_pm.isNull():
-            self._paint_update_glow(painter)
-        rect = self._chrome_rect()
-        name, ext = _chrome_sources(
-            pressed=self.isDown(),
-            variant=self._chrome_variant,
-        )
-        pm = _colored_pm(name, ext, self._role_key(), not self.isEnabled())
-        if pm.isNull():
-            self._paint_fallback(painter, rect)
-        else:
-            painter.drawPixmap(rect, pm)
+            if getattr(self, "_glowing", False) and not self._glow_pm.isNull():
+                self._paint_update_glow(painter)
+            rect = self._chrome_rect()
+            name, ext = _chrome_sources(
+                pressed=self.isDown(),
+                variant=self._chrome_variant,
+            )
+            pm = _colored_pm(name, ext, self._role_key(), not self.isEnabled())
+            if pm.isNull():
+                self._paint_fallback(painter, rect)
+            else:
+                painter.drawPixmap(rect, pm)
 
-        if self.isEnabled() and (self.underMouse() or self._pulse) and self._role == "primary":
-            pen = QPen(_GOLD if self._pulse else _GOLD_SOFT)
-            pen.setWidth(2)
-            painter.setPen(pen)
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawRoundedRect(rect.adjusted(2, 2, -2, -2), 4, 4)
+            if self.isEnabled() and (self.underMouse() or self._pulse) and self._role == "primary":
+                pen = QPen(_GOLD if self._pulse else _GOLD_SOFT)
+                pen.setWidth(2)
+                painter.setPen(pen)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawRoundedRect(rect.adjusted(2, 2, -2, -2), 4, 4)
 
-        self._paint_label(painter, rect)
-        painter.end()
+            self._paint_label(painter, rect)
+        finally:
+            if painter.isActive():
+                painter.end()
 
     def _paint_fallback(self, painter: QPainter, rect: QRect) -> None:
-        fill = QColor("#4a2f7a") if self._role == "primary" else QColor("#2c2632")
-        painter.setPen(QColor("#7a6e88"))
+        fill = QColor("#6b4a1e") if self._role == "primary" else QColor("#2e2820")
+        painter.setPen(QColor("#94836a"))
         painter.setBrush(fill)
         painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 6, 6)
 
@@ -795,19 +885,36 @@ class GluePanelButton(QPushButton):
         font = QFont(self.font())
         font.setFamily(chrome_family())
         font.setBold(True)
-        n = len(text)
-        if n >= 14:
-            px = 11
-        elif n >= 11:
-            px = 12
-        else:
-            px = 13
+        # Size the label to the BUTTON, not to the character count. The old
+        # 11/12/13px ladder keyed off len(text), so a short label on a wide
+        # button floated in padding while a long one on a narrow button still
+        # crowded. Grow the type until the ink spans most of the plate's inner
+        # width, which lands every button at the same optical weight however
+        # wide it is.
+        inner_w = max(8, rect.width() - _LABEL_SIDE_PAD * 2)
+        inner_h = max(8, rect.height() - _LABEL_TOP_PAD * 2)
+        px = _LABEL_MIN_PX
+        while px < _LABEL_MAX_PX:
+            font.setPixelSize(px + 1)
+            fm = QFontMetrics(font)
+            if fm.horizontalAdvance(text) > inner_w * _LABEL_FILL or fm.height() > inner_h:
+                break
+            px += 1
         font.setPixelSize(px)
         painter.setFont(font)
 
         # Same label color for standard/primary — only the fill is recolored.
+        # Measured against the painted bronze fill (~#705e44): the old #ece3d2
+        # scored 4.89:1, which clears AA and nothing more. This is 5.64:1 and
+        # keeps the site's warm parchment rather than going to flat white.
         color = _TEXT_DIM if not self.isEnabled() else _TEXT
         text_rect = rect.adjusted(0, 1 if self.isDown() else 0, 0, 0)
+        # Qt's AlignCenter centres the LINE BOX, not the ink. Folkard carries a
+        # tall ascent with the capitals sitting low inside it, so the label rode
+        # high enough that the R on "Rescan" touched the plate's top edge while
+        # a wide gap sat under the baseline. theme_fonts already solves this and
+        # the launch plate has used it all along; this widget never adopted it.
+        text_rect = ink_centered_rect(text_rect, font, text)
         painter.setPen(QColor(0, 0, 0, 140))
         painter.drawText(text_rect.adjusted(1, 1, 1, 1), Qt.AlignmentFlag.AlignCenter, text)
         painter.setPen(color)

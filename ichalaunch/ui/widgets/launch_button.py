@@ -8,6 +8,10 @@ from pathlib import Path
 from PySide6.QtCore import QRect, Qt, QTimer
 from PySide6.QtGui import (
     QColor,
+    QPen,
+    QGradient,
+    QLinearGradient,
+    QConicalGradient,
     QFont,
     QFontMetrics,
     QImage,
@@ -20,13 +24,49 @@ from PySide6.QtWidgets import QPushButton, QSizePolicy
 from ichalaunch.core.paths import theme_file
 from ichalaunch.ui.widgets.cursors import apply_open_hand
 from ichalaunch.ui.widgets.glue_panel_button import launch_glue_chrome
+from ichalaunch.ui.widgets.gradient_label import (
+    LAVA_RIM,
+    lava_ticker,
+    gold_pen,
+    lava_text_pen,
+)
 from ichalaunch.ui.theme_fonts import chrome_family, ink_centered_rect
 
 # RavenCraft palette
 _GOLD = QColor("#F1C22D")
 _GOLD_SOFT = QColor("#E8C878")
 _MUTED = QColor("#6a6358")
-_PURPLE = QColor("#7c5cc4")
+# The Glue plate art is red in the original WoW textures. It is recoloured to
+# the site's bronze rather than the launcher's old purple: purple appears nowhere
+# on ravencraft.io and read as the most off-brand element in the window.
+_PLATE_TINT = QColor("#c9953f")
+# Hover halo. The site's heading gold, drawn as the plate's own silhouette a few
+# times at growing size with falling alpha, so the plate reads as lit from
+# behind. Kept small and dim on purpose: any more and it stops looking like
+# enchantment and starts looking like a browser focus ring.
+_GLOW_STEPS = 5
+_GLOW_STEP_PX = 3
+# A bright arc travels around the plate's edge while hovered, which is the move
+# every "glowing button" tutorial makes: a gradient that rotates rather than a
+# halo that simply sits there. Here it is a conical gradient swept over the
+# plate's own silhouette, so the light follows the real outline and its bevels.
+_SWEEP_MS = 33          # ~30fps; one button, and only while the pointer is on it
+_SWEEP_PERIOD_MS = 4200  # a full turn; slow reads as molten, fast reads as a loading spinner
+# Halo. Padding gives the blur room to spread past the plate; the radius is what
+# turns a hard silhouette into light falling off into the dark. Both are
+# generous on purpose: a tight blur still reads as an outline with soft edges,
+# and the target is a warm bulb, where you cannot say where the light stops.
+# Zero since the halo was removed. This was breathing room for the glow to fall
+# off in, because Qt clips painting to the widget rectangle and a blur drawn to
+# the edge ends on a hard line. With nothing spilling out any more it was only
+# padding the widget, holding the plate away from the bar's edge and pushing the
+# update button to 104px inside an 80px slot.
+_GLOW_MARGIN = 0
+# Lava, not a flat gold band. The ramp runs ember, through orange, to a
+# white-hot core and back, which is the same journey the site's own heading
+# gradient makes (#F1C22D to #FF7757) taken further in both directions. The
+# stops are placed so the hot core is narrow and the ember tail is long, which
+# is what reads as molten rather than as a glowing outline.
 
 _PLAY_W = 200
 _PLAY_H = 56
@@ -140,7 +180,7 @@ def _check_button_glow() -> QPixmap:
 class LaunchButton(QPushButton):
     """PLAY / INSTALL / REGISTER chrome button (objectName PlayButton).
 
-    Uses taller WoW Glue-Panel art: red fill is shifted to purple, then a
+    Uses taller WoW Glue-Panel art: red fill is shifted to the site bronze, then a
     bottom-weighted gradient and gold underline are painted the same way
     (per-pixel). Hover stays on the Up plate; Down art is click-only.
     """
@@ -160,7 +200,10 @@ class LaunchButton(QPushButton):
         apply_open_hand(self)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        self.setFixedSize(width, height)
+        # Kept as a field rather than inlined: paintEvent still insets by it, so
+        # a future effect that needs room to spill can set it again in one place.
+        self._glow_margin = _GLOW_MARGIN
+        self.setFixedSize(width + _GLOW_MARGIN * 2, height + _GLOW_MARGIN * 2)
         # Let paintEvent own the look — strip QSS chrome for this widget.
         self.setFlat(True)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
@@ -176,6 +219,11 @@ class LaunchButton(QPushButton):
         self._square_chrome = bool(square_chrome)
         self._chrome: QPixmap | None = None
         self._chrome_pressed: QPixmap | None = None
+        self._glow_cache = QPixmap()
+        self._glow_key = None
+        self._halo_cache = QPixmap()
+        self._halo_key = None
+
         self._chrome_disabled: QPixmap | None = None
         self._load_chrome()
 
@@ -196,21 +244,26 @@ class LaunchButton(QPushButton):
 
     def paintEvent(self, event) -> None:  # noqa: N802
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
 
-        rect = self.rect()
-        chrome = self._pick_chrome()
-        if chrome is not None and not chrome.isNull():
-            # Slight press inset for tactile feel
-            draw_rect = rect.adjusted(1, 2, -1, 0) if self.isDown() else rect
-            painter.drawPixmap(draw_rect, chrome)
-        else:
-            self._paint_fallback_chrome(painter, rect)
+            rect = self.rect().adjusted(
+                self._glow_margin, self._glow_margin, -self._glow_margin, -self._glow_margin
+            )
+            chrome = self._pick_chrome()
+            if chrome is not None and not chrome.isNull():
+                # Slight press inset for tactile feel
+                draw_rect = rect.adjusted(1, 2, -1, 0) if self.isDown() else rect
+                painter.drawPixmap(draw_rect, chrome)
+            else:
+                self._paint_fallback_chrome(painter, rect)
 
-        self._paint_label(painter, rect)
-        painter.end()
+            self._paint_label(painter, rect)
+        finally:
+            if painter.isActive():
+                painter.end()
 
     def _pick_chrome(self) -> QPixmap | None:
         if not self.isEnabled():
@@ -230,7 +283,7 @@ class LaunchButton(QPushButton):
         painter.setBrush(QColor(18, 14, 12))
         painter.drawRoundedRect(inner, 3, 3)
         # bottom glow
-        glow = QColor(_PURPLE)
+        glow = QColor(_PLATE_TINT)
         for i in range(18):
             glow.setAlpha(max(0, 140 - i * 8))
             y = inner.bottom() - i
@@ -319,8 +372,34 @@ class LaunchButton(QPushButton):
             flags |= Qt.TextFlag.TextWordWrap
         painter.setPen(shadow)
         painter.drawText(text_rect.adjusted(1, 2, 1, 2), flags, draw)
-        painter.setPen(color)
+        # Gold label takes the site ramp. Disabled and pressed keep their flat
+        # colours, so the plate still reads as unavailable or held down.
+        if color is _GOLD:
+            # Always molten: this is the one element that does not wait to be
+            # pointed at.
+            painter.setPen(lava_text_pen(text_rect, self._sweep_deg))
+        elif color is _GOLD:
+            painter.setPen(gold_pen(text_rect))
+        else:
+            painter.setPen(color)
         painter.drawText(text_rect, flags, draw)
+
+    # PLAY is the one thing in the window that moves on its own. It is what the
+    # app exists to do, so it stays alive while everything else holds still and
+    # only answers the pointer. It rides the SHARED ticker rather than starting
+    # a timer of its own, so there is exactly one clock in the process driving
+    # both this and any hover state.
+    @property
+    def _sweep_deg(self) -> float:
+        return lava_ticker().phase
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        lava_ticker().subscribe(self)
+
+    def hideEvent(self, event) -> None:  # noqa: N802
+        lava_ticker().unsubscribe(self)
+        super().hideEvent(event)
 
     def enterEvent(self, event) -> None:
         super().enterEvent(event)
@@ -388,22 +467,25 @@ class UpdateLaunchButton(LaunchButton):
 
     def paintEvent(self, event) -> None:  # noqa: N802
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
 
-        chrome_rect = self._chrome_rect()
-        if self.isEnabled() and not self._glow.isNull():
-            self._paint_glow(painter)
-        chrome = self._pick_chrome()
-        if chrome is not None and not chrome.isNull():
-            draw_rect = (
-                chrome_rect.adjusted(1, 2, -1, 0) if self.isDown() else chrome_rect
-            )
-            painter.drawPixmap(draw_rect, chrome)
-        else:
-            self._paint_fallback_chrome(painter, chrome_rect)
+            chrome_rect = self._chrome_rect()
+            if self.isEnabled() and not self._glow.isNull():
+                self._paint_glow(painter)
+            chrome = self._pick_chrome()
+            if chrome is not None and not chrome.isNull():
+                draw_rect = (
+                    chrome_rect.adjusted(1, 2, -1, 0) if self.isDown() else chrome_rect
+                )
+                painter.drawPixmap(draw_rect, chrome)
+            else:
+                self._paint_fallback_chrome(painter, chrome_rect)
 
-        self._paint_arrow(painter, chrome_rect)
-        painter.end()
+            self._paint_arrow(painter, chrome_rect)
+        finally:
+            if painter.isActive():
+                painter.end()
 
     def _paint_glow(self, painter: QPainter) -> None:
         """CheckButtonGlow halo; opacity pulses while an update is waiting."""

@@ -1,3 +1,11 @@
+/* Reading face for everything, with the chrome rules below overriding it for
+   ornament. Set universally here rather than per widget, because the stylesheet
+   beats setFont and a per-widget approach leaves anything nobody remembered to
+   touch on the platform default. */
+* {
+    font-family: "__BODY_FAMILY__", "Segoe UI", "Noto Sans", sans-serif;
+}
+
 /* IchaLaunch — RavenCraft theme (ravencraft.io) */
 
 * {
@@ -8,12 +16,28 @@
    stack is what the launcher fell back to before it was, so a build without
    the font files still renders the way it used to. Body copy, mod and addon
    rows and tooltips deliberately stay on the sans stack above. */
-QLabel#SectionTitle,
-QLabel#CardTitle,
-QLabel#Subtitle,
+/* Small text runs on RAVENCRAFT'S OWN SECONDARY FACE. ravencraft.io declares
+   Fontin-Sans in 10 rules, more than any other family, with Folkard reserved for
+   display. That is the answer to Joe's "is there a secondary font from their website
+   that isn't so garish" (29 Aug). Small caps IS the site's normal weight.
+   Bundled: RavenCraft licenses this face for the site, and this is their launcher. */
 QLabel#HomeModCategory,
 QLabel#SectionSubtitle,
 QLabel#HomeModCategorySub,
+QLabel#HomeModCategoryCount {
+    font-family: "__LABEL_FAMILY__", "__BODY_FAMILY__", sans-serif;
+}
+
+QLabel#CardTitle,
+QLabel#Subtitle {
+    font-family: "__LABEL_FAMILY__", "__BODY_FAMILY__", sans-serif;
+}
+
+/* Display face for HEADERS ONLY. Joe's note, 29 Aug: he liked the font "for all
+   the headers" and wanted "a little 'less' font for the smaller text". Ornate type
+   at 13-18px is the classic amateur tell, so everything small now runs on the sans. */
+QLabel#SectionTitle,
+QLabel#PlayStatus,
 QLabel#ThemedDialogTitle,
 QLabel#CountdownTitle {
     font-family: "__CHROME_FAMILY__", "Segoe UI", "Candara", "Calibri", serif;
@@ -27,7 +51,7 @@ QWidget#Root {
     /* Transparent host — FolderFrameStroke paints metal rails/corners.
        TopNavStrip / ContentPanel / BottomBar carry the fills. */
     background-color: transparent;
-    color: #e6e0ee;
+    color: #F1C22D;
     border: none;
     border-radius: 0;
 }
@@ -40,35 +64,83 @@ QLabel#Brand {
 }
 
 QLabel#Subtitle {
-    color: #9990ab;
+    color: #a8977c;
     font-size: 13px;
+}
+
+/* Tooltips. The sheet carried no QToolTip rule at all, and the app sets 106 of
+   them. On Wayland a tooltip is its own top-level window: it inherits nothing
+   from the panel underneath, so with no background declared it painted its text
+   straight onto whatever happened to be behind it. Unreadable, everywhere, on
+   every tooltip in the launcher, and only visible on Linux.
+
+   Three things are needed, not one. An OPAQUE background, because a
+   transparent or unset one is the bug. An explicit BORDER, because without a
+   frame the tooltip has no edge against a dark panel. And PADDING, because the
+   platform default is nothing once the widget is styled.
+
+   Contrast is measured, not chosen: #ece3d2 on #241c14 is 13.18:1, well past
+   the 7:1 that counts as AAA. */
+QToolTip {
+    background-color: #241c14;
+    color: #ece3d2;
+    border: 1px solid rgba(201, 149, 63, 0.55);
+    border-radius: 4px;
+    padding: 6px 9px;
+    font-size: 13px;
+    opacity: 255;
+}
+
+/* Section headers, including Available / Installed on the Addons tab. 16px was
+   too small to read comfortably on a 5K panel. */
+/* The play-bar status word: Ready, Working, Updated, and the rest. It shared
+   the generic Muted style, which is a cold small grey, so the one line of live
+   feedback in the window was also the quietest thing in it. On the chrome face
+   in the site's gold instead.
+
+   20px, about two thirds of the PLAY label's 30px. Matching PLAY exactly gave a
+   status line and a section label the same visual weight as the window's
+   primary action, which is more than their role warrants. This is the base
+   size: the label still grows sideways before it shrinks, and long strings
+   still reduce from here rather than clipping.
+
+   For reference, 30px is what the PLAY label ACTUALLY renders at, read
+   by instrumenting the widget rather than by reimplementing its fit loop. A
+   hand replication gave 25 and was wrong, because the real loop applies letter
+   tracking and measures the ink rather than the line box. So the status word,
+   the Contributors label and the launch button all read at one size across the
+   bar. If the plate is ever resized this wants re-measuring the same way. */
+QLabel#PlayStatus {
+    color: #F1C22D;
+    font-size: 20px;
+    font-weight: 600;
+    background: transparent;
 }
 
 QLabel#SectionTitle {
     color: #F1C22D;
-    font-size: 16px;
+    font-size: 21px;
     font-weight: 600;
 }
 
 /* The quieter half of a title lockup: same face, smaller, and stepped down in
    colour so it reads as a qualifier rather than a second heading. */
 QLabel#SectionSubtitle {
-    color: #9990ab;
-    font-size: 11px;
-    font-weight: 400;
-    padding-bottom: 2px;
+    color: #a8977c;
+    font-size: 12px;
 }
 
 QLabel#HomeModCategorySub {
-    color: #8a7f70;
-    font-size: 10px;
-    font-weight: 400;
-    padding-left: 1px;
-    padding-bottom: 3px;
+    color: #a8977c;
+    font-size: 12px;
+}
+
+QLabel#RowDesc {
+    color: #F1C22D;
 }
 
 QLabel#Muted {
-    color: #9990ab;
+    color: #a8977c;
 }
 
 QLabel#AddonDownloadCountLabel {
@@ -78,42 +150,41 @@ QLabel#AddonDownloadCountLabel {
 }
 
 QFrame#Card, QFrame.Card {
-    background-color: #181315;
-    border: 1px solid rgba(124, 92, 196, 0.28);
+    background-color: #1b1512;
+    border: 1px solid rgba(201, 149, 63, 0.28);
     border-radius: 10px;
 }
 
-/* Installed-mods panel — opaque base; DarkForest art painted in HomeModsCard. */
+/* Installed-mods panel — fill + Zaeya home-art frame painted in HomeModsCard. */
 QFrame#HomeModsCard {
-    background-color: #181315;
-    border: 1px solid rgba(124, 92, 196, 0.28);
-    border-radius: 10px;
+    background-color: transparent;
+    border: none;
+    border-radius: 0;
 }
 
 QLabel#CardTitle {
     color: #F1C22D;
     font-size: 13px;
     font-weight: 600;
-    letter-spacing: 0.3px;
 }
 
 QPushButton {
-    background-color: #2c2632;
-    color: #e6e0ee;
-    border: 1px solid #7a6e88;
+    background-color: #2e2820;
+    color: #ece3d2;
+    border: 1px solid #94836a;
     border-radius: 8px;
     padding: 8px 14px;
     font-size: 13px;
 }
 
 QPushButton:hover {
-    background-color: #4a2f7a;
-    border-color: #7c5cc4;
+    background-color: #6b4a1e;
+    border-color: #c9953f;
     color: #ffffff;
 }
 
 QPushButton:pressed {
-    background-color: #3a2460;
+    background-color: #4a3314;
     border-color: #F1C22D;
 }
 
@@ -141,7 +212,7 @@ QPushButton#UpdateButtonLead,
 QPushButton#UpdateAllButton,
 QPushButton#ApplyReadyButton,
 QPushButton#ApplyReadyButtonPulse {
-    background-color: #4a2f7a;
+    background-color: #6b4a1e;
     color: #ffffff;
     border: 1px solid #F1C22D;
     border-radius: 8px;
@@ -156,7 +227,7 @@ QPushButton#UpdateButtonLead:hover,
 QPushButton#UpdateAllButton:hover,
 QPushButton#ApplyReadyButton:hover,
 QPushButton#ApplyReadyButtonPulse:hover {
-    background-color: #7c5cc4;
+    background-color: #c9953f;
     border-color: #FF7757;
     color: #ffffff;
 }
@@ -166,7 +237,7 @@ QPushButton#UpdateButtonLead:pressed,
 QPushButton#UpdateAllButton:pressed,
 QPushButton#ApplyReadyButton:pressed,
 QPushButton#ApplyReadyButtonPulse:pressed {
-    background-color: #3a2460;
+    background-color: #4a3314;
     border-color: #F1C22D;
 }
 
@@ -175,11 +246,11 @@ QPushButton#UpdateButtonLead:disabled,
 QPushButton#UpdateAllButton:disabled {
     background-color: #2a2428;
     color: #666;
-    border-color: rgba(150, 131, 158, 0.2);
+    border-color: rgba(163, 140, 106, 0.2);
 }
 
 QPushButton#UpdateButton {
-    background-color: #4a2f7a;
+    background-color: #6b4a1e;
     color: #ffffff;
     border: 1px solid #F1C22D;
     border-radius: 8px;
@@ -189,7 +260,7 @@ QPushButton#UpdateButton {
 }
 
 QPushButton#UpdateButtonLead {
-    background-color: #4a2f7a;
+    background-color: #6b4a1e;
     color: #ffffff;
     border: 1px solid #F1C22D;
     border-right: none;
@@ -206,9 +277,9 @@ QPushButton#UpdateButtonLead {
 QPushButton#ReinstallButton,
 QPushButton#InstallButton,
 QPushButton#RemoveButton {
-    background-color: #2c2632;
-    color: #e6e0ee;
-    border: 1px solid #7a6e88;
+    background-color: #2e2820;
+    color: #ece3d2;
+    border: 1px solid #94836a;
     border-radius: 8px;
     padding: 4px 12px;
     min-height: 22px;
@@ -218,22 +289,22 @@ QPushButton#RemoveButton {
 QPushButton#ReinstallButton:hover,
 QPushButton#InstallButton:hover,
 QPushButton#RemoveButton:hover {
-    background-color: #4a2f7a;
-    border-color: #7c5cc4;
+    background-color: #6b4a1e;
+    border-color: #c9953f;
     color: #ffffff;
 }
 
 QPushButton#ReinstallButton:pressed,
 QPushButton#InstallButton:pressed,
 QPushButton#RemoveButton:pressed {
-    background-color: #3a2460;
+    background-color: #4a3314;
     border-color: #F1C22D;
 }
 
 QPushButton#ReinstallButton {
-    background-color: #2c2632;
-    color: #e6e0ee;
-    border: 1px solid #7a6e88;
+    background-color: #2e2820;
+    color: #ece3d2;
+    border: 1px solid #94836a;
     border-radius: 8px;
     padding: 4px 12px;
     min-width: 100px;
@@ -253,9 +324,9 @@ QPushButton#OpenGitButton {
 
 QPushButton#InstallButton,
 QPushButton#RemoveButton {
-    background-color: #2c2632;
-    color: #e6e0ee;
-    border: 1px solid #7a6e88;
+    background-color: #2e2820;
+    color: #ece3d2;
+    border: 1px solid #94836a;
     border-radius: 8px;
     padding: 4px 12px;
     min-width: 72px;
@@ -264,7 +335,7 @@ QPushButton#RemoveButton {
 
 /* Caret is a QPushButton (not InstantPopup QToolButton) to avoid orphan popup flashes. */
 QPushButton#UpdateMenuButton {
-    background-color: #4a2f7a;
+    background-color: #6b4a1e;
     color: #ffffff;
     border: 1px solid #F1C22D;
     border-left: none;
@@ -279,7 +350,7 @@ QPushButton#UpdateMenuButton {
 }
 
 QPushButton#UpdateMenuButton:hover {
-    background-color: #7c5cc4;
+    background-color: #c9953f;
     border-color: #FF7757;
 }
 
@@ -358,8 +429,8 @@ QWidget#BottomBar {
 /* Opaque base in QSS; marble tiles painted in MarblePanel.paintEvent (flush to stroke). */
 QWidget#ClientCatNav,
 QWidget#AddonsWindow {
-    background-color: #181315;
-    border: 1px solid rgba(124, 92, 196, 0.30);
+    background-color: #1b1512;
+    border: 1px solid rgba(201, 149, 63, 0.30);
     border-radius: 10px;
     padding: 0;
 }
@@ -369,7 +440,7 @@ QWidget#ClientCatPanel,
 QWidget#ClientCatHost,
 QStackedWidget#ClientCatStack {
     background: transparent;
-    color: #e6e0ee;
+    color: #ece3d2;
 }
 
 /* Settings: let ContentPanel Necrolord floor show through (same as Home/Addons).
@@ -381,8 +452,8 @@ QScrollArea#SettingsScroll {
 
 /* Opaque base in QSS; marble tiles painted on the scroll frame (flush to stroke). */
 QScrollArea#ClientCatScroll {
-    background-color: #181315;
-    border: 1px solid rgba(150, 131, 158, 0.18);
+    background-color: #1b1512;
+    border: 1px solid rgba(163, 140, 106, 0.18);
     border-radius: 10px;
     padding: 0;
 }
@@ -412,15 +483,45 @@ QWidget#HomeModsHost {
     background-color: transparent;
 }
 
+/* The category band. The shading and the rules live on the row, not on the
+   labels, so the heading and its count sit inside one block however the heading
+   wraps. Categories were previously separated by colour and spacing alone, which
+   does not survive a glance down the list. */
+QFrame#HomeModCategoryRow {
+    background-color: rgba(241, 194, 45, 0.07);
+    border-top: 1px solid rgba(241, 194, 45, 0.30);
+    border-bottom: 1px solid rgba(241, 194, 45, 0.15);
+    margin-top: 6px;
+    margin-bottom: 4px;
+}
+
+/* On the chrome face, like the tabs and the site's own headings. The earlier
+   attempt at this failed because it was tried at 30px, where the two longest
+   category names are wider than a 320px drawer and were painted under the
+   scrollbar. The face was never the problem, the size was. At 18px the longest
+   name and its count sit on one line with room to spare, and the panel stops
+   disagreeing with both the site and the rest of the launcher. */
 QLabel#HomeModCategory {
-    color: #F1C22D;
+    color: #c9953f;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+}
+
+/* The count rides the heading's row, right aligned, in the same gold. No second
+   typographic voice, so it reads as a property of the category rather than as an
+   orphaned line. Contrast against the band is 8.6:1, past the 7:1 that counts as
+   AAA; the grey it replaced scored 3.91 and failed AA outright. */
+QLabel#HomeModCategoryCount {
+    color: #a8977c;
     font-size: 12px;
     font-weight: 600;
 }
 
 QLabel#HomeModItem {
-    color: #e6e0ee;
+    color: #F1C22D;
     font-size: 13px;
+    padding-left: 14px;
 }
 
 QPushButton#CatNavButton {
@@ -431,17 +532,17 @@ QPushButton#CatNavButton {
     background: transparent;
     font-size: 13px;
     font-weight: 600;
-    color: #9990ab;
+    color: #a8977c;
 }
 
 QPushButton#CatNavButton:hover {
-    background-color: rgba(124, 92, 196, 0.16);
-    color: #e6e0ee;
+    background-color: rgba(201, 149, 63, 0.16);
+    color: #ece3d2;
     border-radius: 8px;
 }
 
 QPushButton#CatNavButton:checked {
-    background-color: rgba(74, 47, 122, 0.35);
+    background-color: rgba(107, 74, 30, 0.35);
     color: #F1C22D;
     border-left: 3px solid #F1C22D;
     border-radius: 8px;
@@ -449,8 +550,8 @@ QPushButton#CatNavButton:checked {
 
 /* Light wash so ClientCatScroll marble shows through row gaps / edges. */
 QWidget#ModCheckRow {
-    background-color: rgba(120, 100, 150, 0.045);
-    border: 1px solid rgba(150, 131, 158, 0.14);
+    background-color: rgba(150, 122, 78, 0.045);
+    border: 1px solid rgba(163, 140, 106, 0.14);
     border-radius: 8px;
 }
 
@@ -467,14 +568,14 @@ QLabel#UpdateAlertBadge {
 }
 
 QLabel#ModRowName {
-    color: #e6e0ee;
+    color: #F1C22D;
     font-weight: 600;
 }
 
 QPushButton#DescToggle {
     border: none;
     background: transparent;
-    color: #9990ab;
+    color: #a8977c;
     padding: 0;
     min-width: 18px;
 }
@@ -485,20 +586,20 @@ QPushButton#DescToggle:hover {
 }
 
 QPushButton#DescToggle:pressed {
-    color: #7c5cc4;
+    color: #c9953f;
     background: transparent;
 }
 
 QLabel#StatusMuted {
-    color: #9990ab;
+    color: #a8977c;
 }
 
 QLabel#StatusOk {
-    color: #7c5cc4;
+    color: #c9953f;
 }
 
 QLabel#StatusUpdate {
-    color: #F1C22D;
+    color: #FFE9A8;
 }
 
 QLabel#StatusWarning {
@@ -513,22 +614,22 @@ QProgressBar#BottomProgress {
 
 /* Legacy chunk styles unused by ThemeLoadingBar; kept harmless if QProgressBar returns. */
 QProgressBar#BottomProgress::chunk {
-    background-color: #7c5cc4;
+    background-color: #c9953f;
     border-radius: 3px;
 }
 
 QLineEdit, QTextEdit, QPlainTextEdit {
-    background-color: rgba(120, 100, 150, 0.10);
-    color: #e6e0ee;
-    border: 1px solid rgba(150, 131, 158, 0.18);
+    background-color: rgba(150, 122, 78, 0.10);
+    color: #ece3d2;
+    border: 1px solid rgba(163, 140, 106, 0.18);
     border-radius: 8px;
     padding: 8px;
     min-height: 20px;
-    selection-background-color: #7c5cc4;
+    selection-background-color: #c9953f;
 }
 
 QLineEdit:hover {
-    border-color: rgba(124, 92, 196, 0.55);
+    border-color: rgba(201, 149, 63, 0.55);
 }
 
 QLineEdit:focus {
@@ -545,7 +646,7 @@ QLineEdit#SettingsGithubToken {
     border: none;
     border-radius: 0;
     padding: 0;
-    color: #e6e0ee;
+    color: #ece3d2;
 }
 
 QLineEdit#CastingBarSearch:hover,
@@ -563,15 +664,15 @@ QLineEdit#SettingsGithubToken:focus {
 }
 
 QComboBox {
-    background-color: rgba(120, 100, 150, 0.10);
-    color: #e6e0ee;
-    border: 1px solid rgba(150, 131, 158, 0.18);
+    background-color: rgba(150, 122, 78, 0.10);
+    color: #ece3d2;
+    border: 1px solid rgba(163, 140, 106, 0.18);
     border-radius: 8px;
     /* Match GluePanelButton / GlueComboBox (GLUE_BTN_H = 34). */
     padding: 0 32px 0 10px;
     min-height: 34px;
     max-height: 34px;
-    selection-background-color: #7c5cc4;
+    selection-background-color: #c9953f;
 }
 
 QComboBox:hover {
@@ -580,7 +681,7 @@ QComboBox:hover {
 
 QComboBox:on {
     border-color: #F1C22D;
-    background-color: rgba(124, 92, 196, 0.18);
+    background-color: rgba(201, 149, 63, 0.18);
 }
 
 QComboBox::drop-down {
@@ -599,12 +700,12 @@ QComboBox::down-arrow {
 
 QComboBox QAbstractItemView {
     background-color: #100d0c;
-    color: #e6e0ee;
-    border: 1px solid rgba(150, 131, 158, 0.2);
+    color: #ece3d2;
+    border: 1px solid rgba(163, 140, 106, 0.2);
     border-radius: 8px;
     outline: none;
     padding: 4px;
-    selection-background-color: #4a2f7a;
+    selection-background-color: #6b4a1e;
     selection-color: #ffffff;
 }
 
@@ -617,7 +718,7 @@ QComboBox QAbstractItemView::item {
 QAbstractButton#ThemeCheckBox {
     background: transparent;
     border: none;
-    color: #e6e0ee;
+    color: #F1C22D;
     min-height: 28px;
     padding: 0;
     margin: 0;
@@ -629,7 +730,7 @@ QAbstractButton#ThemeRadioButton,
 QAbstractButton#ThemePresetRadio {
     background: transparent;
     border: none;
-    color: #e6e0ee;
+    color: #F1C22D;
     min-height: 28px;
     padding: 0;
     margin: 0;
@@ -639,7 +740,7 @@ QAbstractButton#ThemePresetRadio {
 /* Legacy QCheckBox rules kept harmless if any remain. */
 QCheckBox {
     spacing: 10px;
-    color: #e6e0ee;
+    color: #F1C22D;
     min-height: 28px;
     padding: 2px 0 2px 0;
     margin: 0;
@@ -653,11 +754,11 @@ QCheckBox::indicator {
 }
 
 QProgressBar {
-    background-color: rgba(120, 100, 150, 0.10);
-    border: 1px solid rgba(150, 131, 158, 0.15);
+    background-color: rgba(150, 122, 78, 0.10);
+    border: 1px solid rgba(163, 140, 106, 0.15);
     border-radius: 4px;
     text-align: center;
-    color: #e6e0ee;
+    color: #ece3d2;
     height: 18px;
 }
 
@@ -676,30 +777,31 @@ QAbstractScrollArea::viewport {
     background: transparent;
 }
 
-/* RavenCraft scrollbars — thin dark track, purple thumb, gold on hover */
+/* RavenCraft scrollbars — metal-v thumb (recovered art, 25% narrower, rim-tinted) */
 QScrollBar:vertical {
-    background: #181315;
-    width: 9px;
-    margin: 2px 1px 2px 1px;
+    /* 16px source squeezed to 12px. No right-margin bracket align — Home mods
+       no longer wears metal corner ornaments. */
+    background: #14100e;
+    width: 12px;
+    margin: 2px 0px 2px 0px;
     border: none;
-    border-radius: 4px;
+    border-radius: 0;
 }
 
 QScrollBar::handle:vertical {
-    background: #4a2f7a;
-    border: 1px solid rgba(241, 194, 45, 0.25);
-    border-radius: 4px;
-    min-height: 28px;
+    /* Same three-piece as before: 12px caps (was 16) stay native, middle tiles.
+       Placeholder is the tinted 12px strip written at stylesheet load. */
+    border-image: url(__SCROLLBAR_METAL_V__) 12 0 12 0 repeat repeat;
+    background: transparent;
+    min-height: 36px;
+    border-radius: 0;
+    margin: 0;
 }
 
-QScrollBar::handle:vertical:hover {
-    background: #7c5cc4;
-    border-color: #F1C22D;
-}
-
+QScrollBar::handle:vertical:hover,
 QScrollBar::handle:vertical:pressed {
-    background: #F1C22D;
-    border-color: #F1C22D;
+    border-image: url(__SCROLLBAR_METAL_V__) 12 0 12 0 repeat repeat;
+    background: transparent;
 }
 
 QScrollBar::add-line:vertical,
@@ -716,7 +818,7 @@ QScrollBar::sub-page:vertical {
 }
 
 QScrollBar:horizontal {
-    background: #181315;
+    background: #1b1512;
     height: 9px;
     margin: 1px 2px 1px 2px;
     border: none;
@@ -724,14 +826,14 @@ QScrollBar:horizontal {
 }
 
 QScrollBar::handle:horizontal {
-    background: #4a2f7a;
+    background: #6b4a1e;
     border: 1px solid rgba(241, 194, 45, 0.25);
     border-radius: 4px;
     min-width: 28px;
 }
 
 QScrollBar::handle:horizontal:hover {
-    background: #7c5cc4;
+    background: #c9953f;
     border-color: #F1C22D;
 }
 
@@ -754,10 +856,10 @@ QScrollBar::sub-page:horizontal {
 }
 
 QListWidget, QTreeWidget, QTableWidget {
-    background-color: #181315;
-    border: 1px solid rgba(124, 92, 196, 0.25);
+    background-color: #1b1512;
+    border: 1px solid rgba(201, 149, 63, 0.25);
     border-radius: 8px;
-    color: #e6e0ee;
+    color: #F1C22D;
     outline: none;
     padding: 4px;
 }
@@ -765,9 +867,9 @@ QListWidget, QTreeWidget, QTableWidget {
 /* Addon lists — viewport transparent so MarbleListWidget can tile marble.
    padding:0 so marble meets the purple stroke (global QListWidget has 4px pad). */
 QListWidget#MarbleList {
-    background-color: #181315;
+    background-color: #1b1512;
     padding: 0;
-    border: 1px solid rgba(124, 92, 196, 0.25);
+    border: 1px solid rgba(201, 149, 63, 0.25);
     border-radius: 8px;
 }
 
@@ -781,51 +883,51 @@ QListWidget#MarbleList QWidget#qt_scrollarea_viewport {
 QListWidget::item, QTreeWidget::item {
     padding: 4px 6px;
     border-radius: 6px;
-    color: #e6e0ee;
+    color: #F1C22D;
     background: transparent;
 }
 
 /* Soft hover — avoid opaque item fills that fight marble + item widgets. */
 QListWidget#MarbleList::item:hover {
-    background-color: rgba(124, 92, 196, 0.10);
+    background-color: rgba(201, 149, 63, 0.10);
 }
 
 QListWidget::item:hover, QTreeWidget::item:hover {
-    background-color: rgba(124, 92, 196, 0.18);
+    background-color: rgba(201, 149, 63, 0.18);
 }
 
 QListWidget#MarbleList::item:selected {
-    background-color: rgba(74, 47, 122, 0.35);
+    background-color: rgba(107, 74, 30, 0.35);
     color: #ffffff;
 }
 
 QListWidget::item:selected, QTreeWidget::item:selected {
-    background-color: #4a2f7a;
+    background-color: #6b4a1e;
     color: #ffffff;
 }
 
 QStatusBar {
     background-color: #100d0c;
-    color: #9990ab;
-    border-top: 1px solid rgba(150, 131, 158, 0.15);
+    color: #a8977c;
+    border-top: 1px solid rgba(163, 140, 106, 0.15);
 }
 
 QTabWidget::pane {
-    border: 1px solid rgba(150, 131, 158, 0.15);
-    background: rgba(120, 100, 150, 0.06);
+    border: 1px solid rgba(163, 140, 106, 0.15);
+    background: rgba(150, 122, 78, 0.06);
 }
 
 QTabBar::tab {
-    background: rgba(120, 100, 150, 0.10);
-    color: #9990ab;
+    background: rgba(150, 122, 78, 0.10);
+    color: #a8977c;
     padding: 8px 16px;
-    border: 1px solid rgba(150, 131, 158, 0.15);
+    border: 1px solid rgba(163, 140, 106, 0.15);
     border-bottom: none;
 }
 
 QTabBar::tab:selected {
     color: #F1C22D;
-    background: #181315;
+    background: #1b1512;
 }
 
 QMessageBox {
@@ -839,7 +941,7 @@ QDialog#ThemedDialog {
 
 QWidget#ThemedDialogCard {
     background-color: #100d0c;
-    border: 1px solid rgba(150, 131, 158, 0.22);
+    border: 1px solid rgba(163, 140, 106, 0.22);
     border-radius: 10px;
 }
 
@@ -851,7 +953,7 @@ QLabel#ThemedDialogTitle {
 }
 
 QLabel#ThemedDialogBody {
-    color: #e6e0ee;
+    color: #ece3d2;
     font-size: 13px;
     line-height: 1.35;
 }
@@ -864,23 +966,23 @@ QLabel#ThemedDialogSection {
 }
 
 QLabel#ThemedDialogHint {
-    color: #6e6678;
+    color: #a3937a;
     font-size: 12px;
     line-height: 1.35;
 }
 
 QSpinBox, QDoubleSpinBox {
-    background-color: rgba(120, 100, 150, 0.10);
-    color: #e6e0ee;
-    border: 1px solid rgba(150, 131, 158, 0.18);
+    background-color: rgba(150, 122, 78, 0.10);
+    color: #ece3d2;
+    border: 1px solid rgba(163, 140, 106, 0.18);
     border-radius: 8px;
     padding: 4px 8px;
     min-height: 22px;
-    selection-background-color: #7c5cc4;
+    selection-background-color: #c9953f;
 }
 
 QSpinBox:hover, QDoubleSpinBox:hover {
-    border-color: rgba(124, 92, 196, 0.55);
+    border-color: rgba(201, 149, 63, 0.55);
 }
 
 QSpinBox:focus, QDoubleSpinBox:focus {
@@ -888,24 +990,24 @@ QSpinBox:focus, QDoubleSpinBox:focus {
 }
 
 QSpinBox:disabled, QDoubleSpinBox:disabled {
-    color: #6e6678;
+    color: #a3937a;
 }
 
 QSpinBox::up-button, QDoubleSpinBox::up-button,
 QSpinBox::down-button, QDoubleSpinBox::down-button {
-    background: rgba(120, 100, 150, 0.18);
+    background: rgba(150, 122, 78, 0.18);
     border: none;
     width: 16px;
 }
 
 QSlider::groove:horizontal {
     height: 4px;
-    background: rgba(150, 131, 158, 0.22);
+    background: rgba(163, 140, 106, 0.22);
     border-radius: 2px;
 }
 
 QSlider::sub-page:horizontal {
-    background: #7c5cc4;
+    background: #c9953f;
     border-radius: 2px;
 }
 
@@ -927,7 +1029,7 @@ QSlider:disabled {
 }
 
 QPushButton#ThemedDialogPrimary {
-    background-color: #4a2f7a;
+    background-color: #6b4a1e;
     color: #ffffff;
     border: 1px solid #F1C22D;
     border-radius: 8px;
@@ -937,35 +1039,35 @@ QPushButton#ThemedDialogPrimary {
 }
 
 QPushButton#ThemedDialogPrimary:hover {
-    background-color: #7c5cc4;
+    background-color: #c9953f;
     border-color: #FF7757;
 }
 
 QPushButton#ThemedDialogSecondary {
-    background-color: rgba(120, 100, 150, 0.10);
-    color: #e6e0ee;
-    border: 1px solid rgba(150, 131, 158, 0.18);
+    background-color: rgba(150, 122, 78, 0.10);
+    color: #ece3d2;
+    border: 1px solid rgba(163, 140, 106, 0.18);
     border-radius: 8px;
     padding: 8px 18px;
     min-width: 72px;
 }
 
 QPushButton#ThemedDialogSecondary:hover {
-    background-color: rgba(124, 92, 196, 0.22);
-    border-color: #7c5cc4;
+    background-color: rgba(201, 149, 63, 0.22);
+    border-color: #c9953f;
 }
 
 /* Launch countdown (ravencraft.io) */
 QWidget#LaunchCountdown QLabel#CountdownTitle {
-    color: #9990ab;
+    color: #a8977c;
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 2px;
 }
 
 QFrame#CountCell {
-    background-color: rgba(120, 100, 150, 0.08);
-    border: 1px solid rgba(150, 131, 158, 0.15);
+    background-color: rgba(150, 122, 78, 0.08);
+    border: 1px solid rgba(163, 140, 106, 0.15);
     border-radius: 10px;
 }
 
@@ -977,7 +1079,7 @@ QLabel#CountNum {
 }
 
 QLabel#CountLabel {
-    color: #9990ab;
+    color: #a8977c;
     font-size: 10px;
     font-weight: 700;
     letter-spacing: 2px;

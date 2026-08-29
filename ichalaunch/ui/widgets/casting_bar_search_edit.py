@@ -62,6 +62,9 @@ def _load_border() -> QPixmap:
         path = _BORDER_EXTERNAL
     pm = QPixmap(str(path)) if path.is_file() else QPixmap()
     if not pm.isNull():
+        from ichalaunch.ui.widgets.wow_tooltip import tint_pixmap_to_home_rim
+
+        pm = tint_pixmap_to_home_rim(pm)
         crop = _opaque_bounds(pm)
         if not crop.isNull() and crop != pm.rect():
             pm = pm.copy(crop)
@@ -186,30 +189,36 @@ class CastingBarSearchEdit(QLineEdit):
 
     def paintEvent(self, event) -> None:  # noqa: N802
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        rect = self.rect()
+        try:
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            rect = self.rect()
 
-        fill = _FILL_FOCUS if self.hasFocus() else _FILL
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(fill)
-        # Inset so fill sits inside the metal rail, not under the ornate ends.
-        inset = max(3, int(round(min(rect.height(), 64) * 0.12)))
-        painter.drawRoundedRect(rect.adjusted(inset, inset, -inset, -inset), 4, 4)
-        painter.end()
+            fill = _FILL_FOCUS if self.hasFocus() else _FILL
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(fill)
+            # Inset so fill sits inside the metal rail, not under the ornate ends.
+            inset = max(3, int(round(min(rect.height(), 64) * 0.12)))
+            painter.drawRoundedRect(rect.adjusted(inset, inset, -inset, -inset), 4, 4)
+        finally:
+            if painter.isActive():
+                painter.end()
 
         # Text, placeholder, cursor, and clear button (style panel is transparent).
         super().paintEvent(event)
 
         # Frame last — hollow center leaves glyphs readable; chrome sits above QSS.
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        frame = _load_border()
-        if frame.isNull():
-            pen = QPen(_FALLBACK_FOCUS if self.hasFocus() else _FALLBACK_BORDER)
-            pen.setWidth(1)
-            painter.setPen(pen)
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawRoundedRect(self.rect().adjusted(1, 1, -1, -1), 6, 6)
-        else:
-            _draw_casting_bar_frame(painter, frame, self.rect())
-        painter.end()
+        try:
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            frame = _load_border()
+            if frame.isNull():
+                pen = QPen(_FALLBACK_FOCUS if self.hasFocus() else _FALLBACK_BORDER)
+                pen.setWidth(1)
+                painter.setPen(pen)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawRoundedRect(self.rect().adjusted(1, 1, -1, -1), 6, 6)
+            else:
+                _draw_casting_bar_frame(painter, frame, self.rect())
+        finally:
+            if painter.isActive():
+                painter.end()

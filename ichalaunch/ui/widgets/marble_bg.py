@@ -31,10 +31,10 @@ from ichalaunch.ui.widgets.common import Card
 _BUNDLED_NAME = "UI-Background-Marble.PNG"
 _EXTERNAL = Path(r"F:\wow-ui-textures\FrameGeneral\UI-Background-Marble.PNG")
 
-_BASE = QColor("#181315")
+_BASE = QColor("#1b1512")
 _TILE_OPACITY = 0.50
-_BORDER = QColor(124, 92, 196, 76)
-_BORDER_GREY = QColor(150, 131, 158, 46)
+_BORDER = QColor(201, 149, 63, 76)
+_BORDER_GREY = QColor(163, 140, 106, 46)
 _BORDER_INSET = 1
 
 
@@ -145,14 +145,19 @@ class MarblePanel(QWidget):
     def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802
         del event
         painter = QPainter(self)
-        if not painter.isActive():
-            return
         try:
-            paint_marble_tiled(painter, self.rect(), self._tile, radius=self._radius)
-            _draw_round_stroke(painter, self.rect(), self._radius, _BORDER)
-        finally:
-            painter.end()
+            if not painter.isActive():
+                return
+            try:
+                paint_marble_tiled(painter, self.rect(), self._tile, radius=self._radius)
+                _draw_round_stroke(painter, self.rect(), self._radius, _BORDER)
+            finally:
+                painter.end()
 
+
+        finally:
+            if painter.isActive():
+                painter.end()
 
 class MarbleCard(Card):
     """Settings section card — single-painter marble + purple stroke."""
@@ -171,14 +176,19 @@ class MarbleCard(Card):
     def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802
         del event
         painter = QPainter(self)
-        if not painter.isActive():
-            return
         try:
-            paint_marble_tiled(painter, self.rect(), self._tile, radius=self._radius)
-            _draw_round_stroke(painter, self.rect(), self._radius, _BORDER)
-        finally:
-            painter.end()
+            if not painter.isActive():
+                return
+            try:
+                paint_marble_tiled(painter, self.rect(), self._tile, radius=self._radius)
+                _draw_round_stroke(painter, self.rect(), self._radius, _BORDER)
+            finally:
+                painter.end()
 
+
+        finally:
+            if painter.isActive():
+                painter.end()
 
 class MarbleListWidget(QListWidget):
     """Addon lists — marble painted on the viewport during its Paint event only."""

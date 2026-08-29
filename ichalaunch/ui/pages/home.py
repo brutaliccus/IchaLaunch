@@ -7,6 +7,7 @@ import logging
 from PySide6.QtCore import QEvent, QPoint, QRect, Qt, QTimer, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
+    QFrame,
     QHBoxLayout,
     QLabel,
     QScrollArea,
@@ -18,6 +19,7 @@ from PySide6.QtWidgets import (
 from ichalaunch.core.paths import theme_file
 from ichalaunch.game.launcher import detect_game, is_installed
 from ichalaunch.mods.installer import detect_actual_state, load_mod_catalog
+from ichalaunch.ui.widgets.gradient_label import GradientLabel
 from ichalaunch.ui.widgets.common import SpellbookPageButton, open_url_in_browser
 from ichalaunch.ui.widgets.gallery_dots import GalleryDots
 from ichalaunch.ui.widgets.glue_panel_button import GLUE_BTN_H, GluePanelButton
@@ -65,6 +67,11 @@ _ART_BOTTOM_INSET_PX = 0
 _ART_BANNER_TUCK_PX = 12
 # Gap between a page arrow and the dots it hugs on the indicator row.
 _ART_ARROW_DOTS_GAP_PX = 4
+# The indicator row spans this fraction of the artwork's width rather than a
+# fixed gap, so it stays right if the window or the art is ever resized. Short
+# of 1.0 on purpose: at the extreme edges the arrows would sit on the frame's
+# own ornate border.
+_ART_ROW_SPAN = 0.92
 # Gap between the position row and the MoA wordmark it sits above.
 _ART_DOTS_GAP_PX = 6
 # MoA wordmark prefer width, centered along the art bottom.
@@ -144,6 +151,8 @@ class HomePage(QWidget):
         left_l.addWidget(links, 0, Qt.AlignmentFlag.AlignHCenter)
 
         self.summary = HomeModsCard()
+        # Symmetric inset = Zaeya frame rail so the list and the 12px metal-v
+        # scrollbar sit inside the picture frame rather than under its right stem.
         self.summary.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
@@ -153,6 +162,9 @@ class HomePage(QWidget):
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        # Reserve the 12px metal-v bar so category names are not painted
+        # under it. Horizontal scrolling is off, so overrun is clipped.
+        scroll.setViewportMargins(0, 0, 14, 0)
         scroll.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
@@ -160,7 +172,7 @@ class HomePage(QWidget):
         scroll_host = QWidget()
         scroll_host.setObjectName("HomeModsHost")
         self.summary_host = QVBoxLayout(scroll_host)
-        self.summary_host.setContentsMargins(2, 2, 6, 8)
+        self.summary_host.setContentsMargins(6, 2, 6, 8)
         self.summary_host.setSpacing(12)
         self.summary_host.setAlignment(Qt.AlignmentFlag.AlignTop)
 
@@ -186,8 +198,8 @@ class HomePage(QWidget):
 
         # Page arrows hug the dots row. Disabled spellbook glyphs sit on the
         # art wash at 80% idle / 100% hover (Addons catalog keeps gold Up/Down).
-        self.art_prev = SpellbookPageButton("prev", self, art="disabled")
-        self.art_next = SpellbookPageButton("next", self, art="disabled")
+        self.art_prev = SpellbookPageButton("prev", self, art="up")
+        self.art_next = SpellbookPageButton("next", self, art="up")
         self.art_prev.setToolTip("Previous")
         self.art_next.setToolTip("Next")
         self.art_prev.clicked.connect(lambda: self.talent_bg.step(-1))
@@ -295,9 +307,15 @@ class HomePage(QWidget):
         return True
 
     def _gallery_dots_max_width(self, art_width: int) -> int:
-        """Dots share the indicator row with the page arrows; leave them room."""
+        """Dots share the indicator row with the page arrows; leave them room.
+
+        Measured against the SPAN the row now occupies rather than the whole
+        frame, so the dots spread into the space the arrows were freed from
+        without ever reaching them.
+        """
         arrow = self.art_prev.width() or GLUE_BTN_H
-        return max(1, art_width - 2 * arrow - 2 * _ART_ARROW_DOTS_GAP_PX)
+        span = int(art_width * _ART_ROW_SPAN)
+        return max(1, span - 2 * arrow - 4 * _ART_ARROW_DOTS_GAP_PX)
 
     def _sync_gallery_dots(self) -> None:
         dots = getattr(self, "art_dots", None)
@@ -430,13 +448,17 @@ class HomePage(QWidget):
         dots_w = self.art_dots.width()
         dots_h = self.art_dots.height()
         row_h = max(arrow, dots_h)
-        row_w = arrow + gap + dots_w + gap + arrow
+        # Arrows pushed out to the ends of the span, dots centred between them.
+        row_w = max(arrow * 2 + dots_w + gap * 2, int(art.width() * _ART_ROW_SPAN))
         row_x = art.x() + (art.width() - row_w) // 2
         row_y = logo_y - row_h - _ART_DOTS_GAP_PX
+        # Arrows pinned to the ends of the span, dots centred in the gap between
+        # them. Chaining each element off the previous one is what kept the whole
+        # row bunched in the middle however wide the span was.
         self.art_prev.move(row_x, row_y + (row_h - arrow) // 2)
-        self.art_dots.move(row_x + arrow + gap, row_y + (row_h - dots_h) // 2)
-        self.art_next.move(
-            row_x + arrow + gap + dots_w + gap, row_y + (row_h - arrow) // 2
+        self.art_next.move(row_x + row_w - arrow, row_y + (row_h - arrow) // 2)
+        self.art_dots.move(
+            row_x + (row_w - dots_w) // 2, row_y + (row_h - dots_h) // 2
         )
 
         self._set_chrome_visible(True)
@@ -584,28 +606,46 @@ class HomePage(QWidget):
         block_l.setContentsMargins(0, 0, 0, 0)
         block_l.setSpacing(4)
 
-        # Title over a count, the shape ravencraft.io gives every card. The
-        # second line is a number the caller already holds - a lockup with
-        # invented subtitle text would be decoration wearing the shape of
-        # information.
-        heading = TitleLockup(
-            category,
-            f"{len(names)} mod" if len(names) == 1 else f"{len(names)} mods",
-            title_name="HomeModCategory",
-            subtitle_name="HomeModCategorySub",
-        )
-        heading.title.setStyleSheet(
-            "color: #F1C22D; font-size: 12px; font-weight: 600;"
-        )
-        block_l.addWidget(heading)
+        # The count used to sit on its own line under the heading, which left a
+        # small number orphaned in the middle of a wide band, saying little and
+        # asking for its own typographic style to say it. It now rides on the
+        # heading's row, right aligned inside the same band, so the band carries
+        # one line of information instead of two and the number reads as a
+        # property of the category rather than as a second heading.
+        # QFrame rather than QWidget: a bare QWidget does not paint a stylesheet
+        # background or border, which silently dropped the band and left the
+        # categories separated by colour alone again.
+        heading_row = QFrame()
+        heading_row.setObjectName("HomeModCategoryRow")
+        # A plain QWidget does not paint a stylesheet background or border unless
+        # it is told to. Without this the band and its rules are silently dropped
+        # and the categories go back to being separated by colour alone.
+        heading_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        row_l = QHBoxLayout(heading_row)
+        row_l.setContentsMargins(8, 3, 8, 3)
+        row_l.setSpacing(8)
+
+        # Gradient rather than flat gold: the site clips a vertical ramp to its
+        # heading glyphs, and QSS cannot express that. See GradientLabel.
+        title = GradientLabel(category)
+        title.setObjectName("HomeModCategory")
+        # Kept on: the drawer is narrow, and a non-wrapping QLabel reports its
+        # full text width as its MINIMUM, which is what dragged the old display
+        # face out under the scrollbar. At this size nothing needs to wrap, but
+        # the guard costs nothing and a longer category name later will not clip.
+        title.setWordWrap(True)
+        row_l.addWidget(title, 1)
+
+        count = QLabel(f"{len(names)} mod" if len(names) == 1 else f"{len(names)} mods")
+        count.setObjectName("HomeModCategoryCount")
+        row_l.addWidget(count, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+        block_l.addWidget(heading_row)
 
         for name in names:
             item = QLabel(name)
             item.setObjectName("HomeModItem")
             item.setWordWrap(True)
-            item.setStyleSheet(
-                "color: #e6e0ee; font-size: 13px; padding-left: 14px;"
-            )
             block_l.addWidget(item)
 
         self.summary_host.addWidget(block)
@@ -632,6 +672,12 @@ class HomePage(QWidget):
                     "Installed client mods",
                     f"{total} enabled" if total != 1 else "1 enabled",
                 )
+                # SectionTitle is 21px. Cinzel's advance (258) is 4px wider
+                # than this framed drawer after rails + scrollbar reserve +
+                # host pad (254), so the parent clips the final s. 0.5pt at
+                # 96dpi is 20px — and it must stay a pixel size: GradientLabel
+                # fits from pixelSize and treats pointSizeF as 16px.
+                hdr.title.setStyleSheet("font-size: 20px;")
                 self.summary_host.addWidget(hdr)
 
                 by_cat: dict[str, list[str]] = {}

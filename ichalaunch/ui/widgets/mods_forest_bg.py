@@ -17,15 +17,15 @@ from PySide6.QtWidgets import QWidget
 
 from ichalaunch.core.paths import theme_file
 from ichalaunch.ui.widgets.common import Card
+from ichalaunch.ui.widgets.wow_tooltip import home_art_frame_edge, paint_zaeya_home_frame
 
 _BUNDLED_NAME = "darkforest_tree_011.png"
 _EXTERNAL = Path(r"F:\wow-ui-textures\GLUES\Models\UI_SCOURGE\DarkForest_Tree_011.PNG")
 
 # Soft enough that gold category labels / list text stay readable.
-_CARD_BASE = QColor("#181315")
+_CARD_BASE = QColor("#1b1512")
 _ART_OPACITY = 0.42
 _WASH = QColor(24, 19, 21, 168)
-_RADIUS = 10.0
 _EDGE_FEATHER = 0.10
 
 
@@ -83,7 +83,7 @@ def _edge_mask(width: int, height: int, feather: float = _EDGE_FEATHER) -> QPixm
 
 
 class HomeModsCard(Card):
-    """Installed-mods Card with a dimmed, feathered Dark Forest panel background."""
+    """Installed-mods Card with a dimmed Dark Forest fill and the Zaeya home frame."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -94,47 +94,57 @@ class HomeModsCard(Card):
         self._mask = QPixmap()
         self._mask_w = 0
         self._mask_h = 0
+        edge = home_art_frame_edge()
+        self.body.setContentsMargins(edge, edge, edge, edge)
 
     def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
 
-        rect = self.rect()
-        path = QPainterPath()
-        path.addRoundedRect(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), _RADIUS, _RADIUS)
-        painter.setClipPath(path)
-        # Opaque card base so BloodElf floor never shows through.
-        painter.fillPath(path, _CARD_BASE)
+            rect = self.rect()
+            path = QPainterPath()
+            path.addRect(QRectF(rect))
+            painter.setClipPath(path)
+            # Opaque card base so BloodElf floor never shows through.
+            painter.fillPath(path, _CARD_BASE)
 
-        if not self._src.isNull() and self.width() > 0 and self.height() > 0:
-            scaled = self._src.scaled(
-                rect.size(),
-                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            x = (rect.width() - scaled.width()) // 2
-            y = (rect.height() - scaled.height()) // 2
+            if not self._src.isNull() and self.width() > 0 and self.height() > 0:
+                scaled = self._src.scaled(
+                    rect.size(),
+                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+                x = (rect.width() - scaled.width()) // 2
+                y = (rect.height() - scaled.height()) // 2
 
-            layer = QPixmap(rect.size())
-            layer.fill(Qt.GlobalColor.transparent)
-            lp = QPainter(layer)
-            lp.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-            lp.drawPixmap(x, y, scaled)
+                layer = QPixmap(rect.size())
+                layer.fill(Qt.GlobalColor.transparent)
+                lp = QPainter(layer)
+                lp.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+                lp.drawPixmap(x, y, scaled)
 
-            if self._mask_w != rect.width() or self._mask_h != rect.height() or self._mask.isNull():
-                self._mask = _edge_mask(rect.width(), rect.height())
-                self._mask_w = rect.width()
-                self._mask_h = rect.height()
-            if not self._mask.isNull():
-                lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
-                lp.drawPixmap(0, 0, self._mask)
-            lp.end()
+                if self._mask_w != rect.width() or self._mask_h != rect.height() or self._mask.isNull():
+                    self._mask = _edge_mask(rect.width(), rect.height())
+                    self._mask_w = rect.width()
+                    self._mask_h = rect.height()
+                if not self._mask.isNull():
+                    lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
+                    lp.drawPixmap(0, 0, self._mask)
+                lp.end()
 
-            painter.setOpacity(_ART_OPACITY)
-            painter.drawPixmap(0, 0, layer)
-            painter.setOpacity(1.0)
-            painter.fillPath(path, _WASH)
+                painter.setOpacity(_ART_OPACITY)
+                painter.drawPixmap(0, 0, layer)
+                painter.setOpacity(1.0)
+                painter.fillPath(path, _WASH)
 
-        painter.end()
+            # Same first-slide overlay as Zaeya on Home — not the metal corner
+            # brackets, and not a second QSS stroke stacked under them.
+            painter.setClipping(False)
+            paint_zaeya_home_frame(painter, rect)
+
+        finally:
+            if painter.isActive():
+                painter.end()
         super().paintEvent(event)

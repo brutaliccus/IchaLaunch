@@ -193,31 +193,36 @@ class ThemeCheckBox(QAbstractButton):
     def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802
         del event
         painter = QPainter(self)
-        if not painter.isActive():
-            return
         try:
-            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-            indicator = self._indicator_rect()
-            self._paint_indicator(painter, indicator)
+            if not painter.isActive():
+                return
+            try:
+                painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+                indicator = self._indicator_rect()
+                self._paint_indicator(painter, indicator)
 
-            text = self.text()
-            if text:
-                label = QRect(
-                    indicator.right() + 1 + _LABEL_SPACING,
-                    0,
-                    max(0, self.width() - indicator.right() - 1 - _LABEL_SPACING),
-                    self.height(),
-                )
-                painter.setPen(QColor("#e6e0ee"))
-                flags = int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-                if self.isEnabled():
-                    painter.drawText(label, flags, text)
-                else:
-                    painter.setOpacity(0.45)
-                    painter.drawText(label, flags, text)
-                    painter.setOpacity(1.0)
+                text = self.text()
+                if text:
+                    label = QRect(
+                        indicator.right() + 1 + _LABEL_SPACING,
+                        0,
+                        max(0, self.width() - indicator.right() - 1 - _LABEL_SPACING),
+                        self.height(),
+                    )
+                    painter.setPen(QColor("#e6e0ee"))
+                    flags = int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                    if self.isEnabled():
+                        painter.drawText(label, flags, text)
+                    else:
+                        painter.setOpacity(0.45)
+                        painter.drawText(label, flags, text)
+                        painter.setOpacity(1.0)
+            finally:
+                painter.end()
+
         finally:
-            painter.end()
+            if painter.isActive():
+                painter.end()
 
     def _paint_indicator(self, painter: QPainter, rect: QRect) -> None:
         if not painter.isActive():

@@ -14,6 +14,15 @@ from pathlib import Path
 from typing import Any, Iterator  # Path used by default_addons_path_for
 
 APP_DIR_NAME = "IchaLaunch"
+# Hidden VanillaFixes DLL; desired_mods is locked to Discord + character-status.
+DISCORD_WOW_STATUS_MOD_ID = "ichalaunch_discord"
+DISCORD_CHARACTER_STATUS_KEY = "discord_rich_presence_character_status"
+DISCORD_PRESENCE_PROMPTED_KEY = "discord_presence_prompted"
+DISCORD_BROADCAST_FIELDS_KEY = "discord_broadcast_fields"
+DISCORD_BROADCAST_FIELD_KEYS = ("name", "guild", "faction", "class", "level", "zone")
+DEFAULT_DISCORD_BROADCAST_FIELDS: dict[str, bool] = {
+    key: True for key in DISCORD_BROADCAST_FIELD_KEYS
+}
 
 # Test/dev only. When set, appdata_root() uses this directory instead of
 # the live user tree. Normal launches leave it unset — no user-facing change.
@@ -134,6 +143,16 @@ def normalize_addons_filter(value: Any) -> str:
     return ADDON_LIST_FILTER_DEFAULT
 
 
+def normalize_discord_broadcast_fields(value: Any) -> dict[str, bool]:
+    """Return all six broadcast filters; unknown keys dropped, missing keys on."""
+    out = dict(DEFAULT_DISCORD_BROADCAST_FIELDS)
+    if isinstance(value, dict):
+        for key in DISCORD_BROADCAST_FIELD_KEYS:
+            if key in value:
+                out[key] = bool(value[key])
+    return out
+
+
 DEFAULTS: dict[str, Any] = {
     "game_path": "",
     # Linux launch. Empty proton path means "resolve and then pin".
@@ -188,6 +207,14 @@ DEFAULTS: dict[str, Any] = {
     "anonymous_client_id": "",
     # Opt-in: POST crash/ERROR logs to maintainer via Cloudflare Worker (default off).
     "crash_reporting_enabled": False,
+    # Opt-in Discord Rich Presence. Off until the user enables it in Settings.
+    "discord_rich_presence_enabled": False,
+    # Nested under Discord: in-game name/zone/level/faction via helper DLL.
+    "discord_rich_presence_character_status": False,
+    # One-shot Discord activity opt-in (Save or No Do Not Show Again).
+    "discord_presence_prompted": False,
+    # Independent filters for what the helper / RPC may broadcast.
+    "discord_broadcast_fields": dict(DEFAULT_DISCORD_BROADCAST_FIELDS),
     # One-shot first-launch prompt for crash reporting (any answer marks shown).
     "crash_reporting_opt_in_prompted_v1": False,
     "last_addon_update_check": None,
@@ -473,6 +500,9 @@ class Settings:
         merged["vanilla_tweaks_old_options"] = (
             dict(vto_old) if isinstance(vto_old, dict) else {}
         )
+        merged["discord_broadcast_fields"] = normalize_discord_broadcast_fields(
+            merged.get("discord_broadcast_fields")
+        )
         # Migrate older dual startup toggles into one setting.
         if "check_updates_on_startup" not in loaded:
             addon_on = bool(loaded.get("check_addon_updates_on_startup", True))
@@ -540,6 +570,76 @@ class Settings:
 
     def set_auto_fix_addon_toc_mismatch(self, enabled: bool) -> None:
         self.set("auto_fix_addon_toc_mismatch", bool(enabled))
+
+    def discord_rich_presence_enabled(self) -> bool:
+        """Whether Discord Rich Presence is opted in (default off)."""
+        return bool(self.get("discord_rich_presence_enabled", False))
+
+    def discord_rich_presence_character_status(self) -> bool:
+        """Whether the in-game character-status DLL is opted in (default off)."""
+        return bool(self.get("discord_rich_presence_character_status", False))
+
+    def discord_presence_dll_enabled(self) -> bool:
+        """True only when Discord presence and character status are both on."""
+        return (
+            self.discord_rich_presence_enabled()
+            and self.discord_rich_presence_character_status()
+        )
+
+    def sync_discord_presence_mod_desired(self) -> bool:
+        """Keep the hidden status DLL desired flag in lockstep with both opt-ins."""
+        want = self.discord_presence_dll_enabled()
+        if bool(self.desired_mods.get(DISCORD_WOW_STATUS_MOD_ID)) != want:
+            self.set_desired_mod(DISCORD_WOW_STATUS_MOD_ID, want)
+        return want
+
+    def discord_presence_prompted(self) -> bool:
+        """True after the one-shot Discord activity prompt has been answered."""
+        return bool(self.get(DISCORD_PRESENCE_PROMPTED_KEY, False))
+
+    def set_discord_presence_prompted(self, prompted: bool) -> None:
+        self.set(DISCORD_PRESENCE_PROMPTED_KEY, bool(prompted))
+
+    def discord_broadcast_fields(self) -> dict[str, bool]:
+        """Which character fields may be broadcast (default all on)."""
+        return normalize_discord_broadcast_fields(self.get(DISCORD_BROADCAST_FIELDS_KEY))
+
+    def set_discord_broadcast_fields(self, fields: Any) -> None:
+        self.set(DISCORD_BROADCAST_FIELDS_KEY, normalize_discord_broadcast_fields(fields))
+        self.sync_discord_broadcast_flags_file()
+
+    def set_discord_broadcast_field(self, key: str, enabled: bool) -> None:
+        fields = self.discord_broadcast_fields()
+        if key not in DISCORD_BROADCAST_FIELD_KEYS:
+            return
+        fields[key] = bool(enabled)
+        self.set_discord_broadcast_fields(fields)
+
+    def sync_discord_broadcast_flags_file(self) -> None:
+        """Write the compact flags word the helper DLL reads next to status JSON."""
+        try:
+            from ichalaunch.game.discord_presence import write_broadcast_flags
+
+            write_broadcast_flags(self.discord_broadcast_fields())
+        except Exception:  # noqa: BLE001
+            pass
+
+    def set_discord_rich_presence_character_status(self, enabled: bool) -> None:
+        enabled = bool(enabled) and self.discord_rich_presence_enabled()
+        self.set("discord_rich_presence_character_status", enabled)
+        self.sync_discord_presence_mod_desired()
+        self.sync_discord_broadcast_flags_file()
+
+    def set_discord_rich_presence_enabled(self, enabled: bool) -> None:
+        enabled = bool(enabled)
+        self._data["discord_rich_presence_enabled"] = enabled
+        if not enabled:
+            self._data["discord_rich_presence_character_status"] = False
+        if enabled:
+            self._data[DISCORD_PRESENCE_PROMPTED_KEY] = True
+        self.save()
+        self.sync_discord_presence_mod_desired()
+        self.sync_discord_broadcast_flags_file()
 
     def auto_scan_cooldown_minutes(self) -> int:
         return AUTO_SCAN_COOLDOWN_MINUTES

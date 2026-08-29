@@ -30,7 +30,7 @@ from ichalaunch.addons.github import (
     github_remote_tip,
     parse_github_url,
 )
-from ichalaunch.config.settings import settings
+from ichalaunch.config.settings import DISCORD_WOW_STATUS_MOD_ID, settings
 from ichalaunch.core.backup import create_backup, list_backups, restore_backup
 from ichalaunch.core.filesystem import (
     LOCK_AV_VERIFY_MESSAGE,
@@ -44,6 +44,7 @@ from ichalaunch.core.filesystem import (
     extract_tar,
     extract_zip,
     note_pending_toc_mismatch,
+    AddonDestinationRefused,
     place_install_addon_root,
     resolve_install_addon_roots,
     TOC_FOLDER_MISMATCH_MSG,
@@ -86,6 +87,15 @@ from ichalaunch.game.launcher import (
     vf_mode_display,
     wow_exe_in,
 )
+from ichalaunch.mods.verify import (
+    DETECT_HASH_MAX_BYTES,
+    SourceHashMismatch,
+    dest_expected_digest,
+    expected_digest,
+    normalized_digest,
+    payload_is_archive_name,
+    verify_payload,
+)
 
 ProgressCb = Callable[[str], None]
 UA = {"User-Agent": "IchaLaunch/0.1"}
@@ -94,6 +104,35 @@ _APPLY_IN_PROGRESS = False
 # Turtle/RavenCraft ships numeric Data patches. Letter slots are community/HD.
 _STOCK_DATA_MPQ_RE = re.compile(r"^patch(-[0-9])?\.mpq$", re.IGNORECASE)
 LOCAL_BUILD_HINT = "Run: python tools/build_weirdutils.py"
+PRIVACY_LINKED_MOD_IDS = frozenset({DISCORD_WOW_STATUS_MOD_ID})
+# Official WeirdUtils release assets — always fetch Marceline's catalog URL.
+# Our overlay Zig copies must never win, including SHA-refresh on Play.
+OFFICIAL_REMOTE_WU_IDS = frozenset(
+    {
+        "wu_healtextfix",
+        "wu_weirdperformance",
+        "wu_minimapicons",
+        "wu_transmogfix",
+        "wu_worldmarkers",
+        "wu_pngscreenshots",
+        "wu_customassets",
+        "wu_logsessions",
+        "wu_clickthrough",
+    }
+)
+OFFICIAL_REMOTE_WU_FILENAMES = frozenset(
+    {
+        "healtextfix.dll",
+        "weirdperformance.dll",
+        "minimapicons.dll",
+        "transmogfix.dll",
+        "worldmarkers.dll",
+        "pngscreenshots.dll",
+        "customassets.dll",
+        "logsessions.dll",
+        "clickthrough.dll",
+    }
+)
 
 
 def is_stock_data_mpq(rel: str | Path) -> bool:
@@ -105,8 +144,8 @@ def is_stock_data_mpq(rel: str | Path) -> bool:
 def resolve_local_source_path(source: dict[str, Any]) -> Path:
     """Resolve a catalog ``type=local`` path.
 
-    Frozen builds use the copy packed into the exe (``ichalaunch/data/weirdutils``).
-    Source checkouts fall back to the gitignored ``tools/_weirdutils/out`` file.
+    Frozen builds use the copy packed into the exe (``ichalaunch/data/<bundle>``).
+    Source checkouts fall back to the gitignored catalog ``path``.
     """
     import sys
 
@@ -116,12 +155,14 @@ def resolve_local_source_path(source: dict[str, Any]) -> Path:
     filename = sanitize_filename(
         str(source.get("filename") or (Path(raw).name if raw else ""))
     )
-    if filename.lower().endswith(".dll"):
-        bundled = data_file("weirdutils", filename)
+    bundle = sanitize_filename(str(source.get("bundle") or "weirdutils"))
+    hint = str(source.get("build_hint") or LOCAL_BUILD_HINT)
+    if filename.lower().endswith(".dll") and bundle:
+        bundled = data_file(bundle, filename)
         if bundled.is_file():
             return bundled.resolve()
     if not raw:
-        raise FileNotFoundError(f"Local mod source is missing a path. {LOCAL_BUILD_HINT}")
+        raise FileNotFoundError(f"Local mod source is missing a path. {hint}")
     path = Path(raw)
     if not path.is_absolute():
         path = repo_root() / path
@@ -129,23 +170,31 @@ def resolve_local_source_path(source: dict[str, Any]) -> Path:
     if not path.is_file():
         if getattr(sys, "frozen", False):
             raise FileNotFoundError(
-                f"Bundled WeirdUtils DLL missing: {filename or raw}. Update IchaLaunch."
+                f"Bundled local DLL missing: {filename or raw}. Update IchaLaunch."
             )
-        raise FileNotFoundError(f"Local WeirdUtils DLL missing: {raw}. {LOCAL_BUILD_HINT}")
+        raise FileNotFoundError(f"Local DLL missing: {raw}. {hint}")
     return path
 
 
 def _local_source_override(source: dict[str, Any]) -> Path | None:
-    """Prefer a repo-local DLL when catalog ``local`` or WeirdUtils prebuilt exists."""
+    """Prefer a repo-local DLL when catalog ``local`` or WeirdUtils prebuilt exists.
+
+    Official remote WeirdUtils assets always download from the catalog URL —
+    bundled Zig copies must not win.
+    """
+    if source.get("skip_local_override"):
+        return None
+    filename = sanitize_filename(
+        str(source.get("filename") or Path(str(source.get("url") or "")).name)
+    )
+    if filename.lower() in OFFICIAL_REMOTE_WU_FILENAMES:
+        return None
     explicit = str(source.get("local") or source.get("path") or "").strip()
     if explicit and source.get("type") != "local":
         try:
             return resolve_local_source_path({"path": explicit})
         except FileNotFoundError:
             pass
-    filename = sanitize_filename(
-        str(source.get("filename") or Path(str(source.get("url") or "")).name)
-    )
     if not filename.lower().endswith(".dll"):
         return None
     from ichalaunch.core.paths import repo_root
@@ -437,10 +486,25 @@ def load_mod_catalog(*, include_hidden: bool = False) -> list[dict[str, Any]]:
 
 
 def get_mod(mod_id: str) -> dict[str, Any] | None:
-    for m in load_mod_catalog():
+    for m in load_mod_catalog(include_hidden=True):
         if m["id"] == mod_id:
             return m
     return None
+
+
+def _applyable_catalog() -> list[dict[str, Any]]:
+    """Visible catalog plus hidden local-bundled DLLs that Apply still hash-manages."""
+    catalog = load_mod_catalog()
+    seen = {m.get("id") for m in catalog}
+    for mod in load_mod_catalog(include_hidden=True):
+        mid = mod.get("id")
+        if not mid or mid in seen:
+            continue
+        source = mod.get("source") if isinstance(mod.get("source"), dict) else {}
+        if mid in PRIVACY_LINKED_MOD_IDS or str(source.get("type") or "") == "local":
+            catalog.append(mod)
+            seen.add(mid)
+    return catalog
 
 
 def mod_catalog_map() -> dict[str, dict[str, Any]]:
@@ -571,6 +635,370 @@ def _variant_on_disk_by_size(
     return None
 
 
+def _variant_on_disk_by_hash(
+    a: str,
+    b: str,
+    game_path: Path,
+    catalog: dict[str, dict[str, Any]],
+) -> str | None:
+    """Which exclusive variant the dest file actually is, by pinned SHA-256.
+
+    Size is the cheap first pass for 500 MB textures. Hash is the proof: a
+    stub named patch-T.mpq can share neither pin, and a swapped extra vs
+    standard body is unambiguous even if sizes were ever republished equal.
+    Locked / unreadable files return None so size and install-record
+    tie-breaks still run.
+    """
+    mod_a, mod_b = catalog.get(a) or {}, catalog.get(b) or {}
+    pin_a = expected_digest(mod_a.get("source") if isinstance(mod_a.get("source"), dict) else None)
+    pin_b = expected_digest(mod_b.get("source") if isinstance(mod_b.get("source"), dict) else None)
+    if not pin_a or not pin_b or pin_a == pin_b:
+        return None
+    dest = mod_a.get("destination")
+    if not dest or mod_b.get("destination") != dest:
+        return None
+    found = resolve_ci(game_path, dest)
+    if found is None:
+        return None
+    try:
+        nbytes = found.stat().st_size
+    except OSError:
+        return None
+    if nbytes > DETECT_HASH_MAX_BYTES:
+        return None
+    digest = sha256_file(found)
+    if not digest:
+        return None
+    if digest == pin_a:
+        return a
+    if digest == pin_b:
+        return b
+    return None
+
+
+def _mpq_destination_occupied(game: Path, mod: dict[str, Any]) -> bool:
+    """True when this mod's dest path exists, even if the bytes are not the pin."""
+    if str(mod.get("kind") or "") != "mpq_file":
+        return False
+    dest = str(mod.get("destination") or "").strip()
+    if not dest or is_stock_data_mpq(dest):
+        return False
+    found = resolve_ci(game, dest)
+    try:
+        return found is not None and found.is_file()
+    except OSError:
+        return False
+
+
+def _single_dest_rel(mod: dict[str, Any]) -> str:
+    """Game-relative dest for a single-file catalog row, if one is named."""
+    dest = str(mod.get("destination") or "").strip().replace("\\", "/")
+    if dest:
+        return dest
+    files = mod.get("files") or []
+    if len(files) == 1 and isinstance(files[0], dict):
+        rel = str(files[0].get("destination") or "").strip().replace("\\", "/")
+        if rel:
+            return rel
+    source = mod.get("source") if isinstance(mod.get("source"), dict) else {}
+    name = str(source.get("filename") or "").strip().replace("\\", "/")
+    if name and not payload_is_archive_name(name):
+        return name
+    return ""
+
+
+def _single_dest_path(game_path: Path, mod: dict[str, Any]) -> Path | None:
+    rel = _single_dest_rel(mod)
+    if not rel or is_stock_data_mpq(rel):
+        return None
+    return resolve_ci(game_path, rel) or (game_path / rel)
+
+
+def _stored_dest_digest(mod_id: str) -> str | None:
+    rec = settings.installed_mods.get(mod_id)
+    if not isinstance(rec, dict):
+        return None
+    return normalized_digest(rec.get("dest_sha256"))
+
+
+def _pin_names_dest_file(mod: dict[str, Any]) -> bool:
+    """True when a catalog pin is the on-disk dest file, not an archive extract.
+
+    Zip / github_release rows stay on filename detect unless a dest-level
+    digest exists: ``source.sha256`` is the archive, not SuperWoWhook.dll.
+    Tweaks pin the zip; WoW.exe is not those bytes.
+    """
+    mid = str(mod.get("id") or "")
+    if mid in {"pretty_night_sky", "fog_pushback"}:
+        return False
+    if str(mod.get("kind") or "") == "exe_patch":
+        return False
+    if (mod.get("detect") or {}).get("exe_differs_from"):
+        return False
+    dest_rel = _single_dest_rel(mod)
+    if not dest_rel:
+        return False
+    if dest_expected_digest(mod):
+        return True
+    source = mod.get("source") if isinstance(mod.get("source"), dict) else {}
+    if expected_digest(source) is None:
+        return False
+    filename = str(source.get("filename") or "").strip()
+    asset = str(source.get("asset_contains") or "").strip()
+    if payload_is_archive_name(filename) or payload_is_archive_name(asset):
+        return False
+    if str(mod.get("kind") or "") == "mpq_file":
+        return True
+    if str(source.get("type") or "") == "local":
+        return True
+    dest_name = Path(dest_rel).name.lower()
+    match = ""
+    files = mod.get("files") or []
+    if len(files) == 1 and isinstance(files[0], dict):
+        match = str(files[0].get("match") or "").strip()
+    payload_name = Path(filename or asset).name.lower()
+    if (
+        match
+        and Path(match).name.lower() == dest_name
+        and payload_name != dest_name
+    ):
+        return False
+    for candidate in (filename, asset):
+        name = Path(str(candidate).replace("\\", "/")).name.lower()
+        if name and name == dest_name:
+            return True
+    return False
+
+
+def _dest_slot_occupied(game: Path, mod: dict[str, Any]) -> bool:
+    """True when this mod's dest path exists, even if the bytes are not the pin."""
+    if _mpq_destination_occupied(game, mod):
+        return True
+    dest = _direct_pinned_dest(game, mod)
+    if dest is None:
+        return False
+    try:
+        return dest.is_file()
+    except OSError:
+        return False
+
+
+def _mod_dest_keys(mod: dict[str, Any]) -> frozenset[str]:
+    """Normalized dest paths and dest basenames this catalog row writes.
+
+    Hash detect still uses ``_pin_names_dest_file`` / dest pins only. This set
+    is for sibling-slot matching: zip extracts (DXVK) name ``d3d9.dll`` in
+    owned paths, not as a dest pin.
+    """
+    keys: set[str] = set()
+
+    def add(rel: Any) -> None:
+        text = str(rel or "").strip().replace("\\", "/")
+        if not text or is_stock_data_mpq(text) or payload_is_archive_name(text):
+            return
+        norm = _norm_rel_path(text)
+        if not norm:
+            return
+        keys.add(norm)
+        name = Path(norm).name
+        if name:
+            keys.add(name)
+
+    dest = str(mod.get("destination") or "").strip()
+    if dest:
+        add(dest)
+    rel = _single_dest_rel(mod)
+    if rel:
+        add(rel)
+    for fspec in mod.get("files") or []:
+        if isinstance(fspec, dict):
+            add(fspec.get("destination"))
+    for path in _mod_owned_paths(mod):
+        add(path)
+    return frozenset(keys)
+
+
+def _shared_dest_siblings(
+    mod: dict[str, Any],
+    catalog: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Catalog rows that share this dest path or dest basename, plus same-dest conflicts."""
+    mid = str(mod.get("id") or "")
+    keys = _mod_dest_keys(mod)
+    dest = str(mod.get("destination") or "").strip() or _single_dest_rel(mod)
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for sib in mod.get("conflicts") or []:
+        other = catalog.get(sib) or {}
+        other_dest = str(other.get("destination") or "").strip() or _single_dest_rel(
+            other
+        )
+        if dest and other_dest != dest:
+            continue
+        if sib and sib != mid and other and sib not in seen:
+            seen.add(sib)
+            out.append(other)
+    if keys:
+        for oid, other in catalog.items():
+            if not oid or oid == mid or oid in seen:
+                continue
+            if keys & _mod_dest_keys(other):
+                seen.add(oid)
+                out.append(other)
+    return out
+
+
+def _dest_matches_sibling_pin(
+    game: Path,
+    siblings: list[dict[str, Any]],
+) -> bool:
+    """True when dest bytes are another catalog row's dest pin (not ours)."""
+    return any(_detect_pinned_payload(game, other) is True for other in siblings)
+
+
+def _installed_stamp_this_id_only(
+    mid: str,
+    siblings: list[dict[str, Any]],
+) -> bool:
+    """True when installed_mods records this id and no dest sibling."""
+    if mid not in settings.installed_mods:
+        return False
+    return not any(
+        str(other.get("id") or "") in settings.installed_mods for other in siblings
+    )
+
+
+def _mpq_stub_owns_dest_cleanup(
+    mid: str,
+    catalog: dict[str, dict[str, Any]],
+    actual: dict[str, bool],
+    game: Path,
+) -> bool:
+    """True when this id should clear a same-named dest that hash detect rejected.
+
+    Exclusive L/T siblings share one file. Only one of them plans the remove:
+    the detected sibling if any, otherwise the standard (non-alternate) id.
+    A stub is neither variant — do not phantom-remove the sibling when the
+    other is desired. Shared dest writers (d3d9 / DXVK cluster) are siblings
+    even without a conflicts[] edge.
+    """
+    mod = catalog.get(mid) or {}
+    if not _dest_slot_occupied(game, mod):
+        return False
+    # Never toggled: offer replace, do not delete a stranger's file.
+    if mid not in settings.user_set_mods:
+        return False
+    siblings = _shared_dest_siblings(mod, catalog)
+    if _dest_matches_sibling_pin(game, siblings):
+        return False
+    for other in siblings:
+        oid = str(other.get("id") or "")
+        if oid and actual.get(oid):
+            return False
+        if oid and settings.desired_mods.get(oid) and not settings.desired_mods.get(mid):
+            return False
+    if _is_alternate_hd_variant(mid):
+        return False
+    return True
+
+
+def _direct_pinned_dest(game_path: Path, mod: dict[str, Any]) -> Path | None:
+    """On-disk file that should equal the dest pin, if install is a copy."""
+    if not _pin_names_dest_file(mod):
+        return None
+    return _single_dest_path(game_path, mod)
+
+
+def _detect_pinned_payload(
+    game_path: Path,
+    mod: dict[str, Any],
+) -> bool | None:
+    """True/False when a pin can name the file; None to keep filename detect.
+
+    A random file with the catalog name is not 'installed'. Small payloads
+    (DLLs, modest MPQs) are hashed. Huge HD textures keep the size_bytes
+    fast path so a scan does not stream twelve gigabytes.
+
+    Zip-extracted DLLs stay on filename detect unless a dest digest exists
+    (catalog dest pin, or ``dest_sha256`` stamped after a launcher install).
+    Tweaks stay on the exe check — the pin is the zip, not WoW.exe.
+    """
+    mid = str(mod.get("id") or "")
+    if mid in {"pretty_night_sky", "fog_pushback"}:
+        return None
+    if str(mod.get("kind") or "") == "exe_patch":
+        return None
+    if (mod.get("detect") or {}).get("exe_differs_from"):
+        return None
+    source = mod.get("source") if isinstance(mod.get("source"), dict) else {}
+    dest_pin = dest_expected_digest(mod)
+    names_dest = _pin_names_dest_file(mod)
+    stored = None if dest_pin or names_dest else _stored_dest_digest(mid)
+    expected = dest_pin or (expected_digest(source) if names_dest else None) or stored
+    if expected is None:
+        return None
+    path = (
+        _direct_pinned_dest(game_path, mod)
+        if dest_pin or names_dest
+        else _single_dest_path(game_path, mod)
+    )
+    if path is None:
+        return None
+    try:
+        if not path.is_file():
+            return False
+        nbytes = path.stat().st_size
+    except OSError:
+        return None
+    size_hint = mod.get("size_bytes")
+    try:
+        size_hint_n = int(size_hint) if size_hint else 0
+    except (TypeError, ValueError):
+        size_hint_n = 0
+    if size_hint_n and nbytes != size_hint_n:
+        return False
+    if nbytes > DETECT_HASH_MAX_BYTES:
+        return True if size_hint_n else None
+    digest = sha256_file(path)
+    if digest is None:
+        return None
+    return digest == expected
+
+
+def _pinned_dest_needs_replace(mod: dict[str, Any], game: Path) -> bool:
+    """Dest/name is present but the pin proves it is not the catalog file.
+
+    Name+wrong-hash replace is only for “this slot is ours / stale THIS”.
+    If dest bytes match another catalog dest pin that writes the same path
+    or basename, that dest is the sibling — not installed-this and not
+    stale-this. Zip extracts that share a dest (DXVK ``d3d9.dll``) count as
+    siblings even without a dest pin; an unchecked id must not offer update
+    just because that foreign/sibling file is present.
+
+    Unique dest, unknown bytes, never toggled: still offer replace (do not
+    auto-delete). Desired-on may still replace a sibling or junk dest.
+    """
+    if _detect_pinned_payload(game, mod) is not False:
+        return False
+    if not _dest_slot_occupied(game, mod):
+        return False
+    mid = str(mod.get("id") or "")
+    desired = settings.desired_mods
+    catalog = mod_catalog_map()
+    siblings = _shared_dest_siblings(mod, catalog)
+    if _dest_matches_sibling_pin(game, siblings):
+        return False
+    for other in siblings:
+        oid = str(other.get("id") or "")
+        if oid and desired.get(oid) and not desired.get(mid):
+            return False
+        if _is_alternate_hd_variant(mid) and not desired.get(mid):
+            return False
+    if siblings and not desired.get(mid):
+        return _installed_stamp_this_id_only(mid, siblings)
+    return True
+
+
 def _pick_exclusive_detect_winner(
     a: str,
     b: str,
@@ -610,6 +1038,9 @@ def _pick_exclusive_detect_winner(
             return VANILLA_TWEAKS_OLD_ID
         return VANILLA_TWEAKS_ID
     if game_path is not None:
+        by_hash = _variant_on_disk_by_hash(a, b, game_path, mod_catalog_map())
+        if by_hash is not None:
+            return by_hash
         by_size = _variant_on_disk_by_size(a, b, game_path, mod_catalog_map())
         if by_size is not None:
             return by_size
@@ -1359,6 +1790,205 @@ def _files_content_differ(left: Path, right: Path) -> bool:
     return digest_left != digest_right
 
 
+def _local_mod_dest_rel(mod: dict[str, Any]) -> str:
+    """Game-relative path for a ``type=local`` DLL (files destination, else filename)."""
+    for fspec in mod.get("files") or []:
+        dest = str(fspec.get("destination") or "").strip().replace("\\", "/")
+        if dest:
+            return dest
+    src = mod.get("source") or {}
+    name = str(src.get("filename") or "").strip()
+    if name:
+        return name
+    for name in (mod.get("detect") or {}).get("any_files") or []:
+        text = str(name or "").strip().replace("\\", "/")
+        if text:
+            return text
+    return ""
+
+
+def _leftover_zig_build_path(mod: dict[str, Any]) -> Path | None:
+    """Source-built copy of an official-remote WU DLL, if one is still on disk.
+
+    Used only to detect leftovers that should be replaced from the install URL.
+    Never used as the install source for official-remote WU mods.
+    """
+    mid = str(mod.get("id") or "")
+    source = mod.get("source") if isinstance(mod.get("source"), dict) else {}
+    filename = sanitize_filename(
+        str(source.get("filename") or Path(_local_mod_dest_rel(mod)).name)
+    )
+    if mid not in OFFICIAL_REMOTE_WU_IDS and filename.lower() not in OFFICIAL_REMOTE_WU_FILENAMES:
+        return None
+    if not filename.lower().endswith(".dll"):
+        return None
+    from ichalaunch.core.paths import data_file, repo_root
+
+    bundled = data_file("weirdutils", filename)
+    if bundled.is_file():
+        return bundled.resolve()
+    out = repo_root() / "tools" / "_weirdutils" / "out" / filename
+    return out.resolve() if out.is_file() else None
+
+
+def _official_remote_needs_replace_of_zig(mod: dict[str, Any], game: Path) -> bool:
+    """True when dest is our Zig leftover and the catalog wants the official URL."""
+    mid = str(mod.get("id") or "")
+    if mid not in OFFICIAL_REMOTE_WU_IDS:
+        return False
+    source = mod.get("source") if isinstance(mod.get("source"), dict) else {}
+    if str(source.get("type") or "") not in ("raw", "github_release"):
+        return False
+    if not str(source.get("url") or "").strip():
+        return False
+    rel = _local_mod_dest_rel(mod)
+    if not rel:
+        return False
+    dest = resolve_ci(game, rel) or (game / rel)
+    zig = _leftover_zig_build_path(mod)
+    if zig is None:
+        return False
+    try:
+        if not dest.is_file() or not zig.is_file():
+            return False
+    except OSError:
+        return False
+    dest_hash = sha256_file(dest)
+    zig_hash = sha256_file(zig)
+    return bool(dest_hash and zig_hash and dest_hash == zig_hash)
+
+
+def _local_bundled_needs_refresh(mod: dict[str, Any], game: Path) -> bool:
+    """True when an installed ``type=local`` file differs from the bundled copy."""
+    if str(mod.get("id") or "") in OFFICIAL_REMOTE_WU_IDS:
+        return False
+    source = mod.get("source") if isinstance(mod.get("source"), dict) else {}
+    if str(source.get("type") or "") != "local":
+        return False
+    rel = _local_mod_dest_rel(mod)
+    if not rel:
+        return False
+    dest = resolve_ci(game, rel) or (game / rel)
+    try:
+        src = resolve_local_source_path(source)
+    except FileNotFoundError:
+        return False
+    try:
+        if not dest.is_file() or not src.is_file():
+            return False
+    except OSError:
+        return False
+    return _files_content_differ(src, dest)
+
+
+def _opt_in_local_dll_present(game: Path | None, mod: dict[str, Any]) -> bool:
+    """True when a ``type=local`` dest file is already in the game folder."""
+    if game is None:
+        return False
+    rel = _local_mod_dest_rel(mod)
+    if not rel:
+        return False
+    dest = resolve_ci(game, rel) or (game / rel)
+    try:
+        return dest.is_file()
+    except OSError:
+        return False
+
+
+def _crash_prone_opt_in_mod(mod_id: str) -> bool:
+    """True for the Discord helper — never silent-inject on Play / launch sync."""
+    return mod_id == DISCORD_WOW_STATUS_MOD_ID
+
+
+def _no_autoinstall_local_mod(mod: dict[str, Any]) -> bool:
+    """Hidden WeirdUtils DLL — hash-refresh if on disk; never first-install or remove."""
+    mid = str(mod.get("id") or "")
+    if not mod.get("hidden") or mid in PRIVACY_LINKED_MOD_IDS:
+        return False
+    source = mod.get("source") if isinstance(mod.get("source"), dict) else {}
+    return (
+        str(source.get("type") or "") == "local"
+        and str(source.get("bundle") or "") == "weirdutils"
+    )
+
+
+def _refresh_local_bundled_dll(mod: dict[str, Any], game: Path) -> bool:
+    """Replace dest from the bundled file when both exist and SHA-256 differs.
+
+    Never first-installs. Missing dest is a no-op. Matching hash is a no-op.
+    """
+    if str(mod.get("id") or "") in OFFICIAL_REMOTE_WU_IDS:
+        return False
+    if not _opt_in_local_dll_present(game, mod):
+        return False
+    if not _local_bundled_needs_refresh(mod, game):
+        return False
+    source = mod.get("source") if isinstance(mod.get("source"), dict) else {}
+    rel = _local_mod_dest_rel(mod)
+    if not rel:
+        return False
+    dest = resolve_ci(game, rel) or (game / rel)
+    mid = str(mod.get("id") or "")
+    try:
+        src = resolve_local_source_path(source)
+    except FileNotFoundError:
+        log.warning("Bundled DLL missing for %s; skip SHA refresh", mid or "?")
+        return False
+    try:
+        _install_copy(src, dest, game_path=game)
+    except OSError as exc:
+        log.warning("Bundled DLL SHA refresh failed for %s: %s", mid or "?", exc)
+        return False
+    remote = _remote_identity(source)
+    if remote and mid:
+        _stamp_local_mod_fingerprint(mid, mod, remote)
+    return True
+
+
+def ensure_discord_helper_current(game: Path | None = None) -> bool:
+    """Replace on-disk ``ichalaunch_discord.dll`` when SHA-256 differs from bundled.
+
+    Never first-installs. Missing dest is a no-op (crash-prone; do not inject).
+    Matching hash is a no-op. Returns True if a copy was written.
+    """
+    game = game or detect_game()
+    if not game:
+        return False
+    mod = get_mod(DISCORD_WOW_STATUS_MOD_ID)
+    if not mod:
+        return False
+    if not _refresh_local_bundled_dll(mod, game):
+        return False
+    log.info("Replaced stale Discord helper DLL (SHA-256 mismatch)")
+    return True
+
+
+def ensure_bundled_local_dlls_current(game: Path | None = None) -> list[str]:
+    """Replace installed WeirdUtils / Heal Text Fix DLLs when SHA-256 differs.
+
+    Never first-installs hidden Interact or Clickthrough.
+    Discord helper stays on ``ensure_discord_helper_current``.
+    """
+    game = game or detect_game()
+    if not game:
+        return []
+    done: list[str] = []
+    for mod in _applyable_catalog():
+        mid = str(mod.get("id") or "")
+        if not mid or mid == DISCORD_WOW_STATUS_MOD_ID:
+            continue
+        if mid in OFFICIAL_REMOTE_WU_IDS:
+            continue
+        source = mod.get("source") if isinstance(mod.get("source"), dict) else {}
+        if str(source.get("type") or "") != "local":
+            continue
+        if not _refresh_local_bundled_dll(mod, game):
+            continue
+        log.info("Replaced stale bundled DLL %s (SHA-256 mismatch)", mid)
+        done.append(mid)
+    return done
+
+
 def _exe_differs_from_backup(game_path: Path, backup_name: str) -> bool:
     """True when WoW.exe has been patched relative to *backup_name*.
 
@@ -1609,6 +2239,9 @@ def _detect_mod(
         return True
     if det.get("wdb_file"):
         return name_present(game_path, "WDB", root_names) and (game_path / "WDB").is_file()
+    pinned = _detect_pinned_payload(game_path, mod)
+    if pinned is not None:
+        return pinned
     if det.get("any_files"):
         if any(_game_rel_present(game_path, f, root_names) for f in det["any_files"]):
             return True
@@ -1683,7 +2316,7 @@ def detect_actual_state(game_path: Path) -> dict[str, bool]:
         log.warning("Pretty Night Sky Y→Z migrate skipped: %s", exc)
     state: dict[str, bool] = {}
     root_names = listed_basenames(game_path)
-    for mod in load_mod_catalog():
+    for mod in _applyable_catalog():
         mid = mod.get("id") or ""
         if not mid:
             continue
@@ -1776,7 +2409,12 @@ def _refresh_unverified_mod_flags(game: Path, actual: dict[str, bool]) -> None:
 
 def plan_missing_installs(desired: dict[str, bool] | None = None) -> list[dict[str, str]]:
     """Return install actions for desired mods missing on disk (no removals)."""
-    return [ch for ch in plan_changes(desired) if ch.get("action") == "install"]
+    return [
+        ch
+        for ch in plan_changes(desired)
+        if ch.get("action") == "install"
+        and not _crash_prone_opt_in_mod(str(ch.get("id") or ""))
+    ]
 
 
 def plan_manual_missing(desired: dict[str, bool] | None = None) -> list[str]:
@@ -1906,11 +2544,16 @@ def _effective_mod_installed(mid: str, actual: dict[str, bool]) -> bool:
 
 
 def plan_sync_changes(desired: dict[str, bool] | None = None) -> list[dict[str, str]]:
-    """Return install/remove actions needed to match desired_mods (no manual/error)."""
+    """Return install/remove actions needed to match desired_mods (no manual/error).
+
+    Crash-prone opt-in DLLs (Discord helper) are excluded: Play / launch sync
+    must not copy or list them. Client Apply / Update still uses ``plan_changes``.
+    """
     return [
         ch
         for ch in plan_changes(desired)
         if ch.get("action") in ("install", "remove")
+        and not _crash_prone_opt_in_mod(str(ch.get("id") or ""))
     ]
 
 
@@ -1930,18 +2573,25 @@ def ensure_desired_mods_on_disk(progress: ProgressCb | None = None) -> list[str]
 def ensure_desired_mods_synced(progress: ProgressCb | None = None) -> list[str]:
     """Install missing and remove extra client mods to match desired_mods."""
     changes = plan_sync_changes()
-    if not changes:
-        return []
-    done = _apply_planned_mod_changes(changes, progress=progress)
-    game = detect_game()
-    if game:
-        _sync_dlls_txt_for_desired_mods(game)
-        _log_vf_on_disk_summary(game, "pre-launch sync")
-    log.info("Pre-launch mod sync: %s", done)
+    done: list[str] = []
+    if changes:
+        done = _apply_planned_mod_changes(changes, progress=progress)
+        game = detect_game()
+        if game:
+            _sync_dlls_txt_for_desired_mods(game)
+            _log_vf_on_disk_summary(game, "pre-launch sync")
+        log.info("Pre-launch mod sync: %s", done)
+    if ensure_discord_helper_current():
+        done.append(f"+ {DISCORD_WOW_STATUS_MOD_ID}")
+        log.info("Discord helper SHA refresh: + %s", DISCORD_WOW_STATUS_MOD_ID)
+    for mid in ensure_bundled_local_dlls_current():
+        done.append(f"+ {mid}")
+        log.info("Bundled DLL SHA refresh: + %s", mid)
     return done
 
 
 def plan_changes(desired: dict[str, bool] | None = None) -> list[dict[str, str]]:
+    settings.sync_discord_presence_mod_desired()
     game = detect_game()
     if not game:
         return [{"action": "error", "id": "", "detail": "Game path not set"}]
@@ -1952,20 +2602,31 @@ def plan_changes(desired: dict[str, bool] | None = None) -> list[dict[str, str]]
     )
     desired = _persist_reconciled_desired_mods(desired, actual=game_actual)
     actual = game_actual
-    catalog = {m["id"]: m for m in load_mod_catalog()}
+    catalog = {m["id"]: m for m in _applyable_catalog()}
     changes: list[dict[str, str]] = []
 
-    to_install = [
-        mid
-        for mid, want in desired.items()
-        if want
-        and mid in catalog
-        and (
+    to_install = []
+    for mid, want in desired.items():
+        if not want or mid not in catalog:
+            continue
+        mod = catalog.get(mid) or {}
+        if _crash_prone_opt_in_mod(mid) or _no_autoinstall_local_mod(mod):
+            # Never first-install hidden/crash-prone DLLs. Hash refresh only
+            # when already on disk so Apply / Update can replace a stale copy.
+            if _effective_mod_installed(mid, actual) and _local_bundled_needs_refresh(
+                mod, game
+            ):
+                to_install.append(mid)
+            continue
+        if (
             not _effective_mod_installed(mid, actual)
             or _mpq_exclusive_variant_needs_reinstall(mid, desired, catalog)
             or _vanilla_tweaks_needs_catalog_repatch(mid, actual)
-        )
-    ]
+            or _local_bundled_needs_refresh(mod, game)
+            or _official_remote_needs_replace_of_zig(mod, game)
+            or _pinned_dest_needs_replace(mod, game)
+        ):
+            to_install.append(mid)
     ordered: list[str] = []
     seen: set[str] = set()
 
@@ -2026,6 +2687,10 @@ def plan_changes(desired: dict[str, bool] | None = None) -> list[dict[str, str]]
 
     for mid, want in desired.items():
         have = _effective_mod_installed(mid, actual)
+        if not have:
+            # Hash detect no longer treats a same-named stub as installed.
+            # Play / Apply still clear that dest when the user has the mod off.
+            have = _mpq_stub_owns_dest_cleanup(mid, catalog, actual, game)
         if not want and have:
             # DXVK bundle owns VanillaFixes.exe — never remove VF when DXVK is desired.
             if mid == _VANILLAFIXES_ID and desired.get(_DXVK_ID):
@@ -2038,6 +2703,8 @@ def plan_changes(desired: dict[str, bool] | None = None) -> list[dict[str, str]]
             if mid == _VANILLA_HELPERS_ID and _any_hd_patch_desired(desired):
                 continue
             mod = catalog.get(mid) or {}
+            if _no_autoinstall_local_mod(mod):
+                continue
             if mod.get("kind") == "manual_link":
                 continue
             # Official numeric patches are never launcher-owned. Presence of
@@ -2253,12 +2920,38 @@ def _pick_dxvk_win32_d3d9(search_root: Path) -> Path:
     return min(candidates, key=lambda p: len(p.parts))
 
 
-def _download_source(source: dict[str, Any], work: Path, progress: ProgressCb | None) -> Path | bytes:
-    """Download a catalog source.
+def _source_label(source: dict[str, Any]) -> str:
+    """Something human-sized to name a source in a refusal message."""
+    for key in ("filename", "folder", "repo", "url", "id"):
+        value = source.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip().split("/")[-1].split("?")[0] or value.strip()
+    return str(source.get("type") or "download")
 
-    Zip archives are kept in memory so Windows Defender cannot quarantine the
-    tempfile between download and ``ZipFile`` open (VanillaFixes.exe / patcher
-    DLLs commonly trip WinError 225 / Errno 22).
+
+def _download_source(source: dict[str, Any], work: Path, progress: ProgressCb | None) -> Path | bytes:
+    """Download a catalog source and refuse it if it misses its pinned digest.
+
+    Every download the installer performs funnels through here, so wrapping the
+    fetch is what makes the check unbypassable: a new source type added later
+    inherits verification without anyone remembering to ask for it.
+
+    Sources with no ``sha256`` install exactly as before. See
+    ``ichalaunch.mods.verify`` for why an unpinned entry is a maintainer
+    decision rather than a hole an attacker can open.
+    """
+    payload = _download_source_unverified(source, work, progress)
+    digest = verify_payload(source, payload, label=_source_label(source))
+    if digest:
+        log.info("Verified %s against pinned sha256 %s", _source_label(source), digest)
+    return payload
+
+
+def _download_source_unverified(
+    source: dict[str, Any], work: Path, progress: ProgressCb | None
+) -> Path | bytes:
+    """Fetch the bytes for a catalog source. Callers must go through
+    :func:`_download_source`, which adds the pinned-digest check.
     """
     stype = source.get("type")
     status_only(progress, f"Downloading ({stype})...")
@@ -2684,7 +3377,19 @@ def _remote_identity(
             path = resolve_local_source_path(source)
         except FileNotFoundError:
             return None
-        stat = path.stat()
+        digest = sha256_file(path)
+        if digest:
+            return {
+                "kind": "local",
+                "key": digest,
+                "display": str(source.get("version") or "local"),
+                "path": str(path),
+                "sha": digest,
+            }
+        try:
+            stat = path.stat()
+        except OSError:
+            return None
         return {
             "kind": "local",
             "key": f"{stat.st_mtime_ns}:{stat.st_size}",
@@ -2758,6 +3463,27 @@ def _backfill_detected_installed_mods(actual: dict[str, bool]) -> None:
             continue
         _clear_exclusive_sibling_install_records(mid, mod)
         settings.set_installed_mod(mid, _backfill_installed_mod_meta(mid, mod))
+
+
+def _stamp_local_mod_fingerprint(
+    mid: str, mod: dict[str, Any], remote: dict[str, Any]
+) -> None:
+    """Persist bundled SHA (or fallback key) after a local file matches or is copied."""
+    meta = _backfill_installed_mod_meta(mid, mod)
+    meta.pop("backfilled", None)
+    meta.update(
+        {
+            "version_key": remote.get("key"),
+            "version_display": remote.get("display"),
+            "version_kind": remote.get("kind"),
+            **{
+                k: remote[k]
+                for k in ("etag", "last_modified", "tag", "sha", "repo", "branch", "url")
+                if remote.get(k)
+            },
+        }
+    )
+    settings.set_installed_mod(mid, meta)
 
 
 def _addon_remote_identity(
@@ -2861,6 +3587,22 @@ def _record_mod_install(
         from ichalaunch.mods.vanilla_tweaks import tweaks_old_install_stamp
 
         meta.update(tweaks_old_install_stamp(settings.vanilla_tweaks_old_options))
+    game = detect_game()
+    if game and str(mod.get("kind") or "") != "exe_patch":
+        dest = _single_dest_path(game, mod)
+        try:
+            if (
+                dest is not None
+                and dest.is_file()
+                and dest.stat().st_size <= DETECT_HASH_MAX_BYTES
+            ):
+                dest_digest = sha256_file(dest)
+                if dest_digest:
+                    # Later refresh for zip extracts we installed. Does not
+                    # auto-detect a stranger's manual DLL (no stamp).
+                    meta["dest_sha256"] = dest_digest
+        except OSError:
+            pass
     settings.set_installed_mod(mod_id, meta)
 
 
@@ -2878,15 +3620,63 @@ def recently_checked_mod_updates(cooldown_sec: int | None = None) -> bool:
     return (time.time() - last) < float(cooldown_sec)
 
 
+def _check_local_bundled_update(
+    mod: dict[str, Any], game: Path
+) -> tuple[str, dict[str, Any] | None]:
+    """Compare an installed ``type=local`` file to the bundled copy (SHA-256).
+
+    Returns ``("ok", None)`` when hashes match (and refreshes stored metadata),
+    ``("update", row)`` when dest and bundled differ, or ``("skip", None)``
+    when a hash cannot be read.
+    """
+    mid = str(mod.get("id") or "")
+    if mid in OFFICIAL_REMOTE_WU_IDS:
+        return "skip", None
+    source = mod.get("source") or {}
+    remote = _remote_identity(source)
+    if not remote or not remote.get("key"):
+        return "skip", None
+    rel = _local_mod_dest_rel(mod)
+    if not rel:
+        return "skip", None
+    dest = resolve_ci(game, rel) or (game / rel)
+    dest_hash = sha256_file(dest)
+    bundled_key = str(remote.get("key"))
+    if not dest_hash:
+        return "skip", None
+    if dest_hash == bundled_key:
+        local = settings.installed_mods.get(mid) or {}
+        local_key = (
+            local.get("version_key")
+            or local.get("tag")
+            or local.get("sha")
+            or local.get("etag")
+        )
+        if local_key != bundled_key:
+            _stamp_local_mod_fingerprint(mid, mod, remote)
+        return "ok", None
+    return "update", {
+        "id": mid,
+        "name": mod.get("name") or mid,
+        "local": dest_hash[:12],
+        "remote": remote.get("display") or bundled_key[:12],
+        "kind": remote.get("kind"),
+    }
+
+
 def check_mod_updates(
     *,
     respect_cooldown: bool = False,
     progress: Any = None,
 ) -> ModUpdateCheckResult:
-    """Compare installed client mods to the shared catalog tip-SHA JSON.
+    """Compare installed client mods to bundled hashes and the tip-SHA catalog.
 
-    One remote fetch of ``addon_tips.json``, then a local compare. Per-mod
-    git/REST/HEAD probes are not used here.
+    ``type=local`` mods (source-built WeirdUtils and hidden privacy-linked
+    DLLs) compare the on-disk file to the bundled copy via SHA-256 and do
+    not need the tip index. Official remote WeirdUtils assets (Heal Text
+    Fix, WeirdPerformance, Minimap Trackings, Transmog Fix, World Markers)
+    use the catalog URL. Other mods use one remote fetch of
+    ``addon_tips.json``. Per-mod git/REST/HEAD probes are not used here.
     """
     if respect_cooldown and recently_checked_mod_updates():
         return ModUpdateCheckResult(skipped_recent=True)
@@ -2900,19 +3690,58 @@ def check_mod_updates(
     checked = 0
     skipped = 0
 
-    to_check: list[dict[str, Any]] = []
-    for mod in load_mod_catalog():
+    to_check_local: list[dict[str, Any]] = []
+    to_check_remote: list[dict[str, Any]] = []
+    for mod in _applyable_catalog():
         mid = mod["id"]
-        if not actual.get(mid):
+        stale = _pinned_dest_needs_replace(mod, game)
+        if not actual.get(mid) and not stale:
             continue
         kind = mod.get("kind")
         source = mod.get("source")
         if kind in ("manual_link", "wdb_block", "config_script_memory") or not source:
             skipped += 1
             continue
-        to_check.append(mod)
+        if stale:
+            checked += 1
+            updates.append(
+                {
+                    "id": mid,
+                    "name": mod.get("name") or mid,
+                    "local": "on disk",
+                    "remote": "catalog",
+                    "kind": "pin",
+                }
+            )
+            continue
+        if str(source.get("type") or "") == "local":
+            to_check_local.append(mod)
+        else:
+            to_check_remote.append(mod)
 
     on_count = getattr(progress, "on_count", None) if progress is not None else None
+
+    if not to_check_local and not to_check_remote:
+        settings.set("last_mod_update_check", time.time())
+        if callable(on_count):
+            on_count(1, 1, "Checking client mod updates…")
+        return ModUpdateCheckResult(updates=updates, checked=checked, skipped=skipped)
+
+    for mod in to_check_local:
+        status, hit = _check_local_bundled_update(mod, game)
+        if status == "skip":
+            skipped += 1
+            continue
+        checked += 1
+        if hit is not None:
+            updates.append(hit)
+
+    if not to_check_remote:
+        if callable(on_count):
+            on_count(1, 1, "Checking client mod updates…")
+        settings.set("last_mod_update_check", time.time())
+        return ModUpdateCheckResult(updates=updates, checked=checked, skipped=skipped)
+
     if callable(on_count):
         on_count(0, 1, "Fetching update catalog…")
 
@@ -2928,29 +3757,24 @@ def check_mod_updates(
         settings.set("last_mod_update_check", time.time())
         if callable(on_count):
             on_count(1, 1, "Checking client mod updates…")
+        status = None if updates else "Update catalog unavailable"
         return ModUpdateCheckResult(
             updates=updates,
             checked=checked,
-            skipped=skipped + len(to_check),
-            status_message="Update catalog unavailable",
+            skipped=skipped + len(to_check_remote),
+            status_message=status,
         )
 
     if callable(on_count):
         on_count(0, 1, "Checking client mod updates…")
 
-    if not to_check:
-        settings.set("last_mod_update_check", time.time())
-        if callable(on_count):
-            on_count(1, 1, "Checking client mod updates…")
-        return ModUpdateCheckResult(updates=updates, checked=checked, skipped=skipped)
-
     log.info(
         "Client mod update check via catalog index (%d repo(s)); comparing %d installed mod(s)",
         index_repo_count(index),
-        len(to_check),
+        len(to_check_remote) + len(to_check_local),
     )
 
-    for mod in to_check:
+    for mod in to_check_remote:
         mid = mod["id"]
         source = mod.get("source")
         remote = _remote_identity(source, catalog_only=True)
@@ -3097,6 +3921,10 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
                 and source
                 and source.get("type") == "github_release"
                 and mod_id != _VANILLA_TWEAKS_OLD_ID
+                # A pinned source has already had its version chosen. Re-pointing
+                # it at whatever upstream published since would rebuild the
+                # source dict without the digest.
+                and not expected_digest(source)
             ):
                 repo = _repo_from_github_url(source.get("url") or "")
                 if repo:
@@ -3393,6 +4221,8 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
         shutil.Error,
         ValueError,
         requests.RequestException,
+        SourceHashMismatch,
+        AddonDestinationRefused,
     ) as exc:
         log.warning("Install %s failed, rolling back: %s", mod_id, exc)
         _revert_failed_mod_install(game, mod, backup_root)
@@ -3903,7 +4733,7 @@ def _catalog_dll_sets() -> tuple[set[str], set[str]]:
     desired_dlls: set[str] = set()
     disabled_dlls: set[str] = set()
     desired = settings.desired_mods
-    for mod in load_mod_catalog():
+    for mod in _applyable_catalog():
         mid = mod.get("id") or ""
         dlls = (mod.get("dlls_txt") or {}).get("add") or []
         names = {
@@ -3912,6 +4742,13 @@ def _catalog_dll_sets() -> tuple[set[str], set[str]]:
             if str(d).strip()
         }
         if desired.get(mid, False):
+            if (
+                _crash_prone_opt_in_mod(mid) or _no_autoinstall_local_mod(mod)
+            ) and not _opt_in_local_dll_present(detect_game(), mod):
+                # Enabled in settings but not on disk — do not list in dlls.txt
+                # (VanillaFixes would load a missing / uninstalled crash-prone DLL).
+                disabled_dlls |= names
+                continue
             desired_dlls |= names
         else:
             disabled_dlls |= names
@@ -3922,7 +4759,7 @@ def _sync_dlls_txt_for_desired_mods(game: Path) -> tuple[list[str], list[str]]:
     """Reconcile dlls.txt with desired mod DLL entries. Returns (added, removed)."""
     should_have, disabled_catalog = _catalog_dll_sets()
     to_add_by_lower: dict[str, str] = {}
-    for mod in load_mod_catalog():
+    for mod in _applyable_catalog():
         mid = mod.get("id") or ""
         if not settings.desired_mods.get(mid, False):
             continue
@@ -3997,13 +4834,52 @@ def _ensure_enabled_data_writable(game: Path) -> tuple[list[str], list[str]]:
     return fixes, warnings
 
 
+def apply_discord_presence_dll(progress: ProgressCb | None = None) -> list[str]:
+    """Install or remove the hidden status DLL to match both Discord opt-ins.
+
+    VanillaFixes only drops a loaded DLL after a game restart. dlls.txt is
+    updated immediately so the next launch matches the checkboxes. The DLL
+    installs only when Discord presence and character status are both on.
+    """
+    settings.sync_discord_presence_mod_desired()
+    settings.sync_discord_broadcast_flags_file()
+    game = detect_game()
+    if not game:
+        return []
+    mid = DISCORD_WOW_STATUS_MOD_ID
+    want = settings.discord_presence_dll_enabled()
+    try:
+        if want:
+            notices = install_mod(mid, progress=progress)
+            return list(notices or []) or [f"+ {mid}"]
+        remove_mod(mid, progress=progress)
+        return [f"- {mid}"]
+    except FileNotFoundError as exc:
+        log.warning("Discord status DLL skipped: %s", exc)
+        return []
+    except KeyError:
+        log.warning("Discord status DLL is missing from the catalog")
+        return []
+    except OSError as exc:
+        # Locked file while the game is running: dlls.txt may already be updated.
+        log.warning("Discord status DLL apply incomplete: %s", exc)
+        return []
+
+
 def prepare_for_launch(game: Path | None = None) -> PreLaunchResult:
     """Quick pre-boot checks: dlls.txt sync and Data/ read-only fixes."""
     result = PreLaunchResult()
+    settings.sync_discord_presence_mod_desired()
     game = game or detect_game()
     if not game:
         result.warnings.append("Game path not set")
         return result
+
+    if ensure_discord_helper_current(game):
+        result.fixes.append("Updated Discord character status helper")
+    for mid in ensure_bundled_local_dlls_current(game):
+        name = (get_mod(mid) or {}).get("name") or mid
+        result.fixes.append(f"Updated {name}")
 
     added, removed = _sync_dlls_txt_for_desired_mods(game)
     if added:

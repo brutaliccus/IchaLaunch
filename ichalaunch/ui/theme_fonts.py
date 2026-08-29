@@ -53,6 +53,75 @@ _chrome_family: str | None = None
 _load_attempted = False
 
 
+# Reading text. Lexend is drawn on reading-speed research: wide apertures and
+# generous spacing, measurably easier for dyslexic readers and simply clearer at
+# small sizes than a general UI face. The split is display-face for ornament,
+# reading-face for content, which is a standard pairing rather than a mixture.
+#
+# Unlike the chrome face this is SIL Open Font Licence, so it can be bundled and
+# shipped rather than depending on what the machine happens to have installed.
+_BODY_FILES = ("Lexend-Regular.ttf", "Lexend-Medium.ttf", "Lexend-SemiBold.ttf")
+FALLBACK_BODY_FAMILY = "Segoe UI"
+_body_family: str | None = None
+_body_loaded = False
+
+
+# RavenCraft's own secondary face, and the answer to the one type note the project
+# owner actually made: the display font is right for headers, too much for small
+# text. ravencraft.io declares Fontin-Sans in more rules than any other family and
+# keeps Folkard for display, so this is the site's pairing rather than an invention.
+# Small caps is its normal weight there, which is why their labels read as they do.
+_LABEL_FILES = ("Fontin-Sans-CR-SC.ttf", "Fontin-Sans-CR-Bold.ttf")
+_label_family: str | None = None
+_label_loaded = False
+
+
+def label_family() -> str:
+    """Small-caps label face, registered from the bundle on first use."""
+    global _label_family, _label_loaded
+    if _label_loaded:
+        return _label_family or body_family()
+    _label_loaded = True
+    for name in _LABEL_FILES:
+        path = theme_file("fonts", name)
+        if not path.is_file() or path.stat().st_size <= 0:
+            log.warning("Label font not bundled: %s", name)
+            continue
+        font_id = QFontDatabase.addApplicationFont(str(path))
+        if font_id == -1:
+            log.warning("Label font rejected by Qt: %s", name)
+            continue
+        families = QFontDatabase.applicationFontFamilies(font_id)
+        if families and _label_family is None:
+            _label_family = families[0]
+    if _label_family is None:
+        return body_family()
+    return _label_family
+
+
+def body_family() -> str:
+    """The reading face, registered from the bundle on first use."""
+    global _body_family, _body_loaded
+    if _body_loaded:
+        return _body_family or FALLBACK_BODY_FAMILY
+    _body_loaded = True
+    for name in _BODY_FILES:
+        path = theme_file("fonts", name)
+        if not path.is_file() or path.stat().st_size <= 0:
+            log.warning("Body font not bundled: %s", name)
+            continue
+        font_id = QFontDatabase.addApplicationFont(str(path))
+        if font_id == -1:
+            log.warning("Body font rejected by Qt: %s", name)
+            continue
+        families = QFontDatabase.applicationFontFamilies(font_id)
+        if families and _body_family is None:
+            _body_family = families[0]
+    if _body_family is None:
+        log.warning("No body font registered; falling back to %s", FALLBACK_BODY_FAMILY)
+    return _body_family or FALLBACK_BODY_FAMILY
+
+
 def chrome_family() -> str:
     """Family for tabs, buttons and headings; the old stack if it is missing."""
     global _chrome_family, _load_attempted

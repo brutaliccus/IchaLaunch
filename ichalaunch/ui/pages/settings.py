@@ -14,8 +14,13 @@ from PySide6.QtWidgets import (
 )
 
 from ichalaunch import __version__
+from ichalaunch.ui.widgets.gradient_label import GradientLabel
 from ichalaunch.core.logging_setup import log_dir
 from ichalaunch.config.settings import settings
+from ichalaunch.game.discord_presence import (
+    BROADCAST_FIELD_KEYS,
+    BROADCAST_FIELD_LABELS,
+)
 from ichalaunch.ui.widgets.casting_bar_search_edit import (
     SETTINGS_MIN_H,
     CastingBarSearchEdit,
@@ -23,6 +28,13 @@ from ichalaunch.ui.widgets.casting_bar_search_edit import (
 from ichalaunch.ui.widgets.glue_panel_button import GLUE_BTN_H, GluePanelButton
 from ichalaunch.ui.widgets.marble_bg import MarbleCard
 from ichalaunch.ui.widgets.theme_checkbox import ThemeCheckBox
+
+# Same extra left inset as Client ModCheckRow.set_nested (Heal Text Fix).
+_SETTINGS_NEST_INDENT = 22
+_DISCORD_PARENT_LABEL = "Show status on Discord"
+_DISCORD_CHILD_LABEL = (
+    "Show character details (name, race, class, guild, zone, level)"
+)
 
 
 class SettingsPage(QWidget):
@@ -33,6 +45,7 @@ class SettingsPage(QWidget):
     clear_cache_clicked = Signal()
     check_permissions_clicked = Signal()
     verify_clicked = Signal()
+    discord_presence_changed = Signal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -65,7 +78,7 @@ class SettingsPage(QWidget):
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
 
-        title = QLabel("Settings")
+        title = GradientLabel("Settings")
         title.setObjectName("SectionTitle")
 
         game_card = MarbleCard()
@@ -211,6 +224,72 @@ class SettingsPage(QWidget):
         privacy_note.setObjectName("Muted")
         privacy_note.setWordWrap(True)
         privacy_card.body.addWidget(privacy_note)
+        self.cb_discord_presence = ThemeCheckBox(_DISCORD_PARENT_LABEL)
+        self.cb_discord_presence.setChecked(settings.discord_rich_presence_enabled())
+        self.cb_discord_presence.setToolTip(
+            "When enabled, Discord shows you are playing. The bold title is "
+            "the Discord application name (Developer Portal), not the launcher "
+            "exe. Character details appear only if the option below is on. "
+            "Discord desktop must be running. Takes effect immediately. Off "
+            "by default. No game path or tokens are sent."
+        )
+        self.cb_discord_presence.toggled.connect(self._on_discord_presence_toggled)
+        self.cb_discord_presence.setMinimumHeight(28)
+        self.cb_discord_presence.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+        privacy_card.body.addWidget(self.cb_discord_presence)
+        self.cb_discord_character = ThemeCheckBox(_DISCORD_CHILD_LABEL)
+        self.cb_discord_character.setToolTip(
+            "When enabled, Discord shows your character name, race, class, "
+            "guild, zone, level, and faction (when known) while you are in "
+            "the world. Loads a small helper DLL; restart the game to apply "
+            "or unload it. Requires Show status on Discord. Off by default."
+        )
+        self.cb_discord_character.toggled.connect(self._on_discord_character_toggled)
+        self.cb_discord_character.setMinimumHeight(28)
+        self.cb_discord_character.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+        nest_host = QWidget()
+        nest_host.setObjectName("DiscordCharacterStatusNest")
+        nest_l = QVBoxLayout(nest_host)
+        nest_l.setContentsMargins(_SETTINGS_NEST_INDENT, 0, 0, 0)
+        nest_l.setSpacing(0)
+        nest_l.addWidget(self.cb_discord_character)
+        self.cb_discord_fields: dict[str, ThemeCheckBox] = {}
+        fields_host = QWidget()
+        fields_host.setObjectName("DiscordBroadcastFieldsNest")
+        fields_l = QVBoxLayout(fields_host)
+        fields_l.setContentsMargins(_SETTINGS_NEST_INDENT, 4, 0, 0)
+        fields_l.setSpacing(4)
+        current_fields = settings.discord_broadcast_fields()
+        for key in BROADCAST_FIELD_KEYS:
+            box = ThemeCheckBox(BROADCAST_FIELD_LABELS[key])
+            box.setChecked(bool(current_fields.get(key, True)))
+            box.setToolTip(
+                f"When unchecked, {BROADCAST_FIELD_LABELS[key].lower()} is omitted "
+                "from Discord. Takes effect immediately."
+            )
+            box.setMinimumHeight(28)
+            box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            box.toggled.connect(
+                lambda checked, k=key: self._on_discord_field_toggled(k, checked)
+            )
+            fields_l.addWidget(box)
+            self.cb_discord_fields[key] = box
+        nest_l.addWidget(fields_host)
+        self._discord_character_nest = nest_host
+        self._discord_fields_nest = fields_host
+        privacy_card.body.addWidget(nest_host)
+        self._sync_discord_character_row()
+        discord_note = QLabel(
+            "Optional and off by default. Discord desktop must be running. "
+            "Unchecked details are omitted from Discord."
+        )
+        discord_note.setObjectName("Muted")
+        discord_note.setWordWrap(True)
+        privacy_card.body.addWidget(discord_note)
 
         gh_card = MarbleCard()
         gh_card.body.setSpacing(10)
@@ -331,6 +410,48 @@ class SettingsPage(QWidget):
         scroll.setWidget(host)
         outer.addWidget(scroll)
 
+    def _sync_discord_character_row(self) -> None:
+        parent_on = settings.discord_rich_presence_enabled()
+        child_on = parent_on and settings.discord_rich_presence_character_status()
+        self.cb_discord_character.setEnabled(parent_on)
+        self.cb_discord_character.blockSignals(True)
+        self.cb_discord_character.setChecked(child_on)
+        self.cb_discord_character.blockSignals(False)
+        persisted = settings.discord_broadcast_fields()
+        for key, box in self.cb_discord_fields.items():
+            box.setEnabled(parent_on)
+            box.blockSignals(True)
+            box.setChecked(bool(persisted.get(key, True)))
+            box.blockSignals(False)
+
+    def _apply_discord_presence_dll(self) -> None:
+        try:
+            from ichalaunch.mods.installer import apply_discord_presence_dll
+
+            apply_discord_presence_dll()
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _on_discord_presence_toggled(self, enabled: bool) -> None:
+        settings.set_discord_rich_presence_enabled(bool(enabled))
+        self._sync_discord_character_row()
+        self._apply_discord_presence_dll()
+        self.discord_presence_changed.emit(bool(enabled))
+
+    def _on_discord_character_toggled(self, enabled: bool) -> None:
+        if enabled and not settings.discord_rich_presence_enabled():
+            self._sync_discord_character_row()
+            return
+        settings.set_discord_rich_presence_character_status(bool(enabled))
+        self._sync_discord_character_row()
+        self._apply_discord_presence_dll()
+        self.discord_presence_changed.emit(settings.discord_rich_presence_enabled())
+
+    def _on_discord_field_toggled(self, key: str, enabled: bool) -> None:
+        settings.set_discord_broadcast_field(key, bool(enabled))
+        if settings.discord_rich_presence_enabled():
+            self.discord_presence_changed.emit(True)
+
     def _save_github_token(self, force_feedback: bool = False) -> None:
         self._token_save_timer.stop()
         value = self.token_edit.text().strip()
@@ -364,6 +485,10 @@ class SettingsPage(QWidget):
             bool(settings.get("crash_reporting_enabled", False))
         )
         self.cb_crash_reports.blockSignals(False)
+        self.cb_discord_presence.blockSignals(True)
+        self.cb_discord_presence.setChecked(settings.discord_rich_presence_enabled())
+        self.cb_discord_presence.blockSignals(False)
+        self._sync_discord_character_row()
         # Avoid clobbering in-progress edits / firing textChanged autosave.
         stored = str(settings.get("github_token") or "")
         if self.token_edit.text() != stored:
