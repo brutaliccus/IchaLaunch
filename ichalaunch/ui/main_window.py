@@ -405,7 +405,10 @@ from ichalaunch.ui.pages.home import HomePage
 from ichalaunch.ui.pages.settings import SettingsPage
 from ichalaunch.ui.widgets.loading_bar import ThemeLoadingBar
 from ichalaunch.ui.widgets.chrome_buttons import ChromeGlyphButton
-from ichalaunch.ui.widgets.contributor_portrait import ContributorPortrait
+from ichalaunch.ui.widgets.contributor_portrait import (
+    ContributorPortrait,
+    SUBTILIZER_GLOW,
+)
 from ichalaunch.ui.widgets.cursors import apply_open_hand
 from ichalaunch.ui.widgets.glue_panel_button import (
     glue_floor_chrome_pixmap,
@@ -1991,6 +1994,16 @@ class MainWindow(QMainWindow):
                 border_name="CheckButtonHilight-Blue.PNG",
                 crop_mode="cover",
                 fill_mode="outer",
+                tooltip="Vyncas",
+            )
+        )
+        portraits.addWidget(
+            ContributorPortrait(
+                "contributor_04.jpg",
+                border_name="CheckButtonGlow-Pink.PNG",
+                border_tint=SUBTILIZER_GLOW,
+                url="https://discord.com/users/212723010296086530",
+                tooltip="Subtilizer",
             )
         )
         contrib_l.addWidget(contributors_label, 0, Qt.AlignmentFlag.AlignHCenter)

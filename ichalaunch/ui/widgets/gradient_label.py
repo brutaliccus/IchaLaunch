@@ -186,6 +186,8 @@ RIM_NEON_PINK = _ramp("#3d0022", "#a8005f", "#ff1d8e", "#ff6ec4", "#ffd0ea", "#f
 RIM_PINK_WHITE = _ramp("#3a1c26", "#b4707f", "#f2a8bd", "#ffd9e4", "#fffafc", "#f2a8bd", "#3a1c26")
 # Ordinary Joe: electric, frosty. Deliberately the cold one.
 RIM_FROST_BLUE = _ramp("#00203a", "#0d6ea8", "#31b6ef", "#8ee2ff", "#eafaff", "#31b6ef", "#00203a")
+# Subtilizer: lime/chartreuse. Same stop shape as Mynie; peak is their art rim.
+RIM_LIME_CHARTREUSE = _ramp("#2d2808", "#8a761f", "#d9c05b", "#f0e08a", "#fff6c8", "#d9c05b", "#2d2808")
 
 
 def lava_rim_pixmap(silhouette: QPixmap, degrees: float, ramp=None) -> QPixmap:

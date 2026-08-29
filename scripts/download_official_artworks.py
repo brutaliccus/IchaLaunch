@@ -1,18 +1,24 @@
-"""Download official RavenCraft artworks for the HOME art scroll."""
+"""Refresh HOME gallery URLs from https://ravencraft.io/artworks.
+
+Hashed Vite asset names change when the site rebuilds. This writes the current
+URLs into ``ichalaunch/data/home_art.json``. Images are downloaded at runtime
+into appdata, not packed into the exe.
+"""
 from __future__ import annotations
 
+import json
 import re
 import sys
+from collections import defaultdict
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
 import requests
 
 UA = {"User-Agent": "IchaLaunch/1.0"}
 PAGE = "https://ravencraft.io/artworks"
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "ichalaunch" / "ui" / "theme" / "official_artworks"
-
+MANIFEST = ROOT / "ichalaunch" / "data" / "home_art.json"
 SKIP_SUBSTR = (
     "favicon",
     "icon-152",
@@ -23,66 +29,80 @@ SKIP_SUBSTR = (
 
 
 def stem_key(url: str) -> str:
-    name = Path(unquote(urlparse(url).path)).name
+    name = Path(unquote(urlsplit(url).path)).name
     base = re.sub(r"-[A-Za-z0-9_-]{6,}\.(webp|jpe?g|png)$", "", name, flags=re.I)
     if base == name:
         base = Path(name).stem
     return re.sub(r"[^A-Za-z0-9_-]+", "_", base).strip("_").lower()
 
 
-def main() -> int:
-    r = requests.get(PAGE, headers=UA, timeout=60)
-    r.raise_for_status()
-    html = r.text
-    # Paths may contain spaces (e.g. "Deep in the Green-….webp")
-    urls = sorted(
-        set(
-            re.findall(
-                r"https://ravencraft\.io/build/assets/[^\"'<>]+?\.(?:webp|jpe?g|png)",
-                html,
-                re.I,
-            )
-        )
+def encode_url(url: str) -> str:
+    parts = urlsplit(url)
+    return urlunsplit(
+        (parts.scheme, parts.netloc, quote(parts.path, safe="/-_.~"), parts.query, parts.fragment)
     )
-    by_stem: dict[str, list[str]] = {}
-    for u in urls:
-        if any(s in u.lower() for s in SKIP_SUBSTR):
-            continue
-        by_stem.setdefault(stem_key(u), []).append(u)
 
-    def rank(u: str) -> int:
-        low = u.lower()
+
+def preferred_url(variants: list[str]) -> str:
+    def rank(url: str) -> int:
+        low = url.lower()
         if low.endswith((".jpg", ".jpeg")):
             return 0
         if low.endswith(".png"):
             return 1
         return 2
 
-    OUT.mkdir(parents=True, exist_ok=True)
-    chosen: list[tuple[str, str]] = []
-    for stem, variants in sorted(by_stem.items()):
-        variants.sort(key=rank)
-        chosen.append((stem, variants[0]))
+    return encode_url(sorted(variants, key=rank)[0])
 
-    print(f"Downloading {len(chosen)} artworks -> {OUT}")
-    manifest: list[str] = []
-    for stem, url in chosen:
-        ext = Path(unquote(urlparse(url).path)).suffix.lower() or ".jpg"
-        if ext == ".jpeg":
-            ext = ".jpg"
-        dest = OUT / f"{stem}{ext}"
-        if dest.is_file() and dest.stat().st_size > 10_000:
-            print(f"  skip existing {dest.name}")
-            manifest.append(dest.name)
+
+def main() -> int:
+    response = requests.get(PAGE, headers=UA, timeout=60)
+    response.raise_for_status()
+    found = sorted(
+        set(
+            re.findall(
+                r"https://ravencraft\.io/build/assets/[^\"'<>]+?\.(?:webp|jpe?g|png)",
+                response.text,
+                re.I,
+            )
+        )
+    )
+    by_stem: dict[str, list[str]] = defaultdict(list)
+    for url in found:
+        if any(skip in url.lower() for skip in SKIP_SUBSTR):
             continue
-        print(f"  {dest.name} <- {url}")
-        resp = requests.get(url, headers=UA, timeout=120)
-        resp.raise_for_status()
-        dest.write_bytes(resp.content)
-        manifest.append(dest.name)
+        by_stem[stem_key(url)].append(url)
+    urls = {stem: preferred_url(variants) for stem, variants in by_stem.items()}
 
-    (OUT / "manifest.txt").write_text("\n".join(manifest) + "\n", encoding="utf-8")
-    print(f"Done: {len(manifest)} files")
+    raw = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    slides = raw.get("slides") if isinstance(raw, dict) else raw
+    if not isinstance(slides, list):
+        raise RuntimeError(f"{MANIFEST} has no slides list")
+
+    updated = 0
+    missing: list[str] = []
+    for slide in slides:
+        if not isinstance(slide, dict):
+            continue
+        slide_id = str(slide.get("id") or "")
+        if slide_id == "zaeya_first_60":
+            continue
+        url = urls.get(slide_id)
+        if not url:
+            missing.append(slide_id)
+            continue
+        if slide.get("url") != url:
+            slide["url"] = url
+            updated += 1
+
+    MANIFEST.write_text(
+        json.dumps({"slides": slides}, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    print(f"Updated {updated} URLs in {MANIFEST.relative_to(ROOT)} ({len(urls)} live artworks)")
+    if missing:
+        print("No ravencraft.io asset for:", ", ".join(missing))
+        return 1
     return 0
 
 

@@ -1807,11 +1807,21 @@ def _local_mod_dest_rel(mod: dict[str, Any]) -> str:
     return ""
 
 
+def _official_remote_pin_digest(mod: dict[str, Any]) -> str | None:
+    """Catalog dest/source pin for an official-remote WeirdUtils DLL."""
+    source = mod.get("source") if isinstance(mod.get("source"), dict) else {}
+    return dest_expected_digest(mod) or expected_digest(source)
+
+
 def _leftover_zig_build_path(mod: dict[str, Any]) -> Path | None:
     """Source-built copy of an official-remote WU DLL, if one is still on disk.
 
     Used only to detect leftovers that should be replaced from the install URL.
     Never used as the install source for official-remote WU mods.
+
+    Bundled ``data/weirdutils`` copies of the official pin are not leftovers —
+    those are the catalog bytes we ship. Only a file whose hash differs from
+    the pin counts as Zig residue.
     """
     mid = str(mod.get("id") or "")
     source = mod.get("source") if isinstance(mod.get("source"), dict) else {}
@@ -1824,15 +1834,36 @@ def _leftover_zig_build_path(mod: dict[str, Any]) -> Path | None:
         return None
     from ichalaunch.core.paths import data_file, repo_root
 
-    bundled = data_file("weirdutils", filename)
-    if bundled.is_file():
-        return bundled.resolve()
-    out = repo_root() / "tools" / "_weirdutils" / "out" / filename
-    return out.resolve() if out.is_file() else None
+    official = _official_remote_pin_digest(mod)
+    candidates = (
+        data_file("weirdutils", filename),
+        repo_root() / "tools" / "_weirdutils" / "out" / filename,
+    )
+    seen: set[str] = set()
+    for path in candidates:
+        try:
+            if not path.is_file():
+                continue
+            key = str(path.resolve())
+        except OSError:
+            continue
+        if key in seen:
+            continue
+        seen.add(key)
+        digest = sha256_file(path)
+        if not digest or (official and digest == official):
+            continue
+        return path.resolve()
+    return None
 
 
 def _official_remote_needs_replace_of_zig(mod: dict[str, Any], game: Path) -> bool:
-    """True when dest is our Zig leftover and the catalog wants the official URL."""
+    """True when dest is our Zig leftover and the catalog wants the official URL.
+
+    Dest that already matches the catalog pin (or a dest stamp we wrote after
+    a launcher install) is the official file — even when a bundled official
+    copy lives at the leftover-search path.
+    """
     mid = str(mod.get("id") or "")
     if mid not in OFFICIAL_REMOTE_WU_IDS:
         return False
@@ -1845,17 +1876,32 @@ def _official_remote_needs_replace_of_zig(mod: dict[str, Any], game: Path) -> bo
     if not rel:
         return False
     dest = resolve_ci(game, rel) or (game / rel)
-    zig = _leftover_zig_build_path(mod)
-    if zig is None:
-        return False
     try:
-        if not dest.is_file() or not zig.is_file():
+        if not dest.is_file():
             return False
     except OSError:
         return False
     dest_hash = sha256_file(dest)
+    if not dest_hash:
+        return False
+    official = _official_remote_pin_digest(mod)
+    if official and dest_hash == official:
+        return False
+    stored = _stored_dest_digest(mid)
+    if stored and dest_hash == stored:
+        return False
+    zig = _leftover_zig_build_path(mod)
+    if zig is None:
+        return False
+    try:
+        if not zig.is_file():
+            return False
+    except OSError:
+        return False
     zig_hash = sha256_file(zig)
-    return bool(dest_hash and zig_hash and dest_hash == zig_hash)
+    if official and zig_hash == official:
+        return False
+    return bool(zig_hash and dest_hash == zig_hash)
 
 
 def _local_bundled_needs_refresh(mod: dict[str, Any], game: Path) -> bool:

@@ -2537,6 +2537,241 @@ def test_official_remote_wu_replaces_leftover_zig():
     print("OK official remote WU replaces leftover zig")
 
 
+def _official_wu_pin_payload(mod: dict) -> bytes | None:
+    """Catalog-pin bytes from a shipped official-remote WU copy, if present."""
+    from ichalaunch.core.filesystem import sha256_file
+    from ichalaunch.core.paths import data_file, repo_root
+    from ichalaunch.mods.verify import expected_digest
+
+    source = mod.get("source") if isinstance(mod.get("source"), dict) else {}
+    pin = expected_digest(source)
+    filename = str(source.get("filename") or "").strip()
+    if not pin or not filename:
+        return None
+    for path in (
+        data_file("weirdutils", filename),
+        repo_root() / "tools" / "_weirdutils" / "out" / filename,
+        repo_root() / "tools" / "_weirdutils" / "prebuilt" / filename,
+    ):
+        try:
+            if path.is_file() and sha256_file(path) == pin:
+                return path.read_bytes()
+        except OSError:
+            continue
+    return None
+
+
+def test_healtextfix_matching_pin_not_offered_as_update():
+    """Official Heal Text Fix dest == catalog pin → no replace / no second plan."""
+    import hashlib
+    from unittest.mock import patch
+
+    from ichalaunch.config.settings import settings
+    from ichalaunch.core.filesystem import clear_fs_caches, sha256_file
+    from ichalaunch.mods.installer import (
+        _official_remote_needs_replace_of_zig,
+        _pinned_dest_needs_replace,
+        check_mod_updates,
+        get_mod,
+        plan_changes,
+    )
+    from ichalaunch.mods.verify import expected_digest
+
+    catalog_heal = get_mod("wu_healtextfix")
+    assert catalog_heal and (catalog_heal.get("source") or {}).get("type") == "raw"
+    catalog_pin = expected_digest(catalog_heal.get("source"))
+    assert catalog_pin
+    official = _official_wu_pin_payload(catalog_heal)
+    use_catalog = official is not None
+    if use_catalog:
+        heal = catalog_heal
+        payload = official
+        pin = catalog_pin
+    else:
+        payload = b"MZ" + b"healtextfix-catalog-pin-body"
+        pin = hashlib.sha256(payload).hexdigest()
+        heal = {
+            **catalog_heal,
+            "source": {**(catalog_heal.get("source") or {}), "sha256": pin},
+        }
+
+    keys = (
+        "desired_mods",
+        "user_set_mods",
+        "installed_mods",
+        "user_mods",
+        "game_path",
+        "addons_path",
+        "last_mod_update_check",
+    )
+    saved = {k: settings.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory(prefix="ichalaunch_hx_pin_") as td:
+            game = Path(td) / "game"
+            game.mkdir()
+            (game / "WoW.exe").write_bytes(b"MZ")
+            (game / "healtextfix.dll").write_bytes(payload)
+            (game / "SuperWoWhook.dll").write_bytes(b"MZ" + b"superwow-filename-detect")
+            leftover_copy = Path(td) / "bundled_healtextfix.dll"
+            leftover_copy.write_bytes(payload)
+            settings.set("game_path", str(game))
+            settings.set("addons_path", "")
+            settings.set("desired_mods", {"wu_healtextfix": True, "superwow": True})
+            settings.set("user_set_mods", ["wu_healtextfix", "superwow"])
+            settings.set("installed_mods", {})
+            settings.set("last_mod_update_check", 0)
+            settings.set("user_mods", [])
+            clear_fs_caches()
+            assert sha256_file(game / "healtextfix.dll") == pin
+
+            # Production: leftover search hits a shipped official copy.
+            with patch(
+                "ichalaunch.mods.installer._leftover_zig_build_path",
+                return_value=leftover_copy,
+            ):
+                if not use_catalog:
+                    with patch(
+                        "ichalaunch.mods.installer.expected_digest",
+                        side_effect=lambda source, _pin=pin: (
+                            _pin
+                            if str((source or {}).get("filename") or "")
+                            == "healtextfix.dll"
+                            else expected_digest(source)
+                        ),
+                    ), patch(
+                        "ichalaunch.mods.installer.dest_expected_digest",
+                        return_value=None,
+                    ):
+                        assert _pinned_dest_needs_replace(heal, game) is False
+                        assert _official_remote_needs_replace_of_zig(heal, game) is False
+                else:
+                    assert _pinned_dest_needs_replace(heal, game) is False
+                    assert _official_remote_needs_replace_of_zig(heal, game) is False
+                    plan = plan_changes()
+                    assert not any(
+                        c.get("id") == "wu_healtextfix" for c in plan
+                    ), plan
+                    result = check_mod_updates()
+                    assert "wu_healtextfix" not in [
+                        u.get("id") for u in result.updates
+                    ], result.updates
+    finally:
+        for k in keys:
+            settings.set(k, saved[k])
+        clear_fs_caches()
+    print("OK healtextfix matching pin is not offered as update")
+
+
+def test_official_remote_wu_apply_clears_replace():
+    """After launcher install stamp, official-remote WU ids do not re-plan update."""
+    import hashlib
+    from unittest.mock import patch
+
+    from ichalaunch.config.settings import settings
+    from ichalaunch.core.filesystem import clear_fs_caches, sha256_file
+    from ichalaunch.mods.installer import (
+        OFFICIAL_REMOTE_WU_IDS,
+        _official_remote_needs_replace_of_zig,
+        _pinned_dest_needs_replace,
+        check_mod_updates,
+        get_mod,
+        plan_changes,
+    )
+    from ichalaunch.mods.verify import expected_digest
+
+    ids = ("wu_healtextfix", "wu_weirdperformance")
+    mods = {mid: get_mod(mid) for mid in ids}
+    assert all(mods[mid] for mid in ids)
+    assert set(ids) <= set(OFFICIAL_REMOTE_WU_IDS)
+
+    pin_overrides: dict[str, str] = {}
+    payloads: dict[str, bytes] = {}
+    for mid, mod in mods.items():
+        body = _official_wu_pin_payload(mod or {})
+        if body is None:
+            filename = str((mod.get("source") or {}).get("filename") or mid)
+            body = b"MZ" + filename.encode() + b"-pin-body"
+            pin_overrides[filename] = hashlib.sha256(body).hexdigest()
+        payloads[mid] = body
+
+    keys = (
+        "desired_mods",
+        "user_set_mods",
+        "installed_mods",
+        "game_path",
+        "addons_path",
+        "last_mod_update_check",
+    )
+    saved = {k: settings.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory(prefix="ichalaunch_wu_apply_") as td:
+            game = Path(td) / "game"
+            game.mkdir()
+            (game / "WoW.exe").write_bytes(b"MZ")
+            installed: dict[str, dict] = {}
+            desired = {mid: True for mid in payloads}
+            desired["superwow"] = True
+            leftover_dir = Path(td) / "bundled"
+            leftover_dir.mkdir()
+            leftover_files: dict[str, Path] = {}
+            (game / "SuperWoWhook.dll").write_bytes(b"MZ" + b"superwow-filename-detect")
+            for mid, body in payloads.items():
+                src = (mods[mid] or {}).get("source") or {}
+                filename = str(src.get("filename") or "") if isinstance(src, dict) else ""
+                dest = game / filename
+                dest.write_bytes(body)
+                digest = sha256_file(dest)
+                if filename not in pin_overrides:
+                    assert digest == expected_digest(src if isinstance(src, dict) else None)
+                installed[mid] = {"dest_sha256": digest, "version_key": "v0.7.0"}
+                copy = leftover_dir / filename
+                copy.write_bytes(body)
+                leftover_files[filename] = copy
+            settings.set("game_path", str(game))
+            settings.set("addons_path", "")
+            settings.set("desired_mods", desired)
+            settings.set("user_set_mods", list(desired))
+            settings.set("installed_mods", installed)
+            settings.set("last_mod_update_check", 0)
+            clear_fs_caches()
+
+            def fake_leftover(mod):
+                name = str((mod.get("source") or {}).get("filename") or "")
+                return leftover_files.get(name)
+
+            def fake_expected(source, orig=expected_digest):
+                name = str((source or {}).get("filename") or "")
+                if name in pin_overrides:
+                    return pin_overrides[name]
+                return orig(source)
+
+            with patch(
+                "ichalaunch.mods.installer._leftover_zig_build_path",
+                side_effect=fake_leftover,
+            ), patch(
+                "ichalaunch.mods.installer.expected_digest",
+                side_effect=fake_expected,
+            ):
+                for mid, mod in mods.items():
+                    assert _pinned_dest_needs_replace(mod, game) is False, mid
+                    assert _official_remote_needs_replace_of_zig(mod, game) is False, mid
+                plan = plan_changes()
+                pending = [
+                    c.get("id")
+                    for c in plan
+                    if c.get("action") == "install" and c.get("id") in payloads
+                ]
+                assert pending == [], plan
+                result = check_mod_updates()
+                offered = [u.get("id") for u in result.updates if u.get("id") in payloads]
+                assert offered == [], result.updates
+    finally:
+        for k in keys:
+            settings.set(k, saved[k])
+        clear_fs_caches()
+    print("OK official remote WU apply stamp clears replace")
+
+
 def test_client_preset_catalog_ids():
     """Every mod id referenced by client presets exists in mods.json."""
     from ichalaunch.mods.client_presets import validate_preset_catalog_ids
@@ -10133,6 +10368,17 @@ def test_contributor_wow_name_tooltip():
     )
     assert portrait.toolTip() == ""
     portrait.deleteLater()
+    from ichalaunch.ui.widgets.contributor_portrait import SUBTILIZER_GLOW
+
+    subtilizer = ContributorPortrait(
+        "contributor_04.jpg",
+        border_name="CheckButtonGlow-Pink.PNG",
+        border_tint=SUBTILIZER_GLOW,
+        tooltip="Subtilizer",
+        url="https://discord.com/users/212723010296086530",
+    )
+    assert subtilizer.toolTip() == ""
+    subtilizer.deleteLater()
     print("OK contributor Discord names use tiled WoW tooltip")
 
 
@@ -12435,6 +12681,77 @@ def test_raw_dll_pin_detects_by_hash():
         assert I._detect_pinned_payload(game, mod) is True
         assert I._detect_mod(game, mod) is True
     print("OK raw DLL pin detect; zip extract stays on filename")
+
+
+def test_zip_extract_install_stamp_not_perpetual_replace():
+    """Archive pin is not the dest file; after our dest stamp, no pin-replace loop."""
+    import hashlib
+
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods import installer as I
+    from ichalaunch.mods.installer import plan_changes
+
+    archive = b"PK zip archive pin bytes"
+    dest_bytes = b"MZ extracted dll that is not the zip"
+    archive_pin = hashlib.sha256(archive).hexdigest()
+    dest_pin = hashlib.sha256(dest_bytes).hexdigest()
+    zip_mod = {
+        "id": "zip_extract_stamp_probe",
+        "name": "Zip Extract Stamp Probe",
+        "kind": "dll_bundle",
+        "source": {
+            "type": "github_release",
+            "filename": "SuperProbe.zip",
+            "asset_contains": "SuperProbe",
+            "sha256": archive_pin,
+        },
+        "files": [{"match": "ProbeHook.dll", "destination": "ProbeHook.dll"}],
+        "detect": {"any_files": ["ProbeHook.dll"]},
+    }
+    keys = (
+        "desired_mods",
+        "user_set_mods",
+        "installed_mods",
+        "user_mods",
+        "game_path",
+        "addons_path",
+        "last_mod_update_check",
+    )
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory(prefix="ichalaunch_zip_stamp_") as td:
+            game = Path(td)
+            (game / "WoW.exe").write_bytes(b"MZ")
+            (game / "ProbeHook.dll").write_bytes(dest_bytes)
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("user_mods", [zip_mod])
+            s.set("desired_mods", {"zip_extract_stamp_probe": True})
+            s.set("user_set_mods", ["zip_extract_stamp_probe"])
+            s.set("installed_mods", {})
+            s.set("last_mod_update_check", 0)
+            clear_fs_caches()
+            assert I._pin_names_dest_file(zip_mod) is False
+            assert I._detect_pinned_payload(game, zip_mod) is None
+            assert I._pinned_dest_needs_replace(zip_mod, game) is False
+
+            s.set(
+                "installed_mods",
+                {"zip_extract_stamp_probe": {"dest_sha256": dest_pin}},
+            )
+            clear_fs_caches()
+            assert I._detect_pinned_payload(game, zip_mod) is True
+            assert I._pinned_dest_needs_replace(zip_mod, game) is False
+            plan = plan_changes()
+            assert not any(
+                c.get("id") == "zip_extract_stamp_probe" for c in plan
+            ), plan
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK zip extract dest stamp is not a perpetual replace")
 
 
 def test_update_signature_verification():
@@ -19689,6 +20006,8 @@ def _run_smoke_tests():
     test_weirdutils_bundled_hash_update()
     test_official_wu_remote_skips_local_override()
     test_official_remote_wu_replaces_leftover_zig()
+    test_healtextfix_matching_pin_not_offered_as_update()
+    test_official_remote_wu_apply_clears_replace()
     test_client_preset_catalog_ids()
     test_client_preset_apply_basic()
     test_client_preset_downgrade_basic_plus_to_basic()
@@ -19956,6 +20275,7 @@ def _run_smoke_tests():
     test_shared_dest_sibling_pin_not_offered_as_update()
     test_catalog_d3d9_unchecked_sibling_not_update()
     test_raw_dll_pin_detects_by_hash()
+    test_zip_extract_install_stamp_not_perpetual_replace()
     test_update_signing_keys_are_pinned()
     test_signature_sidecar_url_and_unverified_exe_is_deleted()
     test_home_art_width_fit_is_centred()

@@ -74,6 +74,9 @@ _ART_ARROW_DOTS_GAP_PX = 4
 _ART_ROW_SPAN = 0.92
 # Gap between the position row and the MoA wordmark it sits above.
 _ART_DOTS_GAP_PX = 6
+# Featured slide sits in the leftover band (IchaLaunch mark → dots), not the
+# full brand stack. This pad is the breathing room on each end of that band.
+_FEATURED_WELL_PAD_PX = 28
 # MoA wordmark prefer width, centered along the art bottom.
 _MOA_ART_LOGO_W = 190  # ~5% under prior 200px prefer width
 # Pad from art bottom for the MoA wordmark.
@@ -460,6 +463,18 @@ class HomePage(QWidget):
         self.art_dots.move(
             row_x + (row_w - dots_w) // 2, row_y + (row_h - dots_h) // 2
         )
+
+        # Featured letterbox well: below the IchaLaunch/RC mark, above the
+        # slideshow row. Do not center in the full art stack (that jammed the
+        # 2:1 frame against the dots). Width stays the brand column.
+        pad = _FEATURED_WELL_PAD_PX
+        icon_bottom_host = art_y
+        if isinstance(rc, QWidget) and rc.isVisible() and rc.height() > 0:
+            icon_bottom_host = rc.mapTo(host, QPoint(0, rc.height())).y()
+        chrome_top_host = row_y if self.talent_bg.slide_count() > 1 else logo_y
+        well_top = max(0, icon_bottom_host - art_y) + pad
+        well_bottom = max(well_top + 32, chrome_top_host - art_y - pad)
+        self.talent_bg.set_featured_well(well_top, well_bottom)
 
         self._set_chrome_visible(True)
 

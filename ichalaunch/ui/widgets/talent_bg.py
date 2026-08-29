@@ -33,7 +33,6 @@ from PySide6.QtWidgets import QWidget
 from ichalaunch.core.logging_setup import log
 from ichalaunch.core.paths import theme_file
 from ichalaunch.ui.widgets.frame_rivets import paint_rivet_frame
-from ichalaunch.ui.widgets.wow_tooltip import paint_slide_overlay_frame
 from ichalaunch.ui.home_art import (
     fetch_missing_images,
     load_home_art,
@@ -285,6 +284,10 @@ class TalentFrameBackground(QWidget):
         self._mask: QPixmap = QPixmap()
         self._mask_w = 0
         self._mask_h = 0
+        # Featured width-fit Y well in local coords. 0,0 = full widget.
+        # Home sets this to (IchaLaunch mark bottom → slideshow-row top).
+        self._well_top = 0
+        self._well_bottom = 0
         self._fade: QParallelAnimationGroup | None = None
         self._refresh_started = False
 
@@ -423,6 +426,24 @@ class TalentFrameBackground(QWidget):
         self._ensure_mask(w, h)
         self.show()
 
+    def set_featured_well(self, top: int, bottom: int) -> None:
+        """Local Y band for featured vertical center (icon bottom → dots top)."""
+        top = max(0, int(top))
+        bottom = max(0, int(bottom))
+        if top == self._well_top and bottom == self._well_bottom:
+            return
+        self._well_top = top
+        self._well_bottom = bottom
+        self.update()
+
+    def _featured_well(self, height: int) -> tuple[int, int]:
+        """Return (top, bottom) in local Y. Full widget when Home has not set one."""
+        top = self._well_top
+        bottom = self._well_bottom
+        if bottom <= top:
+            return 0, max(1, height)
+        return top, min(height, bottom)
+
     def _ensure_mask(self, width: int, height: int) -> None:
         if (
             width == self._mask_w
@@ -473,23 +494,27 @@ class TalentFrameBackground(QWidget):
                 shrink_w = int(slide.get("shrink_w") or 0)
                 nudge_x = int(slide.get("nudge_x") or 0)
                 nudge_y = int(slide.get("nudge_y") or 0)
-                if str(slide.get("fit") or "") == "width":
-                    # Full width, no L/R crop — honor unusual AR; centre the rest.
-                    #
-                    # A width-fit slide is wider in aspect than the brand rect, so
-                    # scaling it to the width always leaves a vertical remainder:
-                    # the featured 2:1 slide paints 542 tall in a 745 tall column.
-                    # Pinning to the banner banked all 203px of that above the
-                    # frame, which reads as a picture that has slipped down its
-                    # wall. Splitting the remainder is the only option that does
-                    # not crop: cover fills the rect but takes ~14% off each side,
-                    # and the featured slide carries its caption out there.
+                # Featured overlay (frame PNG) always width-fits. #422 set
+                # fit:cover on that slide so it filled the brand rect like the
+                # gallery tiles; cover crops the 2:1 portrait and the caption.
+                if str(slide.get("fit") or "") == "width" or bool(slide.get("frame")):
+                    # Brand-column width only (not the window). Vertical center
+                    # is the leftover band Home passes (icon bottom → dots top),
+                    # not the full talent_bg stack down to the banner.
                     dest_w = max(1, w - shrink_w) if shrink_w else w
                     scaled = src.scaledToWidth(
                         dest_w, Qt.TransformationMode.SmoothTransformation
                     )
+                    well_top, well_bot = self._featured_well(h)
+                    well_h = max(1, well_bot - well_top)
+                    # Width-fit the brand column; if that overruns the icon↔dots
+                    # band, shrink to the well so the frame never sits on the dots.
+                    if scaled.height() > well_h:
+                        scaled = src.scaledToHeight(
+                            well_h, Qt.TransformationMode.SmoothTransformation
+                        )
                     x = (w - scaled.width()) // 2
-                    y = max(0, (h - scaled.height()) // 2)
+                    y = well_top + max(0, (well_h - scaled.height()) // 2)
                 else:
                     # Cover the brand rect (center crop). Widget itself is
                     # bottom-tucked to the nav banner.
@@ -532,13 +557,17 @@ class TalentFrameBackground(QWidget):
                     lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
                     paint_rivet_frame(lp, QRect(x, y, scaled.width(), scaled.height()))
                 if not overlay.isNull() and scaled.width() > 0 and scaled.height() > 0:
-                    # Same nine-slice as the installed-mods card: corners stay
-                    # native, rails stretch. Scale matches the old full-bleed
-                    # stretch so a 2:1 dest keeps the same rim weight.
+                    # Authored overlay (zaeya_first_60_frame.png) stretched onto
+                    # the fitted photo dest — the old pinned border, not rivets
+                    # and not the mods-card nine-slice (that card is a different AR).
                     lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
-                    paint_slide_overlay_frame(
-                        lp, QRect(x, y, scaled.width(), scaled.height()), overlay
+                    frame = overlay.scaled(
+                        scaled.width(),
+                        scaled.height(),
+                        Qt.AspectRatioMode.IgnoreAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
                     )
+                    lp.drawPixmap(x, y, frame)
                 lp.end()
                 painter.setOpacity(opacity)
                 painter.drawPixmap(0, 0, layer)

@@ -1,4 +1,8 @@
-"""Downscale official artworks for launcher packaging (max edge, JPEG)."""
+"""Downscale local official artworks (max edge, JPEG).
+
+The launcher no longer packs this folder into the exe; gallery images are
+fetched from ravencraft.io. Keep this for optional local preview copies.
+"""
 from __future__ import annotations
 
 import sys

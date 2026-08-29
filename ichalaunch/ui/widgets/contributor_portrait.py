@@ -19,6 +19,8 @@ from ichalaunch.ui.widgets.wow_tooltip import ContributorNameTip
 
 # Default rim (contributor 1) — pink-tinted CheckButtonGlow.
 _DEFAULT_BORDER = "CheckButtonGlow-Pink.PNG"
+# Subtilizer art rim (outer metallic band). Weighted chromatic average #D9C05B.
+SUBTILIZER_GLOW = QColor(217, 192, 91)
 # Display size shared by every contributor icon in the play-bar row.
 # Soft CheckButton* glow (46–56px pad-trimmed) fits fully; bright ring ~38px.
 _DISPLAY = 52
@@ -356,6 +358,16 @@ def _key_edge_grey(photo: QPixmap, max_dist: float = _GREY_KEY_DIST) -> QPixmap:
     return QPixmap.fromImage(src)
 
 
+def _tint_glow_border(border: QPixmap, tint: QColor) -> QPixmap:
+    """Pixel-tint a CheckButtonGlow* plate toward *tint*, keeping alpha/luma."""
+    if border.isNull() or not tint.isValid():
+        return border
+    from ichalaunch.ui.widgets.glue_panel_button import tint_pixmap_toward_color
+
+    lum = 0.299 * tint.red() + 0.587 * tint.green() + 0.114 * tint.blue()
+    return tint_pixmap_toward_color(border, tint, lift=1.0, ref_lum=max(lum, 1.0))
+
+
 def compose_contributor_portrait(
     photo_name: str,
     *,
@@ -364,10 +376,12 @@ def compose_contributor_portrait(
     crop_mode: str = "contain",
     border_scale: float = 1.0,
     fill_mode: str = "hole",
+    border_tint: QColor | None = None,
 ) -> QPixmap:
     """Photo scaled into the border, then border drawn on top.
 
     Soft glow borders are scaled to the shared display box (× ``border_scale``).
+    ``border_tint`` pixel-tints that glow toward a colour (Mynie stays untinted).
 
     ``crop_mode``:
       - ``contain`` (default) — aspect-fit inside the fill box; full photo visible
@@ -398,69 +412,81 @@ def compose_contributor_portrait(
     out = QPixmap(size, size)
     out.fill(Qt.GlobalColor.transparent)
     p = QPainter(out)
-    p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+    try:
+        p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
 
-    border = QPixmap()
-    framed, ox, oy, piece = QPixmap(), 0, 0, size
-    if border_key:
-        border_path = theme_file(border_key)
-        border = QPixmap(str(border_path)) if border_path.is_file() else QPixmap()
-        framed, ox, oy, piece = _prepare_border(border, size, scale=scale)
+        border = QPixmap()
+        framed, ox, oy, piece = QPixmap(), 0, 0, size
+        if border_key:
+            border_path = theme_file(border_key)
+            border = QPixmap(str(border_path)) if border_path.is_file() else QPixmap()
+            if border_tint is not None and not border.isNull():
+                border = _tint_glow_border(border, border_tint)
+            framed, ox, oy, piece = _prepare_border(border, size, scale=scale)
 
-    photo_path = theme_file(photo_name)
-    photo = QPixmap(str(photo_path)) if photo_path.is_file() else QPixmap()
-    if circle_cutout and not photo.isNull():
-        photo = _key_edge_grey(photo)
+        photo_path = theme_file(photo_name)
+        photo = QPixmap(str(photo_path)) if photo_path.is_file() else QPixmap()
+        if circle_cutout and not photo.isNull():
+            photo = _key_edge_grey(photo)
 
-    if not photo.isNull() and piece > 0:
-        clip = QPixmap()
-        fill_box = QRect(0, 0, piece, piece)
-        if circle_cutout:
-            # Full display box; grey already keyed — no border hole clip.
-            fill_box = QRect(0, 0, size, size)
-            ox, oy, piece = 0, 0, size
-        elif not border.isNull():
-            soft = _alpha_bounds(border.toImage(), _SOFT_ALPHA_THR)
-            hole_src = border.copy(soft) if soft.isValid() else border
-            if outer:
-                # Bright-ring outer footprint (not soft glow); clip to silhouette.
-                clip = _outer_bright_mask(hole_src, piece)
-                # 1px inward so cover/clip sit under the bright rim (no overhang).
-                clip = _inset_disk_mask(clip, _OUTER_FILL_INSET)
-            else:
-                clip = _center_hole_mask(hole_src, piece)
-            bounds = _alpha_bounds(clip.toImage(), 128)
-            if bounds.isValid() and bounds.width() > 0 and bounds.height() > 0:
-                # Outer: bounds already reflect the 1px-shrunk clip disk.
-                fill_box = bounds
+        if not photo.isNull() and piece > 0:
+            clip = QPixmap()
+            fill_box = QRect(0, 0, piece, piece)
+            if circle_cutout:
+                # Full display box; grey already keyed — no border hole clip.
+                fill_box = QRect(0, 0, size, size)
+                ox, oy, piece = 0, 0, size
+            elif not border.isNull():
+                soft = _alpha_bounds(border.toImage(), _SOFT_ALPHA_THR)
+                hole_src = border.copy(soft) if soft.isValid() else border
+                if outer:
+                    # Bright-ring outer footprint (not soft glow); clip to silhouette.
+                    clip = _outer_bright_mask(hole_src, piece)
+                    # 1px inward so cover/clip sit under the bright rim (no overhang).
+                    clip = _inset_disk_mask(clip, _OUTER_FILL_INSET)
+                else:
+                    clip = _center_hole_mask(hole_src, piece)
+                bounds = _alpha_bounds(clip.toImage(), 128)
+                if bounds.isValid() and bounds.width() > 0 and bounds.height() > 0:
+                    # Outer: bounds already reflect the 1px-shrunk clip disk.
+                    fill_box = bounds
 
-        fitted = _photo_for_hole(
-            photo, fill_box.width(), fill_box.height(), crop_mode=crop_mode
-        )
+            fitted = _photo_for_hole(
+                photo, fill_box.width(), fill_box.height(), crop_mode=crop_mode
+            )
 
-        layer = QPixmap(size, size)
-        layer.fill(Qt.GlobalColor.transparent)
-        lp = QPainter(layer)
-        lp.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        # Center the fitted photo inside the fill box.
-        dx = ox + fill_box.x() + (fill_box.width() - fitted.width()) // 2
-        dy = oy + fill_box.y() + (fill_box.height() - fitted.height()) // 2
-        lp.drawPixmap(dx, dy, fitted)
-        if not clip.isNull():
-            clip_full = QPixmap(size, size)
-            clip_full.fill(Qt.GlobalColor.transparent)
-            hp = QPainter(clip_full)
-            hp.drawPixmap(ox, oy, clip)
-            hp.end()
-            lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
-            lp.drawPixmap(0, 0, clip_full)
-        lp.end()
-        p.drawPixmap(0, 0, layer)
+            layer = QPixmap(size, size)
+            layer.fill(Qt.GlobalColor.transparent)
+            lp = QPainter(layer)
+            try:
+                lp.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+                # Center the fitted photo inside the fill box.
+                dx = ox + fill_box.x() + (fill_box.width() - fitted.width()) // 2
+                dy = oy + fill_box.y() + (fill_box.height() - fitted.height()) // 2
+                lp.drawPixmap(dx, dy, fitted)
+                if not clip.isNull():
+                    clip_full = QPixmap(size, size)
+                    clip_full.fill(Qt.GlobalColor.transparent)
+                    hp = QPainter(clip_full)
+                    try:
+                        hp.drawPixmap(ox, oy, clip)
+                    finally:
+                        if hp.isActive():
+                            hp.end()
+                    lp.setCompositionMode(
+                        QPainter.CompositionMode.CompositionMode_DestinationIn
+                    )
+                    lp.drawPixmap(0, 0, clip_full)
+            finally:
+                if lp.isActive():
+                    lp.end()
+            p.drawPixmap(0, 0, layer)
 
-    if not framed.isNull():
-        p.drawPixmap(ox, oy, framed)
-
-    p.end()
+        if not framed.isNull():
+            p.drawPixmap(ox, oy, framed)
+    finally:
+        if p.isActive():
+            p.end()
     return out
 
 
@@ -479,6 +505,7 @@ class ContributorPortrait(QWidget):
         fill_mode: str = "hole",
         url: str = "",
         glow_ramp=None,
+        border_tint: QColor | None = None,
     ):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
@@ -503,6 +530,7 @@ class ContributorPortrait(QWidget):
             crop_mode=crop_mode,
             border_scale=border_scale,
             fill_mode=fill_mode,
+            border_tint=border_tint,
         )
 
     def sizeHint(self) -> QSize:
