@@ -21,6 +21,7 @@ import requests
 from ichalaunch.config.settings import appdata_root, settings
 from ichalaunch.core.logging_setup import log
 from ichalaunch.core.paths import data_file, theme_file
+from ichalaunch.core.signed_fetch import fetch_verified_text
 
 DEFAULT_HOME_ART_URL = (
     "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/"
@@ -211,15 +212,18 @@ def fetch_remote_home_art(url: str | None = None) -> dict[str, Any] | None:
     target = (url or home_art_url()).strip()
     if not target:
         return None
-    try:
-        r = requests.get(target, headers=_UA, timeout=_FETCH_TIMEOUT_SEC)
-    except requests.RequestException as exc:
-        log.info("Home art fetch failed: %s", exc)
+    # The manifest chooses which images the launcher shows and what text sits
+    # beside them, so it is a place to put a convincing message in front of every
+    # player. Verified like the other two live files, or not used.
+    text = fetch_verified_text(
+        target,
+        timeout=_FETCH_TIMEOUT_SEC,
+        headers=_UA,
+        label="home art manifest",
+    )
+    if text is None:
         return None
-    if r.status_code != 200 or not (r.text or "").strip():
-        log.info("Home art HTTP %s from %s", r.status_code, target)
-        return None
-    manifest = parse_home_art_text(r.text)
+    manifest = parse_home_art_text(text)
     if home_art_slide_count(manifest) == 0:
         return None
     return manifest

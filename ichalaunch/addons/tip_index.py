@@ -23,6 +23,7 @@ from ichalaunch.addons.git_refs import GitRefs, newest_version_tag, repo_cache_k
 from ichalaunch.config.settings import appdata_root, settings
 from ichalaunch.core.logging_setup import log
 from ichalaunch.core.paths import data_file
+from ichalaunch.core.signed_fetch import fetch_verified_text
 
 DEFAULT_TIPS_URL = (
     "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/"
@@ -273,15 +274,17 @@ def fetch_remote_index(url: str | None = None) -> dict[str, Any] | None:
     target = (url or tips_url()).strip()
     if not target:
         return None
-    try:
-        r = requests.get(target, headers=_UA, timeout=_FETCH_TIMEOUT_SEC)
-    except requests.RequestException as exc:
-        log.info("Addon tip index fetch failed: %s", exc)
+    # Same reasoning as the addon catalog: fetched live, replaces what shipped,
+    # so it is verified or it is not used.
+    text = fetch_verified_text(
+        target,
+        timeout=_FETCH_TIMEOUT_SEC,
+        headers=_UA,
+        label="addon tip index",
+    )
+    if text is None:
         return None
-    if r.status_code != 200 or not (r.text or "").strip():
-        log.info("Addon tip index HTTP %s from %s", r.status_code, target)
-        return None
-    index = parse_index_text(r.text)
+    index = parse_index_text(text)
     if index_repo_count(index) == 0:
         return None
     if not index.get("source"):
