@@ -31,6 +31,14 @@ _MUTED = QColor("#6a6358")
 # the site's bronze rather than the launcher's old purple: purple appears nowhere
 # on ravencraft.io and read as the most off-brand element in the window.
 _PLATE_TINT = QColor("#c9953f")
+# Hover halo. The site's heading gold, drawn as the plate's own silhouette a few
+# times at growing size with falling alpha, so the plate reads as lit from
+# behind. Kept small and dim on purpose: any more and it stops looking like
+# enchantment and starts looking like a browser focus ring.
+_GLOW_TINT = QColor("#F1C22D")
+_GLOW_STEPS = 5
+_GLOW_STEP_PX = 3
+_GLOW_ALPHA = 0.26
 
 _PLAY_W = 200
 _PLAY_H = 56
@@ -180,6 +188,8 @@ class LaunchButton(QPushButton):
         self._square_chrome = bool(square_chrome)
         self._chrome: QPixmap | None = None
         self._chrome_pressed: QPixmap | None = None
+        self._glow_cache = QPixmap()
+        self._glow_key = None
         self._chrome_disabled: QPixmap | None = None
         self._load_chrome()
 
@@ -206,6 +216,14 @@ class LaunchButton(QPushButton):
 
         rect = self.rect()
         chrome = self._pick_chrome()
+        if (
+            chrome is not None
+            and not chrome.isNull()
+            and self.isEnabled()
+            and self.underMouse()
+            and not self.isDown()
+        ):
+            self._paint_hover_glow(painter, rect, chrome)
         if chrome is not None and not chrome.isNull():
             # Slight press inset for tactile feel
             draw_rect = rect.adjusted(1, 2, -1, 0) if self.isDown() else rect
@@ -215,6 +233,45 @@ class LaunchButton(QPushButton):
 
         self._paint_label(painter, rect)
         painter.end()
+
+    def _glow_pixmap(self, chrome: QPixmap) -> QPixmap:
+        """A gold silhouette of the plate, cached, used to build the halo.
+
+        Takes the chrome art's own alpha as the shape so the glow follows the
+        plate's real outline, bevels and all, rather than a rounded rectangle
+        approximating it.
+        """
+        key = (chrome.cacheKey(), chrome.width(), chrome.height())
+        if getattr(self, "_glow_key", None) == key and not self._glow_cache.isNull():
+            return self._glow_cache
+        tinted = QPixmap(chrome.size())
+        tinted.fill(Qt.GlobalColor.transparent)
+        gp = QPainter(tinted)
+        gp.drawPixmap(0, 0, chrome)
+        gp.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+        gp.fillRect(tinted.rect(), QColor(_GLOW_TINT))
+        gp.end()
+        self._glow_cache = tinted
+        self._glow_key = key
+        return tinted
+
+    def _paint_hover_glow(self, painter: QPainter, rect: QRect, chrome: QPixmap) -> None:
+        """Warm halo around the plate while the pointer is on it.
+
+        Drawn as the plate's own silhouette, in gold, a few times at growing
+        size with falling alpha. Deliberately restrained: this should read as
+        the plate being lit from behind, not as a focus ring.
+        """
+        halo = self._glow_pixmap(chrome)
+        if halo.isNull():
+            return
+        painter.save()
+        for step in range(_GLOW_STEPS, 0, -1):
+            grow = step * _GLOW_STEP_PX
+            painter.setOpacity(_GLOW_ALPHA / step)
+            painter.drawPixmap(rect.adjusted(-grow, -grow, grow, grow), halo)
+        painter.setOpacity(1.0)
+        painter.restore()
 
     def _pick_chrome(self) -> QPixmap | None:
         if not self.isEnabled():

@@ -6,7 +6,7 @@ import math
 from pathlib import Path
 
 from PySide6.QtCore import QRect, Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen, QPixmap
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QPushButton, QSizePolicy
 
 from ichalaunch.core.paths import theme_file
@@ -32,9 +32,17 @@ GLUE_ROW_W = 100
 GLUE_ROW_H = 28
 GLUE_ROW_MENU_W = 28
 
+# Label metrics. The type grows until the ink spans this fraction of the plate's
+# inner width, so the label fills its button instead of floating in padding.
+_LABEL_FILL = 0.86
+_LABEL_SIDE_PAD = 10
+_LABEL_TOP_PAD = 6
+_LABEL_MIN_PX = 10
+_LABEL_MAX_PX = 22
+
 _GOLD = QColor("#F1C22D")
 _GOLD_SOFT = QColor("#E8C878")
-_TEXT = QColor("#ece3d2")
+_TEXT = QColor("#fff3d6")
 _TEXT_DIM = QColor("#8f8574")
 
 # HSV targets for the red *fill* only (border greys are left alone).
@@ -800,17 +808,28 @@ class GluePanelButton(QPushButton):
         font = QFont(self.font())
         font.setFamily(chrome_family())
         font.setBold(True)
-        n = len(text)
-        if n >= 14:
-            px = 11
-        elif n >= 11:
-            px = 12
-        else:
-            px = 13
+        # Size the label to the BUTTON, not to the character count. The old
+        # 11/12/13px ladder keyed off len(text), so a short label on a wide
+        # button floated in padding while a long one on a narrow button still
+        # crowded. Grow the type until the ink spans most of the plate's inner
+        # width, which lands every button at the same optical weight however
+        # wide it is.
+        inner_w = max(8, rect.width() - _LABEL_SIDE_PAD * 2)
+        inner_h = max(8, rect.height() - _LABEL_TOP_PAD * 2)
+        px = _LABEL_MIN_PX
+        while px < _LABEL_MAX_PX:
+            font.setPixelSize(px + 1)
+            fm = QFontMetrics(font)
+            if fm.horizontalAdvance(text) > inner_w * _LABEL_FILL or fm.height() > inner_h:
+                break
+            px += 1
         font.setPixelSize(px)
         painter.setFont(font)
 
         # Same label color for standard/primary — only the fill is recolored.
+        # Measured against the painted bronze fill (~#705e44): the old #ece3d2
+        # scored 4.89:1, which clears AA and nothing more. This is 5.64:1 and
+        # keeps the site's warm parchment rather than going to flat white.
         color = _TEXT_DIM if not self.isEnabled() else _TEXT
         text_rect = rect.adjusted(0, 1 if self.isDown() else 0, 0, 0)
         painter.setPen(QColor(0, 0, 0, 140))
