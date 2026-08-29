@@ -11,7 +11,6 @@
 QLabel#SectionTitle,
 QLabel#CardTitle,
 QLabel#Subtitle,
-QLabel#HomeModCategory,
 QLabel#SectionSubtitle,
 QLabel#HomeModCategorySub,
 QLabel#ThemedDialogTitle,
@@ -53,18 +52,16 @@ QLabel#SectionTitle {
 /* The quieter half of a title lockup: same face, smaller, and stepped down in
    colour so it reads as a qualifier rather than a second heading. */
 QLabel#SectionSubtitle {
-    color: #9990ab;
-    font-size: 11px;
+    color: rgba(241, 194, 45, 0.55);
+    font-size: 13px;
     font-weight: 400;
     padding-bottom: 2px;
 }
 
 QLabel#HomeModCategorySub {
-    color: #8a7f70;
-    font-size: 10px;
+    color: rgba(241, 194, 45, 0.85);
+    font-size: 15px;
     font-weight: 400;
-    padding-left: 1px;
-    padding-bottom: 3px;
 }
 
 QLabel#Muted {
@@ -412,15 +409,49 @@ QWidget#HomeModsHost {
     background-color: transparent;
 }
 
+/* The category band. The shading and the rules live on the row, not on the
+   labels, so the heading and its count sit inside one block however the heading
+   wraps. Categories were previously separated by colour and spacing alone, which
+   does not survive a glance down the list. */
+QFrame#HomeModCategoryRow {
+    background-color: rgba(241, 194, 45, 0.07);
+    border-top: 1px solid rgba(241, 194, 45, 0.30);
+    border-bottom: 1px solid rgba(241, 194, 45, 0.15);
+    margin-top: 6px;
+    margin-bottom: 4px;
+}
+
+/* Deliberately NOT the display face. Folkard is narrow enough that a heading
+   big enough to read is also too wide for a 320px drawer, which is what put the
+   two longest names under the scrollbar. The panel instead does what it did
+   before: one type family throughout, and the category earns its prominence from
+   COLOUR and from the band, not from size. That leaves "Performance / Fixes" and
+   its count comfortably on one line. */
 QLabel#HomeModCategory {
     color: #F1C22D;
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 16px;
+    font-weight: 700;
+    background: transparent;
+    border: none;
+}
+
+/* The count rides the heading's row, right aligned, in the same gold. No second
+   typographic voice, so it reads as a property of the category rather than as an
+   orphaned line. Contrast against the band is 8.6:1, past the 7:1 that counts as
+   AAA; the grey it replaced scored 3.91 and failed AA outright. */
+QLabel#HomeModCategoryCount {
+    color: rgba(241, 194, 45, 0.88);
+    font-size: 13px;
+    font-weight: 500;
+    background: transparent;
+    border: none;
+    padding-right: 2px;
 }
 
 QLabel#HomeModItem {
     color: #e6e0ee;
     font-size: 13px;
+    padding-left: 14px;
 }
 
 QPushButton#CatNavButton {

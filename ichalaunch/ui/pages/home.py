@@ -7,6 +7,7 @@ import logging
 from PySide6.QtCore import QEvent, QPoint, QRect, Qt, QTimer, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
+    QFrame,
     QHBoxLayout,
     QLabel,
     QScrollArea,
@@ -153,6 +154,13 @@ class HomePage(QWidget):
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        # Reserve the scrollbar's width out of the viewport rather than letting it
+        # sit over the content. The horizontal scrollbar is disabled, so anything
+        # that overruns is clipped rather than reachable, and the widest category
+        # heading was losing its last letter behind the bar. Reserving is more
+        # reliable than budgeting for it in margins, because it does not depend on
+        # the drawer staying 320px wide.
+        scroll.setViewportMargins(0, 0, 12, 0)
         scroll.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
@@ -160,7 +168,7 @@ class HomePage(QWidget):
         scroll_host = QWidget()
         scroll_host.setObjectName("HomeModsHost")
         self.summary_host = QVBoxLayout(scroll_host)
-        self.summary_host.setContentsMargins(2, 2, 6, 8)
+        self.summary_host.setContentsMargins(6, 2, 6, 8)
         self.summary_host.setSpacing(12)
         self.summary_host.setAlignment(Qt.AlignmentFlag.AlignTop)
 
@@ -584,28 +592,44 @@ class HomePage(QWidget):
         block_l.setContentsMargins(0, 0, 0, 0)
         block_l.setSpacing(4)
 
-        # Title over a count, the shape ravencraft.io gives every card. The
-        # second line is a number the caller already holds - a lockup with
-        # invented subtitle text would be decoration wearing the shape of
-        # information.
-        heading = TitleLockup(
-            category,
-            f"{len(names)} mod" if len(names) == 1 else f"{len(names)} mods",
-            title_name="HomeModCategory",
-            subtitle_name="HomeModCategorySub",
-        )
-        heading.title.setStyleSheet(
-            "color: #F1C22D; font-size: 12px; font-weight: 600;"
-        )
-        block_l.addWidget(heading)
+        # The count used to sit on its own line under the heading, which left a
+        # small number orphaned in the middle of a wide band, saying little and
+        # asking for its own typographic style to say it. It now rides on the
+        # heading's row, right aligned inside the same band, so the band carries
+        # one line of information instead of two and the number reads as a
+        # property of the category rather than as a second heading.
+        # QFrame rather than QWidget: a bare QWidget does not paint a stylesheet
+        # background or border, which silently dropped the band and left the
+        # categories separated by colour alone again.
+        heading_row = QFrame()
+        heading_row.setObjectName("HomeModCategoryRow")
+        # A plain QWidget does not paint a stylesheet background or border unless
+        # it is told to. Without this the band and its rules are silently dropped
+        # and the categories go back to being separated by colour alone.
+        heading_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        row_l = QHBoxLayout(heading_row)
+        row_l.setContentsMargins(8, 3, 8, 3)
+        row_l.setSpacing(8)
+
+        title = QLabel(category)
+        title.setObjectName("HomeModCategory")
+        # Kept on: the drawer is narrow, and a non-wrapping QLabel reports its
+        # full text width as its MINIMUM, which is what dragged the old display
+        # face out under the scrollbar. At this size nothing needs to wrap, but
+        # the guard costs nothing and a longer category name later will not clip.
+        title.setWordWrap(True)
+        row_l.addWidget(title, 1)
+
+        count = QLabel(f"{len(names)} mod" if len(names) == 1 else f"{len(names)} mods")
+        count.setObjectName("HomeModCategoryCount")
+        row_l.addWidget(count, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+        block_l.addWidget(heading_row)
 
         for name in names:
             item = QLabel(name)
             item.setObjectName("HomeModItem")
             item.setWordWrap(True)
-            item.setStyleSheet(
-                "color: #e6e0ee; font-size: 13px; padding-left: 14px;"
-            )
             block_l.addWidget(item)
 
         self.summary_host.addWidget(block)
