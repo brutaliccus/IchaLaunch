@@ -19,6 +19,9 @@ from ichalaunch.ui.widgets.cursors import apply_open_hand
 _DOT_PX = 7
 _PITCH_PX = 18
 _BAND_PAD_PX = 5
+# Floor on the space between adjacent dots. With many slides the pitch shrinks
+# naturally, which is fine, but never to the point where they merge into a bar.
+_MIN_DOT_GAP_PX = 6
 
 _ACTIVE = QColor("#F1C22D")
 _IDLE = QColor("#a8977c")
@@ -43,8 +46,14 @@ class GalleryDots(QWidget):
         count = max(0, int(count))
         pitch = _PITCH_PX
         if count > 0 and max_width > 0:
-            # Tighten rather than overflow the art it sits on.
-            pitch = max(_DOT_PX + 1, min(_PITCH_PX, max_width // count))
+            # SPREAD across the span, do not merely avoid overflowing it. The
+            # old cap at _PITCH_PX meant the row could never grow past its
+            # natural width, so widening the strip between the arrows left the
+            # dots bunched in the middle of it. Pitch is now the available width
+            # divided by the count, floored so adjacent dots can never touch
+            # however many slides there are, and the hit target is the pitch
+            # rather than the dot, so spreading them makes clicking easier.
+            pitch = max(_DOT_PX + _MIN_DOT_GAP_PX, max_width // count)
         changed = (count, pitch) != (self._count, self._pitch)
         self._count = count
         self._pitch = pitch

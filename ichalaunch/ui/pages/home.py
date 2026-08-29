@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ichalaunch.ui.widgets.gradient_label import AnimatedLavaLabel
+from ichalaunch.ui.widgets.gradient_label import GradientLabel
 from ichalaunch.core.paths import theme_file
 from ichalaunch.game.launcher import detect_game, is_installed
 from ichalaunch.mods.installer import detect_actual_state, load_mod_catalog
@@ -637,7 +637,7 @@ class HomePage(QWidget):
 
         # Gradient rather than flat gold: the site clips a vertical ramp to its
         # heading glyphs, and QSS cannot express that. See GradientLabel.
-        title = AnimatedLavaLabel(category)
+        title = GradientLabel(category)
         title.setObjectName("HomeModCategory")
         # Kept on: the drawer is narrow, and a non-wrapping QLabel reports its
         # full text width as its MINIMUM, which is what dragged the old display

@@ -2307,7 +2307,7 @@ class ModCheckRow(QWidget):
         self.version_lbl.setWordWrap(False)
         self.version_lbl.setVisible(False)
         self.desc_lbl = QLabel(self)
-        self.desc_lbl.setObjectName("Muted")
+        self.desc_lbl.setObjectName("RowDesc")
         self.desc_lbl.setWordWrap(True)
         self.desc_lbl.setVisible(False)
         outer.addLayout(row)
@@ -2661,7 +2661,7 @@ class AddonRow(QWidget):
         show_update = self._update_available and not self._never_update
         if self._never_update:
             self.status_lbl.setText("Never update")
-            self.status_lbl.setStyleSheet("color: #7a6e58;")
+            self.status_lbl.setStyleSheet("color: #9b9b9b;")
         else:
             self.status_lbl.setText(self._status_text)
             self._apply_status_style(self._status_text)
@@ -2692,11 +2692,12 @@ class AddonRow(QWidget):
 
     def _apply_status_style(self, status: str) -> None:
         if status.startswith("Update"):
-            self.status_lbl.setStyleSheet("color: #F1C22D;")
+            # Own value, not body gold — an actionable state has to read as one.
+            self.status_lbl.setStyleSheet("color: #FFE9A8;")
         elif status.startswith("Up to date") or status == "Installed":
             self.status_lbl.setStyleSheet("color: #c9953f;")
         elif status.startswith("Never update"):
-            self.status_lbl.setStyleSheet("color: #7a6e58;")
+            self.status_lbl.setStyleSheet("color: #9b9b9b;")
         else:
             self.status_lbl.setObjectName("Muted")
             self.status_lbl.setStyleSheet("")

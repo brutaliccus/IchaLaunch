@@ -53,6 +53,42 @@ _chrome_family: str | None = None
 _load_attempted = False
 
 
+# Reading text. Lexend is drawn on reading-speed research: wide apertures and
+# generous spacing, measurably easier for dyslexic readers and simply clearer at
+# small sizes than a general UI face. The split is display-face for ornament,
+# reading-face for content, which is a standard pairing rather than a mixture.
+#
+# Unlike the chrome face this is SIL Open Font Licence, so it can be bundled and
+# shipped rather than depending on what the machine happens to have installed.
+_BODY_FILES = ("Lexend-Regular.ttf", "Lexend-Medium.ttf", "Lexend-SemiBold.ttf")
+FALLBACK_BODY_FAMILY = "Segoe UI"
+_body_family: str | None = None
+_body_loaded = False
+
+
+def body_family() -> str:
+    """The reading face, registered from the bundle on first use."""
+    global _body_family, _body_loaded
+    if _body_loaded:
+        return _body_family or FALLBACK_BODY_FAMILY
+    _body_loaded = True
+    for name in _BODY_FILES:
+        path = theme_file("fonts", name)
+        if not path.is_file() or path.stat().st_size <= 0:
+            log.warning("Body font not bundled: %s", name)
+            continue
+        font_id = QFontDatabase.addApplicationFont(str(path))
+        if font_id == -1:
+            log.warning("Body font rejected by Qt: %s", name)
+            continue
+        families = QFontDatabase.applicationFontFamilies(font_id)
+        if families and _body_family is None:
+            _body_family = families[0]
+    if _body_family is None:
+        log.warning("No body font registered; falling back to %s", FALLBACK_BODY_FAMILY)
+    return _body_family or FALLBACK_BODY_FAMILY
+
+
 def chrome_family() -> str:
     """Family for tabs, buttons and headings; the old stack if it is missing."""
     global _chrome_family, _load_attempted

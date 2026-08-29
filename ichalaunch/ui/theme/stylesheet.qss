@@ -1,3 +1,11 @@
+/* Reading face for everything, with the chrome rules below overriding it for
+   ornament. Set universally here rather than per widget, because the stylesheet
+   beats setFont and a per-widget approach leaves anything nobody remembered to
+   touch on the platform default. */
+* {
+    font-family: "__BODY_FAMILY__", "Segoe UI", "Noto Sans", sans-serif;
+}
+
 /* IchaLaunch — RavenCraft theme (ravencraft.io) */
 
 * {
@@ -28,7 +36,7 @@ QWidget#Root {
     /* Transparent host — FolderFrameStroke paints metal rails/corners.
        TopNavStrip / ContentPanel / BottomBar carry the fills. */
     background-color: transparent;
-    color: #ece3d2;
+    color: #F1C22D;
     border: none;
     border-radius: 0;
 }
@@ -75,7 +83,13 @@ QToolTip {
    feedback in the window was also the quietest thing in it. On the chrome face
    in the site's gold instead.
 
-   30px is not arbitrary: it is what the PLAY label ACTUALLY renders at, read
+   20px, about two thirds of the PLAY label's 30px. Matching PLAY exactly gave a
+   status line and a section label the same visual weight as the window's
+   primary action, which is more than their role warrants. This is the base
+   size: the label still grows sideways before it shrinks, and long strings
+   still reduce from here rather than clipping.
+
+   For reference, 30px is what the PLAY label ACTUALLY renders at, read
    by instrumenting the widget rather than by reimplementing its fit loop. A
    hand replication gave 25 and was wrong, because the real loop applies letter
    tracking and measures the ink rather than the line box. So the status word,
@@ -83,7 +97,7 @@ QToolTip {
    bar. If the plate is ever resized this wants re-measuring the same way. */
 QLabel#PlayStatus {
     color: #F1C22D;
-    font-size: 30px;
+    font-size: 20px;
     font-weight: 600;
     background: transparent;
 }
@@ -107,6 +121,10 @@ QLabel#HomeModCategorySub {
     color: rgba(241, 194, 45, 0.85);
     font-size: 15px;
     font-weight: 400;
+}
+
+QLabel#RowDesc {
+    color: #F1C22D;
 }
 
 QLabel#Muted {
@@ -494,7 +512,7 @@ QLabel#HomeModCategoryCount {
 }
 
 QLabel#HomeModItem {
-    color: #ece3d2;
+    color: #F1C22D;
     font-size: 13px;
     padding-left: 14px;
 }
@@ -543,7 +561,7 @@ QLabel#UpdateAlertBadge {
 }
 
 QLabel#ModRowName {
-    color: #ece3d2;
+    color: #F1C22D;
     font-weight: 600;
 }
 
@@ -574,7 +592,7 @@ QLabel#StatusOk {
 }
 
 QLabel#StatusUpdate {
-    color: #F1C22D;
+    color: #FFE9A8;
 }
 
 QLabel#StatusWarning {
@@ -693,7 +711,7 @@ QComboBox QAbstractItemView::item {
 QAbstractButton#ThemeCheckBox {
     background: transparent;
     border: none;
-    color: #ece3d2;
+    color: #F1C22D;
     min-height: 28px;
     padding: 0;
     margin: 0;
@@ -705,7 +723,7 @@ QAbstractButton#ThemeRadioButton,
 QAbstractButton#ThemePresetRadio {
     background: transparent;
     border: none;
-    color: #ece3d2;
+    color: #F1C22D;
     min-height: 28px;
     padding: 0;
     margin: 0;
@@ -715,7 +733,7 @@ QAbstractButton#ThemePresetRadio {
 /* Legacy QCheckBox rules kept harmless if any remain. */
 QCheckBox {
     spacing: 10px;
-    color: #ece3d2;
+    color: #F1C22D;
     min-height: 28px;
     padding: 2px 0 2px 0;
     margin: 0;
@@ -846,7 +864,7 @@ QListWidget, QTreeWidget, QTableWidget {
     background-color: #1b1512;
     border: 1px solid rgba(201, 149, 63, 0.25);
     border-radius: 8px;
-    color: #ece3d2;
+    color: #F1C22D;
     outline: none;
     padding: 4px;
 }
@@ -870,7 +888,7 @@ QListWidget#MarbleList QWidget#qt_scrollarea_viewport {
 QListWidget::item, QTreeWidget::item {
     padding: 4px 6px;
     border-radius: 6px;
-    color: #ece3d2;
+    color: #F1C22D;
     background: transparent;
 }
 
@@ -953,7 +971,7 @@ QLabel#ThemedDialogSection {
 }
 
 QLabel#ThemedDialogHint {
-    color: #7a6e58;
+    color: #a3937a;
     font-size: 12px;
     line-height: 1.35;
 }
@@ -977,7 +995,7 @@ QSpinBox:focus, QDoubleSpinBox:focus {
 }
 
 QSpinBox:disabled, QDoubleSpinBox:disabled {
-    color: #7a6e58;
+    color: #a3937a;
 }
 
 QSpinBox::up-button, QDoubleSpinBox::up-button,

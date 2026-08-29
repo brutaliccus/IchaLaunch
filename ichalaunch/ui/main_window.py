@@ -47,7 +47,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ichalaunch.ui.widgets.gradient_label import AnimatedLavaLabel
 from ichalaunch.ui.widgets import dialogs as themed
 
 # How long a launched client is watched for an early failure, and how often.
@@ -207,6 +206,7 @@ from ichalaunch.ui.widgets.gradient_label import (
     RIM_PINK_WHITE,
     lava_flicker,
     lava_text_pen,
+    lava_ticker,
     soft_halo,
 )
 from ichalaunch.ui.widgets.update_alert_badge import paint_update_alert_badge
@@ -635,6 +635,9 @@ class NavTabButton(QPushButton):
         # rather than a flat fill. Hover and idle stay solid: the ramp is what
         # marks the active tab, and running it on every tab would spend the
         # signal.
+        # Static until pointed at. The window's rule is that only PLAY moves on
+        # its own; everything else holds still and responds to the pointer, so
+        # hovering means the same thing everywhere.
         if self._sweeping():
             painter.setPen(lava_text_pen(text_rect, self._sweep_deg))
         elif self.isChecked():
@@ -1829,11 +1832,14 @@ class MainWindow(QMainWindow):
         # GradientLabel, not QLabel: the status word carries the same gold ramp
         # as the tabs and the launch plate, so the three places the eye lands in
         # this bar agree with each other.
-        self.status_lbl = AnimatedLavaLabel("Ready")
+        self.status_lbl = GradientLabel("Ready")
         self.status_lbl.setObjectName("PlayStatus")
         self.status_lbl.setWordWrap(True)
         self.status_lbl.setMinimumWidth(120)
-        self.status_lbl.setMaximumWidth(240)
+        # Room to grow sideways before it has to shrink. The old 240 cap made a
+        # long status shrink or clip while empty bar sat between it and the
+        # Contributors cluster, so width was being refused before size was.
+        self.status_lbl.setMaximumWidth(420)
         self.status_lbl.setAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
@@ -1890,7 +1896,7 @@ class MainWindow(QMainWindow):
         contrib_l.setAlignment(
             Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
         )
-        contributors_label = AnimatedLavaLabel("Contributors")
+        contributors_label = GradientLabel("Contributors")
         contributors_label.setObjectName("PlayStatus")
         contributors_label.setAlignment(
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter

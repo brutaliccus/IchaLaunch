@@ -9,6 +9,7 @@ from PySide6.QtGui import QColor, QFont, QFontMetrics, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QWidget
 
 from ichalaunch.core.paths import theme_file
+from ichalaunch.ui.theme_fonts import ink_centered_rect
 
 _FALLBACK_DIR = Path(r"F:\wow-ui-textures\Tooltips")
 _TILE_SCALE = 2
@@ -252,11 +253,44 @@ class ContributorNameTip(QWidget):
         # Sized for the ornate frame rather than the thin default one: the
         # border is real art with a crest on it, so the text needs clear space
         # inside or the ornament crowds the word.
-        fm = QFontMetrics(self._face)
         e = portrait_frame_edge()
-        w = fm.horizontalAdvance(self._text) + 2 * e + 2 * _PF_TEXT_PAD
-        h = max(fm.height() + 2 * e + _PF_TEXT_PAD, e * 2 + 14)
+        ref = QFont(self._face)
+        ref.setPixelSize(_PF_REF_PX)
+        rfm = QFontMetrics(ref)
+        w = rfm.horizontalAdvance(self._text) + 2 * e + 2 * _PF_TEXT_PAD
+        h = max(int(rfm.height() * 1.8) + 2 * e, e * 2 + 34)
         self.setFixedSize(int(w), int(h))
+        self._face = self._fitted_face(int(w), int(h))
+
+    def _fitted_face(self, w: int, h: int) -> QFont:
+        """Grow the type until the ink nearly touches the frame's inner edge.
+
+        The crest sits centre-top of the frame and hangs into the opening, so
+        the usable height excludes it rather than only the border thickness.
+        Without that, a tall ascender on a big size runs into the gold.
+        """
+        e = portrait_frame_edge()
+        # Only a small breathing gap here, NOT the plate's padding again. That
+        # padding is already inside the plate and subtracting it twice left the
+        # type nothing to expand into, so every name came out at the reference
+        # size no matter how much room its plate had.
+        inner_w = max(8, w - 2 * e - 10)
+        crest = _pf_load().get("crest")
+        crest_h = crest.height() if crest is not None and not crest.isNull() else e
+        inner_h = max(8, h - e - crest_h - 4)
+        font = QFont(self._face)
+        best = _PF_MIN_PX
+        for px in range(_PF_MIN_PX, _PF_MAX_PX + 1):
+            font.setPixelSize(px)
+            fm = QFontMetrics(font)
+            if fm.horizontalAdvance(self._text) > inner_w * _PF_FIT:
+                break
+            ink = max(fm.height(), fm.tightBoundingRect(self._text).height())
+            if ink > inner_h:
+                break
+            best = px
+        font.setPixelSize(best)
+        return font
 
     def popup_above(self, anchor: QWidget) -> None:
         if not self._text or anchor is None:
@@ -303,11 +337,14 @@ class ContributorNameTip(QWidget):
         painter.setFont(self._face)
         painter.setPen(pen)
         e = portrait_frame_edge()
-        painter.drawText(
-            rect.adjusted(e, e, -e, -e),
-            int(Qt.AlignmentFlag.AlignCenter),
-            self._text,
-        )
+        crest = _pf_load().get("crest")
+        crest_h = crest.height() if crest is not None and not crest.isNull() else e
+        # Ink-centred, not AlignCenter. Folkard's capitals sit low inside a tall
+        # ascent, which is what put the R on the plate's top edge on the glue
+        # buttons, and bigger type makes that offset worse rather than better.
+        box = rect.adjusted(e, crest_h, -e, -e)
+        box = ink_centered_rect(box, self._face, self._text)
+        painter.drawText(box, int(Qt.AlignmentFlag.AlignCenter), self._text)
         painter.end()
 
 
@@ -322,7 +359,18 @@ class ContributorNameTip(QWidget):
 # the stonework and the gold corners readable while leaving the label the
 # larger share of the plate.
 # ---------------------------------------------------------------------------
-_PF_TEXT_PAD = 10
+# Generous, because this padding is the room the type GROWS INTO. Sized snugly
+# the plate has nothing spare and every name settles at the reference size.
+_PF_TEXT_PAD = 20
+# Plate width comes from the name at this REFERENCE size, and the displayed type
+# is then grown to fill the plate. Two passes, deliberately: if the plate sized
+# itself from the grown type and the type grew to fill the plate, the two would
+# chase each other. A longer name still earns a wider plate, and every name then
+# maximises the plate it has, so the sizes differ per contributor by design.
+_PF_REF_PX = 15
+_PF_FIT = 0.88          # ink spans this much of the inner width
+_PF_MAX_PX = 34         # a one-letter name must not blow the plate out
+_PF_MIN_PX = 12
 _PF_SCALE = 0.62
 _PF_NAMES = {
     "tl": "portraitframe_tl.png", "tr": "portraitframe_tr.png",

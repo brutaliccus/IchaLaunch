@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
-from ichalaunch.ui.widgets.gradient_label import AnimatedLavaLabel
+from ichalaunch.ui.widgets.gradient_label import GradientLabel
 
 
 class TitleLockup(QWidget):
@@ -38,7 +38,7 @@ class TitleLockup(QWidget):
         # The title carries the animated ramp; the subtitle stays plain, so a
         # lockup reads as one heading with a quiet qualifier under it rather
         # than as two things both asking for attention.
-        self.title = AnimatedLavaLabel(title, self)
+        self.title = GradientLabel(title, self)
         self.title.setObjectName(title_name)
         layout.addWidget(self.title)
 

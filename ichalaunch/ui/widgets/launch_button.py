@@ -27,6 +27,7 @@ from ichalaunch.ui.widgets.glue_panel_button import launch_glue_chrome
 from ichalaunch.ui.widgets.gradient_label import (
     LAVA_RIM,
     lava_flicker,
+    lava_ticker,
     soft_halo,
     gold_pen,
     lava_rim_pixmap,
@@ -232,10 +233,7 @@ class LaunchButton(QPushButton):
         self._glow_key = None
         self._halo_cache = QPixmap()
         self._halo_key = None
-        self._sweep_deg = 0.0
-        self._sweep_timer = QTimer(self)
-        self._sweep_timer.setInterval(_SWEEP_MS)
-        self._sweep_timer.timeout.connect(self._advance_sweep)
+
         self._chrome_disabled: QPixmap | None = None
         self._load_chrome()
 
@@ -256,31 +254,33 @@ class LaunchButton(QPushButton):
 
     def paintEvent(self, event) -> None:  # noqa: N802
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
 
-        rect = self.rect().adjusted(
-            self._glow_margin, self._glow_margin, -self._glow_margin, -self._glow_margin
-        )
-        chrome = self._pick_chrome()
-        if (
-            chrome is not None
-            and not chrome.isNull()
-            and self.isEnabled()
-            and self.underMouse()
-            and not self.isDown()
-        ):
-            self._paint_hover_glow(painter, rect, chrome)
-        if chrome is not None and not chrome.isNull():
-            # Slight press inset for tactile feel
-            draw_rect = rect.adjusted(1, 2, -1, 0) if self.isDown() else rect
-            painter.drawPixmap(draw_rect, chrome)
-        else:
-            self._paint_fallback_chrome(painter, rect)
+            rect = self.rect().adjusted(
+                self._glow_margin, self._glow_margin, -self._glow_margin, -self._glow_margin
+            )
+            chrome = self._pick_chrome()
+            if (
+                chrome is not None
+                and not chrome.isNull()
+                and self.isEnabled()
+                and self.underMouse()
+                and not self.isDown()
+            ):
+                self._paint_hover_glow(painter, rect, chrome)
+            if chrome is not None and not chrome.isNull():
+                # Slight press inset for tactile feel
+                draw_rect = rect.adjusted(1, 2, -1, 0) if self.isDown() else rect
+                painter.drawPixmap(draw_rect, chrome)
+            else:
+                self._paint_fallback_chrome(painter, rect)
 
-        self._paint_label(painter, rect)
-        painter.end()
+            self._paint_label(painter, rect)
+        finally:
+            painter.end()
 
     def _glow_pixmap(self, chrome: QPixmap) -> QPixmap:
         """A gold silhouette of the plate, cached, used to build the halo.
@@ -451,8 +451,9 @@ class LaunchButton(QPushButton):
         painter.drawText(text_rect.adjusted(1, 2, 1, 2), flags, draw)
         # Gold label takes the site ramp. Disabled and pressed keep their flat
         # colours, so the plate still reads as unavailable or held down.
-        if color is _GOLD and self._sweep_timer.isActive():
-            # Hovered: the label runs molten with the rim.
+        if color is _GOLD:
+            # Always molten: this is the one element that does not wait to be
+            # pointed at.
             painter.setPen(lava_text_pen(text_rect, self._sweep_deg))
         elif color is _GOLD:
             painter.setPen(gold_pen(text_rect))
@@ -460,26 +461,30 @@ class LaunchButton(QPushButton):
             painter.setPen(color)
         painter.drawText(text_rect, flags, draw)
 
-    def _advance_sweep(self) -> None:
-        self._sweep_deg = (self._sweep_deg + 360.0 * _SWEEP_MS / _SWEEP_PERIOD_MS) % 360.0
-        self.update()
+    # PLAY is the one thing in the window that moves on its own. It is what the
+    # app exists to do, so it stays alive while everything else holds still and
+    # only answers the pointer. It rides the SHARED ticker rather than starting
+    # a timer of its own, so there is exactly one clock in the process driving
+    # both this and any hover state.
+    @property
+    def _sweep_deg(self) -> float:
+        return lava_ticker().phase
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        lava_ticker().subscribe(self)
+
+    def hideEvent(self, event) -> None:  # noqa: N802
+        lava_ticker().unsubscribe(self)
+        super().hideEvent(event)
 
     def enterEvent(self, event) -> None:
         super().enterEvent(event)
-        if self.isEnabled():
-            self._sweep_deg = 0.0
-            self._sweep_timer.start()
         self.update()
 
     def leaveEvent(self, event) -> None:
         super().leaveEvent(event)
-        self._sweep_timer.stop()
         self.update()
-
-    def hideEvent(self, event) -> None:  # noqa: N802
-        # Never leave the repaint timer running behind a hidden widget.
-        self._sweep_timer.stop()
-        super().hideEvent(event)
 
 
 class UpdateLaunchButton(LaunchButton):
@@ -539,22 +544,24 @@ class UpdateLaunchButton(LaunchButton):
 
     def paintEvent(self, event) -> None:  # noqa: N802
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
 
-        chrome_rect = self._chrome_rect()
-        if self.isEnabled() and not self._glow.isNull():
-            self._paint_glow(painter)
-        chrome = self._pick_chrome()
-        if chrome is not None and not chrome.isNull():
-            draw_rect = (
-                chrome_rect.adjusted(1, 2, -1, 0) if self.isDown() else chrome_rect
-            )
-            painter.drawPixmap(draw_rect, chrome)
-        else:
-            self._paint_fallback_chrome(painter, chrome_rect)
+            chrome_rect = self._chrome_rect()
+            if self.isEnabled() and not self._glow.isNull():
+                self._paint_glow(painter)
+            chrome = self._pick_chrome()
+            if chrome is not None and not chrome.isNull():
+                draw_rect = (
+                    chrome_rect.adjusted(1, 2, -1, 0) if self.isDown() else chrome_rect
+                )
+                painter.drawPixmap(draw_rect, chrome)
+            else:
+                self._paint_fallback_chrome(painter, chrome_rect)
 
-        self._paint_arrow(painter, chrome_rect)
-        painter.end()
+            self._paint_arrow(painter, chrome_rect)
+        finally:
+            painter.end()
 
     def _paint_glow(self, painter: QPainter) -> None:
         """CheckButtonGlow halo; opacity pulses while an update is waiting."""

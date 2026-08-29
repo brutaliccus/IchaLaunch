@@ -21,9 +21,11 @@ from __future__ import annotations
 import math
 import zlib
 
-from PySide6.QtCore import QObject, QRect, Qt, QTimer
+from PySide6.QtCore import QObject, QRect, QSize, Qt, QTimer
 from PySide6.QtGui import (
     QColor,
+    QFont,
+    QFontMetrics,
     QConicalGradient,
     QGradient,
     QImage,
@@ -34,6 +36,8 @@ from PySide6.QtGui import (
     QPixmap,
 )
 from PySide6.QtWidgets import QLabel, QWidget
+
+from ichalaunch.ui.theme_fonts import ink_centered_rect
 
 # The site's two stops, read out of its own stylesheet rather than sampled.
 GOLD_TOP = "#F1C22D"
@@ -79,8 +83,8 @@ LAVA_RIM = (
     (0.76, "#5e1000", 0), (1.00, "#5e1000", 0),
 )
 LAVA_TEXT = (
-    (0.00, "#c2531a"), (0.22, "#ff7a1f"), (0.42, "#ffc247"),
-    (0.50, "#fff6d2"), (0.58, "#ffc247"), (0.78, "#ff7a1f"), (1.00, "#c2531a"),
+    (0.00, "#d4611f"), (0.22, "#ff7a1f"), (0.42, "#ffc247"),
+    (0.50, "#fff6d2"), (0.58, "#ffc247"), (0.78, "#ff7a1f"), (1.00, "#d4611f"),
 )
 
 SWEEP_MS = 33
@@ -367,6 +371,23 @@ class _LavaTicker(QObject):
 _TICKER: "_LavaTicker | None" = None
 
 
+def phase_seed(text: str) -> tuple:
+    """A stable per-label (offset, rate) into the shared clock.
+
+    Sharing the ticker is right, a timer each would drift and cost more. Sharing
+    the PHASE is not: labels then sweep in lockstep and read as one bar of light
+    crossing them. Offsets fix that, but equal periods with fixed offsets still
+    march once the eye finds the pattern, so the rates are deliberately
+    incommensurate. Same principle as the torch flicker's non-dividing sines.
+
+    crc32, not hash(): Python randomises string hashing per process, so hash()
+    would reshuffle on every launch and a label would never look like itself
+    twice.
+    """
+    seed = zlib.crc32((text or "").encode("utf-8"))
+    return (seed % 360), 0.72 + ((seed >> 9) % 61) / 100.0
+
+
 def lava_ticker() -> "_LavaTicker":
     global _TICKER
     if _TICKER is None:
@@ -375,7 +396,13 @@ def lava_ticker() -> "_LavaTicker":
 
 
 class AnimatedLavaLabel(QLabel):
-    """A heading whose text carries the travelling lava ramp.
+    """A label whose text carries the travelling lava ramp.
+
+    Reserved for things that MOVE FOR A REASON. The section headings used this
+    briefly and it was too much: with a dozen labels animating, motion stopped
+    meaning anything, so they went back to the static gradient and only
+    hover-driven chrome still moves. Per-label phase offsets went with them,
+    since their only job was stopping a column of headings marching in step.
 
     Repaints from the shared ticker rather than a timer of its own, so every
     heading in the window moves on one phase. Painting reads ``self.text()`` at
@@ -389,23 +416,9 @@ class AnimatedLavaLabel(QLabel):
     def __init__(self, text: str = "", parent: QWidget | None = None) -> None:
         super().__init__(text, parent)
         self._plain: "str | None" = None
-        # One shared clock, but every label reads it at its own offset and its
-        # own rate. Sharing the ticker is right, a timer each would drift and
-        # cost more, but sharing the PHASE made the sweep cross a column of
-        # headings in lockstep and read as a single bar of light travelling
-        # down the panel.
-        #
-        # crc32, not hash(): Python randomises string hashing per process, so
-        # hash() would reshuffle every launch and a heading would never look
-        # like itself twice.
-        seed = zlib.crc32((text or "").encode("utf-8"))
-        self._phase_offset = (seed % 360)
-        # Rates near 1 but never equal and never a simple ratio, so no two
-        # labels re-align on a beat the eye can find. Same principle as the
-        # torch flicker's three non-dividing sines.
-        self._phase_rate = 0.72 + ((seed >> 9) % 61) / 100.0
+        self._phase_offset, self._phase_rate = phase_seed(text)
 
-    def _own_phase(self) -> float:
+    def own_phase(self) -> float:
         return (lava_ticker().phase * self._phase_rate + self._phase_offset) % 360.0
 
     def set_plain(self, colour: "str | None") -> None:
@@ -420,27 +433,90 @@ class AnimatedLavaLabel(QLabel):
         lava_ticker().unsubscribe(self)
         super().hideEvent(event)
 
+    def _fitted_font(self, rect) -> QFont:
+        """Shrink the type until the string fits its box.
+
+        The stylesheet pins this at a size chosen to match the launch label,
+        which is right for a short word like Ready and wrong for
+        "Installing update and restarting...". Pinning a size and letting long
+        strings clip is the bug; fitting keeps the intended size whenever the
+        string is short enough to have it.
+        """
+        font = QFont(self.font())
+        base = font.pixelSize() if font.pixelSize() > 0 else 16
+        text = self.text()
+        for px in range(base, 9, -1):
+            font.setPixelSize(px)
+            fm = QFontMetrics(font)
+            ink = max(fm.height(), fm.tightBoundingRect(text).height())
+            if fm.horizontalAdvance(text) <= rect.width() and ink <= rect.height():
+                return font
+        font.setPixelSize(10)
+        return font
+
     def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802
         text = self.text()
         if not text:
             super().paintEvent(event)
             return
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
-        painter.setFont(self.font())
-        rect = self.contentsRect()
-        if self._plain:
-            painter.setPen(QColor(self._plain))
-        else:
-            painter.setPen(lava_text_pen(rect, self._own_phase()))
-        flags = int(self.alignment())
-        if self.wordWrap():
-            flags |= int(Qt.TextFlag.TextWordWrap)
-        painter.drawText(rect, flags, text)
-        painter.end()
+        try:
+            painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+            painter.setFont(self._fitted_font(self.contentsRect()))
+            rect = self.contentsRect()
+            if self._plain:
+                painter.setPen(QColor(self._plain))
+            else:
+                painter.setPen(lava_text_pen(rect, self.own_phase()))
+            flags = int(self.alignment())
+            if self.wordWrap():
+                flags |= int(Qt.TextFlag.TextWordWrap)
+            painter.drawText(ink_centered_rect(rect, painter.font(), text), flags, text)
+        finally:
+            painter.end()
 
 
 class GradientLabel(QLabel):
+    """Text filled with the site's static gold ramp, fitted to its box.
+
+    Fitting lives here rather than on the animated subclass because the status
+    line is static now and still has to cope with strings four times longer
+    than "Ready". A pinned size that clips long text is the bug; this keeps the
+    intended size whenever the string is short enough to have it.
+    """
+
+    def _fitted_font(self, rect) -> QFont:
+        """Shrink only when the string genuinely cannot fit its box.
+
+        Wrap-aware on purpose. Measuring a wrapped label by one-line advance
+        shrinks "Checking addon & client updates…" to unreadable when two lines
+        at full size would have fit, which is the opposite of the bug it is
+        meant to solve.
+        """
+        font = QFont(self.font())
+        base = font.pixelSize() if font.pixelSize() > 0 else 16
+        text = self.text()
+        if not text:
+            return font
+        wrap = self.wordWrap()
+        flags = int(self.alignment())
+        if wrap:
+            flags |= int(Qt.TextFlag.TextWordWrap)
+        for px in range(base, 9, -1):
+            font.setPixelSize(px)
+            fm = QFontMetrics(font)
+            if wrap:
+                box = fm.boundingRect(QRect(0, 0, max(rect.width(), 1), 1 << 20), flags, text)
+                if box.height() <= rect.height():
+                    return font
+            else:
+                ink = max(fm.height(), fm.tightBoundingRect(text).height())
+                if fm.horizontalAdvance(text) <= rect.width() and ink <= rect.height():
+                    return font
+        font.setPixelSize(10)
+        return font
+
+
     """Draws its text with the site's vertical gold ramp."""
 
     def __init__(
@@ -454,6 +530,62 @@ class GradientLabel(QLabel):
         super().__init__(text, parent)
         self._top = top
         self._bottom = bottom
+        self._plain: "str | None" = None
+
+    def set_plain(self, colour: "str | None") -> None:
+        """Drop this label out of the ramp, e.g. so an error does not shimmer.
+
+        Parity with AnimatedLavaLabel. set_status() calls this on every status
+        change; without it the play-bar status raised AttributeError and killed
+        the rest of the caller, including the update-check worker.
+        """
+        self._plain = colour
+        self.update()
+
+    def sizeHint(self) -> QSize:
+        """Ask for the width the string actually needs.
+
+        A word-wrapped QLabel reports a narrow hint, so at stretch 0 the play
+        bar handed the status line about 130px and a long boot message wrapped
+        to three lines, overflowing the 86px bar. The maximumWidth cap already
+        allowed 420 and nothing was ever claiming it: width was being refused
+        before size was. Qt clamps this between minimumWidth and maximumWidth,
+        so short text still occupies the old footprint.
+        """
+        text = self.text()
+        if not text:
+            return super().sizeHint()
+        fm = QFontMetrics(self.font())
+        m = self.contentsMargins()
+        # +2 vertical headroom: the fit test rejects a size whose ink is even a
+        # pixel taller than the box, and this face measures one over its own
+        # line height. Without the slack "Ready" drops to 19px and stops
+        # matching the launch plate it is supposed to sit level with.
+        return QSize(
+            fm.horizontalAdvance(text) + m.left() + m.right() + 2,
+            max(fm.height(), fm.tightBoundingRect(text).height()) + m.top() + m.bottom() + 2,
+        )
+
+    def heightForWidth(self, width: int) -> int:  # noqa: N802
+        """Height including the same 2px the size hint reserves.
+
+        A word-wrapped QLabel advertises heightForWidth, and the layout prefers
+        it over sizeHint().height(). Leaving it on the base implementation put
+        the headroom in the hint and then threw it away, so the fit test still
+        saw a box one pixel short and dropped a size.
+        """
+        text = self.text()
+        if not text:
+            return super().heightForWidth(width)
+        fm = QFontMetrics(self.font())
+        m = self.contentsMargins()
+        flags = int(self.alignment())
+        if self.wordWrap():
+            flags |= int(Qt.TextFlag.TextWordWrap)
+        inner = max(width - m.left() - m.right(), 1)
+        box = fm.boundingRect(QRect(0, 0, inner, 1 << 20), flags, text)
+        ink = max(box.height(), fm.tightBoundingRect(text).height())
+        return ink + m.top() + m.bottom() + 2
 
     def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802
         text = self.text()
@@ -462,22 +594,32 @@ class GradientLabel(QLabel):
             return
 
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
-        painter.setFont(self.font())
+        try:
+            painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+            painter.setFont(self._fitted_font(self.contentsRect()))
 
-        # Inside the style sheet's padding, so the ramp spans the ink and not
-        # the box, and a padded label does not start mid-gradient.
-        rect = self.contentsRect()
-        ramp = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.bottom())
-        ramp.setColorAt(0.0, self._top)
-        ramp.setColorAt(1.0, self._bottom)
+            # Inside the style sheet's padding, so the ramp spans the ink and not
+            # the box, and a padded label does not start mid-gradient.
+            rect = self.contentsRect()
+            ramp = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.bottom())
+            ramp.setColorAt(0.0, self._top)
+            ramp.setColorAt(1.0, self._bottom)
 
-        pen = QPen()
-        pen.setBrush(ramp)
-        painter.setPen(pen)
+            pen = QPen()
+            pen.setBrush(ramp)
+            painter.setPen(pen)
+            if self._plain:
+                painter.setPen(QColor(self._plain))
 
-        flags = int(self.alignment())
-        if self.wordWrap():
-            flags |= int(Qt.TextFlag.TextWordWrap)
-        painter.drawText(rect, flags, text)
-        painter.end()
+            flags = int(self.alignment())
+            if self.wordWrap():
+                flags |= int(Qt.TextFlag.TextWordWrap)
+            # Single line only: this face sets its capitals high inside a tall
+            # ascent, so Qt's line-box centring shears the tops. Multi-line text is
+            # left alone, where the same shift would push the last line out.
+            draw = rect
+            if not (flags & int(Qt.TextFlag.TextWordWrap)):
+                draw = ink_centered_rect(rect, painter.font(), text)
+            painter.drawText(draw, flags, text)
+        finally:
+            painter.end()

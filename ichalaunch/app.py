@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QApplication
 
 from ichalaunch.core.logging_setup import log
 from ichalaunch.core.paths import theme_file
-from ichalaunch.ui.theme_fonts import chrome_family
+from ichalaunch.ui.theme_fonts import body_family, chrome_family
 from ichalaunch.ui.widgets.splash import SplashScreen, load_splash_pixmap
 
 
@@ -26,6 +26,7 @@ def load_stylesheet(app: QApplication) -> None:
     # family while the painted chrome follows the override, so naming a font
     # dresses the tabs and buttons and leaves every heading behind.
     text = text.replace("__CHROME_FAMILY__", chrome_family())
+    text = text.replace("__BODY_FAMILY__", body_family())
 
     # Theme directory, so the sheet can reference bundled art by name instead of
     # every asset needing its own placeholder the way the chevron does.
