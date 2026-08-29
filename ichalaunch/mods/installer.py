@@ -3652,7 +3652,9 @@ def _revert_failed_mod_install(
     if backup_root:
         try:
             restore_backup(game, backup_root)
-        except OSError as exc:
+        except (OSError, RuntimeError) as exc:
+            # BackupEmptyError (empty first-install snapshot) is a RuntimeError.
+            # Cleanup of artifacts that were not in the snapshot must still run.
             log.warning("Install rollback restore failed: %s", exc)
 
     for rel in _mod_owned_paths(mod):
