@@ -131,7 +131,8 @@ def test_backup_refuses_outside_paths_and_empty_restore_is_survivable():
     import tempfile
     from pathlib import Path
 
-    from ichalaunch.core.backup import create_backup, restore_backup
+    from ichalaunch.core.backup import BackupEmptyError, create_backup, restore_backup
+    from ichalaunch.mods.installer import _revert_failed_mod_install, get_mod
 
     with tempfile.TemporaryDirectory() as td:
         game = Path(td) / "game"
@@ -149,23 +150,26 @@ def test_backup_refuses_outside_paths_and_empty_restore_is_survivable():
         assert manifest.get("empty") is True
 
         # 2. restoring that empty snapshot refuses loudly rather than doing nothing
-        raised = False
         try:
             restore_backup(game, root)
-        except RuntimeError:
-            raised = True
-        assert raised, "an empty snapshot must not look like a successful restore"
+        except BackupEmptyError:
+            pass
+        else:
+            raise AssertionError("an empty snapshot must not look like a successful restore")
 
         # 3. and the real Interface is untouched by any of it
         assert (game / "Interface" / "real.txt").read_text(encoding="utf-8") == "keep me"
 
         # 4. the rollback path must SURVIVE that refusal, or cleanup never runs
-        from ichalaunch.mods import installer
-
         stray = game / "Interface" / "AddOns" / "PartialCopy"
         stray.mkdir(parents=True)
         (stray / "half.lua").write_text("partial", encoding="utf-8")
-        installer._revert_failed_mod_install(game, {}, root)   # must not raise
+        leftover = game / "nampower.dll"
+        leftover.write_bytes(b"partial-install")
+        mod = get_mod("nampower")
+        assert mod, "nampower missing from catalog"
+        _revert_failed_mod_install(game, mod, root)
+        assert not leftover.exists(), "empty first-install rollback skipped cleanup"
 
     print("OK backup refuses outside paths and empty restore is survivable")
 

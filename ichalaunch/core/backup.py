@@ -16,6 +16,10 @@ from ichalaunch.core.filesystem import (
 from ichalaunch.core.logging_setup import log
 
 
+class BackupEmptyError(RuntimeError):
+    """The snapshot has no files, so restore would silently do nothing."""
+
+
 def ichalaunch_meta_dir(game_path: Path) -> Path:
     return ensure_dir(game_path / ".ichalaunch")
 
@@ -40,12 +44,14 @@ def create_backup(game_path: Path, label: str, paths: list[Path]) -> Path:
         except ValueError:
             # A path outside game_path used to collapse to its bare NAME, so
             # restore_backup would later write to game_path/<name> and rmtree
-            # whatever legitimately lived there -- backing up any folder called
+            # whatever legitimately lived there — backing up any folder called
             # "Interface" from elsewhere would destroy the real Interface/ on
             # restore. Refuse rather than guess.
             log.error(
                 "Backup REFUSED for %s: outside the game folder %s. "
-                "Restoring it would overwrite an unrelated path.", p, game_path,
+                "Restoring it would overwrite an unrelated path.",
+                p,
+                game_path,
             )
             continue
         dest = backup_root / rel
@@ -61,14 +67,16 @@ def create_backup(game_path: Path, label: str, paths: list[Path]) -> Path:
             continue
         manifest["files"].append(str(rel).replace("\\", "/"))
     # Every failure path above is a `continue`, so a backup where nothing could
-    # be copied used to return normally and look successful -- and the rollback
+    # be copied used to return normally and look successful — and the rollback
     # it promised would silently restore nothing. Record it.
     manifest["requested"] = len(paths)
     manifest["empty"] = not manifest["files"]
     if manifest["empty"] and paths:
         log.error(
             "Backup '%s' captured NOTHING despite %d requested path(s) -- "
-            "rollback from this backup will not restore anything.", label, len(paths),
+            "rollback from this backup will not restore anything.",
+            label,
+            len(paths),
         )
     (backup_root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return backup_root
@@ -81,9 +89,11 @@ def restore_backup(game_path: Path, backup_root: Path) -> None:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     files = manifest.get("files", [])
     if not files:
-        # Silently doing nothing is the worst outcome here: the caller believes
-        # it rolled back. Fail loudly instead.
-        raise RuntimeError(
+        # Silently doing nothing is the worst outcome for an explicit restore:
+        # the caller believes it rolled back. Fail loudly instead. Install
+        # rollback catches BackupEmptyError so a first-install snapshot of
+        # missing dests still cleans the partial copy.
+        raise BackupEmptyError(
             f"Backup at {backup_root} contains no files; there is nothing to "
             "restore. The original backup captured nothing."
         )
