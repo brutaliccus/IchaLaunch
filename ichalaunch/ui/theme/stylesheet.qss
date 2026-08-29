@@ -16,13 +16,29 @@
    stack is what the launcher fell back to before it was, so a build without
    the font files still renders the way it used to. Body copy, mod and addon
    rows and tooltips deliberately stay on the sans stack above. */
-QLabel#SectionTitle,
-QLabel#CardTitle,
-QLabel#Subtitle,
+/* Small text runs on RAVENCRAFT'S OWN SECONDARY FACE. ravencraft.io declares
+   Fontin-Sans in 10 rules, more than any other family, with Folkard reserved for
+   display. That is the answer to Joe's "is there a secondary font from their website
+   that isn't so garish" (29 Aug). Small caps IS the site's normal weight.
+   NOT BUNDLED: the font says "All rights reserved" with no licence text, same as
+   Folkard, so it is referenced and falls back to the bundled sans if absent. */
 QLabel#HomeModCategory,
-QLabel#PlayStatus,
 QLabel#SectionSubtitle,
 QLabel#HomeModCategorySub,
+QLabel#HomeModCategoryCount {
+    font-family: "Fontin Sans CR SC", "Fontin Sans CR", "__BODY_FAMILY__", sans-serif;
+}
+
+QLabel#CardTitle,
+QLabel#Subtitle {
+    font-family: "Fontin Sans CR", "__BODY_FAMILY__", sans-serif;
+}
+
+/* Display face for HEADERS ONLY. Joe's note, 29 Aug: he liked the font "for all
+   the headers" and wanted "a little 'less' font for the smaller text". Ornate type
+   at 13-18px is the classic amateur tell, so everything small now runs on the sans. */
+QLabel#SectionTitle,
+QLabel#PlayStatus,
 QLabel#ThemedDialogTitle,
 QLabel#CountdownTitle {
     font-family: "__CHROME_FAMILY__", "Segoe UI", "Candara", "Calibri", serif;
@@ -111,16 +127,13 @@ QLabel#SectionTitle {
 /* The quieter half of a title lockup: same face, smaller, and stepped down in
    colour so it reads as a qualifier rather than a second heading. */
 QLabel#SectionSubtitle {
-    color: rgba(241, 194, 45, 0.55);
-    font-size: 13px;
-    font-weight: 400;
-    padding-bottom: 2px;
+    color: #a8977c;
+    font-size: 12px;
 }
 
 QLabel#HomeModCategorySub {
-    color: rgba(241, 194, 45, 0.85);
-    font-size: 15px;
-    font-weight: 400;
+    color: #a8977c;
+    font-size: 12px;
 }
 
 QLabel#RowDesc {
@@ -154,7 +167,6 @@ QLabel#CardTitle {
     color: #F1C22D;
     font-size: 13px;
     font-weight: 600;
-    letter-spacing: 0.3px;
 }
 
 QPushButton {
@@ -491,11 +503,10 @@ QFrame#HomeModCategoryRow {
    name and its count sit on one line with room to spare, and the panel stops
    disagreeing with both the site and the rest of the launcher. */
 QLabel#HomeModCategory {
-    color: #F1C22D;
-    font-size: 18px;
-    font-weight: 600;
-    background: transparent;
-    border: none;
+    color: #c9953f;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
 }
 
 /* The count rides the heading's row, right aligned, in the same gold. No second
@@ -503,12 +514,9 @@ QLabel#HomeModCategory {
    orphaned line. Contrast against the band is 8.6:1, past the 7:1 that counts as
    AAA; the grey it replaced scored 3.91 and failed AA outright. */
 QLabel#HomeModCategoryCount {
-    color: rgba(241, 194, 45, 0.88);
-    font-size: 13px;
-    font-weight: 500;
-    background: transparent;
-    border: none;
-    padding-right: 2px;
+    color: #a8977c;
+    font-size: 12px;
+    font-weight: 600;
 }
 
 QLabel#HomeModItem {
