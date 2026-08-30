@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -21,12 +22,14 @@ from ichalaunch.core.filesystem import (
     robust_move_tree,
     robust_rmtree,
     scan_game_permissions,
+    sha256_file,
 )
 from ichalaunch.core.logging_setup import log
 from ichalaunch.core.paths import data_file
 from ichalaunch.core.process import download_bytes_cb, download_file, status_only, zip_url_from_html
 from ichalaunch.game.launcher import (
     CLIENT_ZIP_MIRRORS,
+    CLIENT_ZIP_SHA256,
     has_wow_exe,
     GAME_DOWNLOAD_URL,
     GOFILE_EXPECTED_SIZE,
@@ -88,6 +91,69 @@ _GOFILE_STORE_HOSTS = (
 
 def bundled_realmlist() -> Path:
     return data_file("realmlist.wtf")
+
+
+def bundled_client_manifest() -> Path:
+    return data_file("client_manifest.json")
+
+
+def load_client_manifest(path: Path | None = None) -> dict[str, Any]:
+    """Published zip + per-file hashes used to validate a client install."""
+    src = path or bundled_client_manifest()
+    return json.loads(src.read_text(encoding="utf-8"))
+
+
+def manifest_install_relpath(zip_path: str) -> str:
+    """Strip twmoa/UUID wrappers so zip members map onto the extracted game root."""
+    parts = [p for p in str(zip_path or "").replace("\\", "/").split("/") if p]
+    while parts and _is_wrapper_name(parts[0]):
+        parts.pop(0)
+    return "/".join(parts)
+
+
+def verify_installed_client(
+    game: Path,
+    manifest: dict[str, Any] | None = None,
+    *,
+    hash_executables: bool = True,
+) -> list[str]:
+    """Compare an extracted game folder to the published zip manifest.
+
+    Checks every listed file is present at the unwrapped path with the right
+    size. SHA-256 is reserved for executables (and any file under 8 MiB) so
+    a 10 GB MPQ tree is not re-hashed on every install.
+    """
+    data = manifest if manifest is not None else load_client_manifest()
+    problems: list[str] = []
+    for row in data.get("files") or []:
+        if not isinstance(row, dict):
+            continue
+        rel = manifest_install_relpath(str(row.get("path") or ""))
+        if not rel:
+            continue
+        dest = game / Path(*rel.split("/"))
+        expected_size = int(row.get("size") or 0)
+        try:
+            if not dest.is_file():
+                problems.append(f"missing {rel}")
+                continue
+            got_size = dest.stat().st_size
+        except OSError as exc:
+            problems.append(f"{rel}: {exc}")
+            continue
+        if expected_size and got_size != expected_size:
+            problems.append(f"{rel} size {got_size} != {expected_size}")
+            continue
+        want = str(row.get("sha256") or "").strip().lower()
+        if not want or not hash_executables:
+            continue
+        suffix = dest.suffix.lower()
+        if suffix not in {".exe", ".dll"} and got_size > 8 * 1024 * 1024:
+            continue
+        got = sha256_file(dest)
+        if got and got.lower() != want:
+            problems.append(f"{rel} sha256 {got} != {want}")
+    return problems
 
 
 def _preserve_existing_realmlist(dest: Path, payload: bytes) -> bool:
@@ -805,28 +871,38 @@ def wait_for_browser_zip(
 
 
 def _verify_client_zip(path: Path, progress: Progress | None = None) -> None:
-    """Confirm zip magic, advertised size, and MD5 from the Gofile Properties dialog."""
+    """Confirm zip magic, size, SHA-256, and the Gofile MD5 listing."""
     if not _zip_magic_ok(path):
         raise RuntimeError("Downloaded file is not a zip archive")
     size = path.stat().st_size
     if GOFILE_EXPECTED_SIZE and size != GOFILE_EXPECTED_SIZE:
         raise RuntimeError(
-            f"Zip size {size} bytes does not match Gofile listing "
+            f"Zip size {size} bytes does not match the published client "
             f"({GOFILE_EXPECTED_SIZE} bytes)."
         )
-    if not GOFILE_MD5:
+    if not CLIENT_ZIP_SHA256 and not GOFILE_MD5:
         return
     status_only(progress, "Verifying download…")
-    digest = hashlib.md5()
+    sha = hashlib.sha256()
+    md5 = hashlib.md5()
     with path.open("rb") as f:
         while True:
             chunk = f.read(1024 * 1024)
             if not chunk:
                 break
-            digest.update(chunk)
-    got = digest.hexdigest()
-    if got.lower() != GOFILE_MD5.lower():
-        raise RuntimeError(f"Zip MD5 {got} does not match Gofile listing ({GOFILE_MD5}).")
+            sha.update(chunk)
+            md5.update(chunk)
+    got_sha = sha.hexdigest()
+    if CLIENT_ZIP_SHA256 and got_sha.lower() != CLIENT_ZIP_SHA256.lower():
+        raise RuntimeError(
+            f"Zip SHA-256 {got_sha} does not match the published client "
+            f"({CLIENT_ZIP_SHA256})."
+        )
+    got_md5 = md5.hexdigest()
+    if GOFILE_MD5 and got_md5.lower() != GOFILE_MD5.lower():
+        raise RuntimeError(
+            f"Zip MD5 {got_md5} does not match the published client ({GOFILE_MD5})."
+        )
 
 
 def _download_zip(dest: Path, progress: Any) -> None:
@@ -1152,9 +1228,11 @@ def _extract_client(
     if not _zip_magic_ok(zip_path):
         raise RuntimeError(f"File is not a zip archive:\n{zip_path}")
     size = zip_path.stat().st_size
-    if GOFILE_EXPECTED_SIZE and size != GOFILE_EXPECTED_SIZE:
+    if GOFILE_EXPECTED_SIZE and size == GOFILE_EXPECTED_SIZE:
+        _verify_client_zip(zip_path, progress)
+    elif GOFILE_EXPECTED_SIZE and size != GOFILE_EXPECTED_SIZE:
         log.warning(
-            "Client zip size %s does not match Gofile listing %s (%s)",
+            "Client zip size %s does not match the published client %s (%s)",
             size,
             GOFILE_EXPECTED_SIZE,
             zip_path,
@@ -1184,6 +1262,17 @@ def _extract_client(
         progress("Writing realmlist.wtf…")
     apply_bundled_realmlist(target if has_wow_exe(target) else game)
     home = target if has_wow_exe(target) else game
+    if GOFILE_EXPECTED_SIZE and size == GOFILE_EXPECTED_SIZE:
+        status_only(progress, "Validating installed files…")
+        problems = verify_installed_client(home)
+        if problems:
+            preview = "\n".join(problems[:12])
+            extra = f"\n(+{len(problems) - 12} more)" if len(problems) > 12 else ""
+            raise RuntimeError(
+                "Extracted client does not match the published file list:\n"
+                + preview
+                + extra
+            )
     commit_game_home(home)
     _log_post_install_permissions(home)
     cleanup_client_zip(dest, zip_path, watch_dirs=watch_dirs)

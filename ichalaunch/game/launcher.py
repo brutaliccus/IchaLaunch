@@ -28,6 +28,13 @@ GOFILE_FILE_NAME = "twmoa_1181.zip"
 GOFILE_STORE = "store-na-phx-4"
 GOFILE_EXPECTED_SIZE = 9_829_040_584
 GOFILE_MD5 = "b65fb26b56d09e3d45cb72b130a79080"
+# SHA-256 of the same zip (E:\RavenCraft.zip / twmoa_1181.zip). Stronger than MD5.
+CLIENT_ZIP_SHA256 = (
+    "86059fa229800050bbe066e5ae19f59eb936f10a077a9581596cb879d013e565"
+)
+# Object key on the RavenCraft R2 bucket (`main`). Public download needs a
+# custom domain or r2.dev URL — the S3 API endpoint is signed-only.
+R2_CLIENT_ZIP_KEY = "RavenCraft.zip"
 # Last-resort only — much slower than Gofile when Gofile works.
 VIKINGFILE_ZIP_URL = "https://vikingfile.com/d/tnQwCPOJDA/twmoa_1181.zip"
 CLIENT_ZIP_MIRRORS: tuple[str, ...] = (
