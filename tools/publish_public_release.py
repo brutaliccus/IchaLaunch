@@ -26,6 +26,11 @@ PUBLIC_DATA = (
     "ichalaunch/data/addons.json",
     "ichalaunch/data/addon_tips.json",
     "ichalaunch/data/home_art.json",
+    "ichalaunch/data/mods.json",
+    "ichalaunch/data/addons.json.sig",
+    "ichalaunch/data/addon_tips.json.sig",
+    "ichalaunch/data/home_art.json.sig",
+    "ichalaunch/data/mods.json.sig",
 )
 
 
@@ -136,7 +141,7 @@ def main() -> int:
     ap.add_argument(
         "--sync-public-data",
         action="store_true",
-        help="Copy addons.json, addon_tips.json, home_art.json from public/master",
+        help="Copy live signed catalogs (JSON + .sig) from public/master",
     )
     args = ap.parse_args()
 

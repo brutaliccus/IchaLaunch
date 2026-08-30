@@ -103,14 +103,28 @@ Output: `dist\IchaLaunch.exe`
 
 </details>
 
+## Maintainer: live catalogs and pins
+
+How to rehash client mods (ClassicAPI and the rest), approve catalog issues, and sign live JSON: **[docs/SIGNING.md](docs/SIGNING.md)**. Remotes, CI secrets, and the public thin-master rules: [`docs/DEV_REPO.md`](docs/DEV_REPO.md).
+
+From repo root on `fix/pinned-mod-waits-for-catalog` (not a `python tools` folder):
+
+```bat
+git checkout fix/pinned-mod-waits-for-catalog
+python tools/pin_mods.py --update classic_api
+python tools/sign_live.py --only mods
+```
+
+Signing keys stay in `%LOCALAPPDATA%\IchaLaunch\signing\`. Never put the key or its password in CI.
+
 <details>
 <summary>Maintainer notes (catalog & suggestions)</summary>
 
-Development remotes, catalog/mod pipelines, and public-release publish steps: [`docs/DEV_REPO.md`](docs/DEV_REPO.md).
+Day-to-day sign / pin / approve: [`docs/SIGNING.md`](docs/SIGNING.md). Remotes and pipeline setup: [`docs/DEV_REPO.md`](docs/DEV_REPO.md).
 
 The Available catalog is `ichalaunch/data/addons.json` on **public** `brutaliccus/IchaLaunch` `master`. Clients fetch and cache it; merge catalog PRs there and launchers pick them up on the next refresh.
 
-**Suggest for catalog** posts to the Cloudflare Worker (`ichalaunch/addons/submit.py`). Maintainer approval: label the issue `catalog-approved` → Action opens/merges a catalog PR. Opt-in crash reports use the same Worker at `/crash` (`ichalaunch/core/crash_report.py`, Settings → Privacy). Worker setup: `tools/addon-submit-worker/README.md`.
+**Suggest for catalog** posts to the Cloudflare Worker (`ichalaunch/addons/submit.py`). Maintainer approval: label the issue `catalog-approved` → Action opens a catalog PR (sign locally, merge JSON+`.sig`; do not merge unsigned live JSON). Opt-in crash reports use the same Worker at `/crash` (`ichalaunch/core/crash_report.py`, Settings → Privacy). Worker setup: `tools/addon-submit-worker/README.md`.
 
 Optional GitHub token in Settings unlocks fork/version browsing and README previews; update badges work without one.
 

@@ -7830,7 +7830,7 @@ def test_mod_remote_identity_uses_tip_index():
             {"type": "github_release_latest", "repo": "hannesmann/vanillafixes"},
             catalog_only=True,
         )
-        assert catalog is not None and catalog["key"] == "v9.9.9"
+        assert catalog is None
         missing = _remote_identity(
             {"type": "github_release_latest", "repo": "nope/missing"},
             catalog_only=True,
@@ -7862,6 +7862,514 @@ def test_mod_remote_identity_uses_tip_index():
         if prev is None:
             clear_tip_index_cache()
     print("OK mod remote identity uses tip index")
+
+
+def test_digest_pinned_release_ignores_tip_ahead_of_catalog():
+    """A sha256 pin is only deliverable at pinned_tag; live tip must not nag."""
+    from unittest import mock
+
+    from ichalaunch.addons import tip_index as tips
+    from ichalaunch.addons.tip_index import clear_tip_index_cache, normalize_index
+    from ichalaunch.mods.installer import (
+        _remote_identity,
+        _resolve_github_release_asset,
+        _source_pin_tag,
+        get_mod,
+    )
+
+    classic = get_mod("classic_api")
+    assert classic is not None
+    src = classic.get("source") or {}
+    assert src.get("type") == "github_release_latest"
+    assert src.get("pinned_tag")
+    assert src.get("sha256")
+    assert _source_pin_tag(src) == src["pinned_tag"]
+    assert _source_pin_tag({**src, "sha256": None}) == ""
+
+    source = {
+        "type": "github_release_latest",
+        "repo": "brues-code/ClassicAPI",
+        "asset_contains": "ClassicAPI.dll",
+        "sha256": "ab" * 32,
+        "pinned_tag": "v1.12.7",
+    }
+    url_pinned = {
+        "type": "github_release",
+        "url": "https://github.com/o/r/releases/download/v1.6.0/thing.zip",
+        "sha256": "cd" * 32,
+    }
+    assert _source_pin_tag(url_pinned) == "v1.6.0"
+
+    index = normalize_index(
+        {
+            "generated_at": "2026-08-30T00:00:00Z",
+            "repos": {
+                "brues-code/classicapi": {
+                    "default_branch": "master",
+                    "sha": "c" * 40,
+                    "branches": {"master": "c" * 40},
+                    "latest_tag": "v1.12.8",
+                },
+                "o/r": {
+                    "default_branch": "master",
+                    "sha": "d" * 40,
+                    "branches": {"master": "d" * 40},
+                    "latest_tag": "v9.9.9",
+                },
+            },
+        }
+    )
+    prev = tips._loaded
+    try:
+        tips._loaded = (0.0, index)
+        ident = _remote_identity(source, catalog_only=True)
+        assert ident is not None
+        assert ident["key"] == "v1.12.7"
+        assert ident["tag"] == "v1.12.7"
+        live = _remote_identity(
+            {"type": "github_release_latest", "repo": "brues-code/ClassicAPI"},
+            catalog_only=True,
+        )
+        assert live is None
+        classic_ident = _remote_identity(src, catalog_only=True)
+        assert classic_ident is not None
+        assert classic_ident["key"] == src["pinned_tag"]
+        assert classic_ident["key"] != "v1.12.8"
+        vf = {
+            "type": "github_release_latest",
+            "repo": "hannesmann/vanillafixes",
+            "sha256": "ef" * 32,
+            "pinned_tag": "v1.0.0",
+        }
+        sw = {
+            "type": "github_release_latest",
+            "repo": "balakethelock/SuperWoW",
+            "sha256": "aa" * 32,
+            "pinned_tag": "Release",
+        }
+        assert _remote_identity(vf, catalog_only=True)["key"] == "v1.0.0"
+        assert _remote_identity(sw, catalog_only=True)["key"] == "Release"
+        url_ident = _remote_identity(url_pinned, catalog_only=True)
+        assert url_ident is not None and url_ident["key"] == "v1.6.0"
+    finally:
+        tips._loaded = prev
+        if prev is None:
+            clear_tip_index_cache()
+
+    fetched: list[str] = []
+
+    def fake_json(api: str):
+        fetched.append(api)
+        if "v1.12.7" in api:
+            return {
+                "tag_name": "v1.12.7",
+                "assets": [
+                    {
+                        "name": "ClassicAPI.dll",
+                        "browser_download_url": "https://example.test/ClassicAPI.dll",
+                        "size": 1,
+                    }
+                ],
+            }
+        raise AssertionError(f"digest-pinned resolve must not fetch {api}")
+
+    with mock.patch(
+        "ichalaunch.mods.installer.github_latest_version_tag",
+        return_value="v1.12.8",
+    ), mock.patch("ichalaunch.mods.installer._github_json", side_effect=fake_json):
+        asset = _resolve_github_release_asset(source)
+    assert asset["name"] == "ClassicAPI.dll"
+    assert fetched and "v1.12.7" in fetched[0]
+    print("OK digest-pinned release ignores tip ahead of catalog")
+
+
+def test_catalog_action_issue_dedupe_and_holdback():
+    """Action issues dedupe by identity; unpublished tips stay off the live file."""
+    from tools.catalog_action import (
+        apply_addon_pin,
+        apply_addon_tip,
+        apply_mod_pin,
+        hold_back_unpublished_tips,
+        issue_body,
+        issue_title,
+        parse_action_payload,
+        plan_issue_upsert,
+        shape_addon_version,
+        shape_mod_pin,
+        shape_sign,
+        sign_payloads_from_status,
+    )
+
+    payload = shape_mod_pin(
+        mod_id="classic_api",
+        name="ClassicAPI",
+        repo="brues-code/ClassicAPI",
+        current_tag="v1.12.7",
+        current_sha256="ab" * 32,
+        new_tag="v1.12.8",
+        new_sha256="cd" * 32,
+        asset="ClassicAPI.dll",
+    )
+    assert issue_title(payload) == "[mod-pin] classic_api"
+    body = issue_body(payload)
+    parsed = parse_action_payload(body)
+    assert parsed == payload
+    assert parse_action_payload("## catalog suggestion\n- **repo:** https://github.com/o/r") is None
+
+    open_issues = [{"number": 9, "title": "[mod-pin] classic_api", "body": body}]
+    create_plan = plan_issue_upsert([], payload)
+    assert create_plan["action"] == "create"
+    skip_plan = plan_issue_upsert(open_issues, payload)
+    assert skip_plan["action"] == "skip"
+    assert skip_plan["number"] == 9
+    moved = dict(payload)
+    moved["new_tag"] = "v1.12.9"
+    update_plan = plan_issue_upsert(open_issues, moved)
+    assert update_plan["action"] == "update"
+    other = shape_mod_pin(mod_id="vanillafixes", new_tag="v1.0.1", new_sha256="11" * 32)
+    assert plan_issue_upsert(open_issues, other)["action"] == "create"
+
+    catalog = [
+        {
+            "id": "classic_api",
+            "source": {"type": "github_release_latest", "sha256": "ab" * 32, "pinned_tag": "v1.12.7"},
+        }
+    ]
+    assert apply_mod_pin(catalog, payload) is True
+    assert catalog[0]["source"]["sha256"] == "cd" * 32
+    assert catalog[0]["source"]["pinned_tag"] == "v1.12.8"
+    assert apply_mod_pin(catalog, payload) is False
+
+    tips = {
+        "repos": {
+            "owner/addon": {"latest_tag": "v1", "sha": "a" * 40, "default_branch": "main"},
+            "owner/pinned": {"latest_tag": "1.5.16", "sha": "b" * 40},
+        }
+    }
+    candidate = {
+        "repos": {
+            "owner/addon": {"latest_tag": "v2", "sha": "c" * 40, "default_branch": "main"},
+            "owner/pinned": {"latest_tag": "1.6.0", "sha": "d" * 40},
+            "owner/new": {"latest_tag": "v0.1", "sha": "e" * 40},
+        }
+    }
+    pin_map = {
+        "owner/pinned": {
+            "name": "Pinned",
+            "folder": "Pinned",
+            "pin_release": "1.5.16",
+            "locked": True,
+        }
+    }
+    held, issues = hold_back_unpublished_tips(tips, candidate, pin_map=pin_map)
+    assert held["repos"]["owner/addon"]["latest_tag"] == "v1"
+    assert held["repos"]["owner/pinned"]["latest_tag"] == "1.5.16"
+    assert held["repos"]["owner/new"]["latest_tag"] == "v0.1"
+    kinds = {i["kind"]: i for i in issues}
+    assert kinds["addon-tip"]["id"] == "owner/addon"
+    assert kinds["addon-pin"]["id"] == "owner/pinned"
+    assert apply_addon_tip(tips, kinds["addon-tip"]) is True
+    assert tips["repos"]["owner/addon"]["latest_tag"] == "v2"
+    addons = [{"name": "Pinned", "repo": "https://github.com/owner/pinned", "pin_release": "1.5.16"}]
+    assert apply_addon_pin(addons, kinds["addon-pin"]) is True
+    assert addons[0]["pin_release"] == "1.6.0"
+
+    signs = sign_payloads_from_status(
+        [
+            {"path": "ichalaunch/data/mods.json", "payload_ok": True, "sig_ok": False},
+            {"path": "ichalaunch/data/addons.json", "payload_ok": True, "sig_ok": True},
+        ]
+    )
+    assert [s["id"] for s in signs] == ["mods.json"]
+    assert signs[0]["kind"] == "sign"
+    assert shape_addon_version(repo="A/B", pinned=False)["kind"] == "addon-tip"
+    from ichalaunch.core.signing import (
+        ATTESTATION_PURPOSE_CATALOG,
+        ATTESTATION_PURPOSE_UPDATE,
+        purpose_for_signed_path,
+    )
+
+    assert purpose_for_signed_path("ichalaunch/data/mods.json") == ATTESTATION_PURPOSE_CATALOG
+    assert purpose_for_signed_path("dist/IchaLaunch.exe") == ATTESTATION_PURPOSE_UPDATE
+    approve = (ROOT / ".github" / "workflows" / "catalog-approve.yml").read_text(
+        encoding="utf-8"
+    )
+    tips_wf = (ROOT / ".github" / "workflows" / "addon-tips.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "gh pr merge" not in approve
+    assert "git push origin HEAD:master" not in tips_wf
+    print("OK catalog action issue dedupe and holdback")
+
+
+def test_sign_live_purpose_prompts_and_skip():
+    """sign_live: catalog vs EXE purpose, --only list, Enter skips, no network/key."""
+    import importlib.util
+    from unittest.mock import patch
+
+    spec = importlib.util.spec_from_file_location(
+        "ichalaunch_sign_live_test", ROOT / "tools" / "sign_live.py"
+    )
+    assert spec is not None and spec.loader is not None
+    sl = importlib.util.module_from_spec(spec)
+    sys.modules["ichalaunch_sign_live_test"] = sl
+    spec.loader.exec_module(sl)
+
+    from ichalaunch.core.signing import (
+        ATTESTATION_PURPOSE_CATALOG,
+        ATTESTATION_PURPOSE_UPDATE,
+    )
+
+    for catalog in sl.CATALOG_SPECS:
+        assert sl.purpose_for(catalog) == ATTESTATION_PURPOSE_CATALOG, catalog.id
+        assert catalog.prompt == f"Sign and upload a new {catalog.filename}?"
+    assert sl.purpose_for(sl.EXE_SPEC) == ATTESTATION_PURPOSE_UPDATE
+    assert sl.EXE_SPEC.prompt == "Sign and upload a new IchaLaunch.exe?"
+
+    found = sl.find_repo_root()
+    assert (found / "tools" / "sign_live.py").is_file()
+    assert (found / "ichalaunch" / "__init__.py").is_file()
+    from_tools = sl.find_repo_root(found / "tools")
+    assert from_tools == found
+
+    missing_help = sl.missing_checkout_help(Path(tempfile.mkdtemp()))
+    assert missing_help is not None
+    assert "git checkout" in missing_help
+    assert sl.SIGNER_BRANCH in missing_help
+    assert sl.missing_checkout_help(found) is None
+
+    empty_git = Path(tempfile.mkdtemp())
+    assert sl.public_remote_url(empty_git, "public") is None
+    assert sl.ensure_public_remote(empty_git, "public") is False
+
+    only = sl.parse_only("addons,mods")
+    assert [s.id for s in only] == ["addons", "mods"]
+    only_tips = sl.parse_only("tips,home,exe")
+    assert [s.id for s in only_tips] == ["addon_tips", "home_art", "exe"]
+    assert [s.id for s in sl.parse_only("")] == [s.id for s in sl.ALL_SPECS]
+    try:
+        sl.parse_only("nope")
+    except ValueError as exc:
+        assert "unknown" in str(exc)
+    else:
+        raise AssertionError("parse_only must reject unknown names")
+
+    assert sl.ask_yes("Sign and upload a new addons.json?", default=False, line="") is False
+    assert sl.ask_yes("Sign and upload a new addons.json?", default=False, line="n") is False
+    assert sl.ask_yes("Sign and upload a new addons.json?", default=False, line="y") is True
+    assert sl.ask_yes("Sign and upload a new addons.json?", default=False, line="yes") is True
+
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        data = root / "ichalaunch" / "data"
+        data.mkdir(parents=True)
+        # Deliberate trailing whitespace / LF — signing must not re-serialize.
+        payloads = {
+            "addons.json": b'[{"name":"A"}]\n',
+            "addon_tips.json": b'{"repos":{}}\n',
+            "home_art.json": b'{"slides":[]}\n',
+            "mods.json": b'[{"id":"classic_api"}]\n',
+        }
+        for name, raw in payloads.items():
+            (data / name).write_bytes(raw)
+
+        signed: list[str] = []
+        uploaded: list[str] = []
+
+        def mock_sign(*, target, key, password=None, write=True):
+            signed.append(Path(target).name)
+            sig = Path(target).with_name(Path(target).name + ".sig")
+            return sl._sign.SignResult(
+                target=Path(target),
+                sidecar=sig,
+                purpose=sl.purpose_for(sl.spec_by_id("addons"), Path(target)),
+                version="catalog",
+                key_id="test",
+                sidecar_text="{}",
+            )
+
+        def mock_upload(items, *, dry_run=False):
+            uploaded.extend(sl.files_to_upload(items))
+            return None if dry_run else "https://example.test/pr/1"
+
+        # Enter / default-no skips every file. No sign, no upload.
+        skip_hooks = sl.LiveHooks(
+            ask=lambda _q: False,
+            sign_file=mock_sign,
+            fetch_public=lambda: True,
+            public_show=lambda _rel: None,
+            upload_catalogs=mock_upload,
+        )
+        skipped = sl.run_live_session(
+            key=root / "missing.pem",
+            yes_all=False,
+            dry_run=False,
+            no_fetch=True,
+            root=root,
+            hooks=skip_hooks,
+        )
+        assert skipped.accepted == []
+        assert signed == []
+        assert uploaded == []
+        assert "exe" in skipped.skipped
+        assert "addons" in skipped.skipped
+
+        # --only addons, yes → sign/upload addons only (JSON missing on public + .sig).
+        yes_hooks = sl.LiveHooks(
+            ask=lambda q: "addons.json" in q,
+            sign_file=mock_sign,
+            fetch_public=lambda: True,
+            public_show=lambda _rel: None,
+            upload_catalogs=mock_upload,
+        )
+        signed.clear()
+        uploaded.clear()
+        accepted = sl.run_live_session(
+            key=root / "unused.pem",
+            yes_all=False,
+            only="addons,mods",
+            dry_run=False,
+            no_fetch=True,
+            root=root,
+            hooks=yes_hooks,
+        )
+        assert accepted.accepted == ["addons"]
+        assert accepted.signed == ["addons"]
+        assert "mods" in accepted.skipped
+        assert signed == ["addons.json"]
+        assert uploaded == [
+            "ichalaunch/data/addons.json",
+            "ichalaunch/data/addons.json.sig",
+        ]
+        assert accepted.catalog_pr == "https://example.test/pr/1"
+
+        # --yes-all with no EXE skips the exe cleanly and does not invent a path.
+        signed.clear()
+        uploaded.clear()
+        all_hooks = sl.LiveHooks(
+            ask=lambda _q: True,
+            sign_file=mock_sign,
+            fetch_public=lambda: True,
+            public_show=lambda rel: (root / rel).read_bytes(),
+            upload_catalogs=mock_upload,
+        )
+        all_run = sl.run_live_session(
+            key=root / "unused.pem",
+            yes_all=True,
+            dry_run=False,
+            no_fetch=True,
+            root=root,
+            hooks=all_hooks,
+        )
+        assert "exe" in all_run.skipped
+        assert "exe" not in all_run.signed
+        assert set(all_run.signed) == {"addons", "addon_tips", "home_art", "mods"}
+        assert "IchaLaunch.exe" not in signed
+        # Local bytes match the mocked public copy → JSON itself is not re-uploaded.
+        assert uploaded == [
+            "ichalaunch/data/addons.json.sig",
+            "ichalaunch/data/addon_tips.json.sig",
+            "ichalaunch/data/home_art.json.sig",
+            "ichalaunch/data/mods.json.sig",
+        ]
+
+        # --dry-run --yes-all must not write sidecars or call sign.
+        signed.clear()
+        uploaded.clear()
+        dry = sl.run_live_session(
+            key=root / "unused.pem",
+            yes_all=True,
+            dry_run=True,
+            no_fetch=True,
+            root=root,
+            hooks=all_hooks,
+        )
+        assert dry.accepted == ["addons", "addon_tips", "home_art", "mods"]
+        assert dry.signed == []
+        assert signed == []
+        assert not list(data.glob("*.sig")), "dry-run must not write sidecars"
+
+        # Real sign_file: exact payload bytes, catalog purpose, launcher verifier.
+        import base64 as _b64
+
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.serialization import (
+            BestAvailableEncryption,
+        )
+
+        priv = Ed25519PrivateKey.generate()
+        pub_b64 = _b64.b64encode(
+            priv.public_key().public_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PublicFormat.Raw,
+            )
+        ).decode()
+        key_path = root / "test-key.pem"
+        key_path.write_bytes(
+            priv.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=BestAvailableEncryption(b"test-password-ok"),
+            )
+        )
+        payload_path = data / "addons.json"
+        before = payload_path.read_bytes()
+        assert before.endswith(b"\n")
+        from ichalaunch.core.signing import Signature, verify_attestation, verify_bytes
+
+        with patch("ichalaunch.core.signing.PINNED_KEYS", (pub_b64,)):
+            result = sl._sign.sign_file(
+                payload_path,
+                key_path,
+                password=b"test-password-ok",
+                prompt_password=False,
+            )
+            parsed = Signature.parse(result.sidecar.read_bytes())
+            verify_bytes(before, parsed)
+            verify_attestation(
+                before,
+                parsed,
+                expected_purpose=ATTESTATION_PURPOSE_CATALOG,
+                expected_version="catalog",
+            )
+        assert result.purpose == ATTESTATION_PURPOSE_CATALOG
+        assert result.version == "catalog"
+        assert payload_path.read_bytes() == before
+        exe_probe = root / "IchaLaunch.exe"
+        exe_probe.write_bytes(b"MZ-fake")
+        assert sl._sign.resolve_purpose_and_version(exe_probe)[0] == ATTESTATION_PURPOSE_UPDATE
+
+    print("OK sign_live purpose, file list, skip-on-no, mock upload")
+
+
+def test_signed_mods_catalog_unused_unless_verified():
+    """Live mods.json is ignored without a valid sidecar; pin checks use loaded catalog."""
+    from unittest.mock import patch
+
+    from ichalaunch.mods import catalog as MC
+    from ichalaunch.mods.installer import _remote_identity, get_mod
+
+    orig_fetch = MC.fetch_remote_mod_catalog
+    orig_cache = MC.mods_cache_path
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_file = Path(tmp) / "mods_catalog.json"
+            MC.mods_cache_path = lambda: cache_file
+            MC.clear_mod_catalog_cache()
+            MC.fetch_remote_mod_catalog = lambda url=None: None
+            bundled = MC.refresh_mod_catalog(force=True)
+            assert MC.catalog_mod_count(bundled) > 0
+            assert MC.current_mod_catalog_source() == "bundled"
+            classic = get_mod("classic_api")
+            src = (classic or {}).get("source") or {}
+            assert src.get("pinned_tag")
+            assert _remote_identity(src, catalog_only=True)["key"] == src["pinned_tag"]
+    finally:
+        MC.fetch_remote_mod_catalog = orig_fetch
+        MC.mods_cache_path = orig_cache
+        MC.clear_mod_catalog_cache()
+    print("OK signed mods catalog unused unless verified")
 
 
 def test_addon_toc_folder_name_required():
@@ -12380,7 +12888,22 @@ def test_mod_download_hash_pinning():
     try:
         verify_payload({"sha256": "0" * 64}, payload, label="SuperWoW.dll")
     except SourceHashMismatch as exc:
-        assert "SuperWoW.dll" in str(exc) and digest in str(exc)
+        text = str(exc)
+        assert "SuperWoW.dll" in text
+        assert "security" in text.lower()
+        assert "catalog" in text.lower()
+        assert digest not in text
+        assert "0" * 64 not in text
+        assert exc.expected == "0" * 64
+        assert exc.actual == digest
+        assert digest in exc.log_detail
+        from ichalaunch.addons.github import format_github_error_message
+        from ichalaunch.core.filesystem import user_facing_os_error
+
+        for shown in (user_facing_os_error(exc), format_github_error_message(exc)):
+            assert digest not in shown
+            assert "0" * 64 not in shown
+            assert "security" in shown.lower()
     else:
         raise AssertionError("tampered payload was accepted")
 
@@ -12395,8 +12918,11 @@ def test_mod_download_hash_pinning():
         missing = _Path(tmp) / "not-there.dll"
         try:
             verify_payload({"sha256": digest}, missing)
-        except SourceHashMismatch:
-            pass
+        except SourceHashMismatch as exc:
+            text = str(exc)
+            assert digest not in text
+            assert "sha256" not in text.lower()
+            assert "catalog" in text.lower()
         else:
             raise AssertionError("unreadable payload was accepted")
 
@@ -12446,7 +12972,10 @@ def test_download_source_enforces_pins():
                 None,
             )
         except SourceHashMismatch as exc:
-            assert "nampower.dll" in str(exc)
+            text = str(exc)
+            assert "nampower.dll" in text
+            assert "f" * 64 not in text
+            assert "security" in text.lower()
         else:
             raise AssertionError("installer installed unverified bytes")
         assert I._download_source({"type": "raw"}, None, None) == served
@@ -13252,8 +13781,15 @@ def test_live_catalogs_are_signed_or_not_used():
             assert SF.fetch_verified_text("https://x/y.json", timeout=1) is None
         assert calls == [], f"asked the network for a file it could never verify: {calls}"
 
-    # All three live fetchers must route through the verifier, not requests.get.
-    for mod, fn in ((C, "fetch_remote_catalog"), (T, "fetch_remote_index"), (H, "fetch_remote_home_art")):
+    from ichalaunch.mods import catalog as MC
+
+    # All live fetchers must route through the verifier, not requests.get.
+    for mod, fn in (
+        (C, "fetch_remote_catalog"),
+        (T, "fetch_remote_index"),
+        (H, "fetch_remote_home_art"),
+        (MC, "fetch_remote_mod_catalog"),
+    ):
         src = inspect.getsource(getattr(mod, fn))
         assert "fetch_verified_text" in src, f"{fn} does not verify what it fetches"
         assert "requests.get" not in src, f"{fn} still fetches without verifying"
@@ -13548,6 +14084,143 @@ def test_signature_sidecar_url_and_unverified_exe_is_deleted():
     print("OK unverified staged update is deleted")
 
 
+def test_staged_update_refuses_republished_old_build():
+    """Install path: genuine old bytes + old/legacy sidecar under a new tag.
+
+    ``verify_attestation`` alone is not the gate players hit.
+    ``_verify_staged_update`` / ``download_and_stage_update`` are. This is
+    the reviewer's recipe: re-upload a genuine old exe with its genuine
+    sidecar as GitHub release v9.9.9.
+    """
+    import base64 as _b64
+    import hashlib as _hashlib
+    import json as _json
+    from unittest.mock import patch
+
+    from cryptography.hazmat.primitives import serialization as _ser
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+        Ed25519PrivateKey as _Ed25519PrivateKey,
+    )
+
+    import ichalaunch.core.signing as S
+    from ichalaunch.core.self_update import (
+        SIGNATURE_ASSET_SUFFIX,
+        LauncherReleaseInfo,
+        _verify_staged_update,
+        download_and_stage_update,
+    )
+    from ichalaunch.core.signing import SignatureError
+
+    priv = _Ed25519PrivateKey.generate()
+    pub = _b64.b64encode(
+        priv.public_key().public_bytes(
+            encoding=_ser.Encoding.Raw, format=_ser.PublicFormat.Raw
+        )
+    ).decode()
+
+    old_exe = b"MZ" + (b"\x00" * (64 * 1024)) + b"IchaLaunch v1.4.7 genuine bytes"
+
+    def sidecar(*, purpose: str, version: str, payload: bytes = old_exe) -> bytes:
+        att = S.Attestation(purpose, version, _hashlib.sha256(payload).hexdigest())
+        return _json.dumps(
+            {
+                "key_id": pub,
+                "sig": _b64.b64encode(priv.sign(payload)).decode(),
+                "attestation": {
+                    "purpose": att.purpose,
+                    "version": att.version,
+                    "sha256": att.sha256,
+                },
+                "attestation_sig": _b64.b64encode(priv.sign(att.canonical())).decode(),
+            }
+        ).encode()
+
+    legacy = _json.dumps(
+        {"key_id": pub, "sig": _b64.b64encode(priv.sign(old_exe)).decode()}
+    ).encode()
+    old_attested = sidecar(purpose=S.ATTESTATION_PURPOSE_UPDATE, version="1.4.7")
+    catalog_attested = sidecar(purpose=S.ATTESTATION_PURPOSE_CATALOG, version="9.9.9")
+    good = sidecar(purpose=S.ATTESTATION_PURPOSE_UPDATE, version="9.9.9")
+
+    info = LauncherReleaseInfo(
+        tag="v9.9.9",
+        version="9.9.9",
+        name="Rollback",
+        asset_name="IchaLaunch.exe",
+        download_url="https://example.com/IchaLaunch.exe",
+        update_available=True,
+    )
+
+    def write_sig(raw: bytes):
+        def fake_download(url, dest, **_kwargs):
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(raw)
+            return dest
+
+        return fake_download
+
+    def refuses(raw: bytes, why: str, *, running: str = "1.5.1") -> None:
+        with tempfile.TemporaryDirectory() as td:
+            staged = Path(td) / "IchaLaunch.exe"
+            staged.write_bytes(old_exe)
+            with (
+                patch.object(S, "PINNED_KEYS", (pub,)),
+                patch("ichalaunch.core.self_update.__version__", running),
+                patch(
+                    "ichalaunch.core.self_update._download_asset",
+                    side_effect=write_sig(raw),
+                ),
+            ):
+                try:
+                    _verify_staged_update(staged, info)
+                except SignatureError:
+                    return
+                raise AssertionError(f"should have refused: {why}")
+
+    refuses(legacy, "legacy sidecar with no attestation under v9.9.9")
+    refuses(old_attested, "old 1.4.7 attestation under GitHub tag v9.9.9")
+    refuses(catalog_attested, "catalog-purpose sidecar used as a launcher update")
+
+    with tempfile.TemporaryDirectory() as td:
+        staged = Path(td) / "IchaLaunch.exe"
+        staged.write_bytes(old_exe)
+        with (
+            patch.object(S, "PINNED_KEYS", (pub,)),
+            patch("ichalaunch.core.self_update.__version__", "1.5.1"),
+            patch(
+                "ichalaunch.core.self_update._download_asset",
+                side_effect=write_sig(good),
+            ),
+        ):
+            _verify_staged_update(staged, info)
+
+    def fake_stage(url, dest, **_kwargs):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if str(url).endswith(SIGNATURE_ASSET_SUFFIX):
+            dest.write_bytes(old_attested)
+            return dest
+        dest.write_bytes(old_exe)
+        return dest
+
+    leftover = Path(tempfile.gettempdir()) / "IchaLaunch_update_9.9.9.exe"
+    try:
+        leftover.unlink(missing_ok=True)
+    except OSError:
+        pass
+    with (
+        patch.object(S, "PINNED_KEYS", (pub,)),
+        patch("ichalaunch.core.self_update.__version__", "1.5.1"),
+        patch("ichalaunch.core.self_update._download_asset", side_effect=fake_stage),
+    ):
+        try:
+            download_and_stage_update(info)
+            raise AssertionError("republished 1.4.7 under v9.9.9 was staged")
+        except SignatureError:
+            pass
+    assert not leftover.exists(), "republished old EXE was left in temp"
+    print("OK staged update refuses a republished old build under a new tag")
+
+
 def test_dll_injection_mod_detection():
     from ichalaunch.mods.client_mod_hints import is_dll_injection_mod
 
@@ -13576,12 +14249,12 @@ def test_mod_version_label():
     vf = get_mod("vanillafixes")
     assert mod_version_label(vf) == "v1.5.3"
     sw = get_mod("superwow")
-    # Tip latest_tag is the rolling "Release" alias; UI prefers asset/title semver.
-    assert mod_version_label(sw) == "v2.2"
-    assert mod_version_label(sw, {"version_display": "Release"}) == "v2.2"
+    # Digest pin is the rolling "Release" alias — do not advertise a tip semver.
+    assert mod_version_label(sw) == ""
+    assert mod_version_label(sw, {"version_display": "Release"}) == ""
     assert mod_version_label(
         sw, {"version_display": "Mon, 16 Jul 2026 14:03:09 GMT"}
-    ) == "v2.2"
+    ) == ""
     assert (
         mod_version_label(
             sw,
@@ -20834,6 +21507,10 @@ def _run_smoke_tests():
     test_discord_wow_status_dll_hash_update()
     test_discord_broadcast_fields_and_opt_in_prompt()
     test_mod_remote_identity_uses_tip_index()
+    test_digest_pinned_release_ignores_tip_ahead_of_catalog()
+    test_catalog_action_issue_dedupe_and_holdback()
+    test_sign_live_purpose_prompts_and_skip()
+    test_signed_mods_catalog_unused_unless_verified()
     test_addon_toc_folder_name_required()
     test_multi_toc_primary_stem_resolve()
     test_addon_toc_folder_rename()
@@ -21029,6 +21706,7 @@ def _run_smoke_tests():
     test_update_attestation_blocks_a_republished_old_build()
     test_update_signing_keys_are_pinned()
     test_signature_sidecar_url_and_unverified_exe_is_deleted()
+    test_staged_update_refuses_republished_old_build()
     test_home_art_width_fit_is_centred()
     test_home_gallery_page_arrows()
     test_home_gallery_position_dots()

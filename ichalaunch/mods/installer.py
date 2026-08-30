@@ -464,13 +464,19 @@ class ModUpdateCheckResult:
 
 
 def _data_path() -> Path:
-    from ichalaunch.core.paths import data_file
+    from ichalaunch.mods.catalog import bundled_mods_path
 
-    return data_file("mods.json")
+    return bundled_mods_path()
 
 
 def load_mod_catalog(*, include_hidden: bool = False) -> list[dict[str, Any]]:
-    catalog = json.loads(_data_path().read_text(encoding="utf-8"))
+    from ichalaunch.mods.catalog import load_published_mod_catalog
+
+    catalog = [
+        dict(m)
+        for m in load_published_mod_catalog()
+        if isinstance(m, dict) and m.get("id")
+    ]
     if not include_hidden:
         catalog = [m for m in catalog if not m.get("hidden")]
     seen = {m["id"] for m in catalog if m.get("id")}
@@ -2686,7 +2692,12 @@ def _apply_planned_mod_changes(
             log.warning("Mod %s %s skipped (disk/AV): %s", action, mid, exc)
             done.append(f"! {mid} skipped: {user_facing_os_error(exc)}")
         except (RuntimeError, FileNotFoundError, KeyError, shutil.Error) as exc:
-            log.warning("Mod %s %s failed: %s", action, mid, exc)
+            log.warning(
+                "Mod %s %s failed: %s",
+                action,
+                mid,
+                getattr(exc, "log_detail", exc),
+            )
             done.append(f"! {mid} failed: {user_facing_os_error(exc)}")
         except requests.RequestException as exc:
             log.warning("Mod %s %s failed (download): %s", action, mid, exc)
@@ -3069,11 +3080,19 @@ def _asset_from_release(release: Any, source: dict[str, Any]) -> dict[str, Any] 
 
 
 def _resolve_github_release_asset(source: dict[str, Any]) -> dict[str, Any]:
-    """Pick the DLL/zip asset, walking past MPQ-only tags like SuperWoW ``Patch``."""
+    """Pick the DLL/zip asset, walking past MPQ-only tags like SuperWoW ``Patch``.
+
+    Digest-pinned sources resolve the catalog ``pinned_tag`` (or the tag in a
+    pinned release URL), not GitHub latest. A newer upstream release is not
+    deliverable until a maintainer re-hashes the pin.
+    """
     repo = source["repo"]
     needle = source.get("asset_contains") or ".zip"
     tag = None
-    if "/" in str(repo):
+    pin = _source_pin_tag(source)
+    if pin:
+        tag = pin
+    elif "/" in str(repo):
         owner, name = str(repo).split("/", 1)
         tag = github_latest_version_tag(owner, name)
         if tag and not is_usable_release_tag(tag):
@@ -3259,6 +3278,27 @@ def _tag_from_release_url(url: str) -> str | None:
     return m.group(1) if m else None
 
 
+def _commit_from_archive_url(url: str) -> str:
+    """40-char SHA from a GitHub archive URL pinned in mods.json, else empty."""
+    m = re.search(r"/archive/([0-9a-f]{40})(?:\.zip|\.tar\.gz)?", str(url or ""), re.I)
+    return (m.group(1) if m else "").lower()
+
+
+def _source_pin_tag(source: dict[str, Any] | None) -> str:
+    """Catalog-approved GitHub tag when this source is digest-pinned.
+
+    A ``sha256`` pin is only deliverable at the tag a maintainer hashed.
+    Update checks and asset resolution must use that tag, not the live tip,
+    until ``pin_mods.py --update`` refreshes both the hash and the tag.
+    """
+    if not isinstance(source, dict) or expected_digest(source) is None:
+        return ""
+    pin = str(source.get("pinned_tag") or "").strip()
+    if pin:
+        return pin
+    return (_tag_from_release_url(str(source.get("url") or "")) or "").strip()
+
+
 _BLANK_VERSION_LABELS = frozenset(
     {
         "detected",
@@ -3350,22 +3390,13 @@ def mod_version_label(
     label = _displayable_mod_version(str(source.get("url") or ""))
     if label:
         return label
-    repo = str(source.get("repo") or "").strip() or (_repo_from_github_url(str(source.get("url") or "")) or "")
-    if "/" not in repo:
-        return ""
-    owner, name = repo.split("/", 1)
-    entry = _tips_repo_entry(owner, name)
-    stype = str(source.get("type") or "")
-    if stype in ("github_release_latest", "github_release"):
-        for key in ("display_version", "latest_tag"):
-            label = _displayable_mod_version(entry.get(key))
-            if label:
-                return label
-        from ichalaunch.addons.tip_index import lookup_display_version
-
-        return lookup_display_version(owner, name)
-    if stype == "github_zip":
-        return _displayable_mod_version(entry.get("sha"))
+    pin = _source_pin_tag(source)
+    if pin:
+        return _displayable_mod_version(pin)
+    if expected_digest(source):
+        sha = _commit_from_archive_url(str(source.get("url") or ""))
+        return _displayable_mod_version(sha)
+    # Unpinned rows must not advertise a tip-ahead version as an update.
     return ""
 
 
@@ -3433,22 +3464,74 @@ def _catalog_commit_tip(owner: str, name: str, branch: str | None) -> dict[str, 
     return {"sha": sha, "branch": resolved or (branch or "")}
 
 
+def _catalog_source_identity(source: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Identity from ``mods.json`` only — no tip index, no live GitHub.
+
+    Digest-pinned GitHub releases use ``pinned_tag`` (or the tag in a pinned
+    URL). Other digest-pinned rows use the archive commit or the sha256 pin.
+    Unpinned rows return None so the Client tab cannot tip-nag.
+    """
+    if not isinstance(source, dict):
+        return None
+    pin = _source_pin_tag(source)
+    repo = str(source.get("repo") or "").strip() or (
+        _repo_from_github_url(str(source.get("url") or "")) or ""
+    )
+    if pin:
+        return {
+            "kind": "release",
+            "key": pin,
+            "display": pin,
+            "repo": repo or None,
+            "tag": pin,
+        }
+    digest = expected_digest(source)
+    if not digest:
+        return None
+    url = str(source.get("url") or "")
+    sha = _commit_from_archive_url(url)
+    if sha:
+        return {
+            "kind": "commit",
+            "key": sha,
+            "display": sha[:7],
+            "repo": repo or None,
+            "sha": sha,
+            "url": url or None,
+        }
+    return {
+        "kind": "digest",
+        "key": digest,
+        "display": digest[:12],
+        "repo": repo or None,
+        "sha": digest,
+        "url": url or None,
+    }
+
+
 def _remote_identity(
     source: dict[str, Any], *, catalog_only: bool = False
 ) -> dict[str, Any] | None:
     """Return comparable remote identity for a mod source, or None if unsupported.
 
-    *catalog_only* uses the shared tip-SHA JSON and never probes GitHub
-    (no git refs, Atom, REST, or HEAD). Bulk update checks must pass True.
+    *catalog_only* is the Client-tab nag path: identity comes from ``mods.json``
+    pins only (never the addon tip index, never a live GitHub latest). Install
+    fingerprinting still omits the flag so unpinned sources can be recorded.
     """
     if not source:
         return None
+    if catalog_only:
+        return _catalog_source_identity(source)
     stype = source.get("type")
     if stype == "github_release_latest":
         repo = source.get("repo")
         if not repo:
             return None
-        tag = _catalog_release_tag(str(repo)) if catalog_only else _remote_release_tag(str(repo))
+        pin = _source_pin_tag(source)
+        if pin:
+            tag = pin
+        else:
+            tag = _catalog_release_tag(str(repo)) if catalog_only else _remote_release_tag(str(repo))
         if not tag:
             return None
         display = tag
@@ -3476,6 +3559,16 @@ def _remote_identity(
         url = source.get("url") or ""
         repo = _repo_from_github_url(url)
         pinned = _tag_from_release_url(url)
+        pin = _source_pin_tag(source)
+        if pin:
+            return {
+                "kind": "release",
+                "key": pin,
+                "display": pin,
+                "repo": repo,
+                "tag": pin,
+                "pinned": pinned,
+            }
         if repo:
             try:
                 tag = _catalog_release_tag(repo) if catalog_only else _remote_release_tag(repo)
@@ -3742,11 +3835,13 @@ def _record_mod_install(
     }
     # Prefer the catalog-pinned tag when present (accurate for what was downloaded).
     pinned = _tag_from_release_url((source or {}).get("url") or "")
-    try:
-        remote = _remote_identity(source) if source else None
-    except Exception as exc:  # noqa: BLE001
-        log.warning("Could not fingerprint mod %s: %s", mod_id, exc)
-        remote = None
+    remote = _catalog_source_identity(source) if source else None
+    if remote is None and source:
+        try:
+            remote = _remote_identity(source)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Could not fingerprint mod %s: %s", mod_id, exc)
+            remote = None
     if pinned and source.get("type") in ("github_release", "raw", "raw_zip"):
         meta["version_key"] = pinned
         meta["version_display"] = pinned
@@ -3783,7 +3878,9 @@ def _record_mod_install(
         meta["version_key"] = source["url"]
         meta["version_display"] = "catalog"
         meta["url"] = source["url"]
-    addon_remote = _addon_remote_identity(mod)
+    addon_remote = _addon_remote_identity(mod, catalog_only=True) or _addon_remote_identity(
+        mod
+    )
     if addon_remote and addon_remote.get("key"):
         meta["addon_version_key"] = addon_remote.get("key")
         meta["addon_version_display"] = addon_remote.get("display")
@@ -3882,14 +3979,13 @@ def check_mod_updates(
     respect_cooldown: bool = False,
     progress: Any = None,
 ) -> ModUpdateCheckResult:
-    """Compare installed client mods to bundled hashes and the tip-SHA catalog.
+    """Compare installed client mods to ``mods.json`` pins and bundled hashes.
 
-    ``type=local`` mods (source-built WeirdUtils and hidden privacy-linked
-    DLLs) compare the on-disk file to the bundled copy via SHA-256 and do
-    not need the tip index. Official remote WeirdUtils assets (Heal Text
-    Fix, WeirdPerformance, Minimap Trackings, Transmog Fix, World Markers)
-    use the catalog URL. Other mods use one remote fetch of
-    ``addon_tips.json``. Per-mod git/REST/HEAD probes are not used here.
+    ``type=local`` mods compare the on-disk file to the bundled copy via
+    SHA-256. Digest-pinned GitHub releases compare against ``pinned_tag``.
+    Dest-hash mismatch vs catalog ``sha256`` / ``dest_sha256`` still offers
+    replace. The addon tip index is never consulted — a live tip the catalog
+    has not pinned is not an update. Unpinned rows do not tip-nag.
     """
     if respect_cooldown and recently_checked_mod_updates():
         return ModUpdateCheckResult(skipped_recent=True)
@@ -3958,15 +4054,15 @@ def check_mod_updates(
     if callable(on_count):
         on_count(0, 1, "Fetching update catalog…")
 
-    from ichalaunch.addons.tip_index import index_repo_count, refresh_tip_index
+    from ichalaunch.mods.catalog import catalog_mod_count, refresh_mod_catalog
 
     try:
-        index = refresh_tip_index()
+        published = refresh_mod_catalog()
     except Exception as exc:  # noqa: BLE001
-        log.debug("Catalog tip index refresh skipped: %s", exc)
-        index = None
+        log.debug("Client mod catalog refresh skipped: %s", exc)
+        published = None
 
-    if index_repo_count(index) == 0:
+    if catalog_mod_count(published) == 0:
         settings.set("last_mod_update_check", time.time())
         if callable(on_count):
             on_count(1, 1, "Checking client mod updates…")
@@ -3982,8 +4078,8 @@ def check_mod_updates(
         on_count(0, 1, "Checking client mod updates…")
 
     log.info(
-        "Client mod update check via catalog index (%d repo(s)); comparing %d installed mod(s)",
-        index_repo_count(index),
+        "Client mod update check via mods.json (%d row(s)); comparing %d installed mod(s)",
+        catalog_mod_count(published),
         len(to_check_remote) + len(to_check_local),
     )
 
@@ -4437,7 +4533,11 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
         SourceHashMismatch,
         AddonDestinationRefused,
     ) as exc:
-        log.warning("Install %s failed, rolling back: %s", mod_id, exc)
+        log.warning(
+            "Install %s failed, rolling back: %s",
+            mod_id,
+            getattr(exc, "log_detail", exc),
+        )
         _revert_failed_mod_install(game, mod, backup_root)
         raise
 

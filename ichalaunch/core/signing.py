@@ -67,6 +67,18 @@ class SignatureError(Exception):
 # What an attestation is for, so a signature made for one job can never be
 # replayed as another. Any future signed artefact gets its own purpose string.
 ATTESTATION_PURPOSE_UPDATE = "ichalaunch-launcher-update"
+ATTESTATION_PURPOSE_CATALOG = "ichalaunch-catalog"
+_CATALOG_BASENAMES = frozenset(
+    {"addons.json", "addon_tips.json", "home_art.json", "mods.json"}
+)
+
+
+def purpose_for_signed_path(path: Path | str) -> str:
+    """Launcher EXE attestations vs live catalog sidecars must not be interchangeable."""
+    name = Path(path).name.lower()
+    if name in _CATALOG_BASENAMES:
+        return ATTESTATION_PURPOSE_CATALOG
+    return ATTESTATION_PURPOSE_UPDATE
 
 
 @dataclass(frozen=True)

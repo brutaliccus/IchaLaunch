@@ -40,6 +40,8 @@ code ships, or remote catalog refresh silently stops for everyone on that build.
     python tools/sign.py --key keys/ichalaunch-key1.pem ichalaunch/data/addons.json
 
 and the resulting ``addons.json.sig`` must sit beside the file at the fetch URL.
+The same sidecar is required for ``addon_tips.json``, ``home_art.json``, and
+``mods.json`` whenever those payloads change.
 """
 
 from __future__ import annotations

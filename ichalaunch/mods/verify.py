@@ -13,10 +13,11 @@ Why a hash is enough here, when it is not enough for the self-update
 the host that publishes the hash also controls the file. That objection does
 not apply to this module, and the difference is where the number lives.
 
-These digests are not fetched. They are written into ``mods.json``, which ships
-inside the launcher executable, which is itself covered by the Ed25519 chain in
-``signing``. So the digest is already anchored to our signing key before any
-download begins. The host serving the bytes never gets a say in what they are
+These digests live in ``mods.json``. That file ships inside the signed
+executable and can also be refreshed live from public master — but only
+through ``signed_fetch`` (the JSON plus ``mods.json.sig``). An unsigned or
+bad-sig live copy is ignored (cache, then bundled). Either way the digest is
+anchored to our signing key before any download begins. The host serving the bytes never gets a say in what they are
 compared against. An attacker who owns the upstream release, the bucket, or DNS
 can serve whatever they like and the install still refuses.
 
@@ -43,17 +44,43 @@ digest fails a test rather than reaching a player.
 from __future__ import annotations
 
 import hashlib
+import logging
 from pathlib import Path
 from typing import Any
 
 CHUNK = 1024 * 1024
 
+log = logging.getLogger(__name__)
 
-class SourceHashMismatch(Exception):
+
+class SourceHashMismatch(RuntimeError):
     """A download did not match the digest pinned for it.
 
     Raised instead of returning a flag because there is no safe way to continue.
+    ``str(self)`` is the dialog/status text and must not include hex digests.
+    ``expected`` / ``actual`` stay on the exception for logs.
     """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        label: str = "",
+        expected: str | None = None,
+        actual: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.label = label
+        self.expected = expected
+        self.actual = actual
+
+    @property
+    def log_detail(self) -> str:
+        if self.expected or self.actual:
+            return (
+                f"{self} expected={self.expected or '-'} actual={self.actual or '-'}"
+            )
+        return str(self)
 
 
 def normalized_digest(value: Any) -> str | None:
@@ -155,17 +182,28 @@ def verify_payload(
     try:
         actual = digest_bytes(payload) if isinstance(payload, bytes) else digest_path(payload)
     except OSError as exc:
+        log.warning("Refusing %s: download could not be hashed (%s)", label, exc)
         raise SourceHashMismatch(
-            f"Refusing to install {label}: the download could not be read to "
-            f"verify it against the expected SHA-256 ({exc})."
+            f"The launcher could not read the download for {label} to verify it "
+            "against the approved catalog version, so the install was refused.",
+            label=label,
         ) from exc
 
     if actual != expected:
+        log.warning(
+            "Refusing %s: catalog sha256 %s, downloaded %s",
+            label,
+            expected,
+            actual,
+        )
         raise SourceHashMismatch(
-            f"Refusing to install {label}: content does not match the pinned "
-            f"SHA-256.\n  expected {expected}\n  got      {actual}\n"
-            "The file served upstream is not the file this build was built to "
-            "trust. Nothing has been written to the game directory."
+            f"The file that came down for {label} does not match the approved "
+            "catalog version, so the launcher blocked the install as a security "
+            "measure. Nothing was written to the game directory. Retry later "
+            "after a catalog update, or reinstall the approved build.",
+            label=label,
+            expected=expected,
+            actual=actual,
         )
     return actual
 

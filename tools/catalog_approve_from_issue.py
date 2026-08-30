@@ -209,6 +209,40 @@ def main() -> int:
         ap.error("--body-file is required unless --pick-pr-head is set")
 
     body = Path(args.body_file).read_text(encoding="utf-8")
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from catalog_action import apply_action, parse_action_payload
+
+    action = parse_action_payload(body)
+    if action is not None:
+        mods = None
+        tips = None
+        addons = None
+        catalog_path: Path = args.catalog
+        kind = str(action.get("kind") or "")
+        if kind == "mod-pin":
+            mods = (
+                catalog_path
+                if catalog_path.name == "mods.json"
+                else catalog_path.parent / "mods.json"
+            )
+        elif kind == "addon-tip":
+            tips = (
+                catalog_path
+                if catalog_path.name == "addon_tips.json"
+                else catalog_path.parent / "addon_tips.json"
+            )
+        elif kind == "addon-pin":
+            addons = catalog_path
+        summary = apply_action(
+            action,
+            mods=mods,
+            tips=tips,
+            addons=addons,
+            dry_run=bool(args.dry_run),
+        )
+        print(json.dumps(summary))
+        return 0
+
     fields = parse_issue_body(body)
     entry = build_entry(fields)
     owner = entry.pop("_owner")

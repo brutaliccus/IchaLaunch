@@ -1,10 +1,8 @@
-name: Check mod content pins
+name: Check catalog pins and signatures
 
-# Reports drift in ichalaunch/data/mods.json SHA-256 pins.
-# Re-pin is a manual maintainer step (`python tools/pin_mods.py --update …`)
-# and ships in the next signed public EXE — pins are not hot-fetched.
-#
-# On drift this job fails and opens (or comments on) a private issue.
+# Daily drift check for digest-pinned client mods and unsigned live catalogs.
+# Opens or updates one public issue per identity. Does not write pins.
+# Re-pin is a maintainer trust decision; signing keys must not enter CI.
 
 on:
   workflow_dispatch:
@@ -14,6 +12,10 @@ on:
 permissions:
   contents: read
   issues: write
+
+env:
+  PUBLIC_REPO: brutaliccus/IchaLaunch
+  ISSUE_REPO: brutaliccus/IchaLaunch
 
 jobs:
   check:
@@ -25,51 +27,118 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Check pins
+      - name: Check client-mod pins
         id: pins
         run: |
           set +e
-          python tools/pin_mods.py --check | tee /tmp/pin-check.txt
+          python tools/pin_mods.py --check --json-out /tmp/mod-drift.json | tee /tmp/pin-check.txt
           rc=${PIPESTATUS[0]}
           echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
-          if [ "$rc" != "0" ]; then
-            echo "drift=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "drift=false" >> "$GITHUB_OUTPUT"
+          if [ ! -f /tmp/mod-drift.json ]; then
+            echo '{"drifted":[]}' > /tmp/mod-drift.json
           fi
           exit 0
 
-      - name: Open or update pin-drift issue
-        if: steps.pins.outputs.drift == 'true'
+      - name: Probe live catalog signatures
+        run: |
+          python - <<'PY'
+          import json
+          from urllib.request import Request, urlopen
+          from urllib.error import URLError, HTTPError
+
+          base = "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/"
+          files = [
+              "ichalaunch/data/addons.json",
+              "ichalaunch/data/addon_tips.json",
+              "ichalaunch/data/home_art.json",
+              "ichalaunch/data/mods.json",
+          ]
+          ua = {"User-Agent": "IchaLaunch-catalog-action/1.0"}
+          rows = []
+          for rel in files:
+              payload_ok = False
+              sig_ok = False
+              reason = ""
+              try:
+                  with urlopen(Request(base + rel, headers=ua), timeout=30) as resp:
+                      payload_ok = resp.status == 200 and bool(resp.read())
+              except (URLError, HTTPError) as exc:
+                  reason = f"payload: {exc}"
+              try:
+                  with urlopen(Request(base + rel + ".sig", headers=ua), timeout=30) as resp:
+                      sig_ok = resp.status == 200 and bool(resp.read())
+              except (URLError, HTTPError) as exc:
+                  if payload_ok:
+                      reason = f"signature missing ({exc})"
+              rows.append(
+                  {
+                      "path": rel,
+                      "payload_ok": payload_ok,
+                      "sig_ok": sig_ok,
+                      "reason": reason or ("live file has no valid .sig sidecar" if payload_ok and not sig_ok else ""),
+                  }
+              )
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, str(Path("tools").resolve()))
+          from catalog_action import sign_payloads_from_status
+          Path("/tmp/sign-issues.json").write_text(
+              json.dumps(sign_payloads_from_status(rows), indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Open or update action issues
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PUBLIC_PUSH_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          BODY="$(cat <<EOF
-          Scheduled \`tools/pin_mods.py --check\` reported drift.
-
-          \`\`\`
-          $(cat /tmp/pin-check.txt)
-          \`\`\`
-
-          Re-pin is manual. After you test the new bytes:
-
-          \`\`\`
-          python tools/pin_mods.py --update --all
-          \`\`\`
-
-          Commit \`ichalaunch/data/mods.json\` here, then ship it in the next
-          signed public release. Do not rubber-stamp a pin you have not run.
-          EOF
-          )"
-          EXISTING=$(gh issue list --repo "${GITHUB_REPOSITORY}" --label pin-drift --state open --json number --jq '.[0].number // empty' || true)
-          if [ -n "$EXISTING" ]; then
-            gh issue comment "$EXISTING" --repo "${GITHUB_REPOSITORY}" --body "$BODY"
-          else
-            gh issue create --repo "${GITHUB_REPOSITORY}" --title "Mod pin drift" --label pin-drift --body "$BODY" || \
-              gh issue create --repo "${GITHUB_REPOSITORY}" --title "Mod pin drift" --body "$BODY"
+          REPO="${ISSUE_REPO}"
+          if [ -z "${{ secrets.PUBLIC_PUSH_TOKEN }}" ]; then
+            REPO="${GITHUB_REPOSITORY}"
+            echo "PUBLIC_PUSH_TOKEN unset; opening issues on ${REPO}"
           fi
-
-      - name: Fail on drift
-        if: steps.pins.outputs.drift == 'true'
-        run: exit 1
+          gh label create catalog-action --repo "$REPO" --color "0E8A16" --description "Catalog pin/tip/sign action" || true
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          drifted = json.loads(Path("/tmp/mod-drift.json").read_text(encoding="utf-8"))
+          if isinstance(drifted, dict):
+              drifted = drifted.get("drifted") or []
+          signs = json.loads(Path("/tmp/sign-issues.json").read_text(encoding="utf-8"))
+          Path("/tmp/all-actions.json").write_text(
+              json.dumps(list(drifted) + list(signs), indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          gh issue list --repo "$REPO" --state open --limit 200 --json number,title,body > /tmp/open-issues.json
+          python tools/catalog_action.py --plan-upsert \
+            --payloads /tmp/all-actions.json \
+            --open-issues /tmp/open-issues.json \
+            --out /tmp/plans.json
+          ISSUE_REPO="$REPO" python - <<'PY'
+          import json, os, subprocess
+          repo = os.environ["ISSUE_REPO"]
+          plans = json.loads(open("/tmp/plans.json", encoding="utf-8").read())
+          for plan in plans:
+              action = plan.get("action")
+              if action == "create":
+                  subprocess.check_call(
+                      [
+                          "gh", "issue", "create",
+                          "--repo", repo,
+                          "--title", plan["title"],
+                          "--body", plan["body"],
+                          "--label", "catalog-action",
+                      ]
+                  )
+              elif action == "update":
+                  subprocess.check_call(
+                      [
+                          "gh", "issue", "comment",
+                          str(plan["number"]),
+                          "--repo", repo,
+                          "--body", plan["body"],
+                      ]
+                  )
+          PY
