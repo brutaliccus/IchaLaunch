@@ -19280,5 +19280,13 @@
     "source": "community",
     "folder": "worstInstanceTracker",
     "description": "ofc change folder name to worstInstanceTracker"
+  },
+  {
+    "name": "ClassicLootHistory",
+    "repo": "https://github.com/KameleonUK/ClassicLootHistory",
+    "category": "General",
+    "source": "community",
+    "folder": "ClassicLootHistory",
+    "description": "This is a back ported loot roll history tracker from the modern Classic client.\nhttps://github.com/KameleonUK/ClassicLootHistory\n\n/loot in game opens & closes the window. Clicking the loot icon at the top left will prompt to reset the list.\nWith a chat message entry box open, shift clicking an item will provide the item link and a summary of who won the roll, their roll score and roll type.\n\nThis addon requires ClassicAPI by Brues, it will not work without it!\nhttps://github.com/brues-code/ClassicAPI\n\n  <img width=\"234\" height=\"281\" alt=\"image\" src=\"https://github.com/user-attachments/assets/a4d2ebbc-a465-49bf-91f6-0fdc67bfe13b\" />\n\n\n  <img width=\"234\" height=\"287\" alt=\"image\" src=\"https://github.com/user-attachments/assets/405846ca-22c8-49ae-8b88-0653e287e6d8\" />"
   }
 ]
