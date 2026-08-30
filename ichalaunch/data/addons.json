@@ -3948,8 +3948,8 @@
     ],
     "release_downloads_repo": "ScottHamper/chatsuey",
     "release_downloads_state": "ok",
-    "release_downloads": 5084,
-    "release_downloads_at": "2026-08-30T13:33:17Z"
+    "release_downloads": 5085,
+    "release_downloads_at": "2026-08-30T23:08:47Z"
   },
   {
     "name": "ChatTimestamps",
@@ -12478,8 +12478,8 @@
     ],
     "release_downloads_repo": "The-Kludge-Bureau/pfQuest",
     "release_downloads_state": "ok",
-    "release_downloads": 6840,
-    "release_downloads_at": "2026-08-30T20:22:19Z"
+    "release_downloads": 6847,
+    "release_downloads_at": "2026-08-30T23:08:47Z"
   },
   {
     "name": "pfQuest-icons",
@@ -12725,8 +12725,8 @@
     "folder": "QuestSoundBits",
     "release_downloads_repo": "Road-block/QuestSoundBits",
     "release_downloads_state": "ok",
-    "release_downloads": 132,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads": 133,
+    "release_downloads_at": "2026-08-30T23:08:47Z"
   },
   {
     "name": "QuestTracker",
@@ -14097,8 +14097,8 @@
     ],
     "release_downloads_repo": "obszczymucha/roll-for-vanilla",
     "release_downloads_state": "ok",
-    "release_downloads": 3744,
-    "release_downloads_at": "2026-08-30T18:00:51Z"
+    "release_downloads": 3746,
+    "release_downloads_at": "2026-08-30T23:08:47Z"
   },
   {
     "name": "RoundRobinhood",
@@ -19067,8 +19067,8 @@
     "description": "A Questhelper and Database Addon for World of Warcraft: Vanilla & TBC",
     "release_downloads_repo": "shagu/pfQuest",
     "release_downloads_state": "ok",
-    "release_downloads": 227411,
-    "release_downloads_at": "2026-08-30T20:22:19Z"
+    "release_downloads": 227428,
+    "release_downloads_at": "2026-08-30T23:08:47Z"
   },
   {
     "name": "pfQuest-classicAPI",
