@@ -11367,7 +11367,9 @@ def test_client_zip_mirrors_and_gofile_parse():
         GOFILE_FILE_ID,
         GOFILE_FILE_NAME,
         GOFILE_MD5,
+        CLIENT_ZIP_SHA256,
         GOFILE_STORE,
+        R2_CLIENT_ZIP_KEY,
         VIKINGFILE_ZIP_URL,
         gofile_content_id,
         gofile_file_link_from_payload,
@@ -11379,8 +11381,34 @@ def test_client_zip_mirrors_and_gofile_parse():
     assert GOFILE_STORE == "store-na-phx-4"
     assert GOFILE_EXPECTED_SIZE == 9_829_040_584
     assert GOFILE_MD5 == "b65fb26b56d09e3d45cb72b130a79080"
+    assert CLIENT_ZIP_SHA256 == (
+        "86059fa229800050bbe066e5ae19f59eb936f10a077a9581596cb879d013e565"
+    )
+    from ichalaunch.game.client_install import (
+        load_client_manifest,
+        manifest_install_relpath,
+        verify_installed_client,
+    )
+
+    man = load_client_manifest()
+    assert man["sha256"] == CLIENT_ZIP_SHA256
+    assert man["size"] == GOFILE_EXPECTED_SIZE
+    assert man["file_count"] == 170
+    wow = next(f for f in man["files"] if str(f["path"]).lower().endswith("wow.exe"))
+    assert manifest_install_relpath(wow["path"]) == "WoW.exe"
+    assert wow["sha256"] == (
+        "43a397a8e413bfbd2d43012d9c3ed59662baf099fc93c88f95f1a686f9efa07b"
+    )
+    with tempfile.TemporaryDirectory() as td:
+        missing = verify_installed_client(Path(td), man, hash_executables=False)
+        assert any(p.startswith("missing ") for p in missing)
+    assert R2_CLIENT_ZIP_KEY == "RavenCraft.zip"
     assert CLIENT_ZIP_MIRRORS[0] == GAME_DOWNLOAD_URL
     assert VIKINGFILE_ZIP_URL in CLIENT_ZIP_MIRRORS
+    assert all(
+        "r2.dev" not in u and "r2.cloudflarestorage.com" not in u
+        for u in CLIENT_ZIP_MIRRORS
+    )
     assert gofile_content_id(GAME_DOWNLOAD_URL) == "zrTbjjv1"
     assert gofile_content_id("https://gofile.io/d/zrTbjjv1?foo=1") == "zrTbjjv1"
     assert gofile_content_id("https://vikingfile.com/d/x") is None
