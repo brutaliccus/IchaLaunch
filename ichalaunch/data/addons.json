@@ -19193,5 +19193,13 @@
     "source": "community",
     "folder": "AtlasQuest",
     "description": "# AtlasQuest for Turtle WoW\n\nAtlasQuest allows you to view dungeon quests in game! Requires [Atlas](https://github.com/Otari98/Atlas) to work.\n\n## Preview\n![Ð¸Ð·Ð¾Ð±Ñ€Ð°Ð¶ÐµÐ½Ð¸Ðµ](https://github.com/user-attachments/assets/d418bc4b-9e92-4166-9344-fa4430d63fd0)"
+  },
+  {
+    "name": "HealComm",
+    "repo": "https://github.com/maztheman/HealComm",
+    "category": "General",
+    "source": "community",
+    "folder": "HealComm",
+    "description": "# HealComm\n\n![HealComm](https://i.imgur.com/qJLv1m5.png)\n\n## Visual representation of incoming heals.\n\nWorking version for Turtle Wow 1.18.0\n\n1. Extract the zip\n2. Remove the \"-master\" from the name of the folder\n3. Put the folder in your Wow/Interface/addons"
   }
 ]
