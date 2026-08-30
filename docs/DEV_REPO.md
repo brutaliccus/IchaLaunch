@@ -48,6 +48,9 @@ Public `master` rulesets (do not replace the second with an `update` block):
   returns `Cannot update this protected ref` on squash-merge, so the
   approve bot opens PRs and never lands them.
 
+Day-to-day pin, approve, and sign steps (ClassicAPI rehash, `sign_live.py`,
+what not to do): [`SIGNING.md`](SIGNING.md).
+
 ## Catalog suggestions and version/pin actions
 
 Issues live on **public** `brutaliccus/IchaLaunch`. One label:

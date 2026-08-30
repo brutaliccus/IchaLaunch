@@ -103,10 +103,23 @@ Output: `dist\IchaLaunch.exe`
 
 </details>
 
+## Maintainer: live catalogs and pins
+
+How to rehash client mods (ClassicAPI and the rest), approve catalog issues, and sign live JSON: **[docs/SIGNING.md](docs/SIGNING.md)**. Remotes, CI secrets, and the public thin-master rules: [`docs/DEV_REPO.md`](docs/DEV_REPO.md).
+
+From repo root (not a `python tools` folder):
+
+```bat
+python tools/pin_mods.py --update classic_api
+python tools/sign_live.py
+```
+
+Signing keys stay in `%LOCALAPPDATA%\IchaLaunch\signing\`. Never put the key or its password in CI.
+
 <details>
 <summary>Maintainer notes (catalog & suggestions)</summary>
 
-Development remotes, catalog/mod pipelines, and public-release publish steps: [`docs/DEV_REPO.md`](docs/DEV_REPO.md).
+Day-to-day sign / pin / approve: [`docs/SIGNING.md`](docs/SIGNING.md). Remotes and pipeline setup: [`docs/DEV_REPO.md`](docs/DEV_REPO.md).
 
 The Available catalog is `ichalaunch/data/addons.json` on **public** `brutaliccus/IchaLaunch` `master`. Clients fetch and cache it; merge catalog PRs there and launchers pick them up on the next refresh.
 
