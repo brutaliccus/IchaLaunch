@@ -3069,11 +3069,19 @@ def _asset_from_release(release: Any, source: dict[str, Any]) -> dict[str, Any] 
 
 
 def _resolve_github_release_asset(source: dict[str, Any]) -> dict[str, Any]:
-    """Pick the DLL/zip asset, walking past MPQ-only tags like SuperWoW ``Patch``."""
+    """Pick the DLL/zip asset, walking past MPQ-only tags like SuperWoW ``Patch``.
+
+    Digest-pinned sources resolve the catalog ``pinned_tag`` (or the tag in a
+    pinned release URL), not GitHub latest. A newer upstream release is not
+    deliverable until a maintainer re-hashes the pin.
+    """
     repo = source["repo"]
     needle = source.get("asset_contains") or ".zip"
     tag = None
-    if "/" in str(repo):
+    pin = _source_pin_tag(source)
+    if pin:
+        tag = pin
+    elif "/" in str(repo):
         owner, name = str(repo).split("/", 1)
         tag = github_latest_version_tag(owner, name)
         if tag and not is_usable_release_tag(tag):
@@ -3257,6 +3265,21 @@ def _repo_from_github_url(url: str) -> str | None:
 def _tag_from_release_url(url: str) -> str | None:
     m = re.search(r"/releases/download/([^/]+)/", url)
     return m.group(1) if m else None
+
+
+def _source_pin_tag(source: dict[str, Any] | None) -> str:
+    """Catalog-approved GitHub tag when this source is digest-pinned.
+
+    A ``sha256`` pin is only deliverable at the tag a maintainer hashed.
+    Update checks and asset resolution must use that tag, not the live tip,
+    until ``pin_mods.py --update`` refreshes both the hash and the tag.
+    """
+    if not isinstance(source, dict) or expected_digest(source) is None:
+        return ""
+    pin = str(source.get("pinned_tag") or "").strip()
+    if pin:
+        return pin
+    return (_tag_from_release_url(str(source.get("url") or "")) or "").strip()
 
 
 _BLANK_VERSION_LABELS = frozenset(
@@ -3448,7 +3471,11 @@ def _remote_identity(
         repo = source.get("repo")
         if not repo:
             return None
-        tag = _catalog_release_tag(str(repo)) if catalog_only else _remote_release_tag(str(repo))
+        pin = _source_pin_tag(source)
+        if pin:
+            tag = pin
+        else:
+            tag = _catalog_release_tag(str(repo)) if catalog_only else _remote_release_tag(str(repo))
         if not tag:
             return None
         display = tag
@@ -3476,6 +3503,16 @@ def _remote_identity(
         url = source.get("url") or ""
         repo = _repo_from_github_url(url)
         pinned = _tag_from_release_url(url)
+        pin = _source_pin_tag(source)
+        if pin:
+            return {
+                "kind": "release",
+                "key": pin,
+                "display": pin,
+                "repo": repo,
+                "tag": pin,
+                "pinned": pinned,
+            }
         if repo:
             try:
                 tag = _catalog_release_tag(repo) if catalog_only else _remote_release_tag(repo)
@@ -3888,8 +3925,10 @@ def check_mod_updates(
     DLLs) compare the on-disk file to the bundled copy via SHA-256 and do
     not need the tip index. Official remote WeirdUtils assets (Heal Text
     Fix, WeirdPerformance, Minimap Trackings, Transmog Fix, World Markers)
-    use the catalog URL. Other mods use one remote fetch of
-    ``addon_tips.json``. Per-mod git/REST/HEAD probes are not used here.
+    use the catalog URL. Digest-pinned GitHub releases compare against
+    ``pinned_tag`` — a live tip that the launcher cannot install yet is
+    not an update. Other mods use one remote fetch of ``addon_tips.json``.
+    Per-mod git/REST/HEAD probes are not used here.
     """
     if respect_cooldown and recently_checked_mod_updates():
         return ModUpdateCheckResult(skipped_recent=True)

@@ -7864,6 +7864,107 @@ def test_mod_remote_identity_uses_tip_index():
     print("OK mod remote identity uses tip index")
 
 
+def test_digest_pinned_release_ignores_tip_ahead_of_catalog():
+    """A sha256 pin is only deliverable at pinned_tag; live tip must not nag."""
+    from unittest import mock
+
+    from ichalaunch.addons import tip_index as tips
+    from ichalaunch.addons.tip_index import clear_tip_index_cache, normalize_index
+    from ichalaunch.mods.installer import (
+        _remote_identity,
+        _resolve_github_release_asset,
+        _source_pin_tag,
+        get_mod,
+    )
+
+    classic = get_mod("classic_api")
+    assert classic is not None
+    src = classic.get("source") or {}
+    assert src.get("type") == "github_release_latest"
+    assert src.get("pinned_tag")
+    assert src.get("sha256")
+    assert _source_pin_tag(src) == src["pinned_tag"]
+    assert _source_pin_tag({**src, "sha256": None}) == ""
+
+    source = {
+        "type": "github_release_latest",
+        "repo": "brues-code/ClassicAPI",
+        "asset_contains": "ClassicAPI.dll",
+        "sha256": "ab" * 32,
+        "pinned_tag": "v1.12.7",
+    }
+    url_pinned = {
+        "type": "github_release",
+        "url": "https://github.com/o/r/releases/download/v1.6.0/thing.zip",
+        "sha256": "cd" * 32,
+    }
+    assert _source_pin_tag(url_pinned) == "v1.6.0"
+
+    index = normalize_index(
+        {
+            "generated_at": "2026-08-30T00:00:00Z",
+            "repos": {
+                "brues-code/classicapi": {
+                    "default_branch": "master",
+                    "sha": "c" * 40,
+                    "branches": {"master": "c" * 40},
+                    "latest_tag": "v1.12.8",
+                },
+                "o/r": {
+                    "default_branch": "master",
+                    "sha": "d" * 40,
+                    "branches": {"master": "d" * 40},
+                    "latest_tag": "v9.9.9",
+                },
+            },
+        }
+    )
+    prev = tips._loaded
+    try:
+        tips._loaded = (0.0, index)
+        ident = _remote_identity(source, catalog_only=True)
+        assert ident is not None
+        assert ident["key"] == "v1.12.7"
+        assert ident["tag"] == "v1.12.7"
+        live = _remote_identity(
+            {"type": "github_release_latest", "repo": "brues-code/ClassicAPI"},
+            catalog_only=True,
+        )
+        assert live is not None and live["key"] == "v1.12.8"
+        url_ident = _remote_identity(url_pinned, catalog_only=True)
+        assert url_ident is not None and url_ident["key"] == "v1.6.0"
+    finally:
+        tips._loaded = prev
+        if prev is None:
+            clear_tip_index_cache()
+
+    fetched: list[str] = []
+
+    def fake_json(api: str):
+        fetched.append(api)
+        if "v1.12.7" in api:
+            return {
+                "tag_name": "v1.12.7",
+                "assets": [
+                    {
+                        "name": "ClassicAPI.dll",
+                        "browser_download_url": "https://example.test/ClassicAPI.dll",
+                        "size": 1,
+                    }
+                ],
+            }
+        raise AssertionError(f"digest-pinned resolve must not fetch {api}")
+
+    with mock.patch(
+        "ichalaunch.mods.installer.github_latest_version_tag",
+        return_value="v1.12.8",
+    ), mock.patch("ichalaunch.mods.installer._github_json", side_effect=fake_json):
+        asset = _resolve_github_release_asset(source)
+    assert asset["name"] == "ClassicAPI.dll"
+    assert fetched and "v1.12.7" in fetched[0]
+    print("OK digest-pinned release ignores tip ahead of catalog")
+
+
 def test_addon_toc_folder_name_required():
     """Disk scan and install roots require folder name == .toc name."""
     import tempfile
@@ -20719,6 +20820,7 @@ def _run_smoke_tests():
     test_discord_wow_status_dll_hash_update()
     test_discord_broadcast_fields_and_opt_in_prompt()
     test_mod_remote_identity_uses_tip_index()
+    test_digest_pinned_release_ignores_tip_ahead_of_catalog()
     test_addon_toc_folder_name_required()
     test_multi_toc_primary_stem_resolve()
     test_addon_toc_folder_rename()
