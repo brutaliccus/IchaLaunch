@@ -8126,6 +8126,22 @@ def test_sign_live_purpose_prompts_and_skip():
     assert sl.purpose_for(sl.EXE_SPEC) == ATTESTATION_PURPOSE_UPDATE
     assert sl.EXE_SPEC.prompt == "Sign and upload a new IchaLaunch.exe?"
 
+    found = sl.find_repo_root()
+    assert (found / "tools" / "sign_live.py").is_file()
+    assert (found / "ichalaunch" / "__init__.py").is_file()
+    from_tools = sl.find_repo_root(found / "tools")
+    assert from_tools == found
+
+    missing_help = sl.missing_checkout_help(Path(tempfile.mkdtemp()))
+    assert missing_help is not None
+    assert "git checkout" in missing_help
+    assert sl.SIGNER_BRANCH in missing_help
+    assert sl.missing_checkout_help(found) is None
+
+    empty_git = Path(tempfile.mkdtemp())
+    assert sl.public_remote_url(empty_git, "public") is None
+    assert sl.ensure_public_remote(empty_git, "public") is False
+
     only = sl.parse_only("addons,mods")
     assert [s.id for s in only] == ["addons", "mods"]
     only_tips = sl.parse_only("tips,home,exe")
@@ -14066,6 +14082,143 @@ def test_signature_sidecar_url_and_unverified_exe_is_deleted():
     staged = Path(tempfile.gettempdir()) / "IchaLaunch_update_9.9.9.exe"
     assert not staged.exists(), "unverified EXE was left in temp"
     print("OK unverified staged update is deleted")
+
+
+def test_staged_update_refuses_republished_old_build():
+    """Install path: genuine old bytes + old/legacy sidecar under a new tag.
+
+    ``verify_attestation`` alone is not the gate players hit.
+    ``_verify_staged_update`` / ``download_and_stage_update`` are. This is
+    the reviewer's recipe: re-upload a genuine old exe with its genuine
+    sidecar as GitHub release v9.9.9.
+    """
+    import base64 as _b64
+    import hashlib as _hashlib
+    import json as _json
+    from unittest.mock import patch
+
+    from cryptography.hazmat.primitives import serialization as _ser
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+        Ed25519PrivateKey as _Ed25519PrivateKey,
+    )
+
+    import ichalaunch.core.signing as S
+    from ichalaunch.core.self_update import (
+        SIGNATURE_ASSET_SUFFIX,
+        LauncherReleaseInfo,
+        _verify_staged_update,
+        download_and_stage_update,
+    )
+    from ichalaunch.core.signing import SignatureError
+
+    priv = _Ed25519PrivateKey.generate()
+    pub = _b64.b64encode(
+        priv.public_key().public_bytes(
+            encoding=_ser.Encoding.Raw, format=_ser.PublicFormat.Raw
+        )
+    ).decode()
+
+    old_exe = b"MZ" + (b"\x00" * (64 * 1024)) + b"IchaLaunch v1.4.7 genuine bytes"
+
+    def sidecar(*, purpose: str, version: str, payload: bytes = old_exe) -> bytes:
+        att = S.Attestation(purpose, version, _hashlib.sha256(payload).hexdigest())
+        return _json.dumps(
+            {
+                "key_id": pub,
+                "sig": _b64.b64encode(priv.sign(payload)).decode(),
+                "attestation": {
+                    "purpose": att.purpose,
+                    "version": att.version,
+                    "sha256": att.sha256,
+                },
+                "attestation_sig": _b64.b64encode(priv.sign(att.canonical())).decode(),
+            }
+        ).encode()
+
+    legacy = _json.dumps(
+        {"key_id": pub, "sig": _b64.b64encode(priv.sign(old_exe)).decode()}
+    ).encode()
+    old_attested = sidecar(purpose=S.ATTESTATION_PURPOSE_UPDATE, version="1.4.7")
+    catalog_attested = sidecar(purpose=S.ATTESTATION_PURPOSE_CATALOG, version="9.9.9")
+    good = sidecar(purpose=S.ATTESTATION_PURPOSE_UPDATE, version="9.9.9")
+
+    info = LauncherReleaseInfo(
+        tag="v9.9.9",
+        version="9.9.9",
+        name="Rollback",
+        asset_name="IchaLaunch.exe",
+        download_url="https://example.com/IchaLaunch.exe",
+        update_available=True,
+    )
+
+    def write_sig(raw: bytes):
+        def fake_download(url, dest, **_kwargs):
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(raw)
+            return dest
+
+        return fake_download
+
+    def refuses(raw: bytes, why: str, *, running: str = "1.5.1") -> None:
+        with tempfile.TemporaryDirectory() as td:
+            staged = Path(td) / "IchaLaunch.exe"
+            staged.write_bytes(old_exe)
+            with (
+                patch.object(S, "PINNED_KEYS", (pub,)),
+                patch("ichalaunch.core.self_update.__version__", running),
+                patch(
+                    "ichalaunch.core.self_update._download_asset",
+                    side_effect=write_sig(raw),
+                ),
+            ):
+                try:
+                    _verify_staged_update(staged, info)
+                except SignatureError:
+                    return
+                raise AssertionError(f"should have refused: {why}")
+
+    refuses(legacy, "legacy sidecar with no attestation under v9.9.9")
+    refuses(old_attested, "old 1.4.7 attestation under GitHub tag v9.9.9")
+    refuses(catalog_attested, "catalog-purpose sidecar used as a launcher update")
+
+    with tempfile.TemporaryDirectory() as td:
+        staged = Path(td) / "IchaLaunch.exe"
+        staged.write_bytes(old_exe)
+        with (
+            patch.object(S, "PINNED_KEYS", (pub,)),
+            patch("ichalaunch.core.self_update.__version__", "1.5.1"),
+            patch(
+                "ichalaunch.core.self_update._download_asset",
+                side_effect=write_sig(good),
+            ),
+        ):
+            _verify_staged_update(staged, info)
+
+    def fake_stage(url, dest, **_kwargs):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if str(url).endswith(SIGNATURE_ASSET_SUFFIX):
+            dest.write_bytes(old_attested)
+            return dest
+        dest.write_bytes(old_exe)
+        return dest
+
+    leftover = Path(tempfile.gettempdir()) / "IchaLaunch_update_9.9.9.exe"
+    try:
+        leftover.unlink(missing_ok=True)
+    except OSError:
+        pass
+    with (
+        patch.object(S, "PINNED_KEYS", (pub,)),
+        patch("ichalaunch.core.self_update.__version__", "1.5.1"),
+        patch("ichalaunch.core.self_update._download_asset", side_effect=fake_stage),
+    ):
+        try:
+            download_and_stage_update(info)
+            raise AssertionError("republished 1.4.7 under v9.9.9 was staged")
+        except SignatureError:
+            pass
+    assert not leftover.exists(), "republished old EXE was left in temp"
+    print("OK staged update refuses a republished old build under a new tag")
 
 
 def test_dll_injection_mod_detection():
@@ -21436,6 +21589,7 @@ def _run_smoke_tests():
     test_update_attestation_blocks_a_republished_old_build()
     test_update_signing_keys_are_pinned()
     test_signature_sidecar_url_and_unverified_exe_is_deleted()
+    test_staged_update_refuses_republished_old_build()
     test_home_art_width_fit_is_centred()
     test_home_gallery_page_arrows()
     test_home_gallery_position_dots()

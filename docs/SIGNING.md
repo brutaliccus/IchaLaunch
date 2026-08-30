@@ -32,6 +32,14 @@ password into this repo, a README, or a GitHub secret.
 - `IchaLaunch.exe` + `.sig` → purpose `ichalaunch-launcher-update` (GitHub
   Release, not under `ichalaunch/data/`)
 
+A catalog sidecar must never be accepted as a launcher update. The EXE
+attestation also binds `version` and `sha256`, so republishing a genuine
+older EXE plus its genuine `.sig` under a new tag (e.g. `v9.9.9`) fails
+on a client that has this check. Clients that shipped before that check
+still verify payload bytes only; they stay vulnerable until they update
+once. Live catalog fetch still accepts a payload-only sidecar so already-
+published catalog signatures keep working.
+
 ## Interactive signer
 
 ```bat

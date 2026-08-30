@@ -127,6 +127,11 @@ python tools/sign.py --key %LOCALAPPDATA%\IchaLaunch\signing\ichalaunch-key1.pem
 python tools/publish_public_release.py --tag vX.Y.Z --exe dist\IchaLaunch.exe --sig dist\IchaLaunch.exe.sig
 ```
 
+The EXE `.sig` must include an `ichalaunch-launcher-update` attestation
+(`version` + `sha256`). New clients refuse a genuine old EXE republished
+under a newer tag. Shipped clients before that check still accept it
+until they update once.
+
 Optional, before you build the EXE, refresh bundled fallbacks from live public
 data:
 

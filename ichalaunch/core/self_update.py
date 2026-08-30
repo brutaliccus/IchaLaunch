@@ -433,10 +433,11 @@ def _verify_staged_update(staged: Path, info: "LauncherReleaseInfo") -> None:
         # client installs it. So the version has to come from inside the
         # signature, not from the release JSON, which the publisher controls.
         #
-        # This is required rather than optional. The client doing the verifying
-        # is always the NEW one, and nobody updates *to* an older release, so
-        # requiring it constrains only future releases, which tools/sign.py
-        # produces with an attestation by default.
+        # Required, not optional. After this check ships, the running client
+        # is the verifier: a payload-only sidecar (every public .sig before
+        # this) is refused. Until players update once, those older EXEs still
+        # accept a republished old build. tools/sign.py emits an attestation
+        # on every EXE it signs.
         verify_attestation(
             payload,
             signature,
