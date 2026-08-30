@@ -26,11 +26,11 @@ payload, rate-limits, and talks to GitHub using **Worker secrets** only.
    wrangler secret put CRASH_ISSUE_LINUX     # optional; default 59
    ```
    - `GITHUB_TOKEN` — fine-grained PAT with **Issues: Read and write** on
-     `brutaliccus/IchaLaunch` (and Metadata read), plus ability to read public
-     repo metadata for fork/parent resolution. Classic `public_repo` also
-     works but is broader than needed.
-   - `GITHUB_REPO` — `brutaliccus/IchaLaunch` (required if you do not rely on
-     the Worker default).
+     **public** `brutaliccus/IchaLaunch` (and Metadata read), plus ability to
+     read public repo metadata for fork/parent resolution. Classic
+     `public_repo` also works but is broader than needed.
+   - `GITHUB_REPO` — must stay `brutaliccus/IchaLaunch` (the public release
+     repo). Do not point this at the private dev repo.
    - `CRASH_ISSUE_WINDOWS` / `CRASH_ISSUE_LINUX` — sticky issues that receive
      crash **comments** by OS
      ([Windows #58](https://github.com/brutaliccus/IchaLaunch/issues/58),
@@ -54,10 +54,11 @@ Issue titles for catalog suggestions are prefixed with `[catalog]`. Optionally c
 `catalog-suggestion` label on the repo and add it in `src/index.js` if you want
 filtered triage.
 
-**Approve for catalog:** label the issue **`catalog-approved`**. That triggers
-`.github/workflows/catalog-approve.yml`, which opens a PR editing only
-`ichalaunch/data/addons.json`, squash-merges it, comments the result, and closes
-the issue. Spam submissions stay as issues until you approve.
+**Approve for catalog:** on **public** `brutaliccus/IchaLaunch`, label the
+issue **`catalog-approved`**. The public relay dispatches the private
+`.github/workflows/catalog-approve.yml` job, which opens a PR editing only
+public `ichalaunch/data/addons.json`, squash-merges it, comments the result,
+and closes the issue. Spam submissions stay as issues until you approve.
 
 ## Review queue (submit time)
 
@@ -86,15 +87,17 @@ pick up the new filter.
 
 ## Promote issue → `addons.json`
 
-1. Review the issue (repo exists, Turtle-compatible, category fits).
+1. Review the issue on **public** `brutaliccus/IchaLaunch` (repo exists,
+   Turtle-compatible, category fits).
 2. Label the issue **`catalog-approved`**.
-3. The Action opens `catalog: add Owner/Repo`, squash-merges to `master`,
+3. The public relay dispatches the private approve job, which opens
+   `catalog: add Owner/Repo` on the public repo, squash-merges to `master`,
    comments the merged PR on the issue, and closes it.
 4. Clients pick up the entry on the next Available catalog refresh (no launcher
    rebuild).
 
-The Action skips if the repo URL is already in `addons.json` (no PR / no merge)
-and comments the skip reason on the issue.
+The approve job skips if the repo URL is already in public `addons.json`
+(no PR / no merge) and comments the skip reason on the issue.
 
 **Repo setting (once):** Settings → Actions → General → Workflow permissions →
 enable **Allow GitHub Actions to create and approve pull requests** so

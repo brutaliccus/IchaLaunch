@@ -22,7 +22,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from ichalaunch.addons.git_refs import fetch_git_refs  # noqa: E402
-from ichalaunch.addons.catalog import load_bundled_catalog  # noqa: E402
+from ichalaunch.addons.catalog import (  # noqa: E402
+    load_bundled_catalog,
+    load_catalog_file,
+)
 from ichalaunch.addons.github import (  # noqa: E402
     catalog_locks_updates,
     parse_github_url,
@@ -59,10 +62,15 @@ def _add_repo(
     out.append((owner, name))
 
 
-def _catalog_repos(*, include_locked: bool = False) -> list[tuple[str, str]]:
+def _catalog_repos(
+    *,
+    include_locked: bool = False,
+    catalog: list | None = None,
+) -> list[tuple[str, str]]:
     seen: set[str] = set()
     out: list[tuple[str, str]] = []
-    for entry in load_bundled_catalog():
+    entries = catalog if catalog is not None else load_bundled_catalog()
+    for entry in entries:
         if not include_locked and catalog_locks_updates(entry):
             continue
         parsed = parse_github_url(str(entry.get("repo") or entry.get("url") or ""))
@@ -135,6 +143,12 @@ def main() -> int:
         description="Build catalog tip-SHA index from addons.json + mods.json"
     )
     ap.add_argument("--output", type=Path, default=OUT, help="JSON output path")
+    ap.add_argument(
+        "--catalog",
+        type=Path,
+        default=None,
+        help="addons.json path (default: bundled ichalaunch/data/addons.json)",
+    )
     ap.add_argument("--limit", type=int, default=0, help="Stop after N unique repos (0 = all)")
     ap.add_argument("--sleep", type=float, default=0.05, help="Pause between repo fetches")
     ap.add_argument(
@@ -158,7 +172,17 @@ def main() -> int:
         print("Choose at most one of --addons-only and --mods-only", file=sys.stderr)
         return 2
 
-    addon_repos = [] if args.mods_only else _catalog_repos(include_locked=bool(args.include_locked))
+    addon_catalog = (
+        load_catalog_file(args.catalog) if args.catalog is not None else None
+    )
+    addon_repos = (
+        []
+        if args.mods_only
+        else _catalog_repos(
+            include_locked=bool(args.include_locked),
+            catalog=addon_catalog,
+        )
+    )
     mod_repos = [] if args.addons_only else _mod_catalog_repos()
     repos = _merge_repos(addon_repos, mod_repos)
     if args.limit and args.limit > 0:

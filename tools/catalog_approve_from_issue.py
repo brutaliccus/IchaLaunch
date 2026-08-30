@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Parse a catalog-suggestion GitHub issue and append an entry to addons.json.
 
-Used by `.github/workflows/catalog-approve.yml` when an issue is labeled
-``catalog-approved``. Prints a small JSON summary on stdout for the Action.
+Used by `.github/workflows/catalog-approve.yml` in the private dev repo
+when the public release repo dispatches ``catalog-approved`` (label on a
+public catalog issue). Prints a small JSON summary on stdout for the Action.
 """
 
 from __future__ import annotations

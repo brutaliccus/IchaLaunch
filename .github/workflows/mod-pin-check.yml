@@ -1,0 +1,75 @@
+name: Check mod content pins
+
+# Reports drift in ichalaunch/data/mods.json SHA-256 pins.
+# Re-pin is a manual maintainer step (`python tools/pin_mods.py --update …`)
+# and ships in the next signed public EXE — pins are not hot-fetched.
+#
+# On drift this job fails and opens (or comments on) a private issue.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 8 * * *"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Check pins
+        id: pins
+        run: |
+          set +e
+          python tools/pin_mods.py --check | tee /tmp/pin-check.txt
+          rc=${PIPESTATUS[0]}
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          if [ "$rc" != "0" ]; then
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+          fi
+          exit 0
+
+      - name: Open or update pin-drift issue
+        if: steps.pins.outputs.drift == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          BODY="$(cat <<EOF
+          Scheduled \`tools/pin_mods.py --check\` reported drift.
+
+          \`\`\`
+          $(cat /tmp/pin-check.txt)
+          \`\`\`
+
+          Re-pin is manual. After you test the new bytes:
+
+          \`\`\`
+          python tools/pin_mods.py --update --all
+          \`\`\`
+
+          Commit \`ichalaunch/data/mods.json\` here, then ship it in the next
+          signed public release. Do not rubber-stamp a pin you have not run.
+          EOF
+          )"
+          EXISTING=$(gh issue list --repo "${GITHUB_REPOSITORY}" --label pin-drift --state open --json number --jq '.[0].number // empty' || true)
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --repo "${GITHUB_REPOSITORY}" --body "$BODY"
+          else
+            gh issue create --repo "${GITHUB_REPOSITORY}" --title "Mod pin drift" --label pin-drift --body "$BODY" || \
+              gh issue create --repo "${GITHUB_REPOSITORY}" --title "Mod pin drift" --body "$BODY"
+          fi
+
+      - name: Fail on drift
+        if: steps.pins.outputs.drift == 'true'
+        run: exit 1

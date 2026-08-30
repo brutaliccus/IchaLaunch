@@ -1,11 +1,15 @@
 name: Refresh catalog tips
 
 # Hourly tip-SHA rebuild + latest-release download counts on the published
-# Available catalog (ichalaunch/data/addons.json). Clients fetch that one file
-# on periodic refresh and read stamped release_downloads* fields — they must
-# not fan out GitHub /releases/latest. This job uses GITHUB_TOKEN (GraphQL
-# batches). It must not strip catalog entries; download-count failures keep
-# last known values on that addon.
+# Available catalog (public brutaliccus/IchaLaunch ichalaunch/data/addons.json).
+# Clients fetch that one file on periodic refresh and read stamped
+# release_downloads* fields — they must not fan out GitHub /releases/latest.
+#
+# Uses live public addons.json plus this repo's mods.json (bundled pins).
+# Writes only addon_tips.json and stamped addons.json on the public repo.
+# Download-count failures keep last known values on that addon.
+#
+# Secret: PUBLIC_PUSH_TOKEN — Contents write on brutaliccus/IchaLaunch.
 
 on:
   workflow_dispatch:
@@ -13,26 +17,66 @@ on:
     - cron: "0 * * * *"
 
 permissions:
-  contents: write
+  contents: read
+
+env:
+  PUBLIC_REPO: brutaliccus/IchaLaunch
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Require PUBLIC_PUSH_TOKEN
+        env:
+          PUBLIC_PUSH_TOKEN: ${{ secrets.PUBLIC_PUSH_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PUBLIC_PUSH_TOKEN}" ]; then
+            echo "PUBLIC_PUSH_TOKEN is not set on this repo. See docs/DEV_REPO.md." >&2
+            exit 1
+          fi
+
+      - name: Checkout private (scripts + mods.json)
+        uses: actions/checkout@v4
+
+      - name: Checkout public (live catalog)
+        uses: actions/checkout@v4
+        with:
+          repository: brutaliccus/IchaLaunch
+          token: ${{ secrets.PUBLIC_PUSH_TOKEN }}
+          path: public-repo
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+
       - name: Install deps
         run: pip install requests
+
       - name: Build tip index
-        run: python tools/build_addon_tips.py --sleep 0.08
+        run: |
+          python tools/build_addon_tips.py \
+            --catalog public-repo/ichalaunch/data/addons.json \
+            --output public-repo/ichalaunch/data/addon_tips.json \
+            --sleep 0.08
+
       - name: Stamp release download counts
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python tools/enrich_catalog_downloads.py
-      - name: Commit index
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "chore: refresh addon tip SHA index and release downloads"
-          file_pattern: ichalaunch/data/addon_tips.json ichalaunch/data/addons.json
+          GITHUB_TOKEN: ${{ secrets.PUBLIC_PUSH_TOKEN }}
+        run: python tools/enrich_catalog_downloads.py --catalog public-repo/ichalaunch/data/addons.json
+
+      - name: Commit index on public master
+        working-directory: public-repo
+        env:
+          GH_TOKEN: ${{ secrets.PUBLIC_PUSH_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ichalaunch/data/addon_tips.json ichalaunch/data/addons.json
+          if git diff --cached --quiet; then
+            echo "No catalog/tip changes."
+            exit 0
+          fi
+          git commit -m "chore: refresh addon tip SHA index and release downloads"
+          git push origin HEAD:master

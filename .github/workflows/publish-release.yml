@@ -1,0 +1,67 @@
+name: Publish public release
+
+# Creates a draft GitHub Release on public brutaliccus/IchaLaunch.
+# Signing stays local — never put the private key in CI.
+#
+# After this draft exists, attach the signed EXE from your machine:
+#
+#   python tools/sign.py --key %LOCALAPPDATA%\IchaLaunch\signing\ichalaunch-key1.pem dist\IchaLaunch.exe
+#   python tools/publish_public_release.py --tag vX.Y.Z --exe dist\IchaLaunch.exe --sig dist\IchaLaunch.exe.sig
+#
+# Prefer the local script for the whole publish (it can create the release
+# and upload assets in one step). This workflow is the CI-side draft shell.
+#
+# Secret: PUBLIC_PUSH_TOKEN — Contents write on brutaliccus/IchaLaunch.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (e.g. v1.5.2)
+        required: true
+        type: string
+      title:
+        description: Release title (default = tag)
+        required: false
+        type: string
+      notes:
+        description: Release notes
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  PUBLIC_REPO: brutaliccus/IchaLaunch
+
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require PUBLIC_PUSH_TOKEN
+        env:
+          PUBLIC_PUSH_TOKEN: ${{ secrets.PUBLIC_PUSH_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PUBLIC_PUSH_TOKEN}" ]; then
+            echo "PUBLIC_PUSH_TOKEN is not set on this repo. See docs/DEV_REPO.md." >&2
+            exit 1
+          fi
+
+      - name: Create public draft release
+        env:
+          GH_TOKEN: ${{ secrets.PUBLIC_PUSH_TOKEN }}
+          TAG: ${{ inputs.tag }}
+          TITLE: ${{ inputs.title }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          set -euo pipefail
+          TITLE="${TITLE:-$TAG}"
+          if [ -n "${NOTES}" ]; then
+            gh release create "$TAG" --repo "${PUBLIC_REPO}" --title "$TITLE" --notes "$NOTES" --draft
+          else
+            gh release create "$TAG" --repo "${PUBLIC_REPO}" --title "$TITLE" --generate-notes --draft
+          fi
+          echo "Draft created. Upload signed assets with:"
+          echo "  python tools/publish_public_release.py --tag $TAG --exe dist/IchaLaunch.exe --sig dist/IchaLaunch.exe.sig"
