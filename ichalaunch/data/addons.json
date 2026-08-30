@@ -19193,5 +19193,13 @@
     "source": "community",
     "folder": "MatrixMaps",
     "description": "Mtxgrower33: SexyMaps Rework⚡MatrixMaps (V1.1) - TurtleWoW"
+  },
+  {
+    "name": "DragonflightReloaded",
+    "repo": "https://github.com/alchem1ster/DragonflightReloaded",
+    "category": "General",
+    "source": "community",
+    "folder": "DragonflightReloaded",
+    "description": "# Dragonflight: Reloaded\n![Logo](https://i.ibb.co/5xFzTW7q/logo.png)\n\nA modern UI replacement for World of Warcraft Classic (1.12) inspired by the Dragonflight UI.\n\n## Features\n- Redesigned action bars with modern styling\n- Enhanced player and target frames\n- Stylish cast bar implementation\n- Modernized bag interface\n- Sleek micro menu design\n- Improved minimap with modern elements\n- Redesigned chat frame\n- XP bar with Dragonflight styling\n- Frame management system for easy UI customization\n\n- ShaguTweaks compatibility\n- pfQuest compatibility\n- bagShui compatibility\n\n## Installation\n\n1. Download the latest version\n2. Extract the ZIP file\n3. Place the \"DragonflightReloaded\" folder into your WoW directory: `Interface\\AddOns\\`\n4. Restart World of Warcraft\n\n## Configuration\n\nType `/dfrl` in chat to access addon commands and settings.\n\n## Credits\n\n- DragonflightUI by Karl-Heinz Schneider\n- Shagu my master (pfUI / ShaguTweaks)\n- TurtleDragonflight\n- Inspired by World of Warcraft: Dragonflight UI"
   }
 ]
