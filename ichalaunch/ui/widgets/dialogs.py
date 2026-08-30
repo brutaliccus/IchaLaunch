@@ -414,6 +414,8 @@ class DiscordPresenceOptInDialog(QDialog):
         from ichalaunch.game.discord_presence import (
             BROADCAST_FIELD_KEYS,
             BROADCAST_FIELD_LABELS,
+            DISCORD_PRESENCE_OPT_IN_ACCEPT,
+            DISCORD_PRESENCE_OPT_IN_DECLINE,
             DISCORD_PRESENCE_OPT_IN_TEXT,
             DISCORD_PRESENCE_OPT_IN_TITLE,
             normalize_broadcast_fields,
@@ -422,8 +424,8 @@ class DiscordPresenceOptInDialog(QDialog):
         self.setObjectName("ThemedDialog")
         self.setWindowFlags(_themed_dialog_flags())
         self.setModal(True)
-        self.setMinimumWidth(460)
-        self.setMaximumWidth(620)
+        self.setMinimumWidth(520)
+        self.setMaximumWidth(680)
         self._result = DialogResult.Cancel
         self._field_boxes: dict[str, ThemeCheckBox] = {}
 
@@ -461,23 +463,23 @@ class DiscordPresenceOptInDialog(QDialog):
         row.setSpacing(10)
         row.addStretch(1)
         decline = GluePanelButton(
-            "No, Do Not Show Again",
+            DISCORD_PRESENCE_OPT_IN_DECLINE,
             card,
             role="standard",
-            width=200,
+            width=280,
             height=GLUE_BTN_H,
         )
         decline.clicked.connect(lambda: self._finish(DialogResult.No))
-        save = GluePanelButton(
-            "Save",
+        accept = GluePanelButton(
+            DISCORD_PRESENCE_OPT_IN_ACCEPT,
             card,
             role="primary",
-            width=_dialog_glue_width("Save"),
+            width=_dialog_glue_width(DISCORD_PRESENCE_OPT_IN_ACCEPT),
             height=GLUE_BTN_H,
         )
-        save.clicked.connect(lambda: self._finish(DialogResult.Yes))
+        accept.clicked.connect(lambda: self._finish(DialogResult.Yes))
         row.addWidget(decline)
-        row.addWidget(save)
+        row.addWidget(accept)
         body.addLayout(row)
 
         root.addWidget(card)
@@ -514,8 +516,8 @@ def discord_presence_opt_in_dialog(
     """One-shot Discord activity opt-in.
 
     Returns:
-      - ``(DialogResult.Yes, fields)`` — Save
-      - ``(DialogResult.No, fields)`` — No, Do Not Show Again (or dismiss)
+      - ``(DialogResult.Yes, fields)`` — Opt-in
+      - ``(DialogResult.No, fields)`` — Opt-out, Don't show this again (or dismiss)
     """
     dlg = DiscordPresenceOptInDialog(parent)
     dlg.exec()

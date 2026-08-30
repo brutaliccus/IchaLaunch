@@ -94,11 +94,17 @@ BROADCAST_FLAGS_ALL = (1 << len(BROADCAST_FIELD_KEYS)) - 1
 BROADCAST_FLAGS_FILENAME = "discord_broadcast_flags"
 
 DISCORD_PRESENCE_OPT_IN_TITLE = "Show your activity on Discord?"
+DISCORD_PRESENCE_OPT_IN_ACCEPT = "Opt-in"
+DISCORD_PRESENCE_OPT_IN_DECLINE = "Opt-out, Don't show this again"
 DISCORD_PRESENCE_OPT_IN_TEXT = (
     "Would you like to turn on Discord activity broadcasting?\n"
     "\n"
     "When enabled, Discord can show that you are playing and, if you choose, "
     "in-game details such as your name, guild, faction, class, level, and zone.\n"
+    "\n"
+    "The checkboxes only choose which details to broadcast. Unchecking every "
+    "box still opts you in — Discord will show that you are playing. Choose "
+    "Opt-out if you do not want activity sharing.\n"
     "\n"
     "You can opt in at any time in Settings → Privacy."
 )
@@ -264,7 +270,7 @@ def apply_broadcast_fields(
 
 
 def should_prompt_discord_presence_opt_in() -> bool:
-    """True once, until Save / No Do Not Show Again, or presence is already on.
+    """True once, until Opt-in / Opt-out, or presence is already on.
 
     Smoke tests and ``ICHALAUNCH_NO_CRASH_REPORT`` runs never prompt — a
     modal on a fresh config would hang waiting for a click.
@@ -289,7 +295,7 @@ def mark_discord_presence_prompted() -> None:
 
 
 def enable_discord_presence_from_opt_in(fields: dict[str, bool] | None = None) -> None:
-    """Save on the first-launch prompt: master on, persist filters, never ask again."""
+    """Opt-in on the first-launch prompt: master on, persist filters, never ask again."""
     from ichalaunch.config.settings import settings
 
     if fields is not None:
@@ -302,7 +308,7 @@ def enable_discord_presence_from_opt_in(fields: dict[str, bool] | None = None) -
 
 
 def decline_discord_presence_opt_in() -> None:
-    """No Do Not Show Again: leave broadcasting off, never ask again."""
+    """Opt-out: leave broadcasting off, never ask again."""
     from ichalaunch.config.settings import settings
 
     settings.set_discord_presence_prompted(True)
