@@ -78,16 +78,27 @@ Every live fetch (`addons.json`, `addon_tips.json`, `home_art.json`,
 is `ichalaunch-catalog` (not `ichalaunch-launcher-update`).
 
 ```
+python tools/sign_live.py
+```
+
+Prompts yes/no per file (Enter skips). Yes signs with the key at
+`%LOCALAPPDATA%\IchaLaunch\signing\ichalaunch-key1.pem`, writes `<file>.sig`
+beside it, then opens a public PR on `brutaliccus/IchaLaunch` branch
+`sign/live-catalogs` with only the files you accepted. The EXE `.sig` stays
+on the GitHub Release — the script offers `publish_public_release.py` instead
+of committing it under `ichalaunch/data/`. `--dry-run` prints the plan.
+`--yes-all` / `--only addons,mods` skip prompts.
+
+Single-file fallback:
+
+```
 python tools/sign.py --key %LOCALAPPDATA%\IchaLaunch\signing\ichalaunch-key1.pem ichalaunch/data\mods.json
 ```
 
-Commit the sidecar on the bot PR and merge JSON+`.sig` together. Fail-closed
-clients ignore unsigned or bad-sig live files (cache, then bundled). A later
-`--live` / `--from-pr` helper may wrap this; until then, sign after the bot PR.
-
-Client zip (`client_zip.sha256` / `client_manifest.json`) is a 10 GB pin:
-re-hash by hand when that zip is republished. Launcher self-update `.sig`
-stays on the release artefact (`sign.py` on the EXE).
+Merge JSON+`.sig` together. Fail-closed clients ignore unsigned or bad-sig
+live files (cache, then bundled). Client zip (`client_zip.sha256` /
+`client_manifest.json`) is a 10 GB pin: re-hash by hand when that zip is
+republished.
 
 ## Hourly addon / tip refresh
 
@@ -106,7 +117,7 @@ public file actually changes.
 
 ## Public launcher release
 
-Sign locally (never in CI):
+Sign locally (never in CI). `sign_live.py` can do the EXE prompt as well, or:
 
 ```
 python tools/sign.py --key %LOCALAPPDATA%\IchaLaunch\signing\ichalaunch-key1.pem dist\IchaLaunch.exe

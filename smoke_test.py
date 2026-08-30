@@ -8102,6 +8102,231 @@ def test_catalog_action_issue_dedupe_and_holdback():
     print("OK catalog action issue dedupe and holdback")
 
 
+def test_sign_live_purpose_prompts_and_skip():
+    """sign_live: catalog vs EXE purpose, --only list, Enter skips, no network/key."""
+    import importlib.util
+    from unittest.mock import patch
+
+    spec = importlib.util.spec_from_file_location(
+        "ichalaunch_sign_live_test", ROOT / "tools" / "sign_live.py"
+    )
+    assert spec is not None and spec.loader is not None
+    sl = importlib.util.module_from_spec(spec)
+    sys.modules["ichalaunch_sign_live_test"] = sl
+    spec.loader.exec_module(sl)
+
+    from ichalaunch.core.signing import (
+        ATTESTATION_PURPOSE_CATALOG,
+        ATTESTATION_PURPOSE_UPDATE,
+    )
+
+    for catalog in sl.CATALOG_SPECS:
+        assert sl.purpose_for(catalog) == ATTESTATION_PURPOSE_CATALOG, catalog.id
+        assert catalog.prompt == f"Sign and upload a new {catalog.filename}?"
+    assert sl.purpose_for(sl.EXE_SPEC) == ATTESTATION_PURPOSE_UPDATE
+    assert sl.EXE_SPEC.prompt == "Sign and upload a new IchaLaunch.exe?"
+
+    only = sl.parse_only("addons,mods")
+    assert [s.id for s in only] == ["addons", "mods"]
+    only_tips = sl.parse_only("tips,home,exe")
+    assert [s.id for s in only_tips] == ["addon_tips", "home_art", "exe"]
+    assert [s.id for s in sl.parse_only("")] == [s.id for s in sl.ALL_SPECS]
+    try:
+        sl.parse_only("nope")
+    except ValueError as exc:
+        assert "unknown" in str(exc)
+    else:
+        raise AssertionError("parse_only must reject unknown names")
+
+    assert sl.ask_yes("Sign and upload a new addons.json?", default=False, line="") is False
+    assert sl.ask_yes("Sign and upload a new addons.json?", default=False, line="n") is False
+    assert sl.ask_yes("Sign and upload a new addons.json?", default=False, line="y") is True
+    assert sl.ask_yes("Sign and upload a new addons.json?", default=False, line="yes") is True
+
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        data = root / "ichalaunch" / "data"
+        data.mkdir(parents=True)
+        # Deliberate trailing whitespace / LF — signing must not re-serialize.
+        payloads = {
+            "addons.json": b'[{"name":"A"}]\n',
+            "addon_tips.json": b'{"repos":{}}\n',
+            "home_art.json": b'{"slides":[]}\n',
+            "mods.json": b'[{"id":"classic_api"}]\n',
+        }
+        for name, raw in payloads.items():
+            (data / name).write_bytes(raw)
+
+        signed: list[str] = []
+        uploaded: list[str] = []
+
+        def mock_sign(*, target, key, password=None, write=True):
+            signed.append(Path(target).name)
+            sig = Path(target).with_name(Path(target).name + ".sig")
+            return sl._sign.SignResult(
+                target=Path(target),
+                sidecar=sig,
+                purpose=sl.purpose_for(sl.spec_by_id("addons"), Path(target)),
+                version="catalog",
+                key_id="test",
+                sidecar_text="{}",
+            )
+
+        def mock_upload(items, *, dry_run=False):
+            uploaded.extend(sl.files_to_upload(items))
+            return None if dry_run else "https://example.test/pr/1"
+
+        # Enter / default-no skips every file. No sign, no upload.
+        skip_hooks = sl.LiveHooks(
+            ask=lambda _q: False,
+            sign_file=mock_sign,
+            fetch_public=lambda: True,
+            public_show=lambda _rel: None,
+            upload_catalogs=mock_upload,
+        )
+        skipped = sl.run_live_session(
+            key=root / "missing.pem",
+            yes_all=False,
+            dry_run=False,
+            no_fetch=True,
+            root=root,
+            hooks=skip_hooks,
+        )
+        assert skipped.accepted == []
+        assert signed == []
+        assert uploaded == []
+        assert "exe" in skipped.skipped
+        assert "addons" in skipped.skipped
+
+        # --only addons, yes → sign/upload addons only (JSON missing on public + .sig).
+        yes_hooks = sl.LiveHooks(
+            ask=lambda q: "addons.json" in q,
+            sign_file=mock_sign,
+            fetch_public=lambda: True,
+            public_show=lambda _rel: None,
+            upload_catalogs=mock_upload,
+        )
+        signed.clear()
+        uploaded.clear()
+        accepted = sl.run_live_session(
+            key=root / "unused.pem",
+            yes_all=False,
+            only="addons,mods",
+            dry_run=False,
+            no_fetch=True,
+            root=root,
+            hooks=yes_hooks,
+        )
+        assert accepted.accepted == ["addons"]
+        assert accepted.signed == ["addons"]
+        assert "mods" in accepted.skipped
+        assert signed == ["addons.json"]
+        assert uploaded == [
+            "ichalaunch/data/addons.json",
+            "ichalaunch/data/addons.json.sig",
+        ]
+        assert accepted.catalog_pr == "https://example.test/pr/1"
+
+        # --yes-all with no EXE skips the exe cleanly and does not invent a path.
+        signed.clear()
+        uploaded.clear()
+        all_hooks = sl.LiveHooks(
+            ask=lambda _q: True,
+            sign_file=mock_sign,
+            fetch_public=lambda: True,
+            public_show=lambda rel: (root / rel).read_bytes(),
+            upload_catalogs=mock_upload,
+        )
+        all_run = sl.run_live_session(
+            key=root / "unused.pem",
+            yes_all=True,
+            dry_run=False,
+            no_fetch=True,
+            root=root,
+            hooks=all_hooks,
+        )
+        assert "exe" in all_run.skipped
+        assert "exe" not in all_run.signed
+        assert set(all_run.signed) == {"addons", "addon_tips", "home_art", "mods"}
+        assert "IchaLaunch.exe" not in signed
+        # Local bytes match the mocked public copy → JSON itself is not re-uploaded.
+        assert uploaded == [
+            "ichalaunch/data/addons.json.sig",
+            "ichalaunch/data/addon_tips.json.sig",
+            "ichalaunch/data/home_art.json.sig",
+            "ichalaunch/data/mods.json.sig",
+        ]
+
+        # --dry-run --yes-all must not write sidecars or call sign.
+        signed.clear()
+        uploaded.clear()
+        dry = sl.run_live_session(
+            key=root / "unused.pem",
+            yes_all=True,
+            dry_run=True,
+            no_fetch=True,
+            root=root,
+            hooks=all_hooks,
+        )
+        assert dry.accepted == ["addons", "addon_tips", "home_art", "mods"]
+        assert dry.signed == []
+        assert signed == []
+        assert not list(data.glob("*.sig")), "dry-run must not write sidecars"
+
+        # Real sign_file: exact payload bytes, catalog purpose, launcher verifier.
+        import base64 as _b64
+
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.serialization import (
+            BestAvailableEncryption,
+        )
+
+        priv = Ed25519PrivateKey.generate()
+        pub_b64 = _b64.b64encode(
+            priv.public_key().public_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PublicFormat.Raw,
+            )
+        ).decode()
+        key_path = root / "test-key.pem"
+        key_path.write_bytes(
+            priv.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=BestAvailableEncryption(b"test-password-ok"),
+            )
+        )
+        payload_path = data / "addons.json"
+        before = payload_path.read_bytes()
+        assert before.endswith(b"\n")
+        from ichalaunch.core.signing import Signature, verify_attestation, verify_bytes
+
+        with patch("ichalaunch.core.signing.PINNED_KEYS", (pub_b64,)):
+            result = sl._sign.sign_file(
+                payload_path,
+                key_path,
+                password=b"test-password-ok",
+                prompt_password=False,
+            )
+            parsed = Signature.parse(result.sidecar.read_bytes())
+            verify_bytes(before, parsed)
+            verify_attestation(
+                before,
+                parsed,
+                expected_purpose=ATTESTATION_PURPOSE_CATALOG,
+                expected_version="catalog",
+            )
+        assert result.purpose == ATTESTATION_PURPOSE_CATALOG
+        assert result.version == "catalog"
+        assert payload_path.read_bytes() == before
+        exe_probe = root / "IchaLaunch.exe"
+        exe_probe.write_bytes(b"MZ-fake")
+        assert sl._sign.resolve_purpose_and_version(exe_probe)[0] == ATTESTATION_PURPOSE_UPDATE
+
+    print("OK sign_live purpose, file list, skip-on-no, mock upload")
+
+
 def test_signed_mods_catalog_unused_unless_verified():
     """Live mods.json is ignored without a valid sidecar; pin checks use loaded catalog."""
     from unittest.mock import patch
@@ -21016,6 +21241,7 @@ def _run_smoke_tests():
     test_mod_remote_identity_uses_tip_index()
     test_digest_pinned_release_ignores_tip_ahead_of_catalog()
     test_catalog_action_issue_dedupe_and_holdback()
+    test_sign_live_purpose_prompts_and_skip()
     test_signed_mods_catalog_unused_unless_verified()
     test_addon_toc_folder_name_required()
     test_multi_toc_primary_stem_resolve()

@@ -64,8 +64,8 @@ SIGN_STEP = (
     "public PR** with this issue number). The bot opens a PR that edits only "
     "the JSON payload.\n"
     "2. Sign that file locally and commit `<file>.sig` on the same PR:\n"
-    "   `python tools/sign.py --key %LOCALAPPDATA%\\IchaLaunch\\signing\\"
-    "ichalaunch-key1.pem <file>`\n"
+    "   `python tools/sign_live.py`  (or `python tools/sign.py --key "
+    "%LOCALAPPDATA%\\IchaLaunch\\signing\\ichalaunch-key1.pem <file>`)\n"
     "   Merge JSON and `.sig` together. The launcher refuses unsigned or "
     "bad-sig live files and keeps cache/bundled. Do not merge JSON alone."
 )
