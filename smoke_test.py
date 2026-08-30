@@ -13163,6 +13163,103 @@ def test_zip_extract_install_stamp_not_perpetual_replace():
     print("OK zip extract dest stamp is not a perpetual replace")
 
 
+def test_live_catalogs_are_signed_or_not_used():
+    """The three files fetched live from master must verify or be refused."""
+    import base64
+    import inspect
+    import json as _json
+    from unittest.mock import patch
+
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives import serialization
+
+    from ichalaunch.core import signed_fetch as SF
+    from ichalaunch.addons import catalog as C
+    from ichalaunch.addons import tip_index as T
+    from ichalaunch.ui import home_art as H
+
+    priv = Ed25519PrivateKey.generate()
+    pub_b64 = base64.b64encode(
+        priv.public_key().public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+    ).decode()
+
+    body = b'[{"name": "Thing", "folder": "Thing", "repo": "https://github.com/o/r"}]'
+
+    def sidecar(payload, key_b64):
+        return _json.dumps(
+            {"key_id": key_b64, "sig": base64.b64encode(priv.sign(payload)).decode()}
+        ).encode()
+
+    class Resp:
+        def __init__(self, content, status=200):
+            self.content = content
+            self.status_code = status
+            self.text = content.decode("utf-8", "replace")
+
+    def responder(payload, sig, *, sig_status=200):
+        def _get(url, **_kw):
+            if url.endswith(".sig"):
+                return Resp(sig, sig_status)
+            return Resp(payload)
+        return _get
+
+    with patch("ichalaunch.core.signing.PINNED_KEYS", (pub_b64,)):
+        # Signed by a pinned key -> the bytes come back.
+        with patch.object(SF.requests, "get", responder(body, sidecar(body, pub_b64))):
+            assert SF.fetch_verified_text("https://x/y.json", timeout=1) == body.decode()
+
+        # Body altered after signing -> refused.
+        with patch.object(SF.requests, "get", responder(b'[{"name":"Evil"}]', sidecar(body, pub_b64))):
+            assert SF.fetch_verified_text("https://x/y.json", timeout=1) is None
+
+        # No signature published -> refused. The sidecar body here is a VALID
+        # signature, so the only thing that can reject this is the status check.
+        # Without that assertion the test passes for the wrong reason: an empty
+        # body fails to parse and returns None whether or not status is checked.
+        with patch.object(
+            SF.requests, "get", responder(body, sidecar(body, pub_b64), sig_status=404)
+        ):
+            assert SF.fetch_verified_text("https://x/y.json", timeout=1) is None
+
+        # An implausibly large sidecar is refused before it is parsed, so a
+        # hostile host cannot stream an unbounded body at us.
+        with patch.object(SF.requests, "get", responder(body, b"x" * (9 * 1024))):
+            assert SF.fetch_verified_text("https://x/y.json", timeout=1) is None
+
+        # Signed by a key this build does not pin -> refused.
+        other = Ed25519PrivateKey.generate()
+        rogue = _json.dumps({
+            "key_id": pub_b64,
+            "sig": base64.b64encode(other.sign(body)).decode(),
+        }).encode()
+        with patch.object(SF.requests, "get", responder(body, rogue)):
+            assert SF.fetch_verified_text("https://x/y.json", timeout=1) is None
+
+    # With no keys pinned, nothing remote is accepted, and nothing is requested.
+    # verify_bytes would refuse anyway, so the guard is only worth having if it
+    # also stops the round trip. Assert the thing the guard actually buys.
+    with patch("ichalaunch.core.signing.PINNED_KEYS", ()):
+        calls = []
+
+        def counting_get(url, **kw):
+            calls.append(url)
+            return responder(body, sidecar(body, pub_b64))(url, **kw)
+
+        with patch.object(SF.requests, "get", counting_get):
+            assert SF.fetch_verified_text("https://x/y.json", timeout=1) is None
+        assert calls == [], f"asked the network for a file it could never verify: {calls}"
+
+    # All three live fetchers must route through the verifier, not requests.get.
+    for mod, fn in ((C, "fetch_remote_catalog"), (T, "fetch_remote_index"), (H, "fetch_remote_home_art")):
+        src = inspect.getsource(getattr(mod, fn))
+        assert "fetch_verified_text" in src, f"{fn} does not verify what it fetches"
+        assert "requests.get" not in src, f"{fn} still fetches without verifying"
+    print("OK live catalogs are signed or not used")
+
+
 def test_update_signature_verification():
     """Signed-update verification: fails closed in every direction."""
     import base64
@@ -20798,6 +20895,7 @@ def _run_smoke_tests():
     test_linux_game_running_guard()
     test_detect_and_installer_drop_unused_imports()
     test_update_signature_verification()
+    test_live_catalogs_are_signed_or_not_used()
     test_mod_download_hash_pinning()
     test_download_source_enforces_pins()
     test_update_button_cannot_discard_a_pin()

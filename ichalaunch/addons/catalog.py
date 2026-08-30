@@ -27,6 +27,7 @@ import requests
 from ichalaunch.config.settings import appdata_root, settings
 from ichalaunch.core.logging_setup import log
 from ichalaunch.core.paths import data_file
+from ichalaunch.core.signed_fetch import fetch_verified_text
 
 DEFAULT_CATALOG_URL = (
     "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/"
@@ -148,15 +149,19 @@ def fetch_remote_catalog(url: str | None = None) -> list[dict[str, Any]] | None:
     target = (url or catalog_url()).strip()
     if not target:
         return None
-    try:
-        r = requests.get(target, headers=_UA, timeout=_FETCH_TIMEOUT_SEC)
-    except requests.RequestException as exc:
-        log.info("Addon catalog fetch failed: %s", exc)
+    # The catalog decides where every addon is installed and updated from, and a
+    # push to it reaches players faster than a signed release does. So it is
+    # fetched the same way an update is: verified, or not used at all. A refusal
+    # falls through to the cache and then to the copy inside the signed exe.
+    text = fetch_verified_text(
+        target,
+        timeout=_FETCH_TIMEOUT_SEC,
+        headers=_UA,
+        label="addon catalog",
+    )
+    if text is None:
         return None
-    if r.status_code != 200 or not (r.text or "").strip():
-        log.info("Addon catalog HTTP %s from %s", r.status_code, target)
-        return None
-    entries = parse_catalog_text(r.text)
+    entries = parse_catalog_text(text)
     if catalog_entry_count(entries) == 0:
         return None
     return entries
