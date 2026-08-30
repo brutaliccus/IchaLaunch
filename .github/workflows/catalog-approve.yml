@@ -11,10 +11,16 @@ name: Catalog approve → public PR
 # permissions → enable "Allow GitHub Actions to create and approve pull
 # requests".
 #
+# Public master ruleset must be "require a pull request" (0 reviews,
+# squash), not an `update` block. An `update` rule returns
+# "Cannot update this protected ref" on squash-merge and leaves the PR
+# open. See docs/DEV_REPO.md.
+#
 # Batch labeling: do NOT use a shared concurrency group — with
 # cancel-in-progress false, GitHub still cancels *pending* runs when a
 # newer one queues. Instead rebuild from latest public master and retry
-# squash-merge on conflict.
+# squash-merge on conflict. After a force-push, wait for MERGEABLE —
+# GitHub often reports CONFLICTING for several seconds on a clean rebase.
 
 on:
   repository_dispatch:
@@ -368,6 +374,22 @@ jobs:
             echo "$out" | python -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin).get("skipped") else 1)'
           }
 
+          wait_mergeable() {
+            local i
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              MERGEABLE=$(gh pr view "$PR_URL" --repo "${PUBLIC_REPO}" --json mergeable --jq '.mergeable' || echo "UNKNOWN")
+              if [ "$MERGEABLE" = "MERGEABLE" ]; then
+                return 0
+              fi
+              sleep 2
+            done
+            return 1
+          }
+
+          try_merge() {
+            gh pr merge "$PR_URL" --repo "${PUBLIC_REPO}" --squash --delete-branch "$@"
+          }
+
           MERGED=false
           ALREADY=false
           for attempt in 1 2 3 4 5 6 7 8 9 10; do
@@ -378,18 +400,31 @@ jobs:
               ALREADY=true
               break
             fi
-            for _ in 1 2 3 4 5 6 7 8; do
-              MERGEABLE=$(gh pr view "$PR_URL" --repo "${PUBLIC_REPO}" --json mergeable --jq '.mergeable' || echo "UNKNOWN")
-              if [ "$MERGEABLE" = "MERGEABLE" ]; then
-                break
-              fi
-              sleep 3
-            done
-            if gh pr merge "$PR_URL" --repo "${PUBLIC_REPO}" --squash --delete-branch --admin; then
+            wait_mergeable || true
+            if try_merge > /tmp/merge-out 2> /tmp/merge-err; then
               MERGED=true
               break
             fi
-            echo "Merge failed (likely conflict race); retrying..."
+            err=$(cat /tmp/merge-err /tmp/merge-out 2>/dev/null || true)
+            echo "$err"
+            if echo "$err" | grep -qi "protected ref"; then
+              echo "Ruleset is blocking squash-merge (Cannot update this protected ref). Master must require a PR with 0 reviews, not an update-block."
+            fi
+            # Stale conflict / "base branch was modified" after a clean rebase:
+            # wait and merge again before rebuilding the branch.
+            for _ in 1 2 3 4; do
+              sleep 3
+              if try_merge > /tmp/merge-out 2> /tmp/merge-err; then
+                MERGED=true
+                break
+              fi
+              err=$(cat /tmp/merge-err /tmp/merge-out 2>/dev/null || true)
+              echo "$err"
+            done
+            if [ "$MERGED" = "true" ]; then
+              break
+            fi
+            echo "Merge failed; refreshing from master..."
             sleep $((attempt + 1))
           done
 
@@ -406,7 +441,8 @@ jobs:
             gh issue comment "$ISSUE_NUMBER" --repo "${PUBLIC_REPO}" --body "$(cat <<EOF
           Catalog PR is open but auto-merge failed after retries: ${PR_URL}
 
-          Merge it manually (or fix branch protection so the publish token can squash-merge). If required reviews block the bot, allow the token actor to bypass or use \`gh pr merge --admin\` with a token that can.
+          If the log says \`Cannot update this protected ref\`, the public master ruleset is an \`update\` block. Change it to require a pull request (0 reviews, squash). See docs/DEV_REPO.md.
+          Otherwise merge it manually, or retry from Actions → Catalog approve → public PR.
           EOF
           )"
             exit 1

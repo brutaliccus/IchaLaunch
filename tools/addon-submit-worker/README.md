@@ -100,10 +100,10 @@ The approve job skips if the repo URL is already in public `addons.json`
 (no PR / no merge) and comments the skip reason on the issue.
 
 **Repo setting (once):** Settings → Actions → General → Workflow permissions →
-enable **Allow GitHub Actions to create and approve pull requests** so
-`GITHUB_TOKEN` can open and merge the PR. Master is currently unprotected;
-if you add required reviews later, allow `github-actions[bot]` to bypass or
-`gh pr merge --admin` needs a token that can.
+enable **Allow GitHub Actions to create and approve pull requests**. Public
+`master` must require a pull request with 0 reviews (squash only). Do not
+use a ruleset `update` block — that prevents the approve bot from
+squash-merging (`Cannot update this protected ref`).
 
 ## Example request body
 

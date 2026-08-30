@@ -5869,6 +5869,9 @@ def test_review_queue_only_root_and_requested_fork():
     assert "--jq --arg" not in workflow
     assert "--pick-pr-head" in workflow
     assert '--head "$branch"' in workflow or '--head "$BRANCH"' in workflow
+    assert "wait_mergeable" in workflow
+    assert "Cannot update this protected ref" in workflow
+    assert "--admin" not in workflow
 
     print("OK review queue is root + requested fork only")
 

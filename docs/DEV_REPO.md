@@ -32,7 +32,7 @@ Create one fine-grained PAT on `brutaliccus` and store it in both repos
 
 | Secret | Repo | Token needs |
 | --- | --- | --- |
-| `DEV_DISPATCH_TOKEN` | **public** `brutaliccus/IchaLaunch` | Actions: write on `IchaLaunch-dev` (repository_dispatch) |
+| `DEV_DISPATCH_TOKEN` | **public** `brutaliccus/IchaLaunch` | **Contents: Read and write** on `IchaLaunch-dev` (required for `repository_dispatch`; Actions write is not enough) |
 | `PUBLIC_PUSH_TOKEN` | **private** `brutaliccus/IchaLaunch-dev` | Contents, Issues, Pull requests on `IchaLaunch` |
 
 Until both secrets exist, catalog-approve, hourly tips, and the public
@@ -40,6 +40,13 @@ draft-release workflow will fail closed.
 
 Public repo setting (once): **Settings → Actions → General → Workflow
 permissions → Allow GitHub Actions to create and approve pull requests**.
+
+Public `master` rulesets (do not replace the second with an `update` block):
+
+- **Protect master: no force-push or delete**
+- **Master via pull request** — 0 reviews, squash only. An `update` rule
+  returns `Cannot update this protected ref` on squash-merge, so the
+  approve bot opens PRs and never lands them.
 
 ## Catalog suggestions
 
