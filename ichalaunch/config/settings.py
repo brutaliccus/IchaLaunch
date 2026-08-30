@@ -211,7 +211,7 @@ DEFAULTS: dict[str, Any] = {
     "discord_rich_presence_enabled": False,
     # Nested under Discord: in-game name/zone/level/faction via helper DLL.
     "discord_rich_presence_character_status": False,
-    # One-shot Discord activity opt-in (Save or No Do Not Show Again).
+    # One-shot Discord activity opt-in (Opt-in or Opt-out).
     "discord_presence_prompted": False,
     # Independent filters for what the helper / RPC may broadcast.
     "discord_broadcast_fields": dict(DEFAULT_DISCORD_BROADCAST_FIELDS),

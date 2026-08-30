@@ -7594,7 +7594,7 @@ def test_discord_wow_status_dll_hash_update():
 
 
 def test_discord_broadcast_fields_and_opt_in_prompt():
-    """Persist six broadcast filters; one-shot prompt Save / No; Privacy is home."""
+    """Persist six broadcast filters; one-shot prompt Opt-in / Opt-out; Privacy is home."""
     import json
     import tempfile
     from pathlib import Path
@@ -7611,6 +7611,7 @@ def test_discord_broadcast_fields_and_opt_in_prompt():
         DiscordPresenceOptInDialog,
         discord_presence_opt_in_dialog,
     )
+    from ichalaunch.ui.widgets.glue_panel_button import GluePanelButton
     from ichalaunch.ui.main_window import MainWindow
 
     app = QApplication.instance() or QApplication([])
@@ -7628,6 +7629,10 @@ def test_discord_broadcast_fields_and_opt_in_prompt():
     )
     assert "Settings → Privacy" in dp.DISCORD_PRESENCE_OPT_IN_TEXT
     assert "broadcast" in dp.DISCORD_PRESENCE_OPT_IN_TEXT.lower()
+    assert "unchecking" in dp.DISCORD_PRESENCE_OPT_IN_TEXT.lower()
+    assert "opt-out" in dp.DISCORD_PRESENCE_OPT_IN_TEXT.lower()
+    assert dp.DISCORD_PRESENCE_OPT_IN_ACCEPT == "Opt-in"
+    assert dp.DISCORD_PRESENCE_OPT_IN_DECLINE == "Opt-out, Don't show this again"
     assert dp.BROADCAST_FLAGS_ALL == 63
     assert dp.broadcast_flags_word({k: True for k in dp.BROADCAST_FIELD_KEYS}) == 63
     assert dp.broadcast_flags_word({k: False for k in dp.BROADCAST_FIELD_KEYS}) == 0
@@ -7774,8 +7779,11 @@ def test_discord_broadcast_fields_and_opt_in_prompt():
 
     root = QWidget()
     dlg = DiscordPresenceOptInDialog(root)
-    assert dlg.minimumWidth() >= 460
+    assert dlg.minimumWidth() >= 520
     assert "Settings → Privacy" in dp.DISCORD_PRESENCE_OPT_IN_TEXT
+    button_labels = [b.text() for b in dlg.findChildren(GluePanelButton)]
+    assert dp.DISCORD_PRESENCE_OPT_IN_ACCEPT in button_labels
+    assert dp.DISCORD_PRESENCE_OPT_IN_DECLINE in button_labels
     assert tuple(dlg._field_boxes) == dp.BROADCAST_FIELD_KEYS
     for key, box in dlg._field_boxes.items():
         assert box.text() == dp.BROADCAST_FIELD_LABELS[key]
