@@ -401,9 +401,11 @@ def _verify_staged_update(staged: Path, info: "LauncherReleaseInfo") -> None:
     raise. There is deliberately no override.
     """
     from ichalaunch.core.signing import (
+        ATTESTATION_PURPOSE_UPDATE,
         Signature,
         SignatureError,
         signing_is_configured,
+        verify_attestation,
         verify_bytes,
     )
 
@@ -421,7 +423,36 @@ def _verify_staged_update(staged: Path, info: "LauncherReleaseInfo") -> None:
     try:
         _download_asset(sig_url, sig_path, min_size=_SIGNATURE_MIN_SIZE)
         signature = Signature.parse(sig_path.read_bytes())
-        key_id = verify_bytes(staged.read_bytes(), signature)
+        payload = staged.read_bytes()
+        key_id = verify_bytes(payload, signature)
+
+        # The payload signature proves we produced these bytes. It cannot prove
+        # we produced them AS this version, and that gap is the whole attack:
+        # somebody with release-publish rights and no key re-uploads a genuine
+        # older build with its genuine signature under a newer tag, and every
+        # client installs it. So the version has to come from inside the
+        # signature, not from the release JSON, which the publisher controls.
+        #
+        # This is required rather than optional. The client doing the verifying
+        # is always the NEW one, and nobody updates *to* an older release, so
+        # requiring it constrains only future releases, which tools/sign.py
+        # produces with an attestation by default.
+        verify_attestation(
+            payload,
+            signature,
+            expected_purpose=ATTESTATION_PURPOSE_UPDATE,
+            expected_version=info.version,
+        )
+
+        # Belt and braces, and the only check the publisher cannot influence:
+        # compare the signed version against the one compiled into this build.
+        # info.update_available came from the same unsigned JSON as the tag.
+        if not is_newer(signature.attestation.version, __version__):
+            raise SignatureError(
+                f"Refusing to install {signature.attestation.version}: it is not "
+                f"newer than the running {__version__}. A signed build offered as "
+                "an upgrade to something older is a rollback, not an update."
+            )
     except SignatureError:
         raise
     except Exception as exc:  # noqa: BLE001 - a missing/unreadable sig is a failure
@@ -433,7 +464,12 @@ def _verify_staged_update(staged: Path, info: "LauncherReleaseInfo") -> None:
             sig_path.unlink(missing_ok=True)
         except OSError:
             pass
-    log.info("Launcher update %s verified against pinned key %s…", info.tag, key_id[:12])
+    log.info(
+        "Launcher update %s verified as version %s against pinned key %s…",
+        info.tag,
+        signature.attestation.version,
+        key_id[:12],
+    )
 
 
 def download_and_stage_update(

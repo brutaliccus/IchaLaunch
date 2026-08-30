@@ -13255,6 +13255,129 @@ def test_update_signature_verification():
     print("OK update signature verification")
 
 
+
+def test_update_attestation_blocks_a_republished_old_build():
+    """A genuine signature must not certify a build as a version it is not.
+
+    The payload signature proves origin and nothing else, so somebody who can
+    publish a release, holding no key, could re-upload an old build with its own
+    valid signature under a newer tag. Every client would install it and every
+    fix since would be undone. This asserts the version is bound inside the
+    signature, and that editing it invalidates the whole thing.
+    """
+    import base64 as _b64
+    import hashlib as _hashlib
+    import json as _json
+
+    from cryptography.hazmat.primitives import serialization as _ser
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+        Ed25519PrivateKey as _Ed25519PrivateKey,
+    )
+
+    import ichalaunch.core.signing as S
+
+    priv = _Ed25519PrivateKey.generate()
+    pub = _b64.b64encode(
+        priv.public_key().public_bytes(
+            encoding=_ser.Encoding.Raw, format=_ser.PublicFormat.Raw
+        )
+    ).decode()
+
+    real_keys = S.PINNED_KEYS
+    S.PINNED_KEYS = (pub,)
+    try:
+        old_exe = b"IchaLaunch v1.4.7 genuine bytes" * 40
+        att = S.Attestation(
+            S.ATTESTATION_PURPOSE_UPDATE, "1.4.7", _hashlib.sha256(old_exe).hexdigest()
+        )
+        sidecar = _json.dumps(
+            {
+                "key_id": pub,
+                "sig": _b64.b64encode(priv.sign(old_exe)).decode(),
+                "attestation": {
+                    "purpose": att.purpose,
+                    "version": att.version,
+                    "sha256": att.sha256,
+                },
+                "attestation_sig": _b64.b64encode(priv.sign(att.canonical())).decode(),
+            }
+        )
+
+        # Genuine case still works.
+        S.verify_attestation(
+            old_exe,
+            S.Signature.parse(sidecar),
+            expected_purpose=S.ATTESTATION_PURPOSE_UPDATE,
+            expected_version="1.4.7",
+        )
+
+        def refuses(fn, why):
+            try:
+                fn()
+            except S.SignatureError:
+                return
+            raise AssertionError(f"should have refused: {why}")
+
+        # The attack: genuine bytes, genuine signature, wrong tag.
+        refuses(
+            lambda: S.verify_attestation(
+                old_exe,
+                S.Signature.parse(sidecar),
+                expected_purpose=S.ATTESTATION_PURPOSE_UPDATE,
+                expected_version="9.9.9",
+            ),
+            "old build republished under a newer tag",
+        )
+        # Editing the version in the sidecar breaks the attestation signature.
+        edited = _json.loads(sidecar)
+        edited["attestation"]["version"] = "9.9.9"
+        refuses(
+            lambda: S.verify_attestation(
+                old_exe,
+                S.Signature.parse(_json.dumps(edited)),
+                expected_purpose=S.ATTESTATION_PURPOSE_UPDATE,
+                expected_version="9.9.9",
+            ),
+            "version edited after signing",
+        )
+        # A signature made for one job must not be reusable for another.
+        refuses(
+            lambda: S.verify_attestation(
+                old_exe,
+                S.Signature.parse(sidecar),
+                expected_purpose="ichalaunch-catalog",
+                expected_version="1.4.7",
+            ),
+            "attestation reused for a different purpose",
+        )
+        # Swapped payload.
+        refuses(
+            lambda: S.verify_attestation(
+                b"evil" * 100,
+                S.Signature.parse(sidecar),
+                expected_purpose=S.ATTESTATION_PURPOSE_UPDATE,
+                expected_version="1.4.7",
+            ),
+            "payload swapped after signing",
+        )
+        # A sidecar with no attestation cannot prove a version, so it is refused.
+        legacy = _json.dumps(
+            {"key_id": pub, "sig": _b64.b64encode(priv.sign(old_exe)).decode()}
+        )
+        refuses(
+            lambda: S.verify_attestation(
+                old_exe,
+                S.Signature.parse(legacy),
+                expected_purpose=S.ATTESTATION_PURPOSE_UPDATE,
+                expected_version="1.4.7",
+            ),
+            "legacy sidecar with no attestation",
+        )
+    finally:
+        S.PINNED_KEYS = real_keys
+
+    print("OK update attestation binds the version and blocks a republished build")
+
 def test_update_signing_keys_are_pinned():
     """Production PINNED_KEYS must be filled. Empty keys freeze in-app update."""
     import base64
@@ -20688,6 +20811,7 @@ def _run_smoke_tests():
     test_catalog_d3d9_unchecked_sibling_not_update()
     test_raw_dll_pin_detects_by_hash()
     test_zip_extract_install_stamp_not_perpetual_replace()
+    test_update_attestation_blocks_a_republished_old_build()
     test_update_signing_keys_are_pinned()
     test_signature_sidecar_url_and_unverified_exe_is_deleted()
     test_home_art_width_fit_is_centred()

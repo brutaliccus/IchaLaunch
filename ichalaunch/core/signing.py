@@ -64,18 +64,70 @@ class SignatureError(Exception):
     """
 
 
+# What an attestation is for, so a signature made for one job can never be
+# replayed as another. Any future signed artefact gets its own purpose string.
+ATTESTATION_PURPOSE_UPDATE = "ichalaunch-launcher-update"
+
+
+@dataclass(frozen=True)
+class Attestation:
+    """What the signer is asserting about a payload, beyond "I signed it".
+
+    A raw payload signature answers "did we produce these bytes". It cannot
+    answer "did we produce these bytes *as version 1.5.2*", and that gap is
+    exploitable: an attacker who can publish a release, holding no key at all,
+    re-uploads a genuine older build together with its genuine signature under a
+    newer tag. Every check passes, because the bytes really were signed by us,
+    and every client silently installs the older build. Every fix since then is
+    undone in one step.
+
+    Binding the version and the purpose *inside* the signed data closes that,
+    because the version is no longer something the publisher can restate.
+    """
+
+    purpose: str
+    version: str
+    sha256: str
+
+    def canonical(self) -> bytes:
+        """The exact bytes that get signed.
+
+        Sorted keys, no whitespace, UTF-8. Signer and verifier must derive this
+        identically from the same fields or a valid signature will not verify,
+        so it is defined once, here, and never rebuilt by a caller.
+        """
+        return json.dumps(
+            {"purpose": self.purpose, "sha256": self.sha256, "version": self.version},
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+
+
 @dataclass(frozen=True)
 class Signature:
     """A detached signature and the key that is claimed to have made it."""
 
     key_id: str
     signature: bytes
+    attestation: "Attestation | None" = None
+    attestation_signature: bytes | None = None
 
     @classmethod
     def parse(cls, raw: bytes | str) -> "Signature":
         """Read the sidecar format: one JSON object, no comments, no options.
 
         ``{"key_id": "<b64 pubkey>", "sig": "<b64 signature>"}``
+
+        Optionally, and preferred:
+
+        ``{"key_id": ..., "sig": ..., "attestation": {"purpose": ...,
+        "version": ..., "sha256": ...}, "attestation_sig": "<b64>"}``
+
+        ``sig`` still covers the raw payload and is unchanged, so a sidecar
+        carrying an attestation is still accepted by builds that predate this
+        field. That matters: the client doing the verifying is the *old* one, so
+        a format that older builds reject would strand everyone on the release
+        before the fix.
 
         Deliberately not PGP: keyrings, expiry surprises, and a verify that
         succeeds for any key the machine happens to know are all traps for a
@@ -92,7 +144,36 @@ class Signature:
             raise SignatureError(
                 f"Signature is {len(signature)} bytes, expected 64 (Ed25519)"
             )
-        return cls(key_id=key_id, signature=signature)
+
+        attestation = None
+        attestation_signature = None
+        if obj.get("attestation") is not None or obj.get("attestation_sig") is not None:
+            # Half an attestation is not a legacy sidecar, it is a broken or
+            # tampered one. Refuse rather than silently dropping to the weaker path.
+            try:
+                body = obj["attestation"]
+                attestation = Attestation(
+                    purpose=str(body["purpose"]).strip(),
+                    version=str(body["version"]).strip(),
+                    sha256=str(body["sha256"]).strip().lower(),
+                )
+                attestation_signature = base64.b64decode(
+                    str(obj["attestation_sig"]).strip(), validate=True
+                )
+            except Exception as exc:  # noqa: BLE001
+                raise SignatureError(f"Attestation is not readable: {exc}") from exc
+            if len(attestation_signature) != 64:
+                raise SignatureError(
+                    f"Attestation signature is {len(attestation_signature)} bytes, "
+                    "expected 64 (Ed25519)"
+                )
+
+        return cls(
+            key_id=key_id,
+            signature=signature,
+            attestation=attestation,
+            attestation_signature=attestation_signature,
+        )
 
 
 def _load_public_key(b64: str):
@@ -150,6 +231,59 @@ def verify_bytes(
         "Signature does not match any trusted key. The file was modified after "
         "signing, or it was signed by a key this launcher does not trust."
     )
+
+
+def verify_attestation(
+    payload: bytes,
+    signature: Signature,
+    *,
+    expected_purpose: str,
+    expected_version: str | None = None,
+    revoked: frozenset[str] = frozenset(),
+) -> str:
+    """Verify what the signer *asserted* about the payload, not just the bytes.
+
+    Returns the key id that signed the attestation. Raises ``SignatureError`` if
+    there is no attestation, if it does not verify, or if any field disagrees
+    with what the caller is actually installing.
+
+    The digest is recomputed here from the payload the caller holds, not read
+    from anywhere else, so there is no window in which a verified digest and an
+    installed file can differ.
+    """
+    import hashlib
+
+    if signature.attestation is None or signature.attestation_signature is None:
+        raise SignatureError(
+            "This signature carries no attestation, so it cannot prove which "
+            "version it covers."
+        )
+
+    att = signature.attestation
+    inner = Signature(key_id=signature.key_id, signature=signature.attestation_signature)
+    key_id = verify_bytes(att.canonical(), inner, revoked=revoked)
+
+    if att.purpose != expected_purpose:
+        raise SignatureError(
+            f"Attestation is for {att.purpose!r}, not {expected_purpose!r}. A "
+            "signature made for one job must not be reusable for another."
+        )
+
+    actual = hashlib.sha256(payload).hexdigest()
+    if actual != att.sha256:
+        raise SignatureError(
+            "Attested digest does not match the payload.\n"
+            f"  attested {att.sha256}\n  actual   {actual}"
+        )
+
+    if expected_version is not None and att.version != expected_version:
+        raise SignatureError(
+            f"Attestation says this is version {att.version!r}, but it is being "
+            f"installed as {expected_version!r}. A genuine build published under "
+            "the wrong tag is exactly what this check exists to catch."
+        )
+
+    return key_id
 
 
 def verify_file(
