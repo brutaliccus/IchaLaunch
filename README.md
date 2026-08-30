@@ -8,6 +8,8 @@
 
 Download **`IchaLaunch.exe`** from **[Releases](https://github.com/brutaliccus/IchaLaunch/releases/latest)**.
 
+This repository publishes **releases** and the **live catalog** that installed launchers already fetch. Application development happens elsewhere.
+
 ---
 
 ## Features
@@ -16,7 +18,7 @@ Download **`IchaLaunch.exe`** from **[Releases](https://github.com/brutaliccus/I
 - **Addons** — browse the catalog, search/filter, install with fork + version + README preview, or paste any public GitHub repo
 - **Update addons** — check and update one or all; unload without deleting from disk
 - **Suggest for catalog** — propose a public addon for the shared Available list (no GitHub login in the client)
-- **Live catalog** — Available list refreshes from the repo on a short interval; new entries appear without a new launcher build
+- **Live catalog** — Available list refreshes from this repo on a short interval; new entries appear without a new launcher build
 - **Client mods & HD patches** — performance fixes, graphics backends, hooks, HD variants, sky packs, and more; **Apply Changes** or let **PLAY** sync
 - **Settings** — game / AddOns paths, launch preferences, optional GitHub token, permissions check, reset client link
 - **Self-update** — when a newer Windows build is on Releases, update in place from the launcher
@@ -84,46 +86,29 @@ More help: **[Releases](https://github.com/brutaliccus/IchaLaunch/releases)**.
 ---
 
 <details>
-<summary>Build from source</summary>
+<summary>Catalog suggestions</summary>
 
-```bat
-python -m pip install -r requirements.txt
-python run.py
-```
+The Available catalog is `ichalaunch/data/addons.json` on `master`. Clients fetch and cache it; approved entries appear on the next refresh without a new launcher build.
 
-Build the EXE:
+**Suggest for catalog** posts to the Cloudflare Worker. Maintainer approval: label the issue `catalog-approved`. The relay opens and squash-merges a catalog-only change here.
 
-```bat
-python -m PyInstaller IchaLaunch.spec --noconfirm
-python tools\verify_bundle.py
-dist\IchaLaunch.exe --qt-smoke
-```
+Opt-in crash reports use the same Worker at `/crash` and comment on sticky issues ([Windows #58](https://github.com/brutaliccus/IchaLaunch/issues/58), [Linux #59](https://github.com/brutaliccus/IchaLaunch/issues/59)).
 
-Output: `dist\IchaLaunch.exe`
+Optional GitHub token in Settings unlocks fork/version browsing and README previews; update badges work without one.
 
 </details>
 
 <details>
-<summary>Maintainer notes (catalog & suggestions)</summary>
+<summary>Signed launcher updates</summary>
 
-The Available catalog is `ichalaunch/data/addons.json` on `master`. Clients fetch and cache it; merge catalog PRs and launchers pick them up on the next refresh.
+Builds that include `ichalaunch/core/signing.py` download `IchaLaunch.exe.sig` beside the exe and **refuse** to install unless a pinned Ed25519 key signed the bytes. There is no override.
 
-**Suggest for catalog** posts to the Cloudflare Worker (`ichalaunch/addons/submit.py`). Maintainer approval: label the issue `catalog-approved` → Action opens/merges a catalog PR. Opt-in crash reports use the same Worker at `/crash` (`ichalaunch/core/crash_report.py`, Settings → Privacy). Worker setup: `tools/addon-submit-worker/README.md`.
-
-Optional GitHub token in Settings unlocks fork/version browsing and README previews; update badges work without one.
-
-**Signed launcher updates:** builds that include `ichalaunch/core/signing.py` download `IchaLaunch.exe.sig` beside the exe and **refuse** to install unless a pinned Ed25519 key signed the bytes. There is no override. v1.4.6 clients still use the old updater and ignore the sidecar. The **next** GitHub release after v1.4.6 (typically **v1.4.7**) must upload **both** `IchaLaunch.exe` and `IchaLaunch.exe.sig`. Sign locally after PyInstaller — never in CI:
-
-```bat
-python tools\sign.py --key %LOCALAPPDATA%\IchaLaunch\signing\ichalaunch-key1.pem dist\IchaLaunch.exe
-```
-
-Pinned public keys (SHA-256 of the raw 32-byte key; also in `PINNED_KEYS`):
+Pinned public keys (SHA-256 of the raw 32-byte key):
 
 - key 1 (active): `04fd0725af49fcb3a1fbe69845ef3bb1007ecc911ece3a093d7e623fe8878a23`
 - key 2 (backup): `b75ae8582b9e4f338f7af4a7e77540445b988bcfb6bab04a4c1e91003f7c3272`
 - key 3 (backup): `92991a640ca7adc5b49f69a75af799a6cca4c5521db99527c6cc5b69b9476752`
 
-Private keys are not in this repository. Back them up offline. A key swap in the repo alone should be visible here.
+Private keys are not in this repository.
 
 </details>

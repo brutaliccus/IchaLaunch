@@ -1,0 +1,44 @@
+name: Catalog approve relay
+
+# When a maintainer labels a catalog suggestion issue `catalog-approved`,
+# dispatch the private approve job. That job writes public addons.json.
+#
+# Secret: DEV_DISPATCH_TOKEN — Actions write on brutaliccus/IchaLaunch-dev
+# (repository_dispatch). See the private repo docs/DEV_REPO.md.
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: read
+  issues: read
+
+env:
+  DEV_REPO: brutaliccus/IchaLaunch-dev
+
+jobs:
+  relay:
+    if: github.event.label.name == 'catalog-approved'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require DEV_DISPATCH_TOKEN
+        env:
+          DEV_DISPATCH_TOKEN: ${{ secrets.DEV_DISPATCH_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DEV_DISPATCH_TOKEN}" ]; then
+            echo "DEV_DISPATCH_TOKEN is not set on this repo." >&2
+            echo "Add a fine-grained PAT with Actions write on IchaLaunch-dev." >&2
+            exit 1
+          fi
+
+      - name: Dispatch private catalog-approve
+        env:
+          GH_TOKEN: ${{ secrets.DEV_DISPATCH_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/${DEV_REPO}/dispatches" \
+            -f event_type='catalog-approved' \
+            -F "client_payload[issue_number]=${ISSUE_NUMBER}"
