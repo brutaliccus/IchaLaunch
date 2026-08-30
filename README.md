@@ -110,7 +110,7 @@ Development remotes, catalog/mod pipelines, and public-release publish steps: [`
 
 The Available catalog is `ichalaunch/data/addons.json` on **public** `brutaliccus/IchaLaunch` `master`. Clients fetch and cache it; merge catalog PRs there and launchers pick them up on the next refresh.
 
-**Suggest for catalog** posts to the Cloudflare Worker (`ichalaunch/addons/submit.py`). Maintainer approval: label the issue `catalog-approved` → Action opens/merges a catalog PR. Opt-in crash reports use the same Worker at `/crash` (`ichalaunch/core/crash_report.py`, Settings → Privacy). Worker setup: `tools/addon-submit-worker/README.md`.
+**Suggest for catalog** posts to the Cloudflare Worker (`ichalaunch/addons/submit.py`). Maintainer approval: label the issue `catalog-approved` → Action opens a catalog PR (sign locally, merge JSON+`.sig`; do not merge unsigned live JSON). Opt-in crash reports use the same Worker at `/crash` (`ichalaunch/core/crash_report.py`, Settings → Privacy). Worker setup: `tools/addon-submit-worker/README.md`.
 
 Optional GitHub token in Settings unlocks fork/version browsing and README previews; update badges work without one.
 

@@ -7830,7 +7830,7 @@ def test_mod_remote_identity_uses_tip_index():
             {"type": "github_release_latest", "repo": "hannesmann/vanillafixes"},
             catalog_only=True,
         )
-        assert catalog is not None and catalog["key"] == "v9.9.9"
+        assert catalog is None
         missing = _remote_identity(
             {"type": "github_release_latest", "repo": "nope/missing"},
             catalog_only=True,
@@ -7930,7 +7930,25 @@ def test_digest_pinned_release_ignores_tip_ahead_of_catalog():
             {"type": "github_release_latest", "repo": "brues-code/ClassicAPI"},
             catalog_only=True,
         )
-        assert live is not None and live["key"] == "v1.12.8"
+        assert live is None
+        classic_ident = _remote_identity(src, catalog_only=True)
+        assert classic_ident is not None
+        assert classic_ident["key"] == src["pinned_tag"]
+        assert classic_ident["key"] != "v1.12.8"
+        vf = {
+            "type": "github_release_latest",
+            "repo": "hannesmann/vanillafixes",
+            "sha256": "ef" * 32,
+            "pinned_tag": "v1.0.0",
+        }
+        sw = {
+            "type": "github_release_latest",
+            "repo": "balakethelock/SuperWoW",
+            "sha256": "aa" * 32,
+            "pinned_tag": "Release",
+        }
+        assert _remote_identity(vf, catalog_only=True)["key"] == "v1.0.0"
+        assert _remote_identity(sw, catalog_only=True)["key"] == "Release"
         url_ident = _remote_identity(url_pinned, catalog_only=True)
         assert url_ident is not None and url_ident["key"] == "v1.6.0"
     finally:
@@ -7963,6 +7981,154 @@ def test_digest_pinned_release_ignores_tip_ahead_of_catalog():
     assert asset["name"] == "ClassicAPI.dll"
     assert fetched and "v1.12.7" in fetched[0]
     print("OK digest-pinned release ignores tip ahead of catalog")
+
+
+def test_catalog_action_issue_dedupe_and_holdback():
+    """Action issues dedupe by identity; unpublished tips stay off the live file."""
+    from tools.catalog_action import (
+        apply_addon_pin,
+        apply_addon_tip,
+        apply_mod_pin,
+        hold_back_unpublished_tips,
+        issue_body,
+        issue_title,
+        parse_action_payload,
+        plan_issue_upsert,
+        shape_addon_version,
+        shape_mod_pin,
+        shape_sign,
+        sign_payloads_from_status,
+    )
+
+    payload = shape_mod_pin(
+        mod_id="classic_api",
+        name="ClassicAPI",
+        repo="brues-code/ClassicAPI",
+        current_tag="v1.12.7",
+        current_sha256="ab" * 32,
+        new_tag="v1.12.8",
+        new_sha256="cd" * 32,
+        asset="ClassicAPI.dll",
+    )
+    assert issue_title(payload) == "[mod-pin] classic_api"
+    body = issue_body(payload)
+    parsed = parse_action_payload(body)
+    assert parsed == payload
+    assert parse_action_payload("## catalog suggestion\n- **repo:** https://github.com/o/r") is None
+
+    open_issues = [{"number": 9, "title": "[mod-pin] classic_api", "body": body}]
+    create_plan = plan_issue_upsert([], payload)
+    assert create_plan["action"] == "create"
+    skip_plan = plan_issue_upsert(open_issues, payload)
+    assert skip_plan["action"] == "skip"
+    assert skip_plan["number"] == 9
+    moved = dict(payload)
+    moved["new_tag"] = "v1.12.9"
+    update_plan = plan_issue_upsert(open_issues, moved)
+    assert update_plan["action"] == "update"
+    other = shape_mod_pin(mod_id="vanillafixes", new_tag="v1.0.1", new_sha256="11" * 32)
+    assert plan_issue_upsert(open_issues, other)["action"] == "create"
+
+    catalog = [
+        {
+            "id": "classic_api",
+            "source": {"type": "github_release_latest", "sha256": "ab" * 32, "pinned_tag": "v1.12.7"},
+        }
+    ]
+    assert apply_mod_pin(catalog, payload) is True
+    assert catalog[0]["source"]["sha256"] == "cd" * 32
+    assert catalog[0]["source"]["pinned_tag"] == "v1.12.8"
+    assert apply_mod_pin(catalog, payload) is False
+
+    tips = {
+        "repos": {
+            "owner/addon": {"latest_tag": "v1", "sha": "a" * 40, "default_branch": "main"},
+            "owner/pinned": {"latest_tag": "1.5.16", "sha": "b" * 40},
+        }
+    }
+    candidate = {
+        "repos": {
+            "owner/addon": {"latest_tag": "v2", "sha": "c" * 40, "default_branch": "main"},
+            "owner/pinned": {"latest_tag": "1.6.0", "sha": "d" * 40},
+            "owner/new": {"latest_tag": "v0.1", "sha": "e" * 40},
+        }
+    }
+    pin_map = {
+        "owner/pinned": {
+            "name": "Pinned",
+            "folder": "Pinned",
+            "pin_release": "1.5.16",
+            "locked": True,
+        }
+    }
+    held, issues = hold_back_unpublished_tips(tips, candidate, pin_map=pin_map)
+    assert held["repos"]["owner/addon"]["latest_tag"] == "v1"
+    assert held["repos"]["owner/pinned"]["latest_tag"] == "1.5.16"
+    assert held["repos"]["owner/new"]["latest_tag"] == "v0.1"
+    kinds = {i["kind"]: i for i in issues}
+    assert kinds["addon-tip"]["id"] == "owner/addon"
+    assert kinds["addon-pin"]["id"] == "owner/pinned"
+    assert apply_addon_tip(tips, kinds["addon-tip"]) is True
+    assert tips["repos"]["owner/addon"]["latest_tag"] == "v2"
+    addons = [{"name": "Pinned", "repo": "https://github.com/owner/pinned", "pin_release": "1.5.16"}]
+    assert apply_addon_pin(addons, kinds["addon-pin"]) is True
+    assert addons[0]["pin_release"] == "1.6.0"
+
+    signs = sign_payloads_from_status(
+        [
+            {"path": "ichalaunch/data/mods.json", "payload_ok": True, "sig_ok": False},
+            {"path": "ichalaunch/data/addons.json", "payload_ok": True, "sig_ok": True},
+        ]
+    )
+    assert [s["id"] for s in signs] == ["mods.json"]
+    assert signs[0]["kind"] == "sign"
+    assert shape_addon_version(repo="A/B", pinned=False)["kind"] == "addon-tip"
+    from ichalaunch.core.signing import (
+        ATTESTATION_PURPOSE_CATALOG,
+        ATTESTATION_PURPOSE_UPDATE,
+        purpose_for_signed_path,
+    )
+
+    assert purpose_for_signed_path("ichalaunch/data/mods.json") == ATTESTATION_PURPOSE_CATALOG
+    assert purpose_for_signed_path("dist/IchaLaunch.exe") == ATTESTATION_PURPOSE_UPDATE
+    approve = (ROOT / ".github" / "workflows" / "catalog-approve.yml").read_text(
+        encoding="utf-8"
+    )
+    tips_wf = (ROOT / ".github" / "workflows" / "addon-tips.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "gh pr merge" not in approve
+    assert "git push origin HEAD:master" not in tips_wf
+    print("OK catalog action issue dedupe and holdback")
+
+
+def test_signed_mods_catalog_unused_unless_verified():
+    """Live mods.json is ignored without a valid sidecar; pin checks use loaded catalog."""
+    from unittest.mock import patch
+
+    from ichalaunch.mods import catalog as MC
+    from ichalaunch.mods.installer import _remote_identity, get_mod
+
+    orig_fetch = MC.fetch_remote_mod_catalog
+    orig_cache = MC.mods_cache_path
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_file = Path(tmp) / "mods_catalog.json"
+            MC.mods_cache_path = lambda: cache_file
+            MC.clear_mod_catalog_cache()
+            MC.fetch_remote_mod_catalog = lambda url=None: None
+            bundled = MC.refresh_mod_catalog(force=True)
+            assert MC.catalog_mod_count(bundled) > 0
+            assert MC.current_mod_catalog_source() == "bundled"
+            classic = get_mod("classic_api")
+            src = (classic or {}).get("source") or {}
+            assert src.get("pinned_tag")
+            assert _remote_identity(src, catalog_only=True)["key"] == src["pinned_tag"]
+    finally:
+        MC.fetch_remote_mod_catalog = orig_fetch
+        MC.mods_cache_path = orig_cache
+        MC.clear_mod_catalog_cache()
+    print("OK signed mods catalog unused unless verified")
 
 
 def test_addon_toc_folder_name_required():
@@ -13353,8 +13519,15 @@ def test_live_catalogs_are_signed_or_not_used():
             assert SF.fetch_verified_text("https://x/y.json", timeout=1) is None
         assert calls == [], f"asked the network for a file it could never verify: {calls}"
 
-    # All three live fetchers must route through the verifier, not requests.get.
-    for mod, fn in ((C, "fetch_remote_catalog"), (T, "fetch_remote_index"), (H, "fetch_remote_home_art")):
+    from ichalaunch.mods import catalog as MC
+
+    # All live fetchers must route through the verifier, not requests.get.
+    for mod, fn in (
+        (C, "fetch_remote_catalog"),
+        (T, "fetch_remote_index"),
+        (H, "fetch_remote_home_art"),
+        (MC, "fetch_remote_mod_catalog"),
+    ):
         src = inspect.getsource(getattr(mod, fn))
         assert "fetch_verified_text" in src, f"{fn} does not verify what it fetches"
         assert "requests.get" not in src, f"{fn} still fetches without verifying"
@@ -13677,12 +13850,12 @@ def test_mod_version_label():
     vf = get_mod("vanillafixes")
     assert mod_version_label(vf) == "v1.5.3"
     sw = get_mod("superwow")
-    # Tip latest_tag is the rolling "Release" alias; UI prefers asset/title semver.
-    assert mod_version_label(sw) == "v2.2"
-    assert mod_version_label(sw, {"version_display": "Release"}) == "v2.2"
+    # Digest pin is the rolling "Release" alias — do not advertise a tip semver.
+    assert mod_version_label(sw) == ""
+    assert mod_version_label(sw, {"version_display": "Release"}) == ""
     assert mod_version_label(
         sw, {"version_display": "Mon, 16 Jul 2026 14:03:09 GMT"}
-    ) == "v2.2"
+    ) == ""
     assert (
         mod_version_label(
             sw,
@@ -20821,6 +20994,8 @@ def _run_smoke_tests():
     test_discord_broadcast_fields_and_opt_in_prompt()
     test_mod_remote_identity_uses_tip_index()
     test_digest_pinned_release_ignores_tip_ahead_of_catalog()
+    test_catalog_action_issue_dedupe_and_holdback()
+    test_signed_mods_catalog_unused_unless_verified()
     test_addon_toc_folder_name_required()
     test_multi_toc_primary_stem_resolve()
     test_addon_toc_folder_rename()

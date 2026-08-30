@@ -1,8 +1,12 @@
 name: Catalog approve → public PR
 
 # Public brutaliccus/IchaLaunch relays label `catalog-approved` here
-# (repository_dispatch). This job writes only ichalaunch/data/addons.json
-# on the public repo, then squash-merges (no manual merge step).
+# (repository_dispatch). This job opens or updates a public PR that edits
+# catalog JSON only, then STOPS. It must not squash-merge unsigned
+# addons.json / mods.json / addon_tips.json to public master.
+#
+# Maintainer signs locally (catalog purpose ichalaunch-catalog) and merges
+# JSON + .sig together. Signing keys never enter CI. See docs/DEV_REPO.md.
 #
 # Secret: PUBLIC_PUSH_TOKEN — Contents, Issues, Pull requests on
 # brutaliccus/IchaLaunch. See docs/DEV_REPO.md.
@@ -74,6 +78,7 @@ jobs:
           GH_TOKEN: ${{ secrets.PUBLIC_PUSH_TOKEN }}
           ISSUE_NUMBER: ${{ github.event.client_payload.issue_number || github.event.inputs.issue_number }}
           APPROVE_PY: ${{ github.workspace }}/tools/catalog_approve_from_issue.py
+          ACTION_PY: ${{ github.workspace }}/tools/catalog_action.py
           CATALOG: ${{ github.workspace }}/public-repo/ichalaunch/data/addons.json
         run: |
           set -euo pipefail
@@ -82,6 +87,22 @@ jobs:
             exit 1
           fi
           gh issue view "$ISSUE_NUMBER" --repo "${PUBLIC_REPO}" --json body --jq .body > /tmp/issue-body.md
+          INSPECT=$(python "$ACTION_PY" --inspect --body-file /tmp/issue-body.md)
+          echo "$INSPECT"
+          ACTION_KIND=$(echo "$INSPECT" | python -c 'import json,sys; print(json.load(sys.stdin).get("kind",""))')
+          echo "action_kind=$ACTION_KIND" >> "$GITHUB_OUTPUT"
+          if [ -n "$ACTION_KIND" ]; then
+            AID=$(echo "$INSPECT" | python -c 'import json,sys; print(json.load(sys.stdin).get("id",""))')
+            SAFE=$(echo "catalog/issue-${ISSUE_NUMBER}-${ACTION_KIND}-${AID}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._/-]/-/g' | cut -c1-80)
+            echo "issue_number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
+            echo "owner=$ACTION_KIND" >> "$GITHUB_OUTPUT"
+            echo "repo_name=$AID" >> "$GITHUB_OUTPUT"
+            echo "repo=$AID" >> "$GITHUB_OUTPUT"
+            echo "skipped=false" >> "$GITHUB_OUTPUT"
+            echo "reason=" >> "$GITHUB_OUTPUT"
+            echo "branch=$SAFE" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           OUT=$(python "$APPROVE_PY" --body-file /tmp/issue-body.md --catalog "$CATALOG" --dry-run)
           echo "$OUT"
           OWNER=$(echo "$OUT" | python -c 'import json,sys; print(json.load(sys.stdin).get("owner",""))')
@@ -99,7 +120,7 @@ jobs:
           echo "branch=$SAFE" >> "$GITHUB_OUTPUT"
 
       - name: Comment — already in catalog
-        if: steps.meta.outputs.skipped == 'true'
+        if: steps.meta.outputs.action_kind == '' && steps.meta.outputs.skipped == 'true'
         env:
           GH_TOKEN: ${{ secrets.PUBLIC_PUSH_TOKEN }}
           REPO: ${{ steps.meta.outputs.repo }}
@@ -158,7 +179,7 @@ jobs:
 
       - name: Ensure PR exists (refresh from latest master)
         id: pr
-        if: steps.meta.outputs.skipped != 'true'
+        if: steps.meta.outputs.action_kind == '' && steps.meta.outputs.skipped != 'true'
         working-directory: public-repo
         env:
           GH_TOKEN: ${{ secrets.PUBLIC_PUSH_TOKEN }}
@@ -220,9 +241,9 @@ jobs:
           ## Summary
           - Adds [${OWNER}/${RNAME}](${REPO_URL}) to \`ichalaunch/data/addons.json\` (\`source: community\`).
           - Opened from catalog suggestion issue #${ISSUE_NUMBER} (label \`catalog-approved\`).
-          - This Action squash-merges automatically after creation.
+          - **Do not merge JSON alone.** Sign locally (\`ichalaunch-catalog\` purpose) and commit \`addons.json.sig\` on this branch, then merge JSON+\`.sig\` together. Signing keys must not enter CI.
 
-          Closes #${ISSUE_NUMBER}
+          Related: #${ISSUE_NUMBER}
           EOF
           )"); then
             gh issue comment "$ISSUE_NUMBER" --repo "${PUBLIC_REPO}" --body "$(cat <<EOF
@@ -238,7 +259,7 @@ jobs:
           echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
 
       - name: Comment — already in catalog after refresh
-        if: steps.meta.outputs.skipped != 'true' && steps.pr.outputs.skipped == 'true'
+        if: steps.meta.outputs.action_kind == '' && steps.meta.outputs.skipped != 'true' && steps.pr.outputs.skipped == 'true'
         env:
           GH_TOKEN: ${{ secrets.PUBLIC_PUSH_TOKEN }}
           REPO: ${{ steps.meta.outputs.repo }}
@@ -296,176 +317,108 @@ jobs:
             gh issue close "$ISSUE_NUMBER" --repo "${PUBLIC_REPO}" --comment "Closed: already in catalog."
           fi
 
-      - name: Mark ready and squash-merge
-        id: merge
-        if: steps.meta.outputs.skipped != 'true' && steps.pr.outputs.skipped != 'true' && steps.pr.outputs.pr_url != ''
+      - name: Ensure action PR exists (JSON only, no merge)
+        id: action_pr
+        if: steps.meta.outputs.action_kind != '' && steps.meta.outputs.action_kind != 'sign'
         working-directory: public-repo
         env:
           GH_TOKEN: ${{ secrets.PUBLIC_PUSH_TOKEN }}
-          PR_URL: ${{ steps.pr.outputs.pr_url }}
           BRANCH: ${{ steps.meta.outputs.branch }}
-          OWNER: ${{ steps.meta.outputs.owner }}
-          RNAME: ${{ steps.meta.outputs.repo_name }}
+          ACTION_KIND: ${{ steps.meta.outputs.action_kind }}
+          ACTION_ID: ${{ steps.meta.outputs.repo_name }}
           ISSUE_NUMBER: ${{ steps.meta.outputs.issue_number }}
-          APPROVE_PY: ${{ github.workspace }}/tools/catalog_approve_from_issue.py
+          ACTION_PY: ${{ github.workspace }}/tools/catalog_action.py
+          PRIVATE_MODS: ${{ github.workspace }}/ichalaunch/data/mods.json
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin master
+          git checkout -B "$BRANCH" origin/master
+          mkdir -p ichalaunch/data
+          if [ ! -f ichalaunch/data/mods.json ] && [ -f "$PRIVATE_MODS" ]; then
+            cp "$PRIVATE_MODS" ichalaunch/data/mods.json
+          fi
+          python "$ACTION_PY" --apply --body-file /tmp/issue-body.md \
+            --mods ichalaunch/data/mods.json \
+            --tips ichalaunch/data/addon_tips.json \
+            --addons ichalaunch/data/addons.json
+          git add ichalaunch/data/mods.json ichalaunch/data/addon_tips.json ichalaunch/data/addons.json
+          if git diff --cached --quiet; then
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            echo "Already applied."
+            exit 0
+          fi
+          git commit -m "$(cat <<EOF
+          catalog: ${ACTION_KIND} ${ACTION_ID}
 
+          From issue #${ISSUE_NUMBER}. Unsigned — do not merge without the .sig.
+          EOF
+          )"
+          git push -u origin "$BRANCH" --force
+          echo "skipped=false" >> "$GITHUB_OUTPUT"
+          EXISTING=$(gh pr list --repo "${PUBLIC_REPO}" --state open --head "$BRANCH" --json url --jq '.[0].url // empty' || true)
+          if [ -n "$EXISTING" ]; then
+            echo "pr_url=$EXISTING" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! PR_URL=$(gh pr create --repo "${PUBLIC_REPO}" \
+            --title "catalog: ${ACTION_KIND} ${ACTION_ID}" \
+            --body "$(cat <<EOF
+          ## Summary
+          - Applies \`${ACTION_KIND}\` \`${ACTION_ID}\` from issue #${ISSUE_NUMBER}.
+          - **Do not merge JSON alone.** Sign locally (purpose \`ichalaunch-catalog\`) and commit the \`.sig\` on this branch, then merge JSON+\`.sig\` together.
+          - Signing keys must not enter CI. Fail-closed clients ignore unsigned live catalogs.
+
+          Related: #${ISSUE_NUMBER}
+          EOF
+          )"); then
+            gh issue comment "$ISSUE_NUMBER" --repo "${PUBLIC_REPO}" --body "Branch \`${BRANCH}\` was pushed, but creating the PR failed."
+            exit 1
+          fi
+          echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Comment — sign-only action
+        if: steps.meta.outputs.action_kind == 'sign'
+        env:
+          GH_TOKEN: ${{ secrets.PUBLIC_PUSH_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.meta.outputs.issue_number }}
+        run: |
+          gh issue comment "$ISSUE_NUMBER" --repo "${PUBLIC_REPO}" --body "$(cat <<EOF
+          No JSON payload to merge. Sign the current public file locally (purpose \`ichalaunch-catalog\`) and open a PR that adds only the \`.sig\` sidecar.
+
+          \`\`\`
+          python tools/sign.py --key %LOCALAPPDATA%\\IchaLaunch\\signing\\ichalaunch-key1.pem ichalaunch/data/<file>.json
+          \`\`\`
+          EOF
+          )"
+
+      - name: Stop — sign locally, then merge JSON+sig
+        env:
+          GH_TOKEN: ${{ secrets.PUBLIC_PUSH_TOKEN }}
+          SUGGEST_PR: ${{ steps.pr.outputs.pr_url }}
+          ACTION_PR: ${{ steps.action_pr.outputs.pr_url }}
+          ISSUE_NUMBER: ${{ steps.meta.outputs.issue_number }}
+          ACTION_KIND: ${{ steps.meta.outputs.action_kind }}
+        run: |
+          set -euo pipefail
+          PR_URL="${ACTION_PR:-${SUGGEST_PR:-}}"
+          if [ -z "$PR_URL" ]; then
+            echo "No catalog PR to sign."
+            exit 0
+          fi
           if [ "$(gh pr view "$PR_URL" --repo "${PUBLIC_REPO}" --json isDraft --jq '.isDraft')" = "true" ]; then
             gh pr ready "$PR_URL" --repo "${PUBLIC_REPO}"
           fi
+          gh issue comment "$ISSUE_NUMBER" --repo "${PUBLIC_REPO}" --body "$(cat <<EOF
+          Public PR is ready and **not merged**: ${PR_URL}
 
-          refresh_branch() {
-            git fetch origin master
-            git checkout -B "$BRANCH" origin/master
-            python "$APPROVE_PY" --body-file /tmp/issue-body.md --catalog ichalaunch/data/addons.json
-            git add ichalaunch/data/addons.json
-            if git diff --cached --quiet; then
-              return 1
-            fi
-            git commit -m "$(cat <<EOF
-          catalog: add ${OWNER}/${RNAME}
+          Fail-closed clients will ignore unsigned live JSON. Sign locally, commit the sidecar on that branch, and merge JSON+\`.sig\` together:
 
-          From issue #${ISSUE_NUMBER}.
+          \`\`\`
+          python tools/sign.py --key %LOCALAPPDATA%\\IchaLaunch\\signing\\ichalaunch-key1.pem ichalaunch/data/<file>.json
+          \`\`\`
+
+          Catalog purpose is \`ichalaunch-catalog\` (not the launcher-update attestation). Signing keys must not enter CI.
           EOF
           )"
-            git push -u origin "$BRANCH" --force
-            return 0
-          }
-
-          close_pr_if_open() {
-            local pr="$1"
-            local comment="$2"
-            if [ -z "$pr" ]; then
-              return 0
-            fi
-            local state
-            state=$(gh pr view "$pr" --repo "${PUBLIC_REPO}" --json state --jq '.state' || echo "UNKNOWN")
-            if [ "$state" = "MERGED" ] || [ "$state" = "CLOSED" ]; then
-              echo "PR already ${state}: $pr"
-              return 0
-            fi
-            local i
-            for i in 1 2 3; do
-              if gh pr close "$pr" --repo "${PUBLIC_REPO}" --delete-branch --comment "$comment"; then
-                return 0
-              fi
-              if gh pr close "$pr" --repo "${PUBLIC_REPO}" --comment "$comment"; then
-                return 0
-              fi
-              state=$(gh pr view "$pr" --repo "${PUBLIC_REPO}" --json state --jq '.state' || echo "UNKNOWN")
-              if [ "$state" = "MERGED" ] || [ "$state" = "CLOSED" ]; then
-                return 0
-              fi
-              sleep "$i"
-            done
-            echo "Failed to close PR: $pr" >&2
-            return 1
-          }
-
-          entry_on_master() {
-            git fetch origin master
-            git show origin/master:ichalaunch/data/addons.json > /tmp/addons-master.json
-            local out
-            out=$(python "$APPROVE_PY" --body-file /tmp/issue-body.md --catalog /tmp/addons-master.json --dry-run)
-            echo "$out"
-            echo "$out" | python -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin).get("skipped") else 1)'
-          }
-
-          wait_mergeable() {
-            local i
-            for i in 1 2 3 4 5 6 7 8 9 10; do
-              MERGEABLE=$(gh pr view "$PR_URL" --repo "${PUBLIC_REPO}" --json mergeable --jq '.mergeable' || echo "UNKNOWN")
-              if [ "$MERGEABLE" = "MERGEABLE" ]; then
-                return 0
-              fi
-              sleep 2
-            done
-            return 1
-          }
-
-          try_merge() {
-            gh pr merge "$PR_URL" --repo "${PUBLIC_REPO}" --squash --delete-branch "$@"
-          }
-
-          MERGED=false
-          ALREADY=false
-          for attempt in 1 2 3 4 5 6 7 8 9 10; do
-            echo "Merge attempt ${attempt}..."
-            if ! refresh_branch; then
-              echo "Entry already in catalog (another run won the race)."
-              MERGED=true
-              ALREADY=true
-              break
-            fi
-            wait_mergeable || true
-            if try_merge > /tmp/merge-out 2> /tmp/merge-err; then
-              MERGED=true
-              break
-            fi
-            err=$(cat /tmp/merge-err /tmp/merge-out 2>/dev/null || true)
-            echo "$err"
-            if echo "$err" | grep -qi "protected ref"; then
-              echo "Ruleset is blocking squash-merge (Cannot update this protected ref). Master must require a PR with 0 reviews, not an update-block."
-            fi
-            # Stale conflict / "base branch was modified" after a clean rebase:
-            # wait and merge again before rebuilding the branch.
-            for _ in 1 2 3 4; do
-              sleep 3
-              if try_merge > /tmp/merge-out 2> /tmp/merge-err; then
-                MERGED=true
-                break
-              fi
-              err=$(cat /tmp/merge-err /tmp/merge-out 2>/dev/null || true)
-              echo "$err"
-            done
-            if [ "$MERGED" = "true" ]; then
-              break
-            fi
-            echo "Merge failed; refreshing from master..."
-            sleep $((attempt + 1))
-          done
-
-          if [ "$MERGED" != "true" ]; then
-            if entry_on_master; then
-              echo "Entry reached master during retries; closing leftover PR."
-              close_pr_if_open "$PR_URL" "Closing: entry already in catalog."
-              STATE=$(gh issue view "$ISSUE_NUMBER" --repo "${PUBLIC_REPO}" --json state --jq '.state')
-              if [ "$STATE" = "OPEN" ]; then
-                gh issue close "$ISSUE_NUMBER" --repo "${PUBLIC_REPO}" --comment "Closed: already in catalog."
-              fi
-              exit 0
-            fi
-            gh issue comment "$ISSUE_NUMBER" --repo "${PUBLIC_REPO}" --body "$(cat <<EOF
-          Catalog PR is open but auto-merge failed after retries: ${PR_URL}
-
-          If the log says \`Cannot update this protected ref\`, the public master ruleset is an \`update\` block. Change it to require a pull request (0 reviews, squash). See docs/DEV_REPO.md.
-          Otherwise merge it manually, or retry from Actions → Catalog approve → public PR.
-          EOF
-          )"
-            exit 1
-          fi
-
-          if [ "$ALREADY" = "true" ]; then
-            close_pr_if_open "$PR_URL" "Closing: entry already in catalog."
-          fi
-
-          STATE=$(gh issue view "$ISSUE_NUMBER" --repo "${PUBLIC_REPO}" --json state --jq '.state')
-          if [ "$STATE" = "OPEN" ]; then
-            MERGED_URL=$(gh pr view "$PR_URL" --repo "${PUBLIC_REPO}" --json url,state --jq 'if .state == "MERGED" then .url else empty end' || true)
-            if [ -n "${MERGED_URL}" ]; then
-              gh issue comment "$ISSUE_NUMBER" --repo "${PUBLIC_REPO}" --body "$(cat <<EOF
-          Catalog entry merged via ${MERGED_URL} (squash). Clients pick it up on the next Available catalog refresh.
-          EOF
-          )"
-              gh issue close "$ISSUE_NUMBER" --repo "${PUBLIC_REPO}" --comment "Closed after catalog squash-merge of ${MERGED_URL}."
-            else
-              gh issue comment "$ISSUE_NUMBER" --repo "${PUBLIC_REPO}" --body "$(cat <<EOF
-          Catalog entry is present in \`ichalaunch/data/addons.json\` (merged by a concurrent approve run). Closing this issue.
-          EOF
-          )"
-              gh issue close "$ISSUE_NUMBER" --repo "${PUBLIC_REPO}" --comment "Closed: already in catalog."
-            fi
-          fi

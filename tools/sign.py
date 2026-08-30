@@ -50,10 +50,11 @@ def main() -> int:
 
     from ichalaunch import __version__
     from ichalaunch.core.signing import (
-        ATTESTATION_PURPOSE_UPDATE,
+        ATTESTATION_PURPOSE_CATALOG,
         Attestation,
         Signature,
         SignatureError,
+        purpose_for_signed_path,
         signing_is_configured,
         verify_attestation,
         verify_bytes,
@@ -86,9 +87,13 @@ def main() -> int:
     # old build can be republished under a new tag by anyone who can cut a
     # release. The attestation moves the version inside the signature, where the
     # publisher cannot restate it.
-    version = (args.version or __version__).strip()
+    purpose = purpose_for_signed_path(args.target)
+    if purpose == ATTESTATION_PURPOSE_CATALOG:
+        version = (args.version or "catalog").strip()
+    else:
+        version = (args.version or __version__).strip()
     attestation = Attestation(
-        purpose=ATTESTATION_PURPOSE_UPDATE,
+        purpose=purpose,
         version=version,
         sha256=hashlib.sha256(payload).hexdigest(),
     )
@@ -123,7 +128,7 @@ def main() -> int:
         verify_attestation(
             payload,
             parsed,
-            expected_purpose=ATTESTATION_PURPOSE_UPDATE,
+            expected_purpose=purpose,
             expected_version=version,
         )
     except SignatureError as exc:
@@ -136,6 +141,7 @@ def main() -> int:
     print(f"  wrote   {out}")
     print(f"  key     {used[:16]}…  (verified against the pinned set)")
     print(f"  version {version}  (bound inside the signature)")
+    print(f"  purpose {purpose}")
     print("\nUpload BOTH files to the release. A release without its .sig will be")
     print("refused by every launcher that has this verification.")
     return 0

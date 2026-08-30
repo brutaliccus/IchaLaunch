@@ -34,6 +34,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -107,6 +108,68 @@ PINNABLE = (
 )
 
 
+def collect_pin_drift(
+    catalog: list[Any],
+    *,
+    wanted: set[str] | None = None,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Compare pinned sources to what ``resolve`` downloads today.
+
+    Returns ``(drift_payloads, unreachable_or_changed_labels)``. Does not write.
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from catalog_action import shape_mod_pin
+
+    drifted: list[str] = []
+    payloads: list[dict[str, Any]] = []
+    for mod in catalog:
+        if not isinstance(mod, dict):
+            continue
+        mod_id = str(mod.get("id") or "")
+        if wanted and mod_id not in wanted:
+            continue
+        for label, source in _iter_sources(mod):
+            if source.get("type") not in PINNABLE:
+                continue
+            pinned = expected_digest(source)
+            if pinned is None:
+                continue
+            try:
+                tag, name, blob = resolve(source)
+            except (urllib.error.URLError, urllib.error.HTTPError) as exc:
+                print(f"  {label:24s} UNREACHABLE  {exc}")
+                drifted.append(label)
+                continue
+            actual = hashlib.sha256(blob).hexdigest()
+            if pinned == actual:
+                print(f"  {label:24s} ok           {name} ({tag})")
+                continue
+            drifted.append(label)
+            print(f"  {label:24s} DRIFTED      {name} ({tag})")
+            print(f"  {'':24s}   pinned {pinned}")
+            print(f"  {'':24s}   actual {actual}")
+            repo = str(source.get("repo") or "")
+            if not repo:
+                url = str(source.get("url") or "")
+                m = re.search(r"github(?:usercontent)?\.com/([^/]+)/([^/]+)/", url)
+                if m:
+                    repo = f"{m.group(1)}/{m.group(2)}"
+            payloads.append(
+                shape_mod_pin(
+                    mod_id=mod_id,
+                    name=str(mod.get("name") or mod_id),
+                    label=label,
+                    repo=repo,
+                    current_tag=str(source.get("pinned_tag") or ""),
+                    current_sha256=pinned,
+                    new_tag=str(tag or ""),
+                    new_sha256=actual,
+                    asset=str(name or ""),
+                )
+            )
+    return payloads, drifted
+
+
 def _iter_sources(mod: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
     """(label, source) for each downloadable half of a catalog row."""
     out: list[tuple[str, dict[str, Any]]] = []
@@ -126,12 +189,30 @@ def main() -> int:
     ap.add_argument("--check", action="store_true", help="report drift without writing")
     ap.add_argument("--update", action="store_true", help="write refreshed pins")
     ap.add_argument("--all", action="store_true", help="with --update, re-pin every drifted entry")
+    ap.add_argument(
+        "--json-out",
+        type=Path,
+        help="with --check, write action payloads (does not hit GitHub Issues)",
+    )
     args = ap.parse_args()
     if not (args.check or args.update):
         ap.error("pass --check or --update")
 
     catalog = json.loads(CATALOG.read_text(encoding="utf-8"))
     wanted = set(args.ids)
+
+    if args.check and not args.update:
+        payloads, drifted = collect_pin_drift(catalog, wanted=wanted or None)
+        if args.json_out:
+            args.json_out.write_text(
+                json.dumps({"drifted": payloads}, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+        if drifted:
+            print(f"\n{len(drifted)} entr(y/ies) do not match their pin: {', '.join(drifted)}")
+            return 1
+        return 0
+
     drifted: list[str] = []
     unpinned: list[str] = []
     changed = 0

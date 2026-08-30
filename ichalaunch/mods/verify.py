@@ -13,10 +13,11 @@ Why a hash is enough here, when it is not enough for the self-update
 the host that publishes the hash also controls the file. That objection does
 not apply to this module, and the difference is where the number lives.
 
-These digests are not fetched. They are written into ``mods.json``, which ships
-inside the launcher executable, which is itself covered by the Ed25519 chain in
-``signing``. So the digest is already anchored to our signing key before any
-download begins. The host serving the bytes never gets a say in what they are
+These digests live in ``mods.json``. That file ships inside the signed
+executable and can also be refreshed live from public master — but only
+through ``signed_fetch`` (the JSON plus ``mods.json.sig``). An unsigned or
+bad-sig live copy is ignored (cache, then bundled). Either way the digest is
+anchored to our signing key before any download begins. The host serving the bytes never gets a say in what they are
 compared against. An attacker who owns the upstream release, the bucket, or DNS
 can serve whatever they like and the install still refuses.
 

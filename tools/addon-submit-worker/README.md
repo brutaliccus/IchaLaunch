@@ -57,8 +57,11 @@ filtered triage.
 **Approve for catalog:** on **public** `brutaliccus/IchaLaunch`, label the
 issue **`catalog-approved`**. The public relay dispatches the private
 `.github/workflows/catalog-approve.yml` job, which opens a PR editing only
-public `ichalaunch/data/addons.json`, squash-merges it, comments the result,
-and closes the issue. Spam submissions stay as issues until you approve.
+public catalog JSON and **stops** (it does not squash-merge unsigned files).
+Sign locally (`ichalaunch-catalog` purpose), commit the `.sig`, and merge
+JSON+sidecar together. Version bumps of existing addons and client-mod pin
+drift use the same label on `[addon-tip]` / `[addon-pin]` / `[mod-pin]`
+issues. Spam submissions stay as issues until you approve.
 
 ## Review queue (submit time)
 
@@ -91,10 +94,9 @@ pick up the new filter.
    Turtle-compatible, category fits).
 2. Label the issue **`catalog-approved`**.
 3. The public relay dispatches the private approve job, which opens
-   `catalog: add Owner/Repo` on the public repo, squash-merges to `master`,
-   comments the merged PR on the issue, and closes it.
-4. Clients pick up the entry on the next Available catalog refresh (no launcher
-   rebuild).
+   `catalog: add Owner/Repo` on the public repo and stops. Sign
+   `addons.json` locally, commit `addons.json.sig` on that PR, merge both.
+4. Clients pick up the entry only after the signed public file changes.
 
 The approve job skips if the repo URL is already in public `addons.json`
 (no PR / no merge) and comments the skip reason on the issue.

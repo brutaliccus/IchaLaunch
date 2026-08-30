@@ -1,15 +1,12 @@
 name: Refresh catalog tips
 
-# Hourly tip-SHA rebuild + latest-release download counts on the published
-# Available catalog (public brutaliccus/IchaLaunch ichalaunch/data/addons.json).
-# Clients fetch that one file on periodic refresh and read stamped
-# release_downloads* fields — they must not fan out GitHub /releases/latest.
+# Hourly tip-SHA rebuild + latest-release download counts.
+# Must NOT push unsigned addon_tips.json / addons.json to public master.
+# Version bumps become catalog-action issues; other unsigned changes go on
+# a standing PR for the maintainer to sign (ichalaunch-catalog) and merge.
 #
-# Uses live public addons.json plus this repo's mods.json (bundled pins).
-# Writes only addon_tips.json and stamped addons.json on the public repo.
-# Download-count failures keep last known values on that addon.
-#
-# Secret: PUBLIC_PUSH_TOKEN — Contents write on brutaliccus/IchaLaunch.
+# Secret: PUBLIC_PUSH_TOKEN — Contents, Issues, Pull requests on
+# brutaliccus/IchaLaunch.
 
 on:
   workflow_dispatch:
@@ -21,6 +18,8 @@ permissions:
 
 env:
   PUBLIC_REPO: brutaliccus/IchaLaunch
+  ISSUE_REPO: brutaliccus/IchaLaunch
+  STANDING_BRANCH: catalog/unsigned-tips
 
 jobs:
   build:
@@ -45,6 +44,7 @@ jobs:
           repository: brutaliccus/IchaLaunch
           token: ${{ secrets.PUBLIC_PUSH_TOKEN }}
           path: public-repo
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -53,19 +53,71 @@ jobs:
       - name: Install deps
         run: pip install requests
 
-      - name: Build tip index
+      - name: Build candidate tip index
         run: |
           python tools/build_addon_tips.py \
             --catalog public-repo/ichalaunch/data/addons.json \
-            --output public-repo/ichalaunch/data/addon_tips.json \
+            --output /tmp/candidate_tips.json \
             --sleep 0.08
 
-      - name: Stamp release download counts
+      - name: Hold back unpublished version bumps
+        run: |
+          if [ ! -f public-repo/ichalaunch/data/addon_tips.json ]; then
+            printf '%s\n' '{"generated_at":"","source":"","repos":{}}' > public-repo/ichalaunch/data/addon_tips.json
+          fi
+          python tools/catalog_action.py --hold-tips \
+            --published public-repo/ichalaunch/data/addon_tips.json \
+            --candidate /tmp/candidate_tips.json \
+            --addons public-repo/ichalaunch/data/addons.json \
+            --out /tmp/held_tips.json \
+            --issues-out /tmp/tip-issues.json
+
+      - name: Stamp release download counts (working copy only)
         env:
           GITHUB_TOKEN: ${{ secrets.PUBLIC_PUSH_TOKEN }}
-        run: python tools/enrich_catalog_downloads.py --catalog public-repo/ichalaunch/data/addons.json
+        run: |
+          cp /tmp/held_tips.json public-repo/ichalaunch/data/addon_tips.json
+          python tools/enrich_catalog_downloads.py --catalog public-repo/ichalaunch/data/addons.json
 
-      - name: Commit index on public master
+      - name: Open or update action issues
+        env:
+          GH_TOKEN: ${{ secrets.PUBLIC_PUSH_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh label create catalog-action --repo "${ISSUE_REPO}" --color "0E8A16" --description "Catalog pin/tip/sign action" || true
+          gh issue list --repo "${ISSUE_REPO}" --state open --limit 200 --json number,title,body > /tmp/open-issues.json
+          python tools/catalog_action.py --plan-upsert \
+            --payloads /tmp/tip-issues.json \
+            --open-issues /tmp/open-issues.json \
+            --out /tmp/tip-plans.json
+          python - <<'PY'
+          import json, os, subprocess
+          repo = os.environ["ISSUE_REPO"]
+          plans = json.loads(open("/tmp/tip-plans.json", encoding="utf-8").read())
+          for plan in plans:
+              action = plan.get("action")
+              if action == "create":
+                  subprocess.check_call(
+                      [
+                          "gh", "issue", "create",
+                          "--repo", repo,
+                          "--title", plan["title"],
+                          "--body", plan["body"],
+                          "--label", "catalog-action",
+                      ]
+                  )
+              elif action == "update":
+                  subprocess.check_call(
+                      [
+                          "gh", "issue", "comment",
+                          str(plan["number"]),
+                          "--repo", repo,
+                          "--body", plan["body"],
+                      ]
+                  )
+          PY
+
+      - name: Open or update standing unsigned PR
         working-directory: public-repo
         env:
           GH_TOKEN: ${{ secrets.PUBLIC_PUSH_TOKEN }}
@@ -73,10 +125,33 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin master
+          git checkout -B "${STANDING_BRANCH}" origin/master
+          cp /tmp/held_tips.json ichalaunch/data/addon_tips.json
           git add ichalaunch/data/addon_tips.json ichalaunch/data/addons.json
           if git diff --cached --quiet; then
-            echo "No catalog/tip changes."
+            echo "No unsigned tip/catalog payload to PR."
             exit 0
           fi
-          git commit -m "chore: refresh addon tip SHA index and release downloads"
-          git push origin HEAD:master
+          git commit -m "$(cat <<EOF
+          catalog: hourly tips/downloads (unsigned)
+
+          Do not merge without addon_tips.json.sig / addons.json.sig.
+          EOF
+          )"
+          git push -u origin "${STANDING_BRANCH}" --force
+          EXISTING=$(gh pr list --repo "${PUBLIC_REPO}" --state open --head "${STANDING_BRANCH}" --json url --jq '.[0].url // empty' || true)
+          if [ -n "$EXISTING" ]; then
+            echo "Updated standing PR: $EXISTING"
+            exit 0
+          fi
+          gh pr create --repo "${PUBLIC_REPO}" \
+            --title "catalog: hourly tips/downloads (unsigned — sign before merge)" \
+            --body "$(cat <<EOF
+          ## Summary
+          - Standing PR for unsigned \`addon_tips.json\` / stamped \`addons.json\`.
+          - Version bumps of existing addons are **held back** and tracked as \`[addon-tip]\` / \`[addon-pin]\` issues — they are not live until approved and signed.
+          - **Do not merge JSON alone.** Sign locally (purpose \`ichalaunch-catalog\`) and commit the \`.sig\` files, then merge JSON+\`.sig\` together.
+          - Signing keys must not enter CI. Fail-closed clients ignore unsigned live catalogs.
+          EOF
+          )"

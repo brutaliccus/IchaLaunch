@@ -48,34 +48,61 @@ Public `master` rulesets (do not replace the second with an `update` block):
   returns `Cannot update this protected ref` on squash-merge, so the
   approve bot opens PRs and never lands them.
 
-## Catalog suggestions
+## Catalog suggestions and version/pin actions
 
-1. Users submit from the launcher (Cloudflare Worker → public issue).
-2. On public `brutaliccus/IchaLaunch`, label the issue `catalog-approved`.
-3. Public `catalog-relay.yml` dispatches this repo.
-4. This repo’s `catalog-approve.yml` writes `ichalaunch/data/addons.json` on
-   **public** master and squash-merges.
+Issues live on **public** `brutaliccus/IchaLaunch`. One label:
+`catalog-approved`. Public `catalog-relay.yml` dispatches this repo.
 
-Retry a stuck issue from this repo: **Actions → Catalog approve → public PR →
-Run workflow** with the public issue number.
+1. **New addon** (`[catalog]`): Worker → issue → label → this repo opens a
+   public PR that edits `addons.json` only, then **stops**.
+2. **Client-mod pin drift** (`[mod-pin] <id>`): daily
+   `mod-pin-check.yml` compares live GitHub assets to `mods.json` via
+   `tools/pin_mods.py` (same resolver). One open issue per mod id.
+3. **Existing addon version** (`[addon-tip]` / `[addon-pin]`): hourly
+   `addon-tips.yml` builds a candidate tip index, **holds back** unpublished
+   `latest_tag` / sha changes, and opens one issue per repo. Catalog-pinned
+   addons (`pin_release` / `updates: false`) get `[addon-pin]`.
+4. **Unsigned live file** (`[sign] <file>`): same daily job if a published
+   catalog JSON exists without a `.sig`.
+
+The approve job never squash-merges unsigned catalog JSON to public master.
+It opens or updates the PR and stops. Signing keys must not enter CI.
+
+Retry from this repo: **Actions → Catalog approve → public PR** with the
+public issue number.
+
+## Sign locally, then merge JSON + `.sig`
+
+Every live fetch (`addons.json`, `addon_tips.json`, `home_art.json`,
+`mods.json`) needs a **new `.sig` whenever the payload changes**. Purpose
+is `ichalaunch-catalog` (not `ichalaunch-launcher-update`).
+
+```
+python tools/sign.py --key %LOCALAPPDATA%\IchaLaunch\signing\ichalaunch-key1.pem ichalaunch/data\mods.json
+```
+
+Commit the sidecar on the bot PR and merge JSON+`.sig` together. Fail-closed
+clients ignore unsigned or bad-sig live files (cache, then bundled). A later
+`--live` / `--from-pr` helper may wrap this; until then, sign after the bot PR.
+
+Client zip (`client_zip.sha256` / `client_manifest.json`) is a 10 GB pin:
+re-hash by hand when that zip is republished. Launcher self-update `.sig`
+stays on the release artefact (`sign.py` on the EXE).
 
 ## Hourly addon / tip refresh
 
-`.github/workflows/addon-tips.yml` (this repo) reads live public `addons.json`
-plus this repo’s `mods.json`, then pushes `addon_tips.json` and stamped
-download counts to public master.
+`.github/workflows/addon-tips.yml` builds a candidate index, holds unpublished
+version bumps (action issues instead), and opens or updates a **standing PR**
+(`catalog/unsigned-tips`) for leftover unsigned tips / download stamps. It
+does **not** push `addon_tips.json` or stamped `addons.json` to public master.
 
-## Mod pin drift
+## Client-mod catalog (signed `mods.json`)
 
-`.github/workflows/mod-pin-check.yml` runs `python tools/pin_mods.py --check`
-daily. Drift fails the job and opens a private issue. Re-pin is **manual**:
-
-```
-python tools/pin_mods.py --update <mod-id>
-```
-
-Test the new bytes in-game, then commit `ichalaunch/data/mods.json` here.
-Pins ship inside the next signed EXE; they are not hot-fetched.
+Client-tab update nags read `ichalaunch/data/mods.json` only (pins, dest
+hashes, bundled local hashes). They never use the addon tip index. Live
+`mods.json` is fetched like the other three catalogs: verified `.sig` or
+unused. Players do not see a client-mod or addon version until the signed
+public file actually changes.
 
 ## Public launcher release
 
