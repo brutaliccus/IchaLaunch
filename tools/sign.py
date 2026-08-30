@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import base64
 import getpass
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -36,14 +37,25 @@ def main() -> int:
     ap.add_argument("target", type=Path, help="file to sign")
     ap.add_argument("--key", type=Path, required=True, help="private key PEM from keygen.py")
     ap.add_argument("--out", type=Path, default=None, help="signature path (default: <target>.sig)")
+    ap.add_argument(
+        "--version",
+        default=None,
+        help="version this artefact IS (default: ichalaunch.__version__). Binding it "
+             "inside the signature is what stops a genuine build being republished "
+             "under a different tag.",
+    )
     args = ap.parse_args()
 
     from cryptography.hazmat.primitives import serialization
 
+    from ichalaunch import __version__
     from ichalaunch.core.signing import (
+        ATTESTATION_PURPOSE_UPDATE,
+        Attestation,
         Signature,
         SignatureError,
         signing_is_configured,
+        verify_attestation,
         verify_bytes,
     )
 
@@ -69,8 +81,30 @@ def main() -> int:
     key_id = base64.b64encode(pub_raw).decode()
     sig = priv.sign(payload)
 
+    # Sign a second, tiny thing that says what this payload IS. The payload
+    # signature alone proves origin; it says nothing about version, so a genuine
+    # old build can be republished under a new tag by anyone who can cut a
+    # release. The attestation moves the version inside the signature, where the
+    # publisher cannot restate it.
+    version = (args.version or __version__).strip()
+    attestation = Attestation(
+        purpose=ATTESTATION_PURPOSE_UPDATE,
+        version=version,
+        sha256=hashlib.sha256(payload).hexdigest(),
+    )
+    attestation_sig = priv.sign(attestation.canonical())
+
     sidecar = json.dumps(
-        {"key_id": key_id, "sig": base64.b64encode(sig).decode()},
+        {
+            "key_id": key_id,
+            "sig": base64.b64encode(sig).decode(),
+            "attestation": {
+                "purpose": attestation.purpose,
+                "version": attestation.version,
+                "sha256": attestation.sha256,
+            },
+            "attestation_sig": base64.b64encode(attestation_sig).decode(),
+        },
         indent=2,
     ) + "\n"
 
@@ -84,7 +118,14 @@ def main() -> int:
         )
         return 1
     try:
-        used = verify_bytes(payload, Signature.parse(sidecar))
+        parsed = Signature.parse(sidecar)
+        used = verify_bytes(payload, parsed)
+        verify_attestation(
+            payload,
+            parsed,
+            expected_purpose=ATTESTATION_PURPOSE_UPDATE,
+            expected_version=version,
+        )
     except SignatureError as exc:
         print(f"Refusing to write a signature the launcher would reject: {exc}", file=sys.stderr)
         return 1
@@ -94,6 +135,7 @@ def main() -> int:
     print(f"  signed  {args.target}")
     print(f"  wrote   {out}")
     print(f"  key     {used[:16]}…  (verified against the pinned set)")
+    print(f"  version {version}  (bound inside the signature)")
     print("\nUpload BOTH files to the release. A release without its .sig will be")
     print("refused by every launcher that has this verification.")
     return 0
