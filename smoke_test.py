@@ -12647,7 +12647,22 @@ def test_mod_download_hash_pinning():
     try:
         verify_payload({"sha256": "0" * 64}, payload, label="SuperWoW.dll")
     except SourceHashMismatch as exc:
-        assert "SuperWoW.dll" in str(exc) and digest in str(exc)
+        text = str(exc)
+        assert "SuperWoW.dll" in text
+        assert "security" in text.lower()
+        assert "catalog" in text.lower()
+        assert digest not in text
+        assert "0" * 64 not in text
+        assert exc.expected == "0" * 64
+        assert exc.actual == digest
+        assert digest in exc.log_detail
+        from ichalaunch.addons.github import format_github_error_message
+        from ichalaunch.core.filesystem import user_facing_os_error
+
+        for shown in (user_facing_os_error(exc), format_github_error_message(exc)):
+            assert digest not in shown
+            assert "0" * 64 not in shown
+            assert "security" in shown.lower()
     else:
         raise AssertionError("tampered payload was accepted")
 
@@ -12662,8 +12677,11 @@ def test_mod_download_hash_pinning():
         missing = _Path(tmp) / "not-there.dll"
         try:
             verify_payload({"sha256": digest}, missing)
-        except SourceHashMismatch:
-            pass
+        except SourceHashMismatch as exc:
+            text = str(exc)
+            assert digest not in text
+            assert "sha256" not in text.lower()
+            assert "catalog" in text.lower()
         else:
             raise AssertionError("unreadable payload was accepted")
 
@@ -12713,7 +12731,10 @@ def test_download_source_enforces_pins():
                 None,
             )
         except SourceHashMismatch as exc:
-            assert "nampower.dll" in str(exc)
+            text = str(exc)
+            assert "nampower.dll" in text
+            assert "f" * 64 not in text
+            assert "security" in text.lower()
         else:
             raise AssertionError("installer installed unverified bytes")
         assert I._download_source({"type": "raw"}, None, None) == served

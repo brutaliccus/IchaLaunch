@@ -2692,7 +2692,12 @@ def _apply_planned_mod_changes(
             log.warning("Mod %s %s skipped (disk/AV): %s", action, mid, exc)
             done.append(f"! {mid} skipped: {user_facing_os_error(exc)}")
         except (RuntimeError, FileNotFoundError, KeyError, shutil.Error) as exc:
-            log.warning("Mod %s %s failed: %s", action, mid, exc)
+            log.warning(
+                "Mod %s %s failed: %s",
+                action,
+                mid,
+                getattr(exc, "log_detail", exc),
+            )
             done.append(f"! {mid} failed: {user_facing_os_error(exc)}")
         except requests.RequestException as exc:
             log.warning("Mod %s %s failed (download): %s", action, mid, exc)
@@ -4528,7 +4533,11 @@ def install_mod(mod_id: str, progress: ProgressCb | None = None, *, prefer_lates
         SourceHashMismatch,
         AddonDestinationRefused,
     ) as exc:
-        log.warning("Install %s failed, rolling back: %s", mod_id, exc)
+        log.warning(
+            "Install %s failed, rolling back: %s",
+            mod_id,
+            getattr(exc, "log_detail", exc),
+        )
         _revert_failed_mod_install(game, mod, backup_root)
         raise
 

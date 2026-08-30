@@ -44,17 +44,43 @@ digest fails a test rather than reaching a player.
 from __future__ import annotations
 
 import hashlib
+import logging
 from pathlib import Path
 from typing import Any
 
 CHUNK = 1024 * 1024
 
+log = logging.getLogger(__name__)
 
-class SourceHashMismatch(Exception):
+
+class SourceHashMismatch(RuntimeError):
     """A download did not match the digest pinned for it.
 
     Raised instead of returning a flag because there is no safe way to continue.
+    ``str(self)`` is the dialog/status text and must not include hex digests.
+    ``expected`` / ``actual`` stay on the exception for logs.
     """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        label: str = "",
+        expected: str | None = None,
+        actual: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.label = label
+        self.expected = expected
+        self.actual = actual
+
+    @property
+    def log_detail(self) -> str:
+        if self.expected or self.actual:
+            return (
+                f"{self} expected={self.expected or '-'} actual={self.actual or '-'}"
+            )
+        return str(self)
 
 
 def normalized_digest(value: Any) -> str | None:
@@ -156,17 +182,28 @@ def verify_payload(
     try:
         actual = digest_bytes(payload) if isinstance(payload, bytes) else digest_path(payload)
     except OSError as exc:
+        log.warning("Refusing %s: download could not be hashed (%s)", label, exc)
         raise SourceHashMismatch(
-            f"Refusing to install {label}: the download could not be read to "
-            f"verify it against the expected SHA-256 ({exc})."
+            f"The launcher could not read the download for {label} to verify it "
+            "against the approved catalog version, so the install was refused.",
+            label=label,
         ) from exc
 
     if actual != expected:
+        log.warning(
+            "Refusing %s: catalog sha256 %s, downloaded %s",
+            label,
+            expected,
+            actual,
+        )
         raise SourceHashMismatch(
-            f"Refusing to install {label}: content does not match the pinned "
-            f"SHA-256.\n  expected {expected}\n  got      {actual}\n"
-            "The file served upstream is not the file this build was built to "
-            "trust. Nothing has been written to the game directory."
+            f"The file that came down for {label} does not match the approved "
+            "catalog version, so the launcher blocked the install as a security "
+            "measure. Nothing was written to the game directory. Retry later "
+            "after a catalog update, or reinstall the approved build.",
+            label=label,
+            expected=expected,
+            actual=actual,
         )
     return actual
 
