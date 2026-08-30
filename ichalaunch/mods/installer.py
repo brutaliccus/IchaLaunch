@@ -965,6 +965,29 @@ def _detect_pinned_payload(
     return digest == expected
 
 
+def _foreign_hd_letter_slot(mid: str, desired: dict[str, bool]) -> bool:
+    """True when a wrong-hash HD dest is someone else's pack, not stale Reforged.
+
+    Letter names (``patch-A.mpq`` …) are a shared community namespace. Two
+    creators ship the same filenames; we only serve Project Reforged. Presence
+    plus a pin miss is not "update Reforged" unless the user opted into this
+    catalog row or this launcher previously installed it (``dest_sha256``, or
+    a non-backfilled install record — huge MPQs skip the dest hash stamp).
+    """
+    if not mid.startswith(_HD_PATCH_PREFIX):
+        return False
+    if not desired.get(mid):
+        return True
+    if mid in settings.user_set_mods:
+        return False
+    if _stored_dest_digest(mid):
+        return False
+    rec = settings.installed_mods.get(mid)
+    if isinstance(rec, dict) and rec and not rec.get("backfilled"):
+        return False
+    return True
+
+
 def _pinned_dest_needs_replace(mod: dict[str, Any], game: Path) -> bool:
     """Dest/name is present but the pin proves it is not the catalog file.
 
@@ -977,6 +1000,10 @@ def _pinned_dest_needs_replace(mod: dict[str, Any], game: Path) -> bool:
 
     Unique dest, unknown bytes, never toggled: still offer replace (do not
     auto-delete). Desired-on may still replace a sibling or junk dest.
+
+    HD letter slots (``hd_patch_*``) are the exception: unknown bytes there
+    are not stale Reforged unless the user opted into this catalog row or
+    the launcher previously installed it.
     """
     if _detect_pinned_payload(game, mod) is not False:
         return False
@@ -996,6 +1023,8 @@ def _pinned_dest_needs_replace(mod: dict[str, Any], game: Path) -> bool:
             return False
     if siblings and not desired.get(mid):
         return _installed_stamp_this_id_only(mid, siblings)
+    if _foreign_hd_letter_slot(mid, desired):
+        return False
     return True
 
 

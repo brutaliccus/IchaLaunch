@@ -12694,6 +12694,130 @@ def test_stale_pinned_dest_does_not_seed_desired():
     print("OK stale dest does not seed desired and offers replace")
 
 
+def test_foreign_hd_patch_not_offered_as_update():
+    """Other-author HD letter files are not stale Reforged unless we own the slot.
+
+    Matching Reforged bytes still detect as installed when dropped outside
+    the launcher. Wrong bytes do not seed desired and do not offer replace
+    until the user opts in or a launcher install stamp is present.
+    """
+    import hashlib
+
+    from ichalaunch.config.settings import settings as s
+    from ichalaunch.core.detect import sync_desired_mods_from_disk
+    from ichalaunch.core.filesystem import clear_fs_caches
+    from ichalaunch.mods.installer import check_mod_updates, detect_actual_state, plan_changes
+
+    real = b"reforged-matching-bytes-from-outside"
+    digest = hashlib.sha256(real).hexdigest()
+    outside = {
+        "id": "hd_patch_outside_ok",
+        "name": "HD outside match",
+        "kind": "mpq_file",
+        "destination": "Data/patch-OUTOK.mpq",
+        "source": {"type": "raw", "filename": "patch-OUTOK.mpq", "sha256": digest},
+        "detect": {"data_mpq": ["patch-OUTOK.mpq"]},
+    }
+    stamp = "a" * 64
+    keys = (
+        "desired_mods",
+        "user_set_mods",
+        "installed_mods",
+        "user_mods",
+        "game_path",
+        "addons_path",
+        "last_mod_update_check",
+    )
+    saved = {k: s.get(k) for k in keys}
+    try:
+        with tempfile.TemporaryDirectory(prefix="ichalaunch_hd_foreign_") as td:
+            game = Path(td)
+            data = game / "Data"
+            data.mkdir()
+            (game / "WoW.exe").write_bytes(b"MZ")
+            s.set("game_path", str(game))
+            s.set("addons_path", "")
+            s.set("user_mods", [outside])
+            s.set("last_mod_update_check", 0)
+            from ichalaunch.mods import installer as I
+
+            patch_a = I.mod_catalog_map()["hd_patch_a"]
+            (data / "patch-A.mpq").write_bytes(b"other creator patch-A")
+            s.set("desired_mods", {})
+            s.set("user_set_mods", [])
+            s.set("installed_mods", {})
+            clear_fs_caches()
+            assert detect_actual_state(game).get("hd_patch_a") is False
+            desired = sync_desired_mods_from_disk()
+            assert desired.get("hd_patch_a") is not True
+            assert "hd_patch_a" not in s.user_set_mods
+            assert I._pinned_dest_needs_replace(patch_a, game) is False
+            assert I._foreign_hd_letter_slot("hd_patch_a", s.desired_mods) is True
+            assert not any(
+                u.get("id") == "hd_patch_a" for u in check_mod_updates().updates
+            ), check_mod_updates().updates
+            assert not any(
+                c.get("id") == "hd_patch_a" for c in plan_changes()
+            ), plan_changes()
+
+            s.set("desired_mods", {"hd_patch_a": True})
+            s.set("user_set_mods", [])
+            s.set("installed_mods", {"hd_patch_a": {"backfilled": True}})
+            s.set("last_mod_update_check", 0)
+            clear_fs_caches()
+            assert I._pinned_dest_needs_replace(patch_a, game) is False
+            assert not any(
+                u.get("id") == "hd_patch_a" for u in check_mod_updates().updates
+            ), check_mod_updates().updates
+
+            s.set("desired_mods", {"hd_patch_a": True})
+            s.set("user_set_mods", ["hd_patch_a"])
+            s.set("installed_mods", {})
+            s.set("last_mod_update_check", 0)
+            clear_fs_caches()
+            assert I._pinned_dest_needs_replace(patch_a, game) is True
+            assert any(
+                u.get("id") == "hd_patch_a" for u in check_mod_updates().updates
+            ), check_mod_updates().updates
+            assert any(
+                c.get("action") == "install" and c.get("id") == "hd_patch_a"
+                for c in plan_changes()
+            ), plan_changes()
+
+            s.set("desired_mods", {"hd_patch_a": True})
+            s.set("user_set_mods", [])
+            s.set("installed_mods", {"hd_patch_a": {"dest_sha256": stamp}})
+            s.set("last_mod_update_check", 0)
+            clear_fs_caches()
+            assert I._pinned_dest_needs_replace(patch_a, game) is True
+
+            s.set("desired_mods", {"hd_patch_a": True})
+            s.set("user_set_mods", [])
+            s.set("installed_mods", {"hd_patch_a": {"source_url": "https://example.test/a"}})
+            clear_fs_caches()
+            assert I._pinned_dest_needs_replace(patch_a, game) is True
+
+            (data / "patch-OUTOK.mpq").write_bytes(real)
+            s.set("desired_mods", {})
+            s.set("user_set_mods", [])
+            s.set("installed_mods", {})
+            clear_fs_caches()
+            assert I._detect_pinned_payload(game, outside) is True
+            assert detect_actual_state(game).get("hd_patch_outside_ok") is True
+            desired_ok = sync_desired_mods_from_disk()
+            assert desired_ok.get("hd_patch_outside_ok") is True
+            assert "hd_patch_outside_ok" not in s.user_set_mods
+            assert I._pinned_dest_needs_replace(outside, game) is False
+            assert not any(
+                c.get("id") == "hd_patch_outside_ok" for c in plan_changes()
+            ), plan_changes()
+    finally:
+        for k in keys:
+            s.set(k, saved[k])
+        clear_fs_caches()
+    print("OK foreign HD letter pack is not an update; matching Reforged still detects")
+
+
 def _dest_pin_probe(mid: str, dest: str, payload: bytes) -> dict:
     import hashlib
 
@@ -20520,6 +20644,7 @@ def _run_smoke_tests():
     test_stale_pinned_dest_plans_replace()
     test_pinned_dest_hash_match_is_installed()
     test_stale_pinned_dest_does_not_seed_desired()
+    test_foreign_hd_patch_not_offered_as_update()
     test_shared_dest_sibling_pin_not_offered_as_update()
     test_catalog_d3d9_unchecked_sibling_not_update()
     test_raw_dll_pin_detects_by_hash()
