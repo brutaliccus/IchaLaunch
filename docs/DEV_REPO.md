@@ -81,10 +81,13 @@ Every live fetch (`addons.json`, `addon_tips.json`, `home_art.json`,
 is `ichalaunch-catalog` (not `ichalaunch-launcher-update`).
 
 ```
+git checkout fix/pinned-mod-waits-for-catalog
 python tools/sign_live.py
 ```
 
-Prompts yes/no per file (Enter skips). Yes signs with the key at
+`sign_live.py` is not on every branch. If Python says it cannot open
+`tools/sign_live.py`, checkout that branch (or `cd` into the worktree that
+already has it). Prompts yes/no per file (Enter skips). Yes signs with the key at
 `%LOCALAPPDATA%\IchaLaunch\signing\ichalaunch-key1.pem`, writes `<file>.sig`
 beside it, then opens a public PR on `brutaliccus/IchaLaunch` branch
 `sign/live-catalogs` with only the files you accepted. The EXE `.sig` stays

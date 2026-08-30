@@ -1,7 +1,22 @@
 # Sign and publish live catalogs
 
 Operational steps for `brutaliccus/IchaLaunch-dev`. Run every command from the
-**repo root** (not a `python tools` folder). Private keys never enter CI.
+**repo root** (usually `F:\Launcher`). There is no folder named `python tools`
+— `python` is the interpreter; `tools` is the repo folder. Private keys never
+enter CI.
+
+`tools/sign_live.py` is on branch `fix/pinned-mod-waits-for-catalog`
+(IchaLaunch-dev PR #7). If `python tools/sign_live.py` says it cannot open
+that file, you are on another branch (for example the Home-layout one):
+
+```bat
+git fetch origin
+git checkout fix/pinned-mod-waits-for-catalog
+python tools/sign_live.py --only mods
+```
+
+If checkout says the branch is already used by a worktree, `cd` to that
+worktree and run the same `python tools/sign_live.py` command there.
 
 Players fetch four files from public `brutaliccus/IchaLaunch` `master`. Each
 payload change needs a **new sibling `.sig`**. Fail-closed clients ignore
@@ -46,9 +61,13 @@ published catalog signatures keep working.
 python tools/sign_live.py
 ```
 
+Works from the repo root or from `tools\` (`cd tools` then `python sign_live.py`).
 Prompts yes/no per file (Enter skips). Yes writes `<file>.sig` beside the
 JSON, then opens a public PR on `brutaliccus/IchaLaunch` branch
-`sign/live-catalogs` with only the files you accepted.
+`sign/live-catalogs` with only the files you accepted. A missing
+`IchaLaunch.exe` is skipped; catalogs do not need the EXE. If signing
+succeeds but the public push/PR fails, the script prints the exact retry
+command and leaves the sidecars on disk.
 
 ```bat
 python tools/sign_live.py --only mods

@@ -41,14 +41,47 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
 PUBLIC_REPO = "brutaliccus/IchaLaunch"
 DEFAULT_BRANCH = "sign/live-catalogs"
 DEFAULT_REMOTE = "public"
 DEFAULT_EXE_REL = Path("dist") / "IchaLaunch.exe"
+SIGNER_BRANCH = "fix/pinned-mod-waits-for-catalog"
+
+
+def _looks_like_repo(path: Path) -> bool:
+    return (path / "ichalaunch" / "__init__.py").is_file() and (
+        (path / ".git").exists() or (path / "ichalaunch" / "data").is_dir()
+    )
+
+
+def find_repo_root(start: Path | None = None) -> Path:
+    """Repo root from this file, *start*, or cwd (so `cd tools` still works)."""
+    here = Path(__file__).resolve().parent.parent
+    ordered: list[Path] = []
+    if start is not None:
+        ordered.append(Path(start).resolve())
+    ordered.append(here)
+    try:
+        cwd = Path.cwd().resolve()
+        ordered.append(cwd)
+        ordered.extend(cwd.parents)
+        if start is not None:
+            ordered.extend(Path(start).resolve().parents)
+    except OSError:
+        pass
+    seen: set[Path] = set()
+    for path in ordered:
+        if path in seen:
+            continue
+        seen.add(path)
+        if _looks_like_repo(path):
+            return path
+    return here
+
+
+ROOT = find_repo_root()
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 
 def _load_sign():
@@ -187,6 +220,86 @@ def ask_yes(question: str, *, default: bool = False, line: str | None = None) ->
     return default
 
 
+def missing_checkout_help(root: Path) -> str | None:
+    """Actionable message when this tree has no live JSON (wrong branch / cwd)."""
+    missing = [
+        spec.rel
+        for spec in CATALOG_SPECS
+        if spec.rel and not (root / spec.rel).is_file()
+    ]
+    if not missing:
+        return None
+    script = Path(__file__).resolve()
+    return (
+        f"This checkout is missing live catalog file(s): {', '.join(missing)}\n"
+        f"Repo root used: {root}\n"
+        f"This script:    {script}\n"
+        f"sign_live.py lives on `{SIGNER_BRANCH}` (IchaLaunch-dev PR #7).\n"
+        "There is no folder named 'python tools' — `python` is the interpreter.\n"
+        "From the IchaLaunch-dev root (usually F:\\Launcher):\n"
+        "  git fetch origin\n"
+        f"  git checkout {SIGNER_BRANCH}\n"
+        "  python tools/sign_live.py --only mods\n"
+        "If checkout says that branch is already used by a worktree, run the\n"
+        "same command from that worktree path instead."
+    )
+
+
+def public_remote_url(root: Path, remote: str = DEFAULT_REMOTE) -> str | None:
+    proc = subprocess.run(
+        ["git", "remote", "get-url", remote],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    url = (proc.stdout or "").strip()
+    return url or None
+
+
+def ensure_public_remote(root: Path, remote: str = DEFAULT_REMOTE) -> bool:
+    """False when `public` is missing. Prints the exact git remote add command."""
+    if public_remote_url(root, remote):
+        return True
+    print(
+        f"Git remote `{remote}` is not configured in {root}.\n"
+        f"Live catalogs go to {PUBLIC_REPO}, not IchaLaunch-dev.\n"
+        f"  git remote add {remote} https://github.com/{PUBLIC_REPO}.git\n"
+        f"  git fetch {remote} master\n"
+        "Then re-run this command.",
+        file=sys.stderr,
+    )
+    return False
+
+
+def print_after_sign_upload_failed(
+    items: list[SignedItem],
+    *,
+    branch: str,
+    remote: str,
+) -> None:
+    """Sidecars are already on disk; tell the maintainer the exact next command."""
+    catalogs = [i for i in items if i.spec.kind == "catalog"]
+    if not catalogs:
+        return
+    print("Signing succeeded. Upload/PR did not. Sidecars are already written:", file=sys.stderr)
+    for item in catalogs:
+        print(f"  {item.sig_path}", file=sys.stderr)
+        if item.upload_payload:
+            print(f"  {item.path}", file=sys.stderr)
+    only = ",".join(item.spec.id for item in catalogs)
+    print(
+        "Retry the public upload (re-uses the sidecars you just wrote):\n"
+        f"  python tools/sign_live.py --only {only}\n"
+        "If the branch already reached GitHub but `gh pr create` failed:\n"
+        f"  gh pr create --repo {PUBLIC_REPO} --base master --head {branch} "
+        '--title "Sign live catalog files"\n'
+        f"Or open: https://github.com/{PUBLIC_REPO}/compare/master...{branch}?expand=1\n"
+        f"If `{remote}` is missing:\n"
+        f"  git remote add {remote} https://github.com/{PUBLIC_REPO}.git",
+        file=sys.stderr,
+    )
+
+
 def default_key_path() -> Path:
     return _sign.default_key_path()
 
@@ -265,6 +378,8 @@ def public_show(rel: str, *, root: Path, remote: str = DEFAULT_REMOTE) -> bytes 
 
 
 def fetch_public_master(*, root: Path, remote: str = DEFAULT_REMOTE) -> bool:
+    if not ensure_public_remote(root, remote):
+        return False
     print(f"Fetching {remote}/master for status...", file=sys.stderr)
     proc = subprocess.run(
         ["git", "fetch", remote, "master"],
@@ -274,7 +389,12 @@ def fetch_public_master(*, root: Path, remote: str = DEFAULT_REMOTE) -> bool:
     )
     if proc.returncode != 0:
         err = (proc.stderr or proc.stdout or "").strip()
-        print(f"Could not fetch {remote}/master ({err or 'git failed'}).", file=sys.stderr)
+        print(
+            f"Could not fetch {remote}/master ({err or 'git failed'}).\n"
+            f"Check `git remote -v` in {root}. Expected `{remote}` → "
+            f"https://github.com/{PUBLIC_REPO}.git",
+            file=sys.stderr,
+        )
         return False
     return True
 
@@ -511,6 +631,10 @@ def upload_catalogs(
         print("  (dry-run: not fetching, committing, or opening a PR)")
         return None
 
+    if not ensure_public_remote(root, remote):
+        print_after_sign_upload_failed(catalogs, branch=branch, remote=remote)
+        return None
+
     fetch = subprocess.run(
         ["git", "fetch", remote, "master"],
         cwd=root,
@@ -519,10 +643,13 @@ def upload_catalogs(
     )
     if fetch.returncode != 0:
         print(
-            f"Cannot fetch {remote}/master. Add the remote and retry:\n"
-            f"  git remote add {remote} https://github.com/{PUBLIC_REPO}.git",
+            f"Cannot fetch {remote}/master ({(fetch.stderr or fetch.stdout or '').strip() or 'git failed'}).\n"
+            f"Add or fix the remote and retry:\n"
+            f"  git remote add {remote} https://github.com/{PUBLIC_REPO}.git\n"
+            f"  git fetch {remote} master",
             file=sys.stderr,
         )
+        print_after_sign_upload_failed(catalogs, branch=branch, remote=remote)
         return None
 
     base = Path(tempfile.mkdtemp(prefix="ichalaunch-sign-"))
@@ -558,6 +685,7 @@ def upload_catalogs(
                     f"Could not check out public master ({add.stderr or clone.stderr}).",
                     file=sys.stderr,
                 )
+                print_after_sign_upload_failed(catalogs, branch=branch, remote=remote)
                 return None
 
         _git(["checkout", "-B", branch], cwd=tree)
@@ -583,6 +711,7 @@ def upload_catalogs(
                         "the file that was signed (line-ending drift).",
                         file=sys.stderr,
                     )
+                    print_after_sign_upload_failed(catalogs, branch=branch, remote=remote)
                     return None
             staged_sig = subprocess.check_output(
                 ["git", "show", f":{item.spec.rel}.sig"], cwd=tree
@@ -592,6 +721,7 @@ def upload_catalogs(
                     f"Refusing to commit {item.spec.rel}.sig: staged sidecar differs.",
                     file=sys.stderr,
                 )
+                print_after_sign_upload_failed(catalogs, branch=branch, remote=remote)
                 return None
 
         cached = subprocess.run(
@@ -599,7 +729,7 @@ def upload_catalogs(
         )
         if cached.returncode == 0:
             print("Nothing new to commit on the public branch (already signed there).")
-            return _existing_pr_url(branch)
+            return _existing_pr_url(branch) or "already-on-public"
 
         _git(
             [
@@ -621,9 +751,29 @@ def upload_catalogs(
                 "(no force-push).",
                 file=sys.stderr,
             )
-            _git(["push", "-u", remote, f"HEAD:{pushed_branch}"], cwd=tree)
+            retry = subprocess.run(
+                ["git", "push", "-u", remote, f"HEAD:{pushed_branch}"],
+                cwd=tree,
+            )
+            if retry.returncode != 0:
+                print(
+                    f"Push to {remote} was rejected for both `{branch}` and "
+                    f"`{pushed_branch}` (no force-push). Sidecars stay local.",
+                    file=sys.stderr,
+                )
+                print_after_sign_upload_failed(
+                    catalogs, branch=pushed_branch, remote=remote
+                )
+                return None
 
-        return _open_or_reuse_pr(pushed_branch)
+        url = _open_or_reuse_pr(pushed_branch)
+        if url is None:
+            print_after_sign_upload_failed(catalogs, branch=pushed_branch, remote=remote)
+        return url
+    except subprocess.CalledProcessError as exc:
+        print(f"Public catalog upload failed: {exc}", file=sys.stderr)
+        print_after_sign_upload_failed(catalogs, branch=pushed_branch, remote=remote)
+        return None
     finally:
         if used_worktree:
             subprocess.run(
@@ -786,7 +936,7 @@ def run_live_session(
     hooks: LiveHooks | None = None,
     password: bytes | None = None,
 ) -> SessionResult:
-    root = root or ROOT
+    root = root if root is not None else find_repo_root()
     specs = parse_only(only)
     result = SessionResult(dry_run=dry_run)
     result.considered = [s.id for s in specs]
@@ -998,8 +1148,15 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    root = find_repo_root()
     print("IchaLaunch local sign + upload")
     print("The private key stays on this machine. Never put it in CI.")
+    print(f"Repo: {root}")
+    print(f"Script: {Path(__file__).resolve()}")
+    missing = missing_checkout_help(root)
+    if missing:
+        print(missing, file=sys.stderr)
+        return 2
     key = args.key if args.key is not None else default_key_path()
     print(f"Key: {key}" + ("  (missing)" if not key.is_file() else ""))
     try:
@@ -1013,11 +1170,30 @@ def main(argv: list[str] | None = None) -> int:
             release_tag=str(args.release_tag or ""),
             branch=str(args.branch),
             remote=str(args.remote),
+            root=root,
         )
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
     if result.accepted and not result.signed and not result.dry_run:
+        return 1
+    catalog_ids = {spec.id for spec in CATALOG_SPECS}
+    signed_catalogs = [name for name in result.signed if name in catalog_ids]
+    if signed_catalogs and not result.dry_run and not result.catalog_pr:
+        print_after_sign_upload_failed(
+            [
+                SignedItem(
+                    spec=spec_by_id(name),
+                    path=root / spec_by_id(name).rel,  # type: ignore[arg-type]
+                    sig_path=_sign.sidecar_path_for(root / spec_by_id(name).rel),  # type: ignore[arg-type]
+                    purpose="ichalaunch-catalog",
+                    upload_payload=True,
+                )
+                for name in signed_catalogs
+            ],
+            branch=str(args.branch),
+            remote=str(args.remote),
+        )
         return 1
     return 0
 

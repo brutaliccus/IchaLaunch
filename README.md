@@ -107,11 +107,12 @@ Output: `dist\IchaLaunch.exe`
 
 How to rehash client mods (ClassicAPI and the rest), approve catalog issues, and sign live JSON: **[docs/SIGNING.md](docs/SIGNING.md)**. Remotes, CI secrets, and the public thin-master rules: [`docs/DEV_REPO.md`](docs/DEV_REPO.md).
 
-From repo root (not a `python tools` folder):
+From repo root on `fix/pinned-mod-waits-for-catalog` (not a `python tools` folder):
 
 ```bat
+git checkout fix/pinned-mod-waits-for-catalog
 python tools/pin_mods.py --update classic_api
-python tools/sign_live.py
+python tools/sign_live.py --only mods
 ```
 
 Signing keys stay in `%LOCALAPPDATA%\IchaLaunch\signing\`. Never put the key or its password in CI.
