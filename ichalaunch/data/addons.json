@@ -19288,5 +19288,13 @@
     "source": "community",
     "folder": "ClassicLootHistory",
     "description": "This is a back ported loot roll history tracker from the modern Classic client.\nhttps://github.com/KameleonUK/ClassicLootHistory\n\n/loot in game opens & closes the window. Clicking the loot icon at the top left will prompt to reset the list.\nWith a chat message entry box open, shift clicking an item will provide the item link and a summary of who won the roll, their roll score and roll type.\n\nThis addon requires ClassicAPI by Brues, it will not work without it!\nhttps://github.com/brues-code/ClassicAPI\n\n  <img width=\"234\" height=\"281\" alt=\"image\" src=\"https://github.com/user-attachments/assets/a4d2ebbc-a465-49bf-91f6-0fdc67bfe13b\" />\n\n\n  <img width=\"234\" height=\"287\" alt=\"image\" src=\"https://github.com/user-attachments/assets/405846ca-22c8-49ae-8b88-0653e287e6d8\" />"
+  },
+  {
+    "name": "QuestItem",
+    "repo": "https://github.com/wow-vanilla-addons/QuestItem",
+    "category": "General",
+    "source": "community",
+    "folder": "QuestItem",
+    "description": "# QuestItem\n\n> QuestItem addon for vanilla World of Warcraft.\n\nIf you have ever had a quest item you have no idea which quest it belongs to,\nand if it safe to destroy, this AddOn is for you. QuestItem stores an in-game\ndatabase over quest items and tell you which quest they belong to.\n\nQuestItem now has a configuration screen you can access by typing `/questitem`\nor `/qi` at the chat prompt. Here you can configure some of the functionallity\nas well as do manual mapping of unidentified items.\nIf you've made a mistake with a manual mapping, you can change it by holding\ndown the Shift key while clicking.\n\nQuestHistory addon is recommended.\n\n## Feature summary\n* Identify quest items when picked up.\n* Show quest name and status in tooltip for quest items.\n* Will try to identify items picked up before the AddOn was installed.\n* Identified items are available for all your characters, and status is unique for your character.\n* Displays how many items are needed to complete quest, and how many you currently have.\n* Manual mapping for unidentified items (right click) in item list.\n* Edit of manual mapping for items (shift + right click).\n* Change quest status for items in the item list (alt + left click).\n* Configuration\n\n## Known issues\n* Haven't figured a way to open questlog for items in bank bags\n\n## Authors\n\nShagoth"
   }
 ]
