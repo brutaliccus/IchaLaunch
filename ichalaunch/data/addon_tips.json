@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-28T08:24:32Z",
+  "generated_at": "2026-08-30T08:06:36Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -6517,9 +6517,9 @@
     },
     "markuruthunderhoof/reciperadar": {
       "default_branch": "octowow",
-      "sha": "460417ff283a9005a66dca35aed5e5cb0bf43c34",
+      "sha": "30103ceb8717976ec70fef23e8fd91c9b6545a21",
       "branches": {
-        "octowow": "460417ff283a9005a66dca35aed5e5cb0bf43c34"
+        "octowow": "30103ceb8717976ec70fef23e8fd91c9b6545a21"
       }
     },
     "sandworlds-mmo/sw-reciperadar": {
@@ -10835,11 +10835,11 @@
     },
     "cliencer/pfextend": {
       "default_branch": "main",
-      "sha": "7281b5d3747591f7b043ccb5656283ce5dec8c7f",
+      "sha": "6a8e03142901771fca71fefe8df5c2aa41f6105d",
       "branches": {
-        "main": "7281b5d3747591f7b043ccb5656283ce5dec8c7f"
+        "main": "6a8e03142901771fca71fefe8df5c2aa41f6105d"
       },
-      "latest_tag": "1.0.5"
+      "latest_tag": "1.0.6"
     },
     "roby-brok/pfextend": {
       "default_branch": "main",
@@ -12275,9 +12275,9 @@
     },
     "obszczymucha/roll-for-vanilla": {
       "default_branch": "master",
-      "sha": "67a7a1c0a4afab44c2857d87dc678708847a6fba",
+      "sha": "7ea3e165e8a7c94fe484796d641bfd3dc35249ea",
       "branches": {
-        "master": "67a7a1c0a4afab44c2857d87dc678708847a6fba"
+        "master": "7ea3e165e8a7c94fe484796d641bfd3dc35249ea"
       },
       "latest_tag": "v4.6.5"
     },
@@ -16409,9 +16409,9 @@
     },
     "torchlite-bit/aegis_sbr": {
       "default_branch": "main",
-      "sha": "ffeccd66759f5a6a1a1fab8afb6e423793554a50",
+      "sha": "b70645e1a0637359a001d7855408a8d11f83c8c9",
       "branches": {
-        "main": "ffeccd66759f5a6a1a1fab8afb6e423793554a50"
+        "main": "b70645e1a0637359a001d7855408a8d11f83c8c9"
       }
     },
     "eirikaskheim/aegis_sbr": {
@@ -16983,23 +16983,23 @@
     },
     "kobeniiiiii/combatledger": {
       "default_branch": "main",
-      "sha": "cc4360a4f83abe86cdb50693827ef8f673945136",
+      "sha": "22477636e617d9511cd0a64bcaf0efbef2fa998c",
       "branches": {
-        "main": "cc4360a4f83abe86cdb50693827ef8f673945136"
+        "main": "22477636e617d9511cd0a64bcaf0efbef2fa998c"
       }
     },
     "sandreasub/questie-octo": {
       "default_branch": "main",
-      "sha": "4af4e081b14e57ed4db7c7460389d60e89a246d1",
+      "sha": "a92963483f58f0be2bc64c8433cab15fc9969b56",
       "branches": {
-        "main": "4af4e081b14e57ed4db7c7460389d60e89a246d1"
+        "main": "a92963483f58f0be2bc64c8433cab15fc9969b56"
       }
     },
     "jordanfaz/questie-octo": {
       "default_branch": "main",
-      "sha": "1fbf731169e5b0f4b03adec277294b6323055de6",
+      "sha": "0b491e44c1cd4f770d45efa90adf925c62c97bf8",
       "branches": {
-        "main": "1fbf731169e5b0f4b03adec277294b6323055de6"
+        "main": "0b491e44c1cd4f770d45efa90adf925c62c97bf8"
       }
     },
     "excinerus/exautocshs": {
@@ -17130,6 +17130,181 @@
         "master": "b11a9485d0060831af67171c26a5107f82f21cf6"
       }
     },
+    "roby-brok/flightmap": {
+      "default_branch": "master",
+      "sha": "7d38169b159a07dfa8e171ad67d355eb5c18da92",
+      "branches": {
+        "master": "7d38169b159a07dfa8e171ad67d355eb5c18da92"
+      }
+    },
+    "roby-brok/owthreat": {
+      "default_branch": "master",
+      "sha": "6c1819c0b5b2425afc73c48b2c64d40fbd6fd9a8",
+      "branches": {
+        "master": "6c1819c0b5b2425afc73c48b2c64d40fbd6fd9a8"
+      },
+      "latest_tag": "v1.4.0"
+    },
+    "laytya/fubar": {
+      "default_branch": "main",
+      "sha": "2bb40fb180791eae3d144f99d1c672235c61fe5a",
+      "branches": {
+        "main": "2bb40fb180791eae3d144f99d1c672235c61fe5a"
+      }
+    },
+    "otari98/_lazypig": {
+      "default_branch": "master",
+      "sha": "155d892dc5297a46186c66da9046ccc8251abfde",
+      "branches": {
+        "master": "155d892dc5297a46186c66da9046ccc8251abfde"
+      }
+    },
+    "schaka/getspellinfovanilla": {
+      "default_branch": "master",
+      "sha": "670281584e893cf636af59258a237637e076767c",
+      "branches": {
+        "master": "670281584e893cf636af59258a237637e076767c"
+      }
+    },
+    "krekog/specialtalentui": {
+      "default_branch": "main",
+      "sha": "7332d3e7fd5377eaabfd547d79dddb3e71381045",
+      "branches": {
+        "main": "7332d3e7fd5377eaabfd547d79dddb3e71381045"
+      }
+    },
+    "laytya/tomtom-twow": {
+      "default_branch": "master",
+      "sha": "a9c8af10c0d17e4705a2be1cb5e4ab3d71a34ba0",
+      "branches": {
+        "master": "a9c8af10c0d17e4705a2be1cb5e4ab3d71a34ba0"
+      }
+    },
+    "brues-code/auctionator": {
+      "default_branch": "main",
+      "sha": "b321b95287f300167a85fad636b2bf0ff3380ee8",
+      "branches": {
+        "main": "b321b95287f300167a85fad636b2bf0ff3380ee8"
+      },
+      "latest_tag": "v1.0.5"
+    },
+    "roby-brok/pfquest-octo": {
+      "default_branch": "master",
+      "sha": "31517b9b562e5af88d9b452454b6c6ece9801ae3",
+      "branches": {
+        "master": "31517b9b562e5af88d9b452454b6c6ece9801ae3"
+      },
+      "latest_tag": "1.1.6"
+    },
+    "brues-code/turtleflighttimes": {
+      "default_branch": "master",
+      "sha": "19695c5aba631777590fe7f7720491e5d0028f9a",
+      "branches": {
+        "master": "19695c5aba631777590fe7f7720491e5d0028f9a"
+      },
+      "latest_tag": "v1.0.0"
+    },
+    "otari98/atlasquest": {
+      "default_branch": "master",
+      "sha": "d4e8d00b56aff09a80a3254b0cdee8d5b4842668",
+      "branches": {
+        "master": "d4e8d00b56aff09a80a3254b0cdee8d5b4842668"
+      }
+    },
+    "maztheman/healcomm": {
+      "default_branch": "master",
+      "sha": "67ab0e137acbbdad4cfa7d2af0ca58f77474ba7f",
+      "branches": {
+        "master": "67ab0e137acbbdad4cfa7d2af0ca58f77474ba7f"
+      }
+    },
+    "npfs666/procdoc": {
+      "default_branch": "main",
+      "sha": "d3a57043bdaafca0bb937a65be2176b81a4c6117",
+      "branches": {
+        "main": "d3a57043bdaafca0bb937a65be2176b81a4c6117"
+      }
+    },
+    "p145085/stash": {
+      "default_branch": "main",
+      "sha": "1ab573480fd5362da1ad8a4fcf20cbc53400ead0",
+      "branches": {
+        "main": "1ab573480fd5362da1ad8a4fcf20cbc53400ead0"
+      },
+      "latest_tag": "v1.0.1"
+    },
+    "kameleonuk/dragonflightquesttracker2": {
+      "default_branch": "main",
+      "sha": "64b14b69ba5cd505fd14f7a41de137f314387128",
+      "branches": {
+        "main": "64b14b69ba5cd505fd14f7a41de137f314387128"
+      }
+    },
+    "stanzilla/align": {
+      "default_branch": "master",
+      "sha": "978a1f64436a86eec7752cb20f4ac27ceef85e57",
+      "branches": {
+        "master": "978a1f64436a86eec7752cb20f4ac27ceef85e57"
+      }
+    },
+    "roby-brok/pfui-classicapi": {
+      "default_branch": "octo",
+      "sha": "95c575303588070039f8245e12795ba2bc0cbfc0",
+      "branches": {
+        "octo": "95c575303588070039f8245e12795ba2bc0cbfc0"
+      },
+      "latest_tag": "v9.0.18"
+    },
+    "nelethor/aux-revamped": {
+      "default_branch": "master",
+      "sha": "fee00c38eb78062fff77f681c9ae3ab0d605ab4c",
+      "branches": {
+        "master": "fee00c38eb78062fff77f681c9ae3ab0d605ab4c"
+      }
+    },
+    "kitymeowmeow-turt/craftroute": {
+      "default_branch": "main",
+      "sha": "13724229bf6516adf6c54580168d3ce6f5c79b35",
+      "branches": {
+        "main": "13724229bf6516adf6c54580168d3ce6f5c79b35"
+      }
+    },
+    "kobeniiiiii/cleanrolls": {
+      "default_branch": "main",
+      "sha": "ef342d64072fca8994bff22403cedf31ca31eeef",
+      "branches": {
+        "main": "ef342d64072fca8994bff22403cedf31ca31eeef"
+      }
+    },
+    "fuffc/weakestauras": {
+      "default_branch": "master",
+      "sha": "fc1e4fab2150b69742bc43fcad6f898844ecdf42",
+      "branches": {
+        "master": "fc1e4fab2150b69742bc43fcad6f898844ecdf42"
+      },
+      "latest_tag": "v0.17.1"
+    },
+    "wladidaddy/worstinstancetracker": {
+      "default_branch": "main",
+      "sha": "a598d9eb8e5f4829262d34d8633b4a6b49bd0bce",
+      "branches": {
+        "main": "a598d9eb8e5f4829262d34d8633b4a6b49bd0bce"
+      }
+    },
+    "kameleonuk/classicloothistory": {
+      "default_branch": "main",
+      "sha": "606d5487387f8f6eeaa9c66c47b80ff6535512db",
+      "branches": {
+        "main": "606d5487387f8f6eeaa9c66c47b80ff6535512db"
+      }
+    },
+    "wow-vanilla-addons/questitem": {
+      "default_branch": "master",
+      "sha": "ab56cb7d6994dab0ce8e591802fefa6849ca5808",
+      "branches": {
+        "master": "ab56cb7d6994dab0ce8e591802fefa6849ca5808"
+      }
+    },
     "tubtubs/vanilla-tweaks": {
       "default_branch": "master",
       "sha": "1e18414f8f3535d3436d3dc6a7351d4ea74b50b4",
@@ -17188,11 +17363,11 @@
     },
     "brues-code/classicapi": {
       "default_branch": "master",
-      "sha": "fbe40743c03bc504e9bf6f18690831813436ca11",
+      "sha": "3c4d4eda5fd20c400a5a2e33db26e514a34df10e",
       "branches": {
-        "master": "fbe40743c03bc504e9bf6f18690831813436ca11"
+        "master": "3c4d4eda5fd20c400a5a2e33db26e514a34df10e"
       },
-      "latest_tag": "v1.12.7"
+      "latest_tag": "v1.12.8"
     },
     "retrocro/turtlewow-mods": {
       "default_branch": "main",
@@ -17203,11 +17378,11 @@
     },
     "doitsujin/dxvk": {
       "default_branch": "master",
-      "sha": "d647fdf3c554ba917f88e01374602e06f664491d",
+      "sha": "70d7508c01201ed3d4bfb33da42ba834eafe3857",
       "branches": {
-        "master": "d647fdf3c554ba917f88e01374602e06f664491d"
+        "master": "70d7508c01201ed3d4bfb33da42ba834eafe3857"
       },
-      "latest_tag": "v3.0.2"
+      "latest_tag": "v3.1"
     },
     "isfir/vanillahelpers": {
       "default_branch": "master",
