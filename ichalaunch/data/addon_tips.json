@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-30T13:32:22Z",
+  "generated_at": "2026-08-30T17:59:57Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -16976,9 +16976,9 @@
     },
     "igreed1993/greedmeter": {
       "default_branch": "main",
-      "sha": "6eb45944ea5729b58a37d45f97e8acaf74ffdf9f",
+      "sha": "66d98767c3144d5368a4e94e299a288fb7d40c5a",
       "branches": {
-        "main": "6eb45944ea5729b58a37d45f97e8acaf74ffdf9f"
+        "main": "66d98767c3144d5368a4e94e299a288fb7d40c5a"
       }
     },
     "kobeniiiiii/combatledger": {
@@ -17018,9 +17018,9 @@
     },
     "wurmschwanz/blizznameplatesplus": {
       "default_branch": "main",
-      "sha": "d8bc3195d937d3b1321a1ce3089113de2eb43b7b",
+      "sha": "ce5cd846aa57e5b9a951a019ea72f1e083961245",
       "branches": {
-        "main": "d8bc3195d937d3b1321a1ce3089113de2eb43b7b"
+        "main": "ce5cd846aa57e5b9a951a019ea72f1e083961245"
       }
     },
     "otari98/atlas": {
@@ -17296,9 +17296,9 @@
     },
     "brues-code/classicapi": {
       "default_branch": "master",
-      "sha": "3c4d4eda5fd20c400a5a2e33db26e514a34df10e",
+      "sha": "8b106ae0d66b51a41db8020debd1de3ded5fb9bc",
       "branches": {
-        "master": "3c4d4eda5fd20c400a5a2e33db26e514a34df10e"
+        "master": "8b106ae0d66b51a41db8020debd1de3ded5fb9bc"
       },
       "latest_tag": "v1.12.8"
     },
