@@ -19185,5 +19185,13 @@
     "source": "community",
     "folder": "X-Perl-UnitFrames",
     "description": "X-Perl UnitFrames for Vanilla WoW 1.12.1"
+  },
+  {
+    "name": "MatrixMaps",
+    "repo": "https://github.com/dabblez/MatrixMaps",
+    "category": "General",
+    "source": "community",
+    "folder": "MatrixMaps",
+    "description": "Mtxgrower33: SexyMaps Rework⚡MatrixMaps (V1.1) - TurtleWoW"
   }
 ]
