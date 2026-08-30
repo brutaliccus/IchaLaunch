@@ -302,8 +302,8 @@
       "type": "github_release_latest",
       "repo": "brues-code/ClassicAPI",
       "asset_contains": "ClassicAPI.dll",
-      "sha256": "2a823b141326383a56fba100d09f5a72f34798b08f38fa9340e5bdc2ee31dc65",
-      "pinned_tag": "v1.12.7"
+      "sha256": "1a23ce26d5611e035c7cc7d63d30d8584302998b599818cd9f31b2208c1a8260",
+      "pinned_tag": "v1.12.8"
     },
     "files": [
       {
