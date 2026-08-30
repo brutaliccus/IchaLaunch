@@ -1927,8 +1927,12 @@ class MainWindow(QMainWindow):
         self.play_btn = LaunchButton("PLAY")
         self.play_btn.clicked.connect(self._on_play_or_install)
         # Overlay on BottomBar — not in the PLAY HBox, so PLAY does not shift.
+        # Hidden until PLAY is laid out on the right; otherwise the first paint
+        # is at (0, 0) / bar-center and the orb jumps toward PLAY.
         self.realm_ping = RealmPingDot(bottom)
+        self.realm_ping.hide()
         self.realm_ping.raise_()
+        self._realm_ping_geometry_ready = False
 
         play_cluster = QWidget(bottom)
         play_cluster.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
@@ -1946,7 +1950,8 @@ class MainWindow(QMainWindow):
         self._realm_ping_last_at = 0.0
 
         # Expanding slot keeps PLAY pinned to the right when the rail is hidden.
-        # Contributors and the loading bar share this slot (mutually exclusive).
+        # The loading bar lives in this slot. Contributors overlay BottomBar at
+        # the window center so the status string cannot shove them sideways.
         progress_slot = QWidget(bottom)
         progress_slot.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
         progress_slot.setSizePolicy(
@@ -1956,10 +1961,10 @@ class MainWindow(QMainWindow):
         slot_l.setContentsMargins(0, 0, 0, 0)
         slot_l.setSpacing(0)
 
-        contributors = QWidget(progress_slot)
+        contributors = QWidget(bottom)
         contributors.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
         contributors.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred
         )
         contrib_l = QVBoxLayout(contributors)
         contrib_l.setContentsMargins(0, 0, 0, 0)
@@ -2013,11 +2018,8 @@ class MainWindow(QMainWindow):
         contrib_l.addLayout(portraits)
         self._contributors = contributors
 
-        slot_l.addWidget(contributors)
         slot_l.addWidget(self.progress)
         self._progress_slot = progress_slot
-        # Loading bar starts hidden — contributors fill the center slot.
-        self._sync_contributors_with_progress()
 
         grip = QSizeGrip(bottom)
         grip.setFixedSize(16, 16)
@@ -2030,6 +2032,8 @@ class MainWindow(QMainWindow):
         bot_l.addWidget(progress_slot, 1, Qt.AlignmentFlag.AlignVCenter)
         bot_l.addWidget(play_cluster, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         bot_l.addWidget(grip, 0, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
+        # Loading bar starts hidden — contributors overlay the bar center.
+        self._sync_contributors_with_progress()
 
         # Decorative strip between pages and the play/progress bar (bundled offline asset).
         self._nav_bottom_banner = NavBottomBanner()
@@ -2446,6 +2450,7 @@ class MainWindow(QMainWindow):
         self._position_chrome_buttons()
         self._update_window_mask()
         self._refresh_chrome_fills()
+        self._fit_bottom_progress()
         # Reliable initial scan shortly after the UI is visible (not only on the 5‑min timer).
         if not self._startup_checks_scheduled:
             self._startup_checks_scheduled = True
@@ -3043,6 +3048,26 @@ class MainWindow(QMainWindow):
                 right = min(right, mapped.x())
         return right
 
+    def _position_contributors(self) -> None:
+        """Pin portraits to the play-bar center, independent of status width."""
+        contrib = getattr(self, "_contributors", None)
+        bottom = getattr(self, "_bottom_bar", None)
+        if contrib is None or bottom is None or contrib.isHidden():
+            return
+        if contrib.parentWidget() is not bottom:
+            contrib.setParent(bottom)
+        if bottom.width() <= 0:
+            return
+        if contrib.layout() is not None:
+            contrib.layout().activate()
+        contrib.adjustSize()
+        x = (bottom.width() - contrib.width()) // 2
+        y = max(0, (bottom.height() - contrib.height()) // 2)
+        x = max(0, min(x, max(0, bottom.width() - contrib.width())))
+        y = max(0, min(y, max(0, bottom.height() - contrib.height())))
+        contrib.move(x, y)
+        contrib.raise_()
+
     def _position_realm_ping(self) -> None:
         """Center the ping in the open gap between PLAY and the right border."""
         ping = getattr(self, "realm_ping", None)
@@ -3056,6 +3081,12 @@ class MainWindow(QMainWindow):
             return
         play_tl = play.mapTo(bottom, QPoint(0, 0))
         play_right = play_tl.x() + play.width()
+        # PLAY still on the left/center means the HBox has not settled. Keep
+        # the orb hidden so the first paint is already at the gap midpoint.
+        if play_tl.x() < bottom.width() // 2:
+            return
+        if not self.isVisible() and not getattr(self, "_realm_ping_geometry_ready", False):
+            return
         border_right = self._realm_ping_gap_right(bottom)
         x = ping_overlay_x(play_right, border_right, ping.width())
         y = play_tl.y() + (play.height() - ping.height()) // 2
@@ -3078,16 +3109,17 @@ class MainWindow(QMainWindow):
                 x = max(min_x, grip_rect.x() - ping.width())
         ping.move(x, y)
         ping.raise_()
-        if ping.isHidden():
-            return
-        ping.show()
+        if not getattr(self, "_realm_ping_geometry_ready", False):
+            self._realm_ping_geometry_ready = True
+            ping.show()
 
     def _fit_bottom_progress(self) -> None:
-        """Shorten the loading rail and recenter contributors for the PLAY cluster.
+        """Shorten the loading rail and pin overlays after the PLAY cluster.
 
         UPDATE may grow the cluster left. The ping is overlaid to the right of
         PLAY and is not reserved here. ``reserve_trailing`` drops the rail's
-        min/max so it never runs under UPDATE or PLAY.
+        min/max so it never runs under UPDATE or PLAY. Contributors overlay
+        the bar center and are not in this slot.
         """
         progress = getattr(self, "progress", None)
         if progress is None:
@@ -3103,7 +3135,11 @@ class MainWindow(QMainWindow):
         lay = getattr(self, "_bottom_bar", None)
         if lay is not None and lay.layout() is not None:
             lay.layout().activate()
+        self._position_contributors()
         self._position_realm_ping()
+        ping = getattr(self, "realm_ping", None)
+        if ping is not None:
+            ping.raise_()
 
     def _realm_ping_window_active(self) -> bool:
         return bool(self.isVisible() and not self.isMinimized())
@@ -3178,7 +3214,11 @@ class MainWindow(QMainWindow):
         worker.start()
 
     def _sync_contributors_with_progress(self) -> None:
-        """Hide Contributors while the loading bar occupies the center slot."""
+        """Hide Contributors while the loading bar occupies the center slot.
+
+        Portraits overlay the play bar (not the slot), so hiding them does not
+        change status or PLAY geometry.
+        """
         contrib = getattr(self, "_contributors", None)
         progress = getattr(self, "progress", None)
         if contrib is None or progress is None:

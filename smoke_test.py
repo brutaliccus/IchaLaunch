@@ -15912,6 +15912,121 @@ def test_realm_ping_dot_sits_beside_play_without_overlap():
     print("OK realm ping dot sits beside PLAY without overlap")
 
 
+def test_contributors_stay_window_centered_when_status_width_changes():
+    """Portraits stay pinned to the play-bar center when status text grows."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.main_window import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    win = MainWindow()
+    win.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    win.resize(1280, 800)
+    win.show()
+    for _ in range(20):
+        app.processEvents()
+    win.progress.hide()
+    win._sync_contributors_with_progress()
+    app.processEvents()
+
+    bar = win._bottom_bar
+    contrib = win._contributors
+    assert contrib.parentWidget() is bar
+    assert bar.layout() is None or contrib not in [
+        bar.layout().itemAt(i).widget()
+        for i in range(bar.layout().count())
+        if bar.layout().itemAt(i) is not None
+    ]
+
+    def _cx():
+        return contrib.mapTo(bar, contrib.rect().center()).x()
+
+    win.status_lbl.setText("Ready")
+    win.status_lbl.adjustSize()
+    if bar.layout() is not None:
+        bar.layout().activate()
+    win._fit_bottom_progress()
+    app.processEvents()
+    short_status_w = win.status_lbl.width()
+    short_cx = _cx()
+    bar_mid = bar.width() / 2.0
+    assert abs(short_cx - bar_mid) <= 2.0, (short_cx, bar_mid, contrib.geometry())
+
+    win.status_lbl.setText(
+        "Downloading client files and applying catalog pins, please wait…"
+    )
+    win.status_lbl.adjustSize()
+    if bar.layout() is not None:
+        bar.layout().activate()
+    win._fit_bottom_progress()
+    app.processEvents()
+    long_status_w = win.status_lbl.width()
+    long_cx = _cx()
+    assert long_status_w > short_status_w, (short_status_w, long_status_w)
+    assert abs(long_cx - short_cx) <= 1.0, (short_cx, long_cx, short_status_w, long_status_w)
+    assert abs(long_cx - bar.width() / 2.0) <= 2.0, (long_cx, bar.width())
+
+    win.close()
+    print("OK contributors stay window-centered when status width changes")
+
+
+def test_realm_ping_first_show_is_final_x():
+    """Ping must not paint at a temporary x then jump toward PLAY."""
+    from PySide6.QtCore import QEvent, QObject, QPoint, Qt
+    from PySide6.QtWidgets import QApplication
+
+    from ichalaunch.ui.main_window import MainWindow
+    from ichalaunch.ui.widgets.realm_ping import ping_overlay_x
+
+    class _FirstGeom(QObject):
+        def __init__(self, ping):
+            super().__init__(ping)
+            self.xs: list[int] = []
+            ping.installEventFilter(self)
+
+        def eventFilter(self, obj, event):
+            if event.type() == QEvent.Type.Show:
+                self.xs.append(int(obj.x()))
+            return False
+
+    app = QApplication.instance() or QApplication([])
+    win = MainWindow()
+    win.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    assert win.realm_ping.isHidden()
+    probe = _FirstGeom(win.realm_ping)
+    win.resize(1280, 800)
+    win.show()
+    for _ in range(20):
+        app.processEvents()
+    win._fit_bottom_progress()
+    app.processEvents()
+
+    assert not win.realm_ping.isHidden()
+    assert probe.xs, "ping never received a Show event"
+    first_x = probe.xs[0]
+    assert all(x == first_x for x in probe.xs), probe.xs
+
+    bar = win._bottom_bar
+    play_right = win.play_btn.mapTo(bar, QPoint(win.play_btn.width(), 0)).x()
+    border_right = win._realm_ping_gap_right(bar)
+    expected = ping_overlay_x(play_right, border_right, win.realm_ping.width())
+    expected = max(
+        play_right,
+        min(expected, max(play_right, min(bar.width(), border_right) - win.realm_ping.width())),
+    )
+    assert first_x == expected, (first_x, expected, probe.xs)
+    assert win.realm_ping.x() == first_x
+
+    for _ in range(10):
+        win._fit_bottom_progress()
+        app.processEvents()
+    assert win.realm_ping.x() == first_x, (win.realm_ping.x(), first_x)
+
+    win.close()
+    print("OK realm ping first show is already at the final x")
+
+
 def test_realm_ping_orb_stays_inside_radio_hole():
     """Quality fill is concentric with the Off-ring well and stays off the silver."""
     from PySide6.QtCore import Qt
@@ -20849,6 +20964,8 @@ def _run_smoke_tests():
     test_realm_ping_quality_bands_and_tooltip()
     test_realm_ping_probe_times_tcp_connect()
     test_realm_ping_dot_sits_beside_play_without_overlap()
+    test_contributors_stay_window_centered_when_status_width_changes()
+    test_realm_ping_first_show_is_final_x()
     test_realm_ping_orb_stays_inside_radio_hole()
     test_realm_ping_backoff_and_hover_does_not_probe()
     test_realm_ping_hover_is_gold_text_popup()
