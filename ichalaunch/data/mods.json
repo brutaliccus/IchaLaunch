@@ -302,8 +302,8 @@
       "type": "github_release_latest",
       "repo": "brues-code/ClassicAPI",
       "asset_contains": "ClassicAPI.dll",
-      "sha256": "1a23ce26d5611e035c7cc7d63d30d8584302998b599818cd9f31b2208c1a8260",
-      "pinned_tag": "v1.12.8"
+      "sha256": "2a823b141326383a56fba100d09f5a72f34798b08f38fa9340e5bdc2ee31dc65",
+      "pinned_tag": "v1.12.7"
     },
     "files": [
       {
@@ -1120,79 +1120,6 @@
     "author": "MarcelineVQ"
   },
   {
-    "id": "wu_outline",
-    "name": "Outlines",
-    "category": "Advanced",
-    "description": "Glowing colored outlines around units. Toggle with /outlines or /ol.",
-    "info_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
-    "repo_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
-    "detect": {
-      "any_files": [
-        "outline.dll"
-      ]
-    },
-    "source": {
-      "type": "local",
-      "path": "tools/_weirdutils/out/outline.dll",
-      "filename": "outline.dll",
-      "bundle": "weirdutils",
-      "version": "1.0",
-      "build_hint": "Run: python tools/build_weirdutils.py --build-only"
-    },
-    "files": [
-      {
-        "match": "outline.dll",
-        "destination": "outline.dll"
-      }
-    ],
-    "dlls_txt": {
-      "add": [
-        "outline.dll"
-      ]
-    },
-    "kind": "dll_file",
-    "dependencies": [],
-    "conflicts": [],
-    "author": "MarcelineVQ"
-  },
-  {
-    "id": "wu_interact",
-    "name": "Interact",
-    "category": "Advanced",
-    "hidden": true,
-    "description": "Interact Nearest and Loot All Corpses helpers. Changes client hit-testing — follow your server's rules. Built from WeirdUtils source.",
-    "info_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
-    "repo_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
-    "detect": {
-      "any_files": [
-        "interact.dll"
-      ]
-    },
-    "source": {
-      "type": "local",
-      "path": "tools/_weirdutils/out/interact.dll",
-      "filename": "interact.dll",
-      "bundle": "weirdutils",
-      "version": "1.1.0",
-      "build_hint": "Run: python tools/build_weirdutils.py --build-only"
-    },
-    "files": [
-      {
-        "match": "interact.dll",
-        "destination": "interact.dll"
-      }
-    ],
-    "dlls_txt": {
-      "add": [
-        "interact.dll"
-      ]
-    },
-    "kind": "dll_file",
-    "dependencies": [],
-    "conflicts": [],
-    "author": "MarcelineVQ"
-  },
-  {
     "id": "wu_pngscreenshots",
     "name": "PNG Screenshots",
     "category": "Advanced",
@@ -1220,43 +1147,6 @@
     "dlls_txt": {
       "add": [
         "pngscreenshots.dll"
-      ]
-    },
-    "kind": "dll_file",
-    "dependencies": [],
-    "conflicts": [],
-    "author": "MarcelineVQ"
-  },
-  {
-    "id": "wu_framecrash",
-    "name": "Crash Fix",
-    "category": "Advanced",
-    "hidden": true,
-    "description": "Guards stale UI frame anchors on stock 1.12.1 (5875). Hidden — official Codeberg releases do not ship a PE, and the SuperWoW 2.2 source build still #132s on enter-world. Optional; not part of any preset. Built from patched WeirdUtils source.",
-    "info_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
-    "repo_url": "https://codeberg.org/MarcelineVQ/WeirdUtils",
-    "detect": {
-      "any_files": [
-        "framecrash.dll"
-      ]
-    },
-    "source": {
-      "type": "local",
-      "path": "tools/_weirdutils/out/framecrash.dll",
-      "filename": "framecrash.dll",
-      "bundle": "weirdutils",
-      "version": "1.0.2",
-      "build_hint": "Run: python tools/build_weirdutils.py --build-only"
-    },
-    "files": [
-      {
-        "match": "framecrash.dll",
-        "destination": "framecrash.dll"
-      }
-    ],
-    "dlls_txt": {
-      "add": [
-        "framecrash.dll"
       ]
     },
     "kind": "dll_file",
@@ -1523,17 +1413,19 @@
       ]
     },
     "source": {
-      "type": "local",
-      "path": "tools/_discord_presence/out/ichalaunch_discord.dll",
+      "type": "github_release",
+      "url": "https://github.com/brutaliccus/IchaLaunch/releases/download/ichalaunch-discord-1.2/ichalaunch_discord.dll",
       "filename": "ichalaunch_discord.dll",
-      "bundle": "discord_wow",
-      "version": "1.0",
-      "build_hint": "Run: python tools/build_discord_presence.py"
+      "sha256": "222617a87a7931e3c4b6ee27151ed75c0679072122859d3cb3de823a24e1e872",
+      "dest_sha256": "222617a87a7931e3c4b6ee27151ed75c0679072122859d3cb3de823a24e1e872",
+      "version": "1.2",
+      "path": "tools/_discord_presence/out/ichalaunch_discord.dll"
     },
     "files": [
       {
         "match": "ichalaunch_discord.dll",
-        "destination": "ichalaunch_discord.dll"
+        "destination": "ichalaunch_discord.dll",
+        "sha256": "222617a87a7931e3c4b6ee27151ed75c0679072122859d3cb3de823a24e1e872"
       }
     ],
     "dlls_txt": {
