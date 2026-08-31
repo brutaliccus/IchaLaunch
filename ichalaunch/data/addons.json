@@ -123,8 +123,8 @@
     "folder": "Bagshui",
     "release_downloads_repo": "The-Kludge-Bureau/Bagshui",
     "release_downloads_state": "ok",
-    "release_downloads": 230,
-    "release_downloads_at": "2026-08-30T20:22:19Z"
+    "release_downloads": 232,
+    "release_downloads_at": "2026-08-31T01:15:09Z"
   },
   {
     "name": "BlizzMo",
@@ -3948,8 +3948,8 @@
     ],
     "release_downloads_repo": "ScottHamper/chatsuey",
     "release_downloads_state": "ok",
-    "release_downloads": 5085,
-    "release_downloads_at": "2026-08-30T23:08:47Z"
+    "release_downloads": 5086,
+    "release_downloads_at": "2026-08-31T01:15:09Z"
   },
   {
     "name": "ChatTimestamps",
@@ -11068,8 +11068,8 @@
     ],
     "release_downloads_repo": "laytya/AdvancedTradeSkillWindow-vanilla",
     "release_downloads_state": "ok",
-    "release_downloads": 1729,
-    "release_downloads_at": "2026-08-30T13:33:17Z"
+    "release_downloads": 1730,
+    "release_downloads_at": "2026-08-31T01:15:09Z"
   },
   {
     "name": "AdvancedTradeSkillWindow2",
@@ -12420,8 +12420,8 @@
     ],
     "release_downloads_repo": "Cliencer/pfExtend",
     "release_downloads_state": "ok",
-    "release_downloads": 4,
-    "release_downloads_at": "2026-08-30T20:22:19Z"
+    "release_downloads": 5,
+    "release_downloads_at": "2026-08-31T01:15:09Z"
   },
   {
     "name": "pfQuest",
@@ -12478,8 +12478,8 @@
     ],
     "release_downloads_repo": "The-Kludge-Bureau/pfQuest",
     "release_downloads_state": "ok",
-    "release_downloads": 6847,
-    "release_downloads_at": "2026-08-30T23:08:47Z"
+    "release_downloads": 6854,
+    "release_downloads_at": "2026-08-31T01:15:09Z"
   },
   {
     "name": "pfQuest-icons",
@@ -14097,8 +14097,8 @@
     ],
     "release_downloads_repo": "obszczymucha/roll-for-vanilla",
     "release_downloads_state": "ok",
-    "release_downloads": 3746,
-    "release_downloads_at": "2026-08-30T23:08:47Z"
+    "release_downloads": 3747,
+    "release_downloads_at": "2026-08-31T01:15:09Z"
   },
   {
     "name": "RoundRobinhood",
@@ -18740,8 +18740,8 @@
     "description": "# pfUI - ClassicAPI Edition\n\n[![Octo WoW](https://img.shields.io/badge/Octo%20WoW-1.18.1-brightgreen.svg)](https://octowow.st/)\n[![ClassicAPI](https://img.shields.io/badge/ClassicAPI-Required-purple.svg)](https://github.com/brues-code/ClassicAPI)\n[![Nampower](https://img.shields.io/badge/Nampower-Required-purple.svg)](https://github.com/brues-code/nampower)\n[![SuperWoW](https://img.shields.io/badge/SuperWoW-Optional-yellow.svg)](https://github.com/balakethelock/SuperWoW)\n[![UnitXP](https://img.shields.io/badge/UnitXP__SP3-Optional-yellow.svg)](https://github.com/brues-code/UnitXP_SP3)\n\n**A pfUI fork specifically optimized for ClassicAPI on [Octo WoW](https://octowow.st/)**\n\nThis version includes significant performance improvements and DLL-enhanced features.\n\n## Installation\n1. Download **[Latest Version](https://github.com/brues-code/pfUI/releases/latest)**\n2. Unpack the Zip file\n4. Copy \"pfUI\" into Wow-Directory\\Interface\\AddOns\n5. Restart Wow\n\n## DLL Enhancements\n\nSince pfUI 6.0.0 includes integrations with client-side DLLs for enhanced functionality. These DLLs are permitted on Octo WoW:\n\n### [ClassicAPI](https://github.com/brues-code/ClassicAPI)\n\nProvides:\n- C_NamePlate - Event-driven nameplates (no more per-frame WorldFrame scanning) with real per-plate unit tokens and GUIDs\n- C_UnitAuras - Replaces over 3k lines of hand-rolled aura tracking\n- C_Spell - Replaces thousands of hardcoded spell names for each locale and powers castbar\n- Real cast bars - Actual cast/channel timing, spellID and interrupt state for any unit (C_Spell.UnitCastingInfo)\n- Focus - A genuine `focus` unit plus `/focus` and `/clearfocus` (FocusUnit / ClearFocus)\n- C_EquipmentSet - Full Equipment Manager with GUID-tracked gear sets (tells apart duplicate/enchanted items)\n- Instant Bag Sorting - C_Container.MoveItem / SwapItems instead of cursor pickup/drop\n- Sell junk in one call - C_MerchantFrame.GetNumJunkItems / SellAllJunkItems\n- Real item data - C_Item counts, quality, sell price and item info by ID\n- GUID-based targeting - Nameplates, mouseover and focus resolve by GUID, not by name text\n- Faster, safer profile sharing - Engine-side serialize/compress/base64 via C_EncodingUtil\n- C_Timer - After / NewTicker replacing hand-rolled OnUpdate throttles\n- Feign death, shapeshift and quest-item detection via real API calls\n- Mouseover Unit Frames\n- Click-casting\n- Loot Roll History (/loothistory)\n- New item highlighting\n- Plenty other functions\n\n### [Nampower](https://github.com/brues-code/nampower)\n\nProvides:\n- Spell queue indicator\n- GCD indicator\n\n### [SuperWoW](https://github.com/balakethelock/SuperWoW)\n\nProvides:\n- Tracks party/raid units on the minimap\n\n### [UnitXP_SP3](https://github.com/brues-code/UnitXP_SP3)\n\nProvides:\n- Line of Sight detection\n- Behind detection\n- Accurate distance calculations\n- OS notifications\n\nUse `/pfdll` in-game to check which DLLs are detected.\n\n## Commands\n\n    /pfui         Open the configuration GUI\n    /pfdll        Show DLL detection status (SuperWoW, Nampower, UnitXP)\n    /pfbehind     Test Behind/LOS detection on current target\n    /clickthrough Toggle clickthrough mode (or /ct)\n    /share        Open the configuration import/export dialog\n    /gm           Open the ticket Dialog\n    /rl           Reload the whole UI\n    /farm         Toggles the Farm-Mode\n    /pfcast       Same as /cast but for mouseover units\n    /focus        Creates a Focus-Frame for the current target\n    /castfocus    Same as /cast but for focus frame\n    /clearfocus   Clears the Focus-Frame\n    /swapfocus    Toggle Focus and Target-Frame\n    /pftest       Toggle pfUI Unitframe Test Mode\n    /abp          Addon Button Panel\n    /loothistory  Show Loot Roll History\n\n## Languages\npfUI supports and contains language specific code for the following gameclients.\n* English (enUS)\n* Korean (koKR)\n* French (frFR)\n* German (deDE)\n* Chinese (zhCN)\n* Spanish (esES)\n* Russian (ruRU)\n\n## Recommended Addons\n* [pfQuest](https://github.co\n\n… (truncated)",
     "release_downloads_repo": "brues-code/pfUI",
     "release_downloads_state": "ok",
-    "release_downloads": 134,
-    "release_downloads_at": "2026-08-30T20:22:19Z"
+    "release_downloads": 135,
+    "release_downloads_at": "2026-08-31T01:15:09Z"
   },
   {
     "name": "NiceDamage-1.12",
@@ -19067,8 +19067,8 @@
     "description": "A Questhelper and Database Addon for World of Warcraft: Vanilla & TBC",
     "release_downloads_repo": "shagu/pfQuest",
     "release_downloads_state": "ok",
-    "release_downloads": 227428,
-    "release_downloads_at": "2026-08-30T23:08:47Z"
+    "release_downloads": 227445,
+    "release_downloads_at": "2026-08-31T01:15:09Z"
   },
   {
     "name": "pfQuest-classicAPI",
