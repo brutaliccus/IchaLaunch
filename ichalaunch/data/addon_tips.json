@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-31T07:59:14Z",
+  "generated_at": "2026-08-28T08:24:32Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -6517,9 +6517,9 @@
     },
     "markuruthunderhoof/reciperadar": {
       "default_branch": "octowow",
-      "sha": "30103ceb8717976ec70fef23e8fd91c9b6545a21",
+      "sha": "460417ff283a9005a66dca35aed5e5cb0bf43c34",
       "branches": {
-        "octowow": "30103ceb8717976ec70fef23e8fd91c9b6545a21"
+        "octowow": "460417ff283a9005a66dca35aed5e5cb0bf43c34"
       }
     },
     "sandworlds-mmo/sw-reciperadar": {
@@ -10835,11 +10835,11 @@
     },
     "cliencer/pfextend": {
       "default_branch": "main",
-      "sha": "6a8e03142901771fca71fefe8df5c2aa41f6105d",
+      "sha": "7281b5d3747591f7b043ccb5656283ce5dec8c7f",
       "branches": {
-        "main": "6a8e03142901771fca71fefe8df5c2aa41f6105d"
+        "main": "7281b5d3747591f7b043ccb5656283ce5dec8c7f"
       },
-      "latest_tag": "1.0.6"
+      "latest_tag": "1.0.5"
     },
     "roby-brok/pfextend": {
       "default_branch": "main",
@@ -12275,9 +12275,9 @@
     },
     "obszczymucha/roll-for-vanilla": {
       "default_branch": "master",
-      "sha": "7ea3e165e8a7c94fe484796d641bfd3dc35249ea",
+      "sha": "67a7a1c0a4afab44c2857d87dc678708847a6fba",
       "branches": {
-        "master": "7ea3e165e8a7c94fe484796d641bfd3dc35249ea"
+        "master": "67a7a1c0a4afab44c2857d87dc678708847a6fba"
       },
       "latest_tag": "v4.6.5"
     },
@@ -16409,9 +16409,9 @@
     },
     "torchlite-bit/aegis_sbr": {
       "default_branch": "main",
-      "sha": "b70645e1a0637359a001d7855408a8d11f83c8c9",
+      "sha": "ffeccd66759f5a6a1a1fab8afb6e423793554a50",
       "branches": {
-        "main": "b70645e1a0637359a001d7855408a8d11f83c8c9"
+        "main": "ffeccd66759f5a6a1a1fab8afb6e423793554a50"
       }
     },
     "eirikaskheim/aegis_sbr": {
@@ -16917,9 +16917,9 @@
     },
     "brues-code/pfui": {
       "default_branch": "master",
-      "sha": "98c77514162032ea7ca2b97ee74d3c39825d064b",
+      "sha": "8796fab6d89146797d8b1168bc1edab1a856dc41",
       "branches": {
-        "master": "98c77514162032ea7ca2b97ee74d3c39825d064b"
+        "master": "8796fab6d89146797d8b1168bc1edab1a856dc41"
       },
       "latest_tag": "v9.0.20"
     },
@@ -16976,30 +16976,30 @@
     },
     "igreed1993/greedmeter": {
       "default_branch": "main",
-      "sha": "66d98767c3144d5368a4e94e299a288fb7d40c5a",
+      "sha": "6eb45944ea5729b58a37d45f97e8acaf74ffdf9f",
       "branches": {
-        "main": "66d98767c3144d5368a4e94e299a288fb7d40c5a"
+        "main": "6eb45944ea5729b58a37d45f97e8acaf74ffdf9f"
       }
     },
     "kobeniiiiii/combatledger": {
       "default_branch": "main",
-      "sha": "22477636e617d9511cd0a64bcaf0efbef2fa998c",
+      "sha": "cc4360a4f83abe86cdb50693827ef8f673945136",
       "branches": {
-        "main": "22477636e617d9511cd0a64bcaf0efbef2fa998c"
+        "main": "cc4360a4f83abe86cdb50693827ef8f673945136"
       }
     },
     "sandreasub/questie-octo": {
       "default_branch": "main",
-      "sha": "1a87e22a64ec8d91efa9130839dc691216745b02",
+      "sha": "4af4e081b14e57ed4db7c7460389d60e89a246d1",
       "branches": {
-        "main": "1a87e22a64ec8d91efa9130839dc691216745b02"
+        "main": "4af4e081b14e57ed4db7c7460389d60e89a246d1"
       }
     },
     "jordanfaz/questie-octo": {
       "default_branch": "main",
-      "sha": "5e4d74a6d6aeb3b944d2c4660a751c83fea1e772",
+      "sha": "1fbf731169e5b0f4b03adec277294b6323055de6",
       "branches": {
-        "main": "5e4d74a6d6aeb3b944d2c4660a751c83fea1e772"
+        "main": "1fbf731169e5b0f4b03adec277294b6323055de6"
       }
     },
     "excinerus/exautocshs": {
@@ -17018,9 +17018,9 @@
     },
     "wurmschwanz/blizznameplatesplus": {
       "default_branch": "main",
-      "sha": "ce5cd846aa57e5b9a951a019ea72f1e083961245",
+      "sha": "d8bc3195d937d3b1321a1ce3089113de2eb43b7b",
       "branches": {
-        "main": "ce5cd846aa57e5b9a951a019ea72f1e083961245"
+        "main": "d8bc3195d937d3b1321a1ce3089113de2eb43b7b"
       }
     },
     "otari98/atlas": {
@@ -17130,137 +17130,6 @@
         "master": "b11a9485d0060831af67171c26a5107f82f21cf6"
       }
     },
-    "roby-brok/flightmap": {
-      "default_branch": "master",
-      "sha": "7d38169b159a07dfa8e171ad67d355eb5c18da92",
-      "branches": {
-        "master": "7d38169b159a07dfa8e171ad67d355eb5c18da92"
-      }
-    },
-    "roby-brok/owthreat": {
-      "default_branch": "master",
-      "sha": "6c1819c0b5b2425afc73c48b2c64d40fbd6fd9a8",
-      "branches": {
-        "master": "6c1819c0b5b2425afc73c48b2c64d40fbd6fd9a8"
-      },
-      "latest_tag": "v1.4.0"
-    },
-    "laytya/fubar": {
-      "default_branch": "main",
-      "sha": "2bb40fb180791eae3d144f99d1c672235c61fe5a",
-      "branches": {
-        "main": "2bb40fb180791eae3d144f99d1c672235c61fe5a"
-      }
-    },
-    "otari98/_lazypig": {
-      "default_branch": "master",
-      "sha": "155d892dc5297a46186c66da9046ccc8251abfde",
-      "branches": {
-        "master": "155d892dc5297a46186c66da9046ccc8251abfde"
-      }
-    },
-    "schaka/getspellinfovanilla": {
-      "default_branch": "master",
-      "sha": "670281584e893cf636af59258a237637e076767c",
-      "branches": {
-        "master": "670281584e893cf636af59258a237637e076767c"
-      }
-    },
-    "krekog/specialtalentui": {
-      "default_branch": "main",
-      "sha": "7332d3e7fd5377eaabfd547d79dddb3e71381045",
-      "branches": {
-        "main": "7332d3e7fd5377eaabfd547d79dddb3e71381045"
-      }
-    },
-    "laytya/tomtom-twow": {
-      "default_branch": "master",
-      "sha": "a9c8af10c0d17e4705a2be1cb5e4ab3d71a34ba0",
-      "branches": {
-        "master": "a9c8af10c0d17e4705a2be1cb5e4ab3d71a34ba0"
-      }
-    },
-    "brues-code/auctionator": {
-      "default_branch": "main",
-      "sha": "b321b95287f300167a85fad636b2bf0ff3380ee8",
-      "branches": {
-        "main": "b321b95287f300167a85fad636b2bf0ff3380ee8"
-      },
-      "latest_tag": "v1.0.5"
-    },
-    "roby-brok/pfquest-octo": {
-      "default_branch": "master",
-      "sha": "31517b9b562e5af88d9b452454b6c6ece9801ae3",
-      "branches": {
-        "master": "31517b9b562e5af88d9b452454b6c6ece9801ae3"
-      },
-      "latest_tag": "1.1.6"
-    },
-    "pashka1123/x-perl-unitframes": {
-      "default_branch": "main",
-      "sha": "1e6d59bcd23a381709410414984d70c4dba33fff",
-      "branches": {
-        "main": "1e6d59bcd23a381709410414984d70c4dba33fff"
-      }
-    },
-    "dabblez/matrixmaps": {
-      "default_branch": "main",
-      "sha": "f1c9260629b2fa8c952e73925bef632735bb9830",
-      "branches": {
-        "main": "f1c9260629b2fa8c952e73925bef632735bb9830"
-      }
-    },
-    "alchem1ster/dragonflightreloaded": {
-      "default_branch": "main",
-      "sha": "49f20659cefcf621abd89fabb67f906b62ec7523",
-      "branches": {
-        "main": "49f20659cefcf621abd89fabb67f906b62ec7523"
-      }
-    },
-    "shikawalepaladin/pallypowertw": {
-      "default_branch": "master",
-      "sha": "ceed48b90690f5b6e1b1956caeaee4398acbf59f",
-      "branches": {
-        "master": "ceed48b90690f5b6e1b1956caeaee4398acbf59f"
-      }
-    },
-    "diafragma/xperl": {
-      "default_branch": "master",
-      "sha": "579cbc4720772c04514a21ebf8a8c015c6a7a6ca",
-      "branches": {
-        "master": "579cbc4720772c04514a21ebf8a8c015c6a7a6ca"
-      }
-    },
-    "edmaster530/potential-spoon": {
-      "default_branch": "main",
-      "sha": "743901711e7e883e55742c962a14a71be94cbd9e",
-      "branches": {
-        "main": "743901711e7e883e55742c962a14a71be94cbd9e"
-      }
-    },
-    "dusk-92/shagutweaks-extras-classicapi": {
-      "default_branch": "master",
-      "sha": "e7d01c8aa086646f5f8c0f1c8b193e37aea36cb7",
-      "branches": {
-        "master": "e7d01c8aa086646f5f8c0f1c8b193e37aea36cb7"
-      }
-    },
-    "dusk-92/shagutweaks-classicapi": {
-      "default_branch": "main",
-      "sha": "a8c2a1f1ba5e755d0ed036e557e782b38833f5c4",
-      "branches": {
-        "main": "a8c2a1f1ba5e755d0ed036e557e782b38833f5c4"
-      }
-    },
-    "saafi404/octoquestxp": {
-      "default_branch": "main",
-      "sha": "c9f48dfffe7ed8b871d4f2702b0049d65d84af60",
-      "branches": {
-        "main": "c9f48dfffe7ed8b871d4f2702b0049d65d84af60"
-      },
-      "latest_tag": "Release",
-      "display_version": "v1.0"
-    },
     "tubtubs/vanilla-tweaks": {
       "default_branch": "master",
       "sha": "1e18414f8f3535d3436d3dc6a7351d4ea74b50b4",
@@ -17319,11 +17188,11 @@
     },
     "brues-code/classicapi": {
       "default_branch": "master",
-      "sha": "1ad6b57202565a2518d274ad6f353d360ab77acb",
+      "sha": "fbe40743c03bc504e9bf6f18690831813436ca11",
       "branches": {
-        "master": "1ad6b57202565a2518d274ad6f353d360ab77acb"
+        "master": "fbe40743c03bc504e9bf6f18690831813436ca11"
       },
-      "latest_tag": "v1.13.1"
+      "latest_tag": "v1.12.7"
     },
     "retrocro/turtlewow-mods": {
       "default_branch": "main",
@@ -17334,11 +17203,11 @@
     },
     "doitsujin/dxvk": {
       "default_branch": "master",
-      "sha": "adeda6639a09ad1b6a1b7c4158a781ffaf68947d",
+      "sha": "d647fdf3c554ba917f88e01374602e06f664491d",
       "branches": {
-        "master": "adeda6639a09ad1b6a1b7c4158a781ffaf68947d"
+        "master": "d647fdf3c554ba917f88e01374602e06f664491d"
       },
-      "latest_tag": "v3.1"
+      "latest_tag": "v3.0.2"
     },
     "isfir/vanillahelpers": {
       "default_branch": "master",
