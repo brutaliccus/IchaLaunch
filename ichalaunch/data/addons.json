@@ -19321,5 +19321,13 @@
     "release_downloads_state": "ok",
     "release_downloads": 1,
     "release_downloads_at": "2026-08-31T08:00:15Z"
+  },
+  {
+    "name": "BigWigs",
+    "repo": "https://github.com/perl1743/BigWigs",
+    "category": "General",
+    "source": "community",
+    "folder": "BigWigs",
+    "description": "updates for Turtle WoW"
   }
 ]
