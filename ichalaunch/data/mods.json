@@ -302,8 +302,8 @@
       "type": "github_release_latest",
       "repo": "brues-code/ClassicAPI",
       "asset_contains": "ClassicAPI.dll",
-      "sha256": "2a823b141326383a56fba100d09f5a72f34798b08f38fa9340e5bdc2ee31dc65",
-      "pinned_tag": "v1.12.7"
+      "sha256": "63db4da21f2989f4c092a39edff27b1bfe5d4f850f6e2e312544296026595a1d",
+      "pinned_tag": "v1.13.1"
     },
     "files": [
       {
@@ -1413,18 +1413,18 @@
     },
     "source": {
       "type": "github_release",
-      "url": "https://github.com/brutaliccus/IchaLaunch/releases/download/ichalaunch-discord-1.2/ichalaunch_discord.dll",
+      "url": "https://github.com/brutaliccus/IchaLaunch/releases/download/ichalaunch-discord-1.3/ichalaunch_discord.dll",
       "filename": "ichalaunch_discord.dll",
-      "sha256": "222617a87a7931e3c4b6ee27151ed75c0679072122859d3cb3de823a24e1e872",
-      "dest_sha256": "222617a87a7931e3c4b6ee27151ed75c0679072122859d3cb3de823a24e1e872",
-      "version": "1.2",
+      "sha256": "fdfdb9c25c492de2196e9884bf14b17e959332029eef973e044e2a73dba6202f",
+      "dest_sha256": "fdfdb9c25c492de2196e9884bf14b17e959332029eef973e044e2a73dba6202f",
+      "version": "1.3",
       "path": "tools/_discord_presence/out/ichalaunch_discord.dll"
     },
     "files": [
       {
         "match": "ichalaunch_discord.dll",
         "destination": "ichalaunch_discord.dll",
-        "sha256": "222617a87a7931e3c4b6ee27151ed75c0679072122859d3cb3de823a24e1e872"
+        "sha256": "fdfdb9c25c492de2196e9884bf14b17e959332029eef973e044e2a73dba6202f"
       }
     ],
     "dlls_txt": {
