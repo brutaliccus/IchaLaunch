@@ -1405,8 +1405,7 @@
     "id": "ichalaunch_discord",
     "name": "Discord character status",
     "category": "Client Enhancements",
-    "hidden": true,
-    "description": "Behind-the-scenes helper that publishes character name, race, class, guild, zone, level, and faction for Discord Rich Presence. Loaded only when Show status on Discord and Show character details are both on. No in-game UI.",
+    "description": "Helper DLL that publishes character name, race, class, guild, zone, level, and faction for Discord Rich Presence. Enable it from Settings → Privacy (Show status on Discord and Show character details). No in-game UI.",
     "detect": {
       "any_files": [
         "ichalaunch_discord.dll"
