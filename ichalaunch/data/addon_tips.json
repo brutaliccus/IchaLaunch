@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-31T01:14:17Z",
+  "generated_at": "2026-08-31T07:59:14Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -17238,6 +17238,29 @@
         "main": "743901711e7e883e55742c962a14a71be94cbd9e"
       }
     },
+    "dusk-92/shagutweaks-extras-classicapi": {
+      "default_branch": "master",
+      "sha": "e7d01c8aa086646f5f8c0f1c8b193e37aea36cb7",
+      "branches": {
+        "master": "e7d01c8aa086646f5f8c0f1c8b193e37aea36cb7"
+      }
+    },
+    "dusk-92/shagutweaks-classicapi": {
+      "default_branch": "main",
+      "sha": "a8c2a1f1ba5e755d0ed036e557e782b38833f5c4",
+      "branches": {
+        "main": "a8c2a1f1ba5e755d0ed036e557e782b38833f5c4"
+      }
+    },
+    "saafi404/octoquestxp": {
+      "default_branch": "main",
+      "sha": "c9f48dfffe7ed8b871d4f2702b0049d65d84af60",
+      "branches": {
+        "main": "c9f48dfffe7ed8b871d4f2702b0049d65d84af60"
+      },
+      "latest_tag": "Release",
+      "display_version": "v1.0"
+    },
     "tubtubs/vanilla-tweaks": {
       "default_branch": "master",
       "sha": "1e18414f8f3535d3436d3dc6a7351d4ea74b50b4",
@@ -17296,11 +17319,11 @@
     },
     "brues-code/classicapi": {
       "default_branch": "master",
-      "sha": "993c82cca76494980fe451b4eb0bc0066f69a09b",
+      "sha": "1ad6b57202565a2518d274ad6f353d360ab77acb",
       "branches": {
-        "master": "993c82cca76494980fe451b4eb0bc0066f69a09b"
+        "master": "1ad6b57202565a2518d274ad6f353d360ab77acb"
       },
-      "latest_tag": "v1.12.8"
+      "latest_tag": "v1.13.1"
     },
     "retrocro/turtlewow-mods": {
       "default_branch": "main",
@@ -17311,9 +17334,9 @@
     },
     "doitsujin/dxvk": {
       "default_branch": "master",
-      "sha": "70d7508c01201ed3d4bfb33da42ba834eafe3857",
+      "sha": "adeda6639a09ad1b6a1b7c4158a781ffaf68947d",
       "branches": {
-        "master": "70d7508c01201ed3d4bfb33da42ba834eafe3857"
+        "master": "adeda6639a09ad1b6a1b7c4158a781ffaf68947d"
       },
       "latest_tag": "v3.1"
     },
