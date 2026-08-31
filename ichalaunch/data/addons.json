@@ -19337,5 +19337,12 @@
     "source": "community",
     "folder": "BetterCharacterStats",
     "description": "# BetterCharacterStats for Turtle WoW\nThis addon shows your character stats that are not present in default UI.<br>\nThis version is designed specifically for TurtleWoW and its custom changes.\n## Features\n - Base stats: strength, agility, stamina, intellect, spirit, armor\n - Melee/Ranged: weapon skill, damage, attack speed, attack power, hit, crit\n - Spells: spell power, spell hit, crit, healing power, mana regeneration\n - Schools: your spell power for each school of magic\n - Defenses: armor, defense skill, dodge, parry, block, avoidance\n## Preview\n![preview1](https://github.com/user-attachments/assets/d342aed0-812c-40f9-a4d4-9b33eb48caa3)\n\n## Installation\n1. Click Code -> Download ZIP\n2. Extract ZIP file into your Interface/AddOnns folder, remove ``-main``\n3. Restart the game\n \n## Thanks to original author and all contributors\nMoh, Bennylava, Lexie, Spit, Pepopo"
+  },
+  {
+    "name": "CawDPSMeter",
+    "repo": "https://github.com/NovaElysium/CawDPSMeter",
+    "category": "General",
+    "source": "community",
+    "folder": "CawDPSMeter"
   }
 ]
