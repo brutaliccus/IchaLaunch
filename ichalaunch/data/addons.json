@@ -19337,5 +19337,13 @@
     "source": "community",
     "folder": "BetterCharacterStats",
     "description": "# BetterCharacterStats for Turtle WoW\nThis addon shows your character stats that are not present in default UI.<br>\nThis version is designed specifically for TurtleWoW and its custom changes.\n## Features\n - Base stats: strength, agility, stamina, intellect, spirit, armor\n - Melee/Ranged: weapon skill, damage, attack speed, attack power, hit, crit\n - Spells: spell power, spell hit, crit, healing power, mana regeneration\n - Schools: your spell power for each school of magic\n - Defenses: armor, defense skill, dodge, parry, block, avoidance\n## Preview\n![preview1](https://github.com/user-attachments/assets/d342aed0-812c-40f9-a4d4-9b33eb48caa3)\n\n## Installation\n1. Click Code -> Download ZIP\n2. Extract ZIP file into your Interface/AddOnns folder, remove ``-main``\n3. Restart the game\n \n## Thanks to original author and all contributors\nMoh, Bennylava, Lexie, Spit, Pepopo"
+  },
+  {
+    "name": "LunaUnitFrames",
+    "repo": "https://github.com/MarcelineVQ/LunaUnitFrames",
+    "category": "General",
+    "source": "community",
+    "folder": "LunaUnitFrames",
+    "description": "# LunaUnitFrames\nUnit Frames for Turtle WoW\n---\nSuperWoW/UnitXP enabled\n---\nIncludes:\n* Accurate mob cast times\n* Accurate totem timers\n* Perfect range checking\n* Threat display for mobs via the `[threat]`, `[perthreat]`, and `[pullthreat]` tags\n* * Works the same as TWThreat, in that you must be in a party and fighting an elite.\n* Focus frame (SuperWoW only) — a configurable unit frame that tracks any unit by GUID\n* * `/focus` — focus your current target\n* * `/focus <name>` — focus a player by name (looked up via roster)\n* * `/focus <unit>` — focus a unit ID (e.g. party1, raid5)\n* * `/focus clear` — clear the focus frame\n\n* Originally sourced from https://github.com/gnwl/LunaUnitFrames and https://github.com/Aviana/LunaUnitFrames"
   }
 ]
