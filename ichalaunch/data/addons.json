@@ -1414,15 +1414,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "MikScrollingBattleText (MSBT)",
-    "repo": "",
-    "category": "Combat",
-    "description": "an alternative for Blizzard's Floating Combat Text and Damage output",
-    "source": "turtle_wiki",
-    "folder": "MikScrollingBattleText(MSBT)",
-    "installable": false
-  },
-  {
     "name": "MobHealth",
     "repo": "https://github.com/kc8pnd/MobHealth",
     "category": "Combat",
@@ -2849,15 +2840,6 @@
     "description": "Display a frame showing used actions [Img1]",
     "source": "turtle_wiki",
     "folder": "actionmirroringframe"
-  },
-  {
-    "name": "AddOnOrganizer",
-    "repo": "",
-    "category": "General",
-    "description": "This mod allows you to turn on and off all of your current addons",
-    "source": "turtle_wiki",
-    "folder": "AddOnOrganizer",
-    "installable": false
   },
   {
     "name": "Aero",
@@ -9151,15 +9133,15 @@
   },
   {
     "name": "TankHelper",
-    "repo": "https://github.com/balakethelock/TankHelper",
+    "repo": "https://github.com/Otari98/TankHelper",
     "category": "General",
     "description": "Shows information about target [Img1]",
     "source": "turtle_wiki",
     "folder": "TankHelper",
     "forks": [
       {
-        "label": "Otari98",
-        "repo": "https://github.com/Otari98/TankHelper"
+        "label": "balakethelock",
+        "repo": "https://github.com/balakethelock/TankHelper"
       },
       {
         "label": "melbaa",
@@ -9169,7 +9151,8 @@
     "release_downloads_repo": "balakethelock/TankHelper",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "TimeManager",
@@ -9286,20 +9269,6 @@
     "description": "Adds info about your transmog collection to game tooltips",
     "source": "turtle_wiki",
     "folder": "Tmog",
-    "forks": [
-      {
-        "label": "whtmst",
-        "repo": "https://github.com/whtmst/Tmog"
-      },
-      {
-        "label": "ErikGrav",
-        "repo": "https://github.com/ErikGrav/Tmog"
-      },
-      {
-        "label": "Jan125",
-        "repo": "https://github.com/Jan125/Tmog"
-      }
-    ],
     "release_downloads_repo": "Otari98/Tmog",
     "release_downloads_state": "none",
     "release_downloads": 0,
@@ -10955,24 +10924,6 @@
     "source": "turtle_wiki",
     "turtle_custom": true,
     "folder": "TurtleSnacks",
-    "forks": [
-      {
-        "label": "AmonRA",
-        "repo": "https://github.com/AmonRA/TurtleSnacks"
-      },
-      {
-        "label": "RavenOfSeven",
-        "repo": "https://github.com/RavenOfSeven/TurtleSnacks"
-      },
-      {
-        "label": "terradcm-code",
-        "repo": "https://github.com/terradcm-code/TurtleSnacks"
-      },
-      {
-        "label": "RadiantRainbow",
-        "repo": "https://github.com/RadiantRainbow/TurtleSnacks"
-      }
-    ],
     "release_downloads_repo": "McPewPew/TurtleSnacks",
     "release_downloads_state": "none",
     "release_downloads": 0,
@@ -11026,52 +10977,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "AdvancedTradeSkillWindow",
-    "repo": "https://github.com/laytya/AdvancedTradeSkillWindow-vanilla",
-    "category": "Professions",
-    "description": "replacement for Blizzards trade skill window [Img1] use it w/ LSW",
-    "source": "turtle_wiki",
-    "folder": "AdvancedTradeSkillWindow-vanilla",
-    "forks": [
-      {
-        "label": "Greatest-Cupcake/AdvancedTradeSkillWindow",
-        "repo": "https://github.com/Greatest-Cupcake/AdvancedTradeSkillWindow"
-      },
-      {
-        "label": "KameleonUK",
-        "repo": "https://github.com/KameleonUK/AdvancedTradeSkillWindow-vanilla"
-      },
-      {
-        "label": "beldin0",
-        "repo": "https://github.com/beldin0/AdvancedTradeSkillWindow-vanilla"
-      },
-      {
-        "label": "ShigemuneKurogane",
-        "repo": "https://github.com/ShigemuneKurogane/AdvancedTradeSkillWindow-vanilla"
-      },
-      {
-        "label": "McPewPew",
-        "repo": "https://github.com/McPewPew/AdvancedTradeSkillWindow-vanilla"
-      },
-      {
-        "label": "Distrattos",
-        "repo": "https://github.com/Distrattos/AdvancedTradeSkillWindow-vanilla"
-      },
-      {
-        "label": "Chad90b",
-        "repo": "https://github.com/Chad90b/AdvancedTradeSkillWindow-vanilla"
-      },
-      {
-        "label": "CW60",
-        "repo": "https://github.com/CW60/AdvancedTradeSkillWindow-vanilla"
-      }
-    ],
-    "release_downloads_repo": "laytya/AdvancedTradeSkillWindow-vanilla",
-    "release_downloads_state": "ok",
-    "release_downloads": 1724,
-    "release_downloads_at": "2026-08-27T23:32:15Z"
-  },
-  {
     "name": "AdvancedTradeSkillWindow2",
     "repo": "https://github.com/Shellyoung/AdvancedTradeSkillWindow2",
     "category": "Professions",
@@ -11082,50 +10987,6 @@
       {
         "label": "ghbset",
         "repo": "https://github.com/ghbset/AdvancedTradeSkillWindow2"
-      },
-      {
-        "label": "whtmst",
-        "repo": "https://github.com/whtmst/AdvancedTradeSkillWindow2"
-      },
-      {
-        "label": "Chad90b",
-        "repo": "https://github.com/Chad90b/AdvancedTradeSkillWindow2"
-      },
-      {
-        "label": "terradcm-code",
-        "repo": "https://github.com/terradcm-code/AdvancedTradeSkillWindow2"
-      },
-      {
-        "label": "varaghar/AdvancedTradeSkillWindow3",
-        "repo": "https://github.com/varaghar/AdvancedTradeSkillWindow3"
-      },
-      {
-        "label": "gbl",
-        "repo": "https://github.com/gbl/AdvancedTradeSkillWindow2"
-      },
-      {
-        "label": "ERitzman",
-        "repo": "https://github.com/ERitzman/AdvancedTradeSkillWindow2"
-      },
-      {
-        "label": "sigboe",
-        "repo": "https://github.com/sigboe/AdvancedTradeSkillWindow2"
-      },
-      {
-        "label": "samahee",
-        "repo": "https://github.com/samahee/AdvancedTradeSkillWindow2"
-      },
-      {
-        "label": "evilbunny235",
-        "repo": "https://github.com/evilbunny235/AdvancedTradeSkillWindow2"
-      },
-      {
-        "label": "dctremblay",
-        "repo": "https://github.com/dctremblay/AdvancedTradeSkillWindow2"
-      },
-      {
-        "label": "flyinbed",
-        "repo": "https://github.com/flyinbed/AdvancedTradeSkillWindow2"
       }
     ],
     "release_downloads_repo": "Shellyoung/AdvancedTradeSkillWindow2",
@@ -11636,12 +11497,19 @@
   },
   {
     "name": "Theorycraft Turtle",
-    "repo": "",
+    "repo": "https://github.com/greendam/TheoryCraft-Turtle",
     "category": "Professions",
     "description": "display average numbers on buttons w/ macros. Incomplete turtle class changes support.",
     "source": "turtle_wiki",
     "folder": "TheorycraftTurtle",
-    "installable": false
+    "installable": false,
+    "forks": [
+      {
+        "label": "previous",
+        "repo": ""
+      }
+    ],
+    "recommended": true
   },
   {
     "name": "TradeChat",
@@ -12808,7 +12676,7 @@
   },
   {
     "name": "TriviaBot Turtle",
-    "repo": "https://github.com/cyaohiri/TriviaBot-TurtleWow",
+    "repo": "https://github.com/greendam/TriviaBot-TurtleWow",
     "category": "Questing",
     "description": "A fun in-game trivia bot with TurtleWoW questions.",
     "source": "turtle_wiki",
@@ -12816,14 +12684,15 @@
     "folder": "TriviaBot-TurtleWow",
     "forks": [
       {
-        "label": "greendam",
-        "repo": "https://github.com/greendam/TriviaBot-TurtleWow"
+        "label": "cyaohiri",
+        "repo": "https://github.com/cyaohiri/TriviaBot-TurtleWow"
       }
     ],
     "release_downloads_repo": "cyaohiri/TriviaBot-TurtleWow",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "TurtlesEpoch",
@@ -14345,7 +14214,7 @@
   },
   {
     "name": "StatCompare",
-    "repo": "https://github.com/grimfiendish/StatCompare",
+    "repo": "https://github.com/GrimWow/StatCompare",
     "category": "Raiding",
     "description": "2.0 - adds a Character and Inspection Pane for raid gear checks or to compare gear to your target's. Updates including TurtleWoW specific spells and enchants). https://raw.githubusercontent.com/grimfiendish/StatCompare/1",
     "source": "turtle_wiki",
@@ -14353,38 +14222,23 @@
     "folder": "StatCompare",
     "forks": [
       {
+        "label": "grimfiendish",
+        "repo": "https://github.com/grimfiendish/StatCompare"
+      },
+      {
         "label": "EVANnnn1996",
         "repo": "https://github.com/EVANnnn1996/StatCompare"
       },
       {
-        "label": "Gazeshooter/StatCompare-3.3.5",
-        "repo": "https://github.com/Gazeshooter/StatCompare-3.3.5"
-      },
-      {
         "label": "USS-Enterprise-Guild",
         "repo": "https://github.com/USS-Enterprise-Guild/StatCompare"
-      },
-      {
-        "label": "GrimWow",
-        "repo": "https://github.com/GrimWow/StatCompare"
-      },
-      {
-        "label": "Bootyjiggler",
-        "repo": "https://github.com/Bootyjiggler/StatCompare"
-      },
-      {
-        "label": "liruqi",
-        "repo": "https://github.com/liruqi/StatCompare"
-      },
-      {
-        "label": "Paenthy",
-        "repo": "https://github.com/Paenthy/StatCompare"
       }
     ],
     "release_downloads_repo": "grimfiendish/StatCompare",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "SwapRaidSubgroupByName",
@@ -14608,72 +14462,6 @@
     "source": "turtle_wiki",
     "turtle_custom": true,
     "folder": "TWThreat",
-    "forks": [
-      {
-        "label": "Sandworlds-MMO",
-        "repo": "https://github.com/Sandworlds-MMO/TWThreat"
-      },
-      {
-        "label": "Endor23",
-        "repo": "https://github.com/Endor23/TWThreat"
-      },
-      {
-        "label": "EVANnnn1996",
-        "repo": "https://github.com/EVANnnn1996/TWThreat"
-      },
-      {
-        "label": "pfmiles/TWThreat-paw",
-        "repo": "https://github.com/pfmiles/TWThreat-paw"
-      },
-      {
-        "label": "Bloodysunset",
-        "repo": "https://github.com/Bloodysunset/TWThreat"
-      },
-      {
-        "label": "bretharte89",
-        "repo": "https://github.com/bretharte89/TWThreat"
-      },
-      {
-        "label": "dwbclz",
-        "repo": "https://github.com/dwbclz/TWThreat"
-      },
-      {
-        "label": "RavenOfSeven",
-        "repo": "https://github.com/RavenOfSeven/TWThreat"
-      },
-      {
-        "label": "Otari98",
-        "repo": "https://github.com/Otari98/TWThreat"
-      },
-      {
-        "label": "cutiepoka",
-        "repo": "https://github.com/cutiepoka/TWThreat"
-      },
-      {
-        "label": "Kirchlive",
-        "repo": "https://github.com/Kirchlive/TWThreat"
-      },
-      {
-        "label": "xinleibird",
-        "repo": "https://github.com/xinleibird/TWThreat"
-      },
-      {
-        "label": "rkapu",
-        "repo": "https://github.com/rkapu/TWThreat"
-      },
-      {
-        "label": "seamonly6578",
-        "repo": "https://github.com/seamonly6578/TWThreat"
-      },
-      {
-        "label": "terradcm-code",
-        "repo": "https://github.com/terradcm-code/TWThreat"
-      },
-      {
-        "label": "whtmst",
-        "repo": "https://github.com/whtmst/TWThreat"
-      }
-    ],
     "release_downloads_repo": "MarcelineVQ/TWThreat",
     "release_downloads_state": "none",
     "release_downloads": 0,
@@ -14866,37 +14654,26 @@
   },
   {
     "name": "TurtleRP",
-    "repo": "https://github.com/OldManAlpha/TurtleRP",
+    "repo": "https://github.com/bratmage/TurtleRP",
     "category": "Roleplay",
     "description": "An RP addon custom-made for turtle. https://github.com/bratmage/TurtleRP Alt Info",
     "source": "turtle_wiki",
     "folder": "TurtleRP",
     "forks": [
       {
-        "label": "bratmage",
-        "repo": "https://github.com/bratmage/TurtleRP"
+        "label": "OldManAlpha",
+        "repo": "https://github.com/OldManAlpha/TurtleRP"
       },
       {
         "label": "CarnVanBeck",
         "repo": "https://github.com/CarnVanBeck/TurtleRP"
-      },
-      {
-        "label": "RavenOfSeven",
-        "repo": "https://github.com/RavenOfSeven/TurtleRP"
-      },
-      {
-        "label": "terradcm-code",
-        "repo": "https://github.com/terradcm-code/TurtleRP"
-      },
-      {
-        "label": "Thkaal",
-        "repo": "https://github.com/Thkaal/TurtleRP"
       }
     ],
     "release_downloads_repo": "OldManAlpha/TurtleRP",
     "release_downloads_state": "ok",
     "release_downloads": 265,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "aDF",
@@ -16040,10 +15817,6 @@
         "repo": "https://github.com/JembaWoW/ShaguTweaks"
       },
       {
-        "label": "buhfur/ShaguTweaks-3.3.5",
-        "repo": "https://github.com/buhfur/ShaguTweaks-3.3.5"
-      },
-      {
         "label": "likesc",
         "repo": "https://github.com/likesc/ShaguTweaks"
       },
@@ -16292,60 +16065,8 @@
         "repo": "https://github.com/Otari98/SuperAPI"
       },
       {
-        "label": "SAY-5",
-        "repo": "https://github.com/SAY-5/SuperAPI"
-      },
-      {
         "label": "EVANnnn1996",
         "repo": "https://github.com/EVANnnn1996/SuperAPI"
-      },
-      {
-        "label": "MarcelineVQ",
-        "repo": "https://github.com/MarcelineVQ/SuperAPI"
-      },
-      {
-        "label": "AmonRA/TWoWSuperAPI",
-        "repo": "https://github.com/AmonRA/TWoWSuperAPI"
-      },
-      {
-        "label": "al3xc1985",
-        "repo": "https://github.com/al3xc1985/SuperAPI"
-      },
-      {
-        "label": "E-oven",
-        "repo": "https://github.com/E-oven/SuperAPI"
-      },
-      {
-        "label": "logger945/WOW-SuperAPI",
-        "repo": "https://github.com/logger945/WOW-SuperAPI"
-      },
-      {
-        "label": "ShigemuneKurogane",
-        "repo": "https://github.com/ShigemuneKurogane/SuperAPI"
-      },
-      {
-        "label": "whtmst",
-        "repo": "https://github.com/whtmst/SuperAPI"
-      },
-      {
-        "label": "dingleshu",
-        "repo": "https://github.com/dingleshu/SuperAPI"
-      },
-      {
-        "label": "calmhouse/SuperAPI_old",
-        "repo": "https://github.com/calmhouse/SuperAPI_old"
-      },
-      {
-        "label": "jilinge2",
-        "repo": "https://github.com/jilinge2/SuperAPI"
-      },
-      {
-        "label": "codefracas",
-        "repo": "https://github.com/codefracas/SuperAPI"
-      },
-      {
-        "label": "freadblangks",
-        "repo": "https://github.com/freadblangks/SuperAPI"
       }
     ],
     "release_downloads_repo": "balakethelock/SuperAPI",
@@ -16355,45 +16076,34 @@
   },
   {
     "name": "SuperAPI Castlib",
-    "repo": "https://github.com/balakethelock/SuperAPI_Castlib",
+    "repo": "https://github.com/Gescht/SuperAPI_Castlib",
     "category": "SuperWoW",
     "description": "Adds accurate castbars to any nameplate",
     "source": "turtle_wiki",
     "folder": "SuperAPI_Castlib",
     "forks": [
       {
-        "label": "Gescht",
-        "repo": "https://github.com/Gescht/SuperAPI_Castlib"
-      },
-      {
-        "label": "Chad90b",
-        "repo": "https://github.com/Chad90b/SuperAPI_Castlib"
-      },
-      {
-        "label": "codefracas",
-        "repo": "https://github.com/codefracas/SuperAPI_Castlib"
-      },
-      {
-        "label": "freadblangks",
-        "repo": "https://github.com/freadblangks/SuperAPI_Castlib"
+        "label": "balakethelock",
+        "repo": "https://github.com/balakethelock/SuperAPI_Castlib"
       }
     ],
     "release_downloads_repo": "balakethelock/SuperAPI_Castlib",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "SuperCleveRoid Macros",
-    "repo": "https://github.com/jrc13245/SuperCleveRoidMacros",
+    "repo": "https://github.com/brues-code/SuperCleveRoidMacros",
     "category": "SuperWoW",
     "description": "Enhance macros with dynamic tooltips, conditional execution, and extended syntax",
     "source": "turtle_wiki",
     "folder": "SuperCleveRoidMacros",
     "forks": [
       {
-        "label": "brues-code",
-        "repo": "https://github.com/brues-code/SuperCleveRoidMacros"
+        "label": "jrc13245",
+        "repo": "https://github.com/jrc13245/SuperCleveRoidMacros"
       },
       {
         "label": "eqomdx",
@@ -16406,96 +16116,13 @@
       {
         "label": "Hippoom",
         "repo": "https://github.com/Hippoom/SuperCleveRoidMacros"
-      },
-      {
-        "label": "DCV-2142",
-        "repo": "https://github.com/DCV-2142/SuperCleveRoidMacros"
-      },
-      {
-        "label": "Bestoriop",
-        "repo": "https://github.com/Bestoriop/SuperCleveRoidMacros"
-      },
-      {
-        "label": "bretharte89",
-        "repo": "https://github.com/bretharte89/SuperCleveRoidMacros"
-      },
-      {
-        "label": "daluwcp66965",
-        "repo": "https://github.com/daluwcp66965/SuperCleveRoidMacros"
-      },
-      {
-        "label": "EVANnnn1996",
-        "repo": "https://github.com/EVANnnn1996/SuperCleveRoidMacros"
-      },
-      {
-        "label": "heyzayz",
-        "repo": "https://github.com/heyzayz/SuperCleveRoidMacros"
-      },
-      {
-        "label": "laytya",
-        "repo": "https://github.com/laytya/SuperCleveRoidMacros"
-      },
-      {
-        "label": "Nelkel9023",
-        "repo": "https://github.com/Nelkel9023/SuperCleveRoidMacros"
-      },
-      {
-        "label": "neyacinu",
-        "repo": "https://github.com/neyacinu/SuperCleveRoidMacros"
-      },
-      {
-        "label": "parsn",
-        "repo": "https://github.com/parsn/SuperCleveRoidMacros"
-      },
-      {
-        "label": "josh-sachs",
-        "repo": "https://github.com/josh-sachs/SuperCleveRoidMacros"
-      },
-      {
-        "label": "bvzafvbkbz3435-ship-it",
-        "repo": "https://github.com/bvzafvbkbz3435-ship-it/SuperCleveRoidMacros"
-      },
-      {
-        "label": "elf-byte/SuperCleveRoidMacros_esEs",
-        "repo": "https://github.com/elf-byte/SuperCleveRoidMacros_esEs"
-      },
-      {
-        "label": "verge20",
-        "repo": "https://github.com/verge20/SuperCleveRoidMacros"
-      },
-      {
-        "label": "Faalvare",
-        "repo": "https://github.com/Faalvare/SuperCleveRoidMacros"
-      },
-      {
-        "label": "whtmst",
-        "repo": "https://github.com/whtmst/SuperCleveRoidMacros"
-      },
-      {
-        "label": "Gryzorz",
-        "repo": "https://github.com/Gryzorz/SuperCleveRoidMacros"
-      },
-      {
-        "label": "AdmiralFrijoles",
-        "repo": "https://github.com/AdmiralFrijoles/SuperCleveRoidMacros"
-      },
-      {
-        "label": "zmarotrix",
-        "repo": "https://github.com/zmarotrix/SuperCleveRoidMacros"
-      },
-      {
-        "label": "ERitzman",
-        "repo": "https://github.com/ERitzman/SuperCleveRoidMacros"
-      },
-      {
-        "label": "Plokertonne",
-        "repo": "https://github.com/Plokertonne/SuperCleveRoidMacros"
       }
     ],
     "release_downloads_repo": "jrc13245/SuperCleveRoidMacros",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "SuperLazyScript",
@@ -16592,33 +16219,34 @@
   },
   {
     "name": "Tankalyze",
-    "repo": "https://github.com/MarcelineVQ/Tankalyze",
+    "repo": "https://github.com/twapegg/Tankalyze",
     "category": "SuperWoW",
     "description": "Captures missed Taunts and some other nice to have tank additions",
     "source": "turtle_wiki",
     "folder": "Tankalyze",
     "forks": [
       {
-        "label": "twapegg",
-        "repo": "https://github.com/twapegg/Tankalyze"
+        "label": "MarcelineVQ",
+        "repo": "https://github.com/MarcelineVQ/Tankalyze"
       }
     ],
     "release_downloads_repo": "MarcelineVQ/Tankalyze",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "TankPlates",
-    "repo": "https://github.com/MarcelineVQ/TankPlates",
+    "repo": "https://github.com/daemonp/TankPlates",
     "category": "SuperWoW",
     "description": "Colors enemy Nameplates depending on if they're targeting the player",
     "source": "turtle_wiki",
     "folder": "TankPlates",
     "forks": [
       {
-        "label": "daemonp",
-        "repo": "https://github.com/daemonp/TankPlates"
+        "label": "MarcelineVQ",
+        "repo": "https://github.com/MarcelineVQ/TankPlates"
       },
       {
         "label": "Thrunk112",
@@ -16635,34 +16263,32 @@
       {
         "label": "shikulja",
         "repo": "https://github.com/shikulja/TankPlates"
-      },
-      {
-        "label": "DRepetsky",
-        "repo": "https://github.com/DRepetsky/TankPlates"
       }
     ],
     "release_downloads_repo": "MarcelineVQ/TankPlates",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "Tattler",
-    "repo": "https://github.com/MarcelineVQ/Tattler",
+    "repo": "https://github.com/Bang1726528/Tattler",
     "category": "SuperWoW",
     "description": "Announce when certain items or spells are used",
     "source": "turtle_wiki",
     "folder": "Tattler",
     "forks": [
       {
-        "label": "Bang1726528",
-        "repo": "https://github.com/Bang1726528/Tattler"
+        "label": "MarcelineVQ",
+        "repo": "https://github.com/MarcelineVQ/Tattler"
       }
     ],
     "release_downloads_repo": "MarcelineVQ/Tattler",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "TrackTarget",
@@ -18809,7 +18435,7 @@
   },
   {
     "name": "MikScrollingBattleText",
-    "repo": "https://github.com/HOYS/MikScrollingBattleText",
+    "repo": "https://github.com/roby-brok/MikScrollingBattleText",
     "category": "General",
     "source": "community",
     "folder": "MikScrollingBattleText",
@@ -18817,7 +18443,14 @@
     "release_downloads_repo": "HOYS/MikScrollingBattleText",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "forks": [
+      {
+        "label": "HOYS",
+        "repo": "https://github.com/HOYS/MikScrollingBattleText"
+      }
+    ],
+    "recommended": true
   },
   {
     "name": "NotGrid",
@@ -19078,17 +18711,6 @@
     "folder": "pfQuest-classicAPI",
     "description": "> ### Attribution\n>\n> **This is a downstream fork. Almost none of the work here is mine.**\n>\n> | | |\n> |---|---|\n> | **[Shagu](https://github.com/shagu/pfQuest)** | created pfQuest, with **txtsd** maintaining. |\n> | **[brues-code / Railgun](https://github.com/brues-code/pfQuest)** | modernised it onto ClassicAPI — reading through the API instead of shipped tables (`C_QuestLog`, `C_Item`, `C_TaxiMap`, DBC-derived race/class bitmasks). **Also the author of [ClassicAPI](https://github.com/brues-code/ClassicAPI)** itself. |\n> | **[The Kludge Bureau](https://github.com/The-Kludge-Bureau/pfQuest)** | the build this fork's data lineage came from. |\n> | **[VMaNGOS](https://github.com/vmangos)** | the underlying quest database. |\n> | **Roby_Brok** | this repo: four local patches for OctoWoW on top of Railgun's tree. |\n>\n> Upstream is **https://github.com/brues-code/pfQuest** — go there for the real project.\n>\n> 📋 **[CHANGES-octo.md](CHANGES-octo.md) — full changelog of the changes on top of upstream.**\n> Local changes live on the `octo` branch. GPLv3, same as upstream; see `LICENSE`.\n\n# pfQuest\n\n<img src=\"https://raw.githubusercontent.com/The-Kludge-Bureau/pfQuest/main/_img/mode.png\" float=\"right\" align=\"right\" width=\"25%\">\n\npfQuest is a quest helper and database browser for World of Warcraft Vanilla (1.12), The Burning Crusade (2.4.3), and Wrath of the Lich King (3.3.5a). Accept a quest and the relevant NPCs, monsters, and objects are automatically pinned on your world map and minimap. Open the database browser to look up any unit, item, or game object in the game — or use the chat commands to build macros for tracking gathering nodes.\n\nThe goal is to provide an accurate in-game equivalent of [AoWoW](http://db.vanillagaming.org/) or [Wowhead](http://www.wowhead.com/), not a quest guide or turn-by-turn assistant. The Vanilla database is powered by [VMaNGOS](https://github.com/vmangos). The Burning Crusade version uses data from [CMaNGOS](https://github.com/cmangos) with translations from [MaNGOS Extras](https://github.com/MangosExtras).\n\npfQuest is the successor of [ShaguQuest](https://shagu.org/ShaguQuest/), written from scratch with no dependency on any specific map or questlog addon. It is designed to work alongside the default UI and any other addon. If you run into a conflict, please open an issue on the bugtracker.\n\nYou can check the [Latest Changes](https://github.com/The-Kludge-Bureau/pfQuest/commits/main) page to see what has changed recently.\n\n## What this fork changes, briefly\n\n*(as of 2026-08-10 — details and reasoning in [CHANGES-octo.md](CHANGES-octo.md))*\n\n- **The `[Translate]` button works** — it was inert on every install; a new *Quest Text\n  Translations* option (default on) keeps the quest locale data it reads, and turning it\n  off frees the memory and hides the button. Offered upstream as\n  [PR #2](https://github.com/brues-code/pfQuest/pull/2).\n- **Tracker defaults to Current Zone** instead of every active quest at once\n- **Configurable quest-database website** (defaults to OctoWoW's DB) and\n  **world map / minimap node scale** options\n- **Seven quests with missing objective data restored** (`corrections.lua`, each verified\n  by hand); **`/db checkdb`** lists quests in your log that draw no pins\n- `/db` shows a build identity instead of the raw packager placeholder\n- The changelog's claims are **audited against upstream** — the ones that turned out wrong\n  stay visible, struck through, rather than quietly deleted.\n\n## Before You Install\n\npfQuest ships a complete database of all spawns, objects, items, and quests. The full package is approximately 80 MB and is loaded into memory once at login — memory usage is stable after that and does not grow during play.\n\nOn Vanilla clients, WoW will show a warning if an addon exceeds the default memory limit. **Before installing, set Script Memory to `0` (no limit)** in the AddOns panel of the character selection screen. This is a one-time step. A [screenshot\n\n… (truncated)",
     "release_downloads_repo": "roby-brok/pfQuest-classicAPI",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-27T23:32:15Z"
-  },
-  {
-    "name": "AddOnOrganizer",
-    "repo": "https://github.com/Otari98/AddOnOrganizer",
-    "category": "General",
-    "source": "community",
-    "folder": "AddOnOrganizer",
-    "release_downloads_repo": "Otari98/AddOnOrganizer",
     "release_downloads_state": "none",
     "release_downloads": 0,
     "release_downloads_at": "2026-08-27T23:32:15Z"
