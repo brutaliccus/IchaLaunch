@@ -130,6 +130,7 @@
       ]
     },
     "kind": "dll_bundle",
+    "has_config": true,
     "dependencies": [],
     "conflicts": [],
     "author": "balakethelock"
@@ -210,6 +211,7 @@
       ]
     },
     "kind": "dll_file",
+    "has_config": true,
     "dependencies": [],
     "conflicts": [],
     "author": "brues-code"
@@ -251,6 +253,7 @@
       ]
     },
     "kind": "dll_bundle",
+    "has_config": true,
     "dependencies": [],
     "conflicts": [],
     "author": "brues-code"
@@ -302,8 +305,8 @@
       "type": "github_release_latest",
       "repo": "brues-code/ClassicAPI",
       "asset_contains": "ClassicAPI.dll",
-      "sha256": "3b20b690dbe35b013baf3c9d08e74e53c4ff8a93336fbf2e0ed8f3c3ef4cb59e",
-      "pinned_tag": "v1.13.2"
+      "sha256": "63db4da21f2989f4c092a39edff27b1bfe5d4f850f6e2e312544296026595a1d",
+      "pinned_tag": "v1.13.1"
     },
     "files": [
       {
@@ -349,6 +352,7 @@
       ]
     },
     "kind": "dll_file",
+    "has_config": true,
     "dependencies": [],
     "conflicts": [],
     "author": "RetroCro"
