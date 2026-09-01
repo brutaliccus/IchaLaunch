@@ -130,6 +130,7 @@
       ]
     },
     "kind": "dll_bundle",
+    "has_config": true,
     "dependencies": [],
     "conflicts": [],
     "author": "balakethelock"
@@ -210,6 +211,7 @@
       ]
     },
     "kind": "dll_file",
+    "has_config": true,
     "dependencies": [],
     "conflicts": [],
     "author": "brues-code"
@@ -251,6 +253,7 @@
       ]
     },
     "kind": "dll_bundle",
+    "has_config": true,
     "dependencies": [],
     "conflicts": [],
     "author": "brues-code"
@@ -349,6 +352,7 @@
       ]
     },
     "kind": "dll_file",
+    "has_config": true,
     "dependencies": [],
     "conflicts": [],
     "author": "RetroCro"
