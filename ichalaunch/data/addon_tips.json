@@ -16909,10 +16909,10 @@
       }
     },
     "roby-brok/pfui": {
-      "default_branch": "master",
+      "default_branch": "octo",
       "sha": "3df77210ad68543dcce39dff96e5d664677acd98",
       "branches": {
-        "master": "3df77210ad68543dcce39dff96e5d664677acd98"
+        "octo": "3df77210ad68543dcce39dff96e5d664677acd98"
       },
       "latest_tag": "v9.0.21"
     },
@@ -17111,10 +17111,10 @@
       "latest_tag": "7.0.1"
     },
     "roby-brok/pfquest-classicapi": {
-      "default_branch": "octo",
+      "default_branch": "master",
       "sha": "a71931538988b930ee51f115a7d5683fe914ec21",
       "branches": {
-        "octo": "a71931538988b930ee51f115a7d5683fe914ec21"
+        "master": "a71931538988b930ee51f115a7d5683fe914ec21"
       },
       "latest_tag": "8.1.0"
     },
@@ -17240,6 +17240,65 @@
       "branches": {
         "main": "2665aeb14d9eaaa51f1532c7dc689c6a18b49a73"
       }
+    },
+    "laytya/fubar": {
+      "default_branch": "main",
+      "sha": "2bb40fb180791eae3d144f99d1c672235c61fe5a",
+      "branches": {
+        "main": "2bb40fb180791eae3d144f99d1c672235c61fe5a"
+      }
+    },
+    "otari98/_lazypig": {
+      "default_branch": "master",
+      "sha": "155d892dc5297a46186c66da9046ccc8251abfde",
+      "branches": {
+        "master": "155d892dc5297a46186c66da9046ccc8251abfde"
+      }
+    },
+    "schaka/getspellinfovanilla": {
+      "default_branch": "master",
+      "sha": "670281584e893cf636af59258a237637e076767c",
+      "branches": {
+        "master": "670281584e893cf636af59258a237637e076767c"
+      }
+    },
+    "krekog/specialtalentui": {
+      "default_branch": "main",
+      "sha": "7332d3e7fd5377eaabfd547d79dddb3e71381045",
+      "branches": {
+        "main": "7332d3e7fd5377eaabfd547d79dddb3e71381045"
+      }
+    },
+    "laytya/tomtom-twow": {
+      "default_branch": "master",
+      "sha": "a9c8af10c0d17e4705a2be1cb5e4ab3d71a34ba0",
+      "branches": {
+        "master": "a9c8af10c0d17e4705a2be1cb5e4ab3d71a34ba0"
+      }
+    },
+    "brues-code/auctionator": {
+      "default_branch": "main",
+      "sha": "b321b95287f300167a85fad636b2bf0ff3380ee8",
+      "branches": {
+        "main": "b321b95287f300167a85fad636b2bf0ff3380ee8"
+      },
+      "latest_tag": "v1.0.5"
+    },
+    "roby-brok/pfquest-octo": {
+      "default_branch": "master",
+      "sha": "c4d29afe690193ad673bd84d1299fa56665a20a2",
+      "branches": {
+        "master": "c4d29afe690193ad673bd84d1299fa56665a20a2"
+      },
+      "latest_tag": "1.3.1"
+    },
+    "brutaliccus/ichalaunch": {
+      "default_branch": "master",
+      "sha": "5a892568c57d8d779923e973a3ac9376f53ed68f",
+      "branches": {
+        "master": "5a892568c57d8d779923e973a3ac9376f53ed68f"
+      },
+      "latest_tag": "v1.5.7"
     }
   }
 }
