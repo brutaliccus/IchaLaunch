@@ -17238,6 +17238,80 @@
       "branches": {
         "main": "2665aeb14d9eaaa51f1532c7dc689c6a18b49a73"
       }
+    },
+    "roby-brok/flightmap": {
+      "default_branch": "master",
+      "sha": "7d38169b159a07dfa8e171ad67d355eb5c18da92",
+      "branches": {
+        "master": "7d38169b159a07dfa8e171ad67d355eb5c18da92"
+      }
+    },
+    "roby-brok/owthreat": {
+      "default_branch": "master",
+      "sha": "6c1819c0b5b2425afc73c48b2c64d40fbd6fd9a8",
+      "branches": {
+        "master": "6c1819c0b5b2425afc73c48b2c64d40fbd6fd9a8"
+      },
+      "latest_tag": "v1.4.0"
+    },
+    "laytya/fubar": {
+      "default_branch": "main",
+      "sha": "2bb40fb180791eae3d144f99d1c672235c61fe5a",
+      "branches": {
+        "main": "2bb40fb180791eae3d144f99d1c672235c61fe5a"
+      }
+    },
+    "otari98/_lazypig": {
+      "default_branch": "master",
+      "sha": "155d892dc5297a46186c66da9046ccc8251abfde",
+      "branches": {
+        "master": "155d892dc5297a46186c66da9046ccc8251abfde"
+      }
+    },
+    "schaka/getspellinfovanilla": {
+      "default_branch": "master",
+      "sha": "670281584e893cf636af59258a237637e076767c",
+      "branches": {
+        "master": "670281584e893cf636af59258a237637e076767c"
+      }
+    },
+    "krekog/specialtalentui": {
+      "default_branch": "main",
+      "sha": "7332d3e7fd5377eaabfd547d79dddb3e71381045",
+      "branches": {
+        "main": "7332d3e7fd5377eaabfd547d79dddb3e71381045"
+      }
+    },
+    "laytya/tomtom-twow": {
+      "default_branch": "master",
+      "sha": "a9c8af10c0d17e4705a2be1cb5e4ab3d71a34ba0",
+      "branches": {
+        "master": "a9c8af10c0d17e4705a2be1cb5e4ab3d71a34ba0"
+      }
+    },
+    "brues-code/auctionator": {
+      "default_branch": "main",
+      "sha": "b321b95287f300167a85fad636b2bf0ff3380ee8",
+      "branches": {
+        "main": "b321b95287f300167a85fad636b2bf0ff3380ee8"
+      },
+      "latest_tag": "v1.0.5"
+    },
+    "roby-brok/pfquest-octo": {
+      "default_branch": "master",
+      "sha": "31517b9b562e5af88d9b452454b6c6ece9801ae3",
+      "branches": {
+        "master": "31517b9b562e5af88d9b452454b6c6ece9801ae3"
+      },
+      "latest_tag": "1.1.6"
+    },
+    "brutaliccus/ichalaunch": {
+      "default_branch": "master",
+      "sha": "b58145218f39fcb924b108cacadae253c689e972",
+      "branches": {
+        "master": "b58145218f39fcb924b108cacadae253c689e972"
+      },
+      "latest_tag": "v1.5.6"
     }
   }
 }
