@@ -15790,10 +15790,10 @@
       }
     },
     "roby-brok/pfui": {
-      "default_branch": "master",
+      "default_branch": "octo",
       "sha": "3df77210ad68543dcce39dff96e5d664677acd98",
       "branches": {
-        "master": "3df77210ad68543dcce39dff96e5d664677acd98"
+        "octo": "3df77210ad68543dcce39dff96e5d664677acd98"
       },
       "latest_tag": "v9.0.21"
     },
@@ -15978,10 +15978,10 @@
       "latest_tag": "7.0.1"
     },
     "roby-brok/pfquest-classicapi": {
-      "default_branch": "octo",
+      "default_branch": "master",
       "sha": "a71931538988b930ee51f115a7d5683fe914ec21",
       "branches": {
-        "octo": "a71931538988b930ee51f115a7d5683fe914ec21"
+        "master": "a71931538988b930ee51f115a7d5683fe914ec21"
       },
       "latest_tag": "8.1.0"
     },
@@ -16186,6 +16186,42 @@
       "branches": {
         "octo": "6169f104c873e3c90605339a4494b983892c5978"
       }
+    },
+    "karstenbade/simpleactionsets": {
+      "default_branch": "master",
+      "sha": "ac5162e195513d3658fea3f6ff91a90b0a549cb0",
+      "branches": {
+        "master": "ac5162e195513d3658fea3f6ff91a90b0a549cb0"
+      }
+    },
+    "otari98/atlasquest": {
+      "default_branch": "master",
+      "sha": "d4e8d00b56aff09a80a3254b0cdee8d5b4842668",
+      "branches": {
+        "master": "d4e8d00b56aff09a80a3254b0cdee8d5b4842668"
+      }
+    },
+    "jordanfaz/atlasloot": {
+      "default_branch": "main",
+      "sha": "4e1a18135b029986af1fd47ac86a2f1b65e20865",
+      "branches": {
+        "main": "4e1a18135b029986af1fd47ac86a2f1b65e20865"
+      }
+    },
+    "thezephyrsong/_lazypig": {
+      "default_branch": "master",
+      "sha": "ee15ba71a9afdf5c8c74904ec07778b9f03d2a7a",
+      "branches": {
+        "master": "ee15ba71a9afdf5c8c74904ec07778b9f03d2a7a"
+      }
+    },
+    "brutaliccus/ichalaunch": {
+      "default_branch": "master",
+      "sha": "eb09c7ba336e299985dd053135769954269ad056",
+      "branches": {
+        "master": "eb09c7ba336e299985dd053135769954269ad056"
+      },
+      "latest_tag": "v1.5.7"
     }
   }
 }
