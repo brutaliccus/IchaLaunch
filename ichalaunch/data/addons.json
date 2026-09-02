@@ -101,20 +101,8 @@
         "repo": "https://github.com/selfinterest/Bagshui"
       },
       {
-        "label": "alex-berliner/Bagshui-1",
-        "repo": "https://github.com/alex-berliner/Bagshui-1"
-      },
-      {
-        "label": "al3xc1985",
-        "repo": "https://github.com/al3xc1985/Bagshui"
-      },
-      {
         "label": "IndieMiao",
         "repo": "https://github.com/IndieMiao/Bagshui"
-      },
-      {
-        "label": "RavenOfSeven",
-        "repo": "https://github.com/RavenOfSeven/Bagshui"
       }
     ],
     "category": "Bags",
@@ -544,35 +532,19 @@
   },
   {
     "name": "ShaguInventory",
-    "repo": "https://github.com/shagu/ShaguInventory",
+    "repo": "https://github.com/JembaWoW/ShaguInventory",
     "category": "Bags",
     "description": "shows account wide item count inside the tooltips [Img1].",
     "source": "turtle_wiki",
     "folder": "ShaguInventory",
     "forks": [
       {
-        "label": "JembaWoW",
-        "repo": "https://github.com/JembaWoW/ShaguInventory"
+        "label": "shagu",
+        "repo": "https://github.com/shagu/ShaguInventory"
       },
       {
         "label": "refaim",
         "repo": "https://github.com/refaim/ShaguInventory"
-      },
-      {
-        "label": "Macumbafeh",
-        "repo": "https://github.com/Macumbafeh/ShaguInventory"
-      },
-      {
-        "label": "AmonRA",
-        "repo": "https://github.com/AmonRA/ShaguInventory"
-      },
-      {
-        "label": "dwbclz",
-        "repo": "https://github.com/dwbclz/ShaguInventory"
-      },
-      {
-        "label": "jiangxt316",
-        "repo": "https://github.com/jiangxt316/ShaguInventory"
       },
       {
         "label": "robs898",
@@ -582,7 +554,8 @@
     "release_downloads_repo": "shagu/ShaguInventory",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "SortBags",
@@ -727,12 +700,16 @@
   },
   {
     "name": "Akkio_Consume_Helper",
-    "repo": "https://github.com/prodigystudios/Akkio_Consume_Helper",
+    "repo": "https://github.com/1petru/Akkio_Consume_Helper",
     "category": "Combat",
     "description": "Manage your buffs & Consumables in real time during your adventures",
     "source": "turtle_wiki",
     "folder": "Akkio_Consume_Helper",
     "forks": [
+      {
+        "label": "prodigystudios",
+        "repo": "https://github.com/prodigystudios/Akkio_Consume_Helper"
+      },
       {
         "label": "ItsLusse",
         "repo": "https://github.com/ItsLusse/Akkio_Consume_Helper"
@@ -740,10 +717,6 @@
       {
         "label": "LythandraWoW/Lyth_Consume_Helper",
         "repo": "https://github.com/LythandraWoW/Lyth_Consume_Helper"
-      },
-      {
-        "label": "1petru",
-        "repo": "https://github.com/1petru/Akkio_Consume_Helper"
       },
       {
         "label": "thezephyrsong",
@@ -760,28 +733,13 @@
       {
         "label": "Seraphic8x2244",
         "repo": "https://github.com/Seraphic8x2244/Akkio_Consume_Helper"
-      },
-      {
-        "label": "ConquistadoresTWoW",
-        "repo": "https://github.com/ConquistadoresTWoW/Akkio_Consume_Helper"
-      },
-      {
-        "label": "allyrwastaken",
-        "repo": "https://github.com/allyrwastaken/Akkio_Consume_Helper"
-      },
-      {
-        "label": "MadsKrist",
-        "repo": "https://github.com/MadsKrist/Akkio_Consume_Helper"
-      },
-      {
-        "label": "jjungnickel",
-        "repo": "https://github.com/jjungnickel/Akkio_Consume_Helper"
       }
     ],
     "release_downloads_repo": "prodigystudios/Akkio_Consume_Helper",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "AutoBuff",
@@ -1771,29 +1729,26 @@
   },
   {
     "name": "SmartHealer",
-    "repo": "https://github.com/melbaa/SmartHealer",
+    "repo": "https://github.com/dsidirop/SmartHealer",
     "category": "Combat",
     "description": "Autoscales heals in macros, and click heals for pfUI, Clique and ClassicMouseover (Melbaa). Alternate Version with bugfix/update changes (Dsidrop)",
     "source": "turtle_wiki",
     "folder": "SmartHealer",
     "forks": [
       {
-        "label": "dsidirop",
-        "repo": "https://github.com/dsidirop/SmartHealer"
+        "label": "melbaa",
+        "repo": "https://github.com/melbaa/SmartHealer"
       },
       {
         "label": "zmarotrix",
         "repo": "https://github.com/zmarotrix/SmartHealer"
-      },
-      {
-        "label": "vargv666",
-        "repo": "https://github.com/vargv666/SmartHealer"
       }
     ],
     "release_downloads_repo": "melbaa/SmartHealer",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "SmartRestore",
@@ -2034,21 +1989,22 @@
   },
   {
     "name": "AntiAFK",
-    "repo": "https://github.com/acid9000/AntiAfk",
+    "repo": "https://github.com/Kingfisher387/AntiAfk",
     "category": "Economy",
     "description": "Prevents AFK status and being kicked for AFK. Useful for AFKing in cities while querying Auction House with Aux-Revamped.",
     "source": "turtle_wiki",
     "folder": "AntiAfk",
     "forks": [
       {
-        "label": "Kingfisher387",
-        "repo": "https://github.com/Kingfisher387/AntiAfk"
+        "label": "acid9000",
+        "repo": "https://github.com/acid9000/AntiAfk"
       }
     ],
     "release_downloads_repo": "acid9000/AntiAfk",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "Antispam",
@@ -2062,14 +2018,6 @@
       {
         "label": "buhfur/nolfg",
         "repo": "https://github.com/buhfur/nolfg"
-      },
-      {
-        "label": "AmonRA",
-        "repo": "https://github.com/AmonRA/antispam"
-      },
-      {
-        "label": "jiangxt316",
-        "repo": "https://github.com/jiangxt316/antispam"
       }
     ],
     "release_downloads_repo": "shagu/antispam",
@@ -2772,12 +2720,6 @@
     "description": "block invitation of people under level 15 [Img1]",
     "source": "turtle_wiki",
     "folder": "_AntInvite",
-    "forks": [
-      {
-        "label": "jimsjoh",
-        "repo": "https://github.com/jimsjoh/_AntInvite"
-      }
-    ],
     "release_downloads_repo": "Kiiruaa/_AntInvite",
     "release_downloads_state": "ok",
     "release_downloads": 101,
@@ -2848,16 +2790,6 @@
     "description": "Adds animations to frames [Img1]",
     "source": "turtle_wiki",
     "folder": "Aero",
-    "forks": [
-      {
-        "label": "KameleonUK",
-        "repo": "https://github.com/KameleonUK/Aero"
-      },
-      {
-        "label": "shikulja",
-        "repo": "https://github.com/shikulja/Aero"
-      }
-    ],
     "release_downloads_repo": "gashole/Aero",
     "release_downloads_state": "ok",
     "release_downloads": 27,
@@ -2865,7 +2797,7 @@
   },
   {
     "name": "Altoholic",
-    "repo": "https://github.com/nehswu/Altoholic_Vanilla",
+    "repo": "https://github.com/gbl/Altoholic_Vanilla",
     "category": "General",
     "description": "Provides information about your alts. Turtle WoW version, supports cross-faction alts. [Img1]",
     "source": "turtle_wiki",
@@ -2873,8 +2805,8 @@
     "folder": "Altoholic_Vanilla",
     "forks": [
       {
-        "label": "gbl",
-        "repo": "https://github.com/gbl/Altoholic_Vanilla"
+        "label": "nehswu",
+        "repo": "https://github.com/nehswu/Altoholic_Vanilla"
       },
       {
         "label": "zmarotrix",
@@ -2884,7 +2816,8 @@
     "release_downloads_repo": "nehswu/Altoholic_Vanilla",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "AnnounceKick",
@@ -2893,12 +2826,6 @@
     "description": "Very simple rogue addon that announces \"Kick\" in say chat",
     "source": "turtle_wiki",
     "folder": "AnnounceKick",
-    "forks": [
-      {
-        "label": "Twito-codes",
-        "repo": "https://github.com/Twito-codes/AnnounceKick"
-      }
-    ],
     "release_downloads_repo": "EinBaum/AnnounceKick",
     "release_downloads_state": "ok",
     "release_downloads": 292,
@@ -2930,7 +2857,7 @@
   },
   {
     "name": "Arcanum",
-    "repo": "https://github.com/pepopo978/Arcanum",
+    "repo": "https://github.com/TheRealFayz/Arcanum",
     "category": "General",
     "description": "Manages Mage spells and items, including Turtle WoW Mage spells and items",
     "source": "turtle_wiki",
@@ -2938,14 +2865,15 @@
     "folder": "Arcanum",
     "forks": [
       {
-        "label": "TheRealFayz",
-        "repo": "https://github.com/TheRealFayz/Arcanum"
+        "label": "pepopo978",
+        "repo": "https://github.com/pepopo978/Arcanum"
       }
     ],
     "release_downloads_repo": "pepopo978/Arcanum",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "ArchiTotem",
@@ -2955,18 +2883,6 @@
     "source": "turtle_wiki",
     "folder": "ArchiTotem",
     "forks": [
-      {
-        "label": "taabu-git",
-        "repo": "https://github.com/taabu-git/ArchiTotem"
-      },
-      {
-        "label": "whtmst",
-        "repo": "https://github.com/whtmst/ArchiTotem"
-      },
-      {
-        "label": "JavierHerasA",
-        "repo": "https://github.com/JavierHerasA/ArchiTotem"
-      },
       {
         "label": "Terongorus/ArchiTotem-Teron",
         "repo": "https://github.com/Terongorus/ArchiTotem-Teron"
@@ -4112,33 +4028,22 @@
   },
   {
     "name": "Clique",
-    "repo": "https://github.com/shagu/Clique",
+    "repo": "https://github.com/MarcelineVQ/Clique",
     "category": "General",
     "description": "Simply powerful click-casting interface (Shagu - May 2023).",
     "source": "turtle_wiki",
     "folder": "Clique",
     "forks": [
       {
-        "label": "MarcelineVQ",
-        "repo": "https://github.com/MarcelineVQ/Clique"
-      },
-      {
-        "label": "AmonRA",
-        "repo": "https://github.com/AmonRA/Clique"
-      },
-      {
-        "label": "dwbclz",
-        "repo": "https://github.com/dwbclz/Clique"
-      },
-      {
-        "label": "max-bruhn",
-        "repo": "https://github.com/max-bruhn/Clique"
+        "label": "shagu",
+        "repo": "https://github.com/shagu/Clique"
       }
     ],
     "release_downloads_repo": "shagu/Clique",
     "release_downloads_state": "ok",
     "release_downloads": 1654,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "CLog",
@@ -7135,19 +7040,19 @@
   },
   {
     "name": "pfUI-turtle",
-    "repo": "https://github.com/doorknob6/pfUI-turtle",
+    "repo": "https://github.com/dsidirop/pfUI-turtle",
     "category": "General",
     "description": "A small extension that fixes some issues that arise from Turtle's custom UI, class and item changes [img1]",
     "source": "turtle_wiki",
     "folder": "pfUI-turtle",
     "forks": [
       {
-        "label": "bagaze",
-        "repo": "https://github.com/bagaze/pfUI-turtle"
+        "label": "doorknob6",
+        "repo": "https://github.com/doorknob6/pfUI-turtle"
       },
       {
-        "label": "dsidirop",
-        "repo": "https://github.com/dsidirop/pfUI-turtle"
+        "label": "bagaze",
+        "repo": "https://github.com/bagaze/pfUI-turtle"
       },
       {
         "label": "Aalandriel",
@@ -7189,7 +7094,8 @@
     "release_downloads_repo": "doorknob6/pfUI-turtle",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "PizzaSlices",
@@ -11005,22 +10911,6 @@
       {
         "label": "valnaut",
         "repo": "https://github.com/valnaut/Artisan"
-      },
-      {
-        "label": "lioryx",
-        "repo": "https://github.com/lioryx/Artisan"
-      },
-      {
-        "label": "Chad90b",
-        "repo": "https://github.com/Chad90b/Artisan"
-      },
-      {
-        "label": "acid9000",
-        "repo": "https://github.com/acid9000/Artisan"
-      },
-      {
-        "label": "AmonRA",
-        "repo": "https://github.com/AmonRA/Artisan"
       }
     ],
     "release_downloads_repo": "Otari98/Artisan",
@@ -11899,44 +11789,6 @@
     "source": "turtle_wiki",
     "folder": "YouveGotRedOnYou",
     "release_downloads_repo": "whtmst/YouveGotRedOnYou",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "Atlas-TW",
-    "repo": "https://github.com/byCFM2/Atlas-TW",
-    "category": "Questing",
-    "description": "Atlas, AtlasLoot, AtlasQuest updated into one new addon with more features and options.",
-    "source": "turtle_wiki",
-    "folder": "Atlas-TW",
-    "forks": [
-      {
-        "label": "C4rcer/Atlas-CFM",
-        "repo": "https://github.com/C4rcer/Atlas-CFM"
-      },
-      {
-        "label": "eqomdx/Atlas-CFM-DestinationClick",
-        "repo": "https://github.com/eqomdx/Atlas-CFM-DestinationClick"
-      },
-      {
-        "label": "marvick-liu",
-        "repo": "https://github.com/marvick-liu/Atlas-TW"
-      },
-      {
-        "label": "terradcm-code",
-        "repo": "https://github.com/terradcm-code/Atlas-TW"
-      },
-      {
-        "label": "RavenOfSeven",
-        "repo": "https://github.com/RavenOfSeven/Atlas-TW"
-      },
-      {
-        "label": "whtmst",
-        "repo": "https://github.com/whtmst/Atlas-TW"
-      }
-    ],
-    "release_downloads_repo": "byCFM2/Atlas-TW",
     "release_downloads_state": "none",
     "release_downloads": 0,
     "release_downloads_at": "2026-08-26T23:44:09Z"
@@ -14417,24 +14269,8 @@
         "repo": "https://github.com/Wayoff333/TurtleCalendar"
       },
       {
-        "label": "bretharte89",
-        "repo": "https://github.com/bretharte89/TurtleCalendar"
-      },
-      {
-        "label": "terradcm-code",
-        "repo": "https://github.com/terradcm-code/TurtleCalendar"
-      },
-      {
         "label": "RavenOfSeven",
         "repo": "https://github.com/RavenOfSeven/TurtleCalendar"
-      },
-      {
-        "label": "orange-pig",
-        "repo": "https://github.com/orange-pig/TurtleCalendar"
-      },
-      {
-        "label": "whtmst",
-        "repo": "https://github.com/whtmst/TurtleCalendar"
       }
     ],
     "release_downloads_repo": "sica42/TurtleCalendar",
@@ -14677,15 +14513,15 @@
   },
   {
     "name": "aDF",
-    "repo": "https://github.com/Zebouski/aDF",
+    "repo": "https://github.com/MarcelineVQ/aDF",
     "category": "SuperWoW",
     "description": "adds a small HUD that standardizes critical info about your target's defences, including Armor, Resists, and specific debuffs [Img1] https://github.com/Autignem/aDF Alt",
     "source": "turtle_wiki",
     "folder": "aDF",
     "forks": [
       {
-        "label": "MarcelineVQ",
-        "repo": "https://github.com/MarcelineVQ/aDF"
+        "label": "Zebouski",
+        "repo": "https://github.com/Zebouski/aDF"
       },
       {
         "label": "whtmst",
@@ -14702,16 +14538,13 @@
       {
         "label": "melbaa",
         "repo": "https://github.com/melbaa/aDF"
-      },
-      {
-        "label": "balakethelock",
-        "repo": "https://github.com/balakethelock/aDF"
       }
     ],
     "release_downloads_repo": "Zebouski/aDF",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "AutoLock",
@@ -15840,12 +15673,16 @@
   },
   {
     "name": "SimpleActionSets",
-    "repo": "https://github.com/pepopo978/SimpleActionSets",
+    "repo": "https://github.com/KarstenBade/SimpleActionSets",
     "category": "SuperWoW",
     "description": "Save action bars as sets that can be swapped out.",
     "source": "turtle_wiki",
     "folder": "SimpleActionSets",
     "forks": [
+      {
+        "label": "pepopo978",
+        "repo": "https://github.com/pepopo978/SimpleActionSets"
+      },
       {
         "label": "lioryx",
         "repo": "https://github.com/lioryx/SimpleActionSets"
@@ -15859,46 +15696,15 @@
         "repo": "https://github.com/McPewPew/SimpleActionSets"
       },
       {
-        "label": "bretharte89",
-        "repo": "https://github.com/bretharte89/SimpleActionSets"
-      },
-      {
-        "label": "RavenOfSeven",
-        "repo": "https://github.com/RavenOfSeven/SimpleActionSets"
-      },
-      {
-        "label": "terradcm-code",
-        "repo": "https://github.com/terradcm-code/SimpleActionSets"
-      },
-      {
         "label": "diginfotek",
         "repo": "https://github.com/diginfotek/SimpleActionSets"
-      },
-      {
-        "label": "LythandraWoW/LythSimpleActionSets",
-        "repo": "https://github.com/LythandraWoW/LythSimpleActionSets"
-      },
-      {
-        "label": "Paenthy",
-        "repo": "https://github.com/Paenthy/SimpleActionSets"
-      },
-      {
-        "label": "whtmst",
-        "repo": "https://github.com/whtmst/SimpleActionSets"
-      },
-      {
-        "label": "evilbunny235",
-        "repo": "https://github.com/evilbunny235/SimpleActionSets"
-      },
-      {
-        "label": "MarcelineVQ",
-        "repo": "https://github.com/MarcelineVQ/SimpleActionSets"
       }
     ],
     "release_downloads_repo": "pepopo978/SimpleActionSets",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "SoloRaidTargetIcons",
@@ -16343,45 +16149,26 @@
   },
   {
     "name": "ActionBarProfiles",
-    "repo": "https://github.com/Siventt/ActionBarProfiles",
+    "repo": "https://github.com/Otari98/ActionBarProfiles",
     "category": "UI",
     "description": "Create and load action bar layouts for different builds.",
     "source": "turtle_wiki",
     "folder": "ActionBarProfiles",
     "forks": [
       {
+        "label": "Siventt",
+        "repo": "https://github.com/Siventt/ActionBarProfiles"
+      },
+      {
         "label": "Lexxoi",
         "repo": "https://github.com/Lexxoi/ActionBarProfiles"
-      },
-      {
-        "label": "Otari98",
-        "repo": "https://github.com/Otari98/ActionBarProfiles"
-      },
-      {
-        "label": "AmonRA",
-        "repo": "https://github.com/AmonRA/ActionBarProfiles"
-      },
-      {
-        "label": "rthrth1079",
-        "repo": "https://github.com/rthrth1079/ActionBarProfiles"
-      },
-      {
-        "label": "vargv666",
-        "repo": "https://github.com/vargv666/ActionBarProfiles"
-      },
-      {
-        "label": "AndrgitA",
-        "repo": "https://github.com/AndrgitA/ActionBarProfiles"
-      },
-      {
-        "label": "Kangaroux",
-        "repo": "https://github.com/Kangaroux/ActionBarProfiles"
       }
     ],
     "release_downloads_repo": "Siventt/ActionBarProfiles",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "agUnitFramesImproved",
@@ -17252,16 +17039,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "SimpleActionSets (SAS)",
-    "repo": "",
-    "category": "UI",
-    "description": "Save action bars as sets that can be swapped out; forked by Pepopo with updates for Turtle WoW Goblin Brainwashing Device compatibility",
-    "source": "turtle_wiki",
-    "turtle_custom": true,
-    "folder": "SimpleActionSets(SAS)",
-    "installable": false
-  },
-  {
     "name": "SimpleBars",
     "repo": "https://github.com/Beardedrasta/SimpleBars",
     "category": "UI",
@@ -17581,22 +17358,6 @@
       {
         "label": "eqomdx/Atlas-CFM-DestinationClick",
         "repo": "https://github.com/eqomdx/Atlas-CFM-DestinationClick"
-      },
-      {
-        "label": "marvick-liu/Atlas-TW",
-        "repo": "https://github.com/marvick-liu/Atlas-TW"
-      },
-      {
-        "label": "terradcm-code/Atlas-TW",
-        "repo": "https://github.com/terradcm-code/Atlas-TW"
-      },
-      {
-        "label": "RavenOfSeven/Atlas-TW",
-        "repo": "https://github.com/RavenOfSeven/Atlas-TW"
-      },
-      {
-        "label": "whtmst/Atlas-TW",
-        "repo": "https://github.com/whtmst/Atlas-TW"
       }
     ],
     "release_downloads_repo": "byCFM2/Atlas-CFM",
@@ -17833,381 +17594,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/19XXX/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "19XXX/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/dayewozhuangfeng/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "dayewozhuangfeng/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/Alfartuna/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "Alfartuna/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/Artur91425/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "Artur91425/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/hellowind777/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot 汉化自用存档",
-    "release_downloads_repo": "hellowind777/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/Haaxor1689/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "Haaxor1689/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/GidraBW/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "GidraBW/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/a06555/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "a06555/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/cyaohiri/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "cyaohiri/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/Destroses5100/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "Destroses5100/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/CamA-dev/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "CamA-dev/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/Floppysq/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "Floppysq/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/envidance/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "envidance/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/Cote-code/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot",
-    "release_downloads_repo": "Cote-code/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot-Turtle-WoW",
-    "repo": "https://github.com/Gescht/AtlasLoot-Turtle-WoW",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot-Turtle-WoW",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "Gescht/AtlasLoot-Turtle-WoW",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/Divinosa/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "Divinosa/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/AiAshtu94/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "AiAshtu94/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/shek2787/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "shek2787/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/neoxyte/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "neoxyte/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/Vantron21/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "Vantron21/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/SixShoot/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "SixShoot/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/tativen/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "tativen/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/kazmin007/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "kazmin007/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/Teaboy2227/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "Teaboy2227/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/Thorben-Petersen/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "Thorben-Petersen/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/neoleg70/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "neoleg70/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/Xsears/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "Xsears/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/Zaruth/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "Zaruth/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "AtlasLoot",
-    "repo": "https://github.com/Sobeq/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "AtlasLoot Turtle WoW Edition",
-    "release_downloads_repo": "Sobeq/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
     "name": "TourGuide-Turtle",
     "repo": "https://github.com/vaniron/TourGuide-Turtle",
     "category": "General",
@@ -18408,19 +17794,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "_LazyPig",
-    "repo": "https://github.com/jrc13245/_LazyPig",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "_LazyPig",
-    "description": "# LazyPig\n\nA World of Warcraft 1.12 addon for Turtle WoW that automates repetitive tasks. Configure in-game with `/lp` or `/lazypig`.\n\n## Features\n\n### Passive (always active when enabled)\n\n| Feature | Description |\n|---------|-------------|\n| **Auto Dismount** | Dismounts when casting, interacting with flight masters, etc. Handles Turtle WoW expansion mounts and AQ40 mounts. |\n| **Auto Stance** | Automatically switches to the correct stance/form when a spell requires it. |\n| **Gossip Processing** | Auto-selects gossip options when talking to NPCs (taxi, battlemaster, innkeeper, vendor, banker). Hold Shift to bypass. |\n| **Loot at Cursor** | Positions the loot frame under your cursor. |\n| **Improved Right Click** | Right-clicking a bag item while trade, auction, or mail is open places it directly into that window. |\n| **Chat Spam Filter** | Hides repeated messages in say/yell/channel chat (70s cooldown per unique message). Also suppresses BigWigs cast spam and `#showtooltip` errors. |\n| **Loot Roll Messages** | Optionally hides green/blue roll messages and grey/white loot messages from chat. |\n| **World Chat Mute** | Mutes /world channel while in raids, dungeons, or battlegrounds. Automatically rejoins when you leave. |\n| **Auto Cancel Duels** | Instantly cancels incoming duel requests. |\n| **Auto Accept Invites** | Accepts group invites from guild members, friends, or everyone (configurable). Can be disabled while in BG or BG queue. |\n| **Auto Accept Summons** | Accepts summons 2 seconds before they expire. |\n| **Auto Accept Resurrections** | Accepts resurrections in instances/BGs when the resurrecter is out of combat. |\n| **Extended Camera** | Increases max camera distance to 50 yards. |\n\n### Battlegrounds\n\n| Feature | Description |\n|---------|-------------|\n| **Auto Queue** | Automatically queues for the battleground when the battlemaster window opens. |\n| **Auto Join** | Joins the battleground a few seconds before the invitation expires. |\n| **Auto Leave** | Leaves the battleground when a winner is declared. |\n| **Auto Release** | Releases spirit on death in battlegrounds. |\n| **Block Quest Sharing** | Blocks quest share popups while in battlegrounds. |\n| **Queue Announce** | Announces BG queue status to party/raid as leader. |\n| **WSG Flag Carrier Tracking** | Tracks the enemy flag carrier. Bind a key to target them or drop the flag. |\n\n### Loot Rolling\n\nAll roll options support 4 modes: Off, Need, Greed, Pass.\n\n| Feature | Items |\n|---------|-------|\n| **ZG** | Hakkari Bijous and Coins |\n| **MC** | Blood of the Mountain, Fiery Core, Lava Core |\n| **AQ** | Scarabs and Idols |\n| **Naxx** | Wartorn Scraps |\n| **Corrupted Sand** | Corrupted Sand (auto-need) |\n| **Dream Shards** | Dreamscale, Fading Dream Fragment, Small Dream Shard |\n| **Green Items** | All uncommon (green) quality items |\n| **BG Loot** | Auto-need on everything in Alterac Valley |\n\nNecrotic Runes are always auto-needed.\n\n### Buff Removal\n\n| Feature | Description |\n|---------|-------------|\n| **Remove Salvation** | Auto-removes Blessing of Salvation. Two modes: always, or only while tanking (warrior with shield, druid in bear form, paladin with Righteous Fury, shaman tank with Spirit Armor). |\n| **Remove Mana Buffs** | Auto-removes Blessing of Wisdom, Arcane Intellect/Brilliance, Divine Spirit/Prayer of Spirit. Disabled in battlegrounds. |\n\nWhen [SuperWoW](https://github.com/balakethelock/SuperWoW) or [Nampower](https://github.com/pepopo978/nampower) are installed, buff removal uses spell IDs instead of tooltip scanning for better performance.\n\n### Active (require modifier keys)\n\n| Keys | Action |\n|------|--------|\n| **Alt + Ctrl + Shift** | Logout (only if no keybind is set for Logout) |\n| **Ctrl + Shift** | Follow target |\n| **Alt + Shift** | Inspect target; bid on auction |\n| **Alt + Ctrl** | Initiate/accept trade; confirm popups (invite, BG entry, release spirit, corpse recovery, summon, etc.); click send mail / create auction / buyou\n\n… (truncated)",
-    "release_downloads_repo": "jrc13245/_LazyPig",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
     "name": "Chronometer",
     "repo": "https://github.com/Judo101/Chronometer",
     "category": "General",
@@ -18577,7 +17950,7 @@
   },
   {
     "name": "AtlasQuest",
-    "repo": "https://github.com/Buzzkill54/AtlasQuest",
+    "repo": "https://github.com/Otari98/AtlasQuest",
     "category": "General",
     "source": "community",
     "turtle_custom": true,
@@ -18586,7 +17959,14 @@
     "release_downloads_repo": "Buzzkill54/AtlasQuest",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "forks": [
+      {
+        "label": "Buzzkill54",
+        "repo": "https://github.com/Buzzkill54/AtlasQuest"
+      }
+    ],
+    "recommended": true
   },
   {
     "name": "SuperMacro-turtle-SuperWoW",
@@ -18667,19 +18047,6 @@
   },
   {
     "name": "AtlasLoot",
-    "repo": "https://github.com/Otari98/AtlasLoot",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "AtlasLoot",
-    "description": "# AtlasLoot\nAtlasLoot Turtle WoW Edition allows you to view loot from bosses/ enchants/ crafted items/ reputation rewards/ PvP rewards in game!\n## Features of this fork\n - Option to show source and drop rate on item tooltips.\n - All professions sorted by slot/purpose.\n - New menus for dungeons/raids and world bosses.\n - Reworked menus for crafting/reputations/collections/pvp.\n - Reworked dropdown menus.\n - Keybinds, and many bugfixes.\n\n## Recommended addons to use with AtlasLoot\n  - [Atlas](https://github.com/Otari98/Atlas)\n  - [AtlasQuest](https://github.com/Otari98/AtlasQuest)\n\n## Preview\n![123](https://github.com/user-attachments/assets/69f48fbf-c9a0-42d6-a907-24b7f2f1d81c)\n\n\n\n\n![2222](https://github.com/user-attachments/assets/a7d86059-0b1d-461a-aab1-e0aef0863cad)\n\n\n\n\n![333](https://github.com/user-attachments/assets/1d3164bf-438a-4268-85c4-35782e59ec46)\n# Thanks to original author and all contributors\n - Daviesh (original author)\n - Pompa (Turtle WoW World Bosses)\n - Xerron (Turtle WoW World Bosses)\n - Gurky (Turtle WoW 1.16/1.16.1 Dungeons)\n - Shagu (pfUI update code)\n - Lexie (Turtle WoW fixes/updates)\n - Otari (overhaul/revamp, menu changes, bugfixes/updates)",
-    "release_downloads_repo": "Otari98/AtlasLoot",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-27T13:39:38Z"
-  },
-  {
-    "name": "AtlasLoot",
     "repo": "https://github.com/ashigaru/AtlasLoot",
     "category": "General",
     "source": "community",
@@ -18689,7 +18056,13 @@
     "release_downloads_repo": "ashigaru/AtlasLoot",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-27T13:39:38Z"
+    "release_downloads_at": "2026-08-27T13:39:38Z",
+    "forks": [
+      {
+        "label": "jordanfaz",
+        "repo": "https://github.com/jordanfaz/AtlasLoot"
+      }
+    ]
   },
   {
     "name": "pfQuest",
@@ -18751,12 +18124,23 @@
   },
   {
     "name": "_LazyPig",
-    "repo": "https://github.com/Otari98/_LazyPig",
+    "repo": "https://github.com/thezephyrsong/_LazyPig",
     "category": "General",
     "source": "community",
     "folder": "_LazyPig",
     "description": "Updated for Turtle WoW Expansion mounts and Riding Turtle - autodismount\n\n\nThis mod is mostly for lazy people:\n\n\nPASSIVE ENHANCEMENTS:\nAUTO DISMOUNT \t\t\t\t- when casting spell or interacting with flightmaster(aq40 mounts included)\nAUTO ZG ROLL \t\t\t\t- on bijou, coins(avaliable 4 modes: off, pass, greed, need)\nLOOT WINDOW AUTO POSITION\t\t- under the cursor when looting\nGOSSIP AUTO PROCESSING\t\t\t- when talking to NPC(taxi, battlemaster, innkeeper, vendors)\nWORLD CHAT MUTE\t\t\t\t- mute /world channel in raid/dungeon/bg zone also filter repeated messages(30s default ban time)\nIMPROVED RIGHT CLICK\t\t\t- if trade/auction/mail window is active, right click on container item will drag and drop it into trade/auction_create/send_mail window\n\n\nACTIVE ENHANCEMENTS(require shift modifier key press):\nSHIFT SPLIT/MERGE\t\t\t- shift + right will split stacked items\nAUTO GREY SELL/REPAIR\t\t\t- press shift when merchant frame is open\nREPEATABLE QUESTS AUTOCOMPLETE \t\t- token quests like: AD(scourge stones,insignias), ZG(coins), BG(marks), Thorium Shells (v1.7changelog)\n\nMINOR ENHANCEMENTS:\nGROUP AUTO ACCEPT \t\t\t- 3 modes (GUILDMATES, GUILDMATES>FRIENDS, EVERYONE)\nSUMMON AUTO ACCEPT \t  \t\t- accept 2 seconds before confirm time expire\nINSTANCE RESURECTION ACCEPT OOC\t\t- instant accept OOC(ouf of combat)\nEXTENDED CAMERA DISTANCE\t\t- increase max camera distance up to 50y\n\n\nSPECIAL KEY COMBINATIONS\nalt+ctrl+shift\t\t\t\t- logout\n\nctrl+shift\t\t\t\t- follow\n\nalt+shift \t\t\t\t- inspect, click button: bid_auction\n\nalt+ctrl\t\t\t\t- initiate/accept trade with other player, \n\t\t\t\t\t  confirm popups: group_invite/bg_entry/release_spirit/recover_corpse/summon etc etc,\n\t\t\t\t\t  click button: send_mail/create_auction/buyout_auction/accept quest etc etc,\n\t\t\t\t\t  roll: on greenies other clolors are ignored, 3 modes (NEED,GREEN,PASS)\n\n\n\n\n\ntyping /lp    - customize addon functionality(most of the functions can be toggled)\n\nSome of the addon's functions may not work if you're using not en/us localized client also bongos and oskin may cause some small issues. \n\n\nAddons with similar functionality you don't need anymore\n- Auto Profit\n- Ez Dismount\n- Automaton\n- Quick Loot\n- Block Salation\n- MailTo -> If you gonna use it anyways be sure to disable _LazyPig features(Improved Right Click and Shift Split/Merge) to avoid override.\n\nNew in v1.7 \nAdded new feature record/replay for repeatable quests that allows you to complete them extremely fast.\nTo record just hold down the Shift key and complete the repeatable quest, after that talk to the NPC again and all\nthe previous actions will be auto replayed, remember not to release the Shift key.\nNew in v1.8\nAdded split feature\n- shift + right click will split stack\nNew in v1.9\nAdded auto roll option for zg rep items: bijous, coins \nNew in 2.3\n- added easy to use grey sell feature, just press shift key when merchant frame is open\n- thorium shells exchange quest now can be automated(v1.7 changelog)\n- added auto queue bg feature\nNew in 2.5\n- resolved problem with dismounting when more than 16 buffs is active(tooltip instead of texture scanning)\n- fixed all issues with the auto completing of repeatable quests (bg marks)\n- fixed bg auto leave feature (did not trigger sometimes)\nNew in 2.7\n- added new key combinations\n- improved right click on container items\n- added auto repair function(performed when merchant frame is visible and Shift key pressed)\n- improved quest/gossip auto processing\nNew in 2.8\n- improved Shift Split(see v1.8 changelog)\nNew in 2.83\n- removed /lps command replaced by easy to use intuitive split mechanism(to enable split feature you need to type /lp 6 - if disabled)\nNew in 2.88\n- added Alt+Ctrl green roll key combinations\nNew in 3.0\n- added \"Mute World\" chat functionality, available 3 modes (RAID>DUNGEON>BG, RAID>DUNGEON, RAID) after leaving specified zone /world chat will be unmuted, function disabled as default type /lp for details\nNew in 3.50\n- greatly improved split mechanism, check video\nNew in 4.00\n- added GUI to acces type /\n\n… (truncated)",
-    "turtle_custom": true
+    "turtle_custom": true,
+    "forks": [
+      {
+        "label": "Otari98",
+        "repo": "https://github.com/Otari98/_LazyPig"
+      },
+      {
+        "label": "jrc13245",
+        "repo": "https://github.com/jrc13245/_LazyPig"
+      }
+    ],
+    "recommended": true
   },
   {
     "name": "GetSpellInfoVanilla",
