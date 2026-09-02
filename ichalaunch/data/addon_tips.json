@@ -16327,10 +16327,10 @@
       }
     },
     "roby-brok/pfui": {
-      "default_branch": "master",
+      "default_branch": "octo",
       "sha": "3df77210ad68543dcce39dff96e5d664677acd98",
       "branches": {
-        "master": "3df77210ad68543dcce39dff96e5d664677acd98"
+        "octo": "3df77210ad68543dcce39dff96e5d664677acd98"
       },
       "latest_tag": "v9.0.21"
     },
@@ -16529,10 +16529,10 @@
       "latest_tag": "7.0.1"
     },
     "roby-brok/pfquest-classicapi": {
-      "default_branch": "octo",
+      "default_branch": "master",
       "sha": "a71931538988b930ee51f115a7d5683fe914ec21",
       "branches": {
-        "octo": "a71931538988b930ee51f115a7d5683fe914ec21"
+        "master": "a71931538988b930ee51f115a7d5683fe914ec21"
       },
       "latest_tag": "8.1.0"
     },
@@ -16702,6 +16702,28 @@
         "master": "c4d29afe690193ad673bd84d1299fa56665a20a2"
       },
       "latest_tag": "1.3.1"
+    },
+    "greendam/theorycraft-turtle": {
+      "default_branch": "master",
+      "sha": "10d128aa3855c3fa10cb3609e121e272fba5b1a0",
+      "branches": {
+        "master": "10d128aa3855c3fa10cb3609e121e272fba5b1a0"
+      }
+    },
+    "roby-brok/mikscrollingbattletext": {
+      "default_branch": "octo",
+      "sha": "6169f104c873e3c90605339a4494b983892c5978",
+      "branches": {
+        "octo": "6169f104c873e3c90605339a4494b983892c5978"
+      }
+    },
+    "brutaliccus/ichalaunch": {
+      "default_branch": "master",
+      "sha": "a7483bfc7053bd6ef313c985d16f10ca75319d9b",
+      "branches": {
+        "master": "a7483bfc7053bd6ef313c985d16f10ca75319d9b"
+      },
+      "latest_tag": "v1.5.7"
     }
   }
 }
