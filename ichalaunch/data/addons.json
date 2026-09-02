@@ -18,64 +18,6 @@
     "description": "A group of addons that improve the way the player manages his or her inventory.",
     "source": "turtle_wiki",
     "folder": "Bagnon",
-    "forks": [
-      {
-        "label": "MarcelineVQ",
-        "repo": "https://github.com/MarcelineVQ/Bagnon"
-      },
-      {
-        "label": "RavenOfSeven",
-        "repo": "https://github.com/RavenOfSeven/Bagnon"
-      },
-      {
-        "label": "terradcm-code",
-        "repo": "https://github.com/terradcm-code/Bagnon"
-      },
-      {
-        "label": "cyy963/TWOW-Bagnon",
-        "repo": "https://github.com/cyy963/TWOW-Bagnon"
-      },
-      {
-        "label": "Domhun16",
-        "repo": "https://github.com/Domhun16/Bagnon"
-      },
-      {
-        "label": "GitMcMillan",
-        "repo": "https://github.com/GitMcMillan/Bagnon"
-      },
-      {
-        "label": "kuziakin93-design",
-        "repo": "https://github.com/kuziakin93-design/Bagnon"
-      },
-      {
-        "label": "DBFBlackbull",
-        "repo": "https://github.com/DBFBlackbull/Bagnon"
-      },
-      {
-        "label": "Drakosha1",
-        "repo": "https://github.com/Drakosha1/Bagnon"
-      },
-      {
-        "label": "blizz1992",
-        "repo": "https://github.com/blizz1992/Bagnon"
-      },
-      {
-        "label": "GidraBW",
-        "repo": "https://github.com/GidraBW/Bagnon"
-      },
-      {
-        "label": "Uthold",
-        "repo": "https://github.com/Uthold/Bagnon"
-      },
-      {
-        "label": "khvpro",
-        "repo": "https://github.com/khvpro/Bagnon"
-      },
-      {
-        "label": "RafikyMan",
-        "repo": "https://github.com/RafikyMan/Bagnon"
-      }
-    ],
     "release_downloads_repo": "McPewPew/Bagnon",
     "release_downloads_state": "none",
     "release_downloads": 0,
@@ -83,10 +25,14 @@
   },
   {
     "name": "Bagshui",
-    "repo": "https://github.com/The-Kludge-Bureau/Bagshui/releases/tag/1.5.16",
-    "pin_release": "1.5.16",
+    "repo": "https://github.com/selfinterest/Bagshui",
     "updates": false,
     "forks": [
+      {
+        "label": "The-Kludge-Bureau",
+        "repo": "https://github.com/The-Kludge-Bureau/Bagshui",
+        "pin_release": "1.5.16"
+      },
       {
         "label": "The-Kludge-Bureau (1.12 / Turtle)",
         "repo": "https://github.com/The-Kludge-Bureau/Bagshui/releases/tag/1.5.16",
@@ -95,10 +41,6 @@
       {
         "label": "NiclasEriksen",
         "repo": "https://github.com/NiclasEriksen/Bagshui"
-      },
-      {
-        "label": "selfinterest",
-        "repo": "https://github.com/selfinterest/Bagshui"
       },
       {
         "label": "IndieMiao",
@@ -112,7 +54,8 @@
     "release_downloads_repo": "The-Kludge-Bureau/Bagshui",
     "release_downloads_state": "ok",
     "release_downloads": 235,
-    "release_downloads_at": "2026-09-02T05:51:38Z"
+    "release_downloads_at": "2026-09-02T05:51:38Z",
+    "recommended": true
   },
   {
     "name": "BlizzMo",
@@ -756,15 +699,15 @@
   },
   {
     "name": "BattleMusic",
-    "repo": "https://github.com/zmarotrix/BattleMusic",
+    "repo": "https://github.com/Fiurs-Hearth/BattleMusic",
     "category": "Combat",
     "description": "Plays battle music on combat start and ends when combat ends. [vid1] https://github.com/Fiurs-Hearth/BattleMusic Alt1",
     "source": "turtle_wiki",
     "folder": "BattleMusic",
     "forks": [
       {
-        "label": "gera3d",
-        "repo": "https://github.com/gera3d/BattleMusic"
+        "label": "zmarotrix",
+        "repo": "https://github.com/zmarotrix/BattleMusic"
       },
       {
         "label": "Nelethor",
@@ -774,7 +717,8 @@
     "release_downloads_repo": "zmarotrix/BattleMusic",
     "release_downloads_state": "ok",
     "release_downloads": 1400,
-    "release_downloads_at": "2026-09-02T05:51:38Z"
+    "release_downloads_at": "2026-09-02T05:51:38Z",
+    "recommended": true
   },
   {
     "name": "BattleScribe",
@@ -2039,77 +1983,26 @@
   },
   {
     "name": "Auctionator",
-    "repo": "https://github.com/nimeral/AuctionatorVanilla",
+    "repo": "https://github.com/brues-code/Auctionator",
     "category": "Economy",
     "description": "A lightweight addon designed to help manage auctions [Img1]",
     "source": "turtle_wiki",
     "folder": "AuctionatorVanilla",
     "forks": [
       {
-        "label": "naakarg/AuctionatorVanillaFixed",
+        "label": "naakarg",
         "repo": "https://github.com/naakarg/AuctionatorVanillaFixed"
       },
       {
-        "label": "cregham",
-        "repo": "https://github.com/cregham/AuctionatorVanilla"
-      },
-      {
-        "label": "JontomXire",
-        "repo": "https://github.com/JontomXire/AuctionatorVanilla"
-      },
-      {
-        "label": "lesstadr",
-        "repo": "https://github.com/lesstadr/AuctionatorVanilla"
-      },
-      {
-        "label": "Oodenson",
-        "repo": "https://github.com/Oodenson/AuctionatorVanilla"
-      },
-      {
-        "label": "oxlomon89-max",
-        "repo": "https://github.com/oxlomon89-max/AuctionatorVanilla"
-      },
-      {
-        "label": "blackscalare",
-        "repo": "https://github.com/blackscalare/AuctionatorVanilla"
-      },
-      {
-        "label": "BRUGIMEN",
-        "repo": "https://github.com/BRUGIMEN/AuctionatorVanilla"
-      },
-      {
-        "label": "IngwarMauerberg",
-        "repo": "https://github.com/IngwarMauerberg/AuctionatorVanilla"
-      },
-      {
-        "label": "kirya1234",
-        "repo": "https://github.com/kirya1234/AuctionatorVanilla"
-      },
-      {
-        "label": "korolorek",
-        "repo": "https://github.com/korolorek/AuctionatorVanilla"
-      },
-      {
-        "label": "Negata",
-        "repo": "https://github.com/Negata/AuctionatorVanilla"
-      },
-      {
-        "label": "Stewww93",
-        "repo": "https://github.com/Stewww93/AuctionatorVanilla"
-      },
-      {
-        "label": "Vociferous121",
-        "repo": "https://github.com/Vociferous121/AuctionatorVanilla"
-      },
-      {
-        "label": "Duzga",
-        "repo": "https://github.com/Duzga/AuctionatorVanilla"
+        "label": "nimeral",
+        "repo": "https://github.com/nimeral/AuctionatorVanilla"
       }
     ],
     "release_downloads_repo": "nimeral/AuctionatorVanilla",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "AuctionHelper",
@@ -2161,12 +2054,16 @@
   },
   {
     "name": "Aux",
-    "repo": "https://github.com/OldManAlpha/aux-addon",
+    "repo": "https://github.com/Otari98/aux-addon",
     "category": "Economy",
     "description": "Overhaul auction house interface [Vid1].",
     "source": "turtle_wiki",
     "folder": "aux-addon",
     "forks": [
+      {
+        "label": "OldManAlpha",
+        "repo": "https://github.com/OldManAlpha/aux-addon"
+      },
       {
         "label": "ChoogerDev/chaux-addon",
         "repo": "https://github.com/ChoogerDev/chaux-addon"
@@ -2180,16 +2077,8 @@
         "repo": "https://github.com/lioryx/aux-addon"
       },
       {
-        "label": "Otari98",
-        "repo": "https://github.com/Otari98/aux-addon"
-      },
-      {
         "label": "Bestoriop",
         "repo": "https://github.com/Bestoriop/aux-addon"
-      },
-      {
-        "label": "kennycrafty",
-        "repo": "https://github.com/kennycrafty/aux-addon"
       },
       {
         "label": "adrianocastro189",
@@ -2210,20 +2099,13 @@
       {
         "label": "tomek7667",
         "repo": "https://github.com/tomek7667/aux-addon"
-      },
-      {
-        "label": "bretharte89",
-        "repo": "https://github.com/bretharte89/aux-addon"
-      },
-      {
-        "label": "dwbclz",
-        "repo": "https://github.com/dwbclz/aux-addon"
       }
     ],
     "release_downloads_repo": "OldManAlpha/aux-addon",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "Aux-Revamped",
@@ -2906,38 +2788,8 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "AttackBar",
-    "repo": "https://github.com/Road-block/AttackBar",
-    "category": "General",
-    "description": "Player and Enemy Swing Timer addon [Img1]",
-    "source": "turtle_wiki",
-    "folder": "AttackBar",
-    "forks": [
-      {
-        "label": "Siventt",
-        "repo": "https://github.com/Siventt/AttackBar"
-      },
-      {
-        "label": "talex00",
-        "repo": "https://github.com/talex00/AttackBar"
-      },
-      {
-        "label": "Gescht",
-        "repo": "https://github.com/Gescht/AttackBar"
-      },
-      {
-        "label": "LozM",
-        "repo": "https://github.com/LozM/AttackBar"
-      }
-    ],
-    "release_downloads_repo": "Road-block/AttackBar",
-    "release_downloads_state": "ok",
-    "release_downloads": 2632,
-    "release_downloads_at": "2026-09-02T05:51:38Z"
-  },
-  {
     "name": "AttackBar Turtle",
-    "repo": "https://github.com/Siventt/AttackBar-TWoW",
+    "repo": "https://github.com/deceius/AttackBar",
     "category": "General",
     "description": "Player and Enemy Swing Timer addon [Img1] + Turtle WoW's Holy Strike support.",
     "source": "turtle_wiki",
@@ -2945,56 +2797,42 @@
     "folder": "AttackBar-TWoW",
     "forks": [
       {
-        "label": "deceius/AttackBar",
-        "repo": "https://github.com/deceius/AttackBar"
+        "label": "Siventt",
+        "repo": "https://github.com/Siventt/AttackBar-TWoW"
       },
       {
         "label": "paokkerkir/AttackBar_DragonflightUI",
         "repo": "https://github.com/paokkerkir/AttackBar_DragonflightUI"
-      },
-      {
-        "label": "warpman72/AttackBar",
-        "repo": "https://github.com/warpman72/AttackBar"
-      },
-      {
-        "label": "MegRoms/AttackBar",
-        "repo": "https://github.com/MegRoms/AttackBar"
       }
     ],
     "release_downloads_repo": "Siventt/AttackBar-TWoW",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "AuldLangSyne",
-    "repo": "https://github.com/Road-block/AuldLangSyne",
+    "repo": "https://github.com/refaim/AuldLangSyne",
     "category": "General",
     "description": "combines the functions of CT_PlayerNotes and FriendsFacts",
     "source": "turtle_wiki",
     "folder": "AuldLangSyne",
     "forks": [
       {
-        "label": "refaim",
-        "repo": "https://github.com/refaim/AuldLangSyne"
+        "label": "Road-block",
+        "repo": "https://github.com/Road-block/AuldLangSyne"
       },
       {
         "label": "KameleonUK",
         "repo": "https://github.com/KameleonUK/AuldLangSyne"
-      },
-      {
-        "label": "xinleibird",
-        "repo": "https://github.com/xinleibird/AuldLangSyne"
-      },
-      {
-        "label": "FrostShock",
-        "repo": "https://github.com/FrostShock/AuldLangSyne"
       }
     ],
     "release_downloads_repo": "Road-block/AuldLangSyne",
     "release_downloads_state": "ok",
     "release_downloads": 304,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "AutoDecline",
@@ -3003,12 +2841,6 @@
     "description": "Automatically decline (block) all guild, party, duel invites, as well as guild charters.",
     "source": "turtle_wiki",
     "folder": "AutoDecline",
-    "forks": [
-      {
-        "label": "bretharte89",
-        "repo": "https://github.com/bretharte89/AutoDecline"
-      }
-    ],
     "release_downloads_repo": "McPewPew/AutoDecline",
     "release_downloads_state": "none",
     "release_downloads": 0,
@@ -3059,10 +2891,6 @@
     "folder": "AutoLFM",
     "forks": [
       {
-        "label": "enraged-tomato",
-        "repo": "https://github.com/enraged-tomato/AutoLFM"
-      },
-      {
         "label": "Monomode/TurtleWow--AutoLFG",
         "repo": "https://github.com/Monomode/TurtleWow--AutoLFG"
       }
@@ -3083,14 +2911,6 @@
       {
         "label": "LythandraWoW/Lyth_AutoMana",
         "repo": "https://github.com/LythandraWoW/Lyth_AutoMana"
-      },
-      {
-        "label": "al3xc1985",
-        "repo": "https://github.com/al3xc1985/AutoMana"
-      },
-      {
-        "label": "whtmst",
-        "repo": "https://github.com/whtmst/AutoMana"
       }
     ],
     "release_downloads_repo": "MarcelineVQ/AutoMana",
@@ -3147,12 +2967,6 @@
     "description": "Notifies you if there's a higher rank of spell available in your spellbook than on your bars",
     "source": "turtle_wiki",
     "folder": "AutoSpellRanker",
-    "forks": [
-      {
-        "label": "mkostechuk",
-        "repo": "https://github.com/mkostechuk/AutoSpellRanker"
-      }
-    ],
     "release_downloads_repo": "Dayfiree/AutoSpellRanker",
     "release_downloads_state": "none",
     "release_downloads": 0,
@@ -3257,36 +3071,13 @@
       {
         "label": "jrc13245",
         "repo": "https://github.com/jrc13245/BetterCharacterStats"
-      },
-      {
-        "label": "laytya",
-        "repo": "https://github.com/laytya/BetterCharacterStats"
-      },
-      {
-        "label": "RavenOfSeven",
-        "repo": "https://github.com/RavenOfSeven/BetterCharacterStats"
-      },
-      {
-        "label": "rthrth1079",
-        "repo": "https://github.com/rthrth1079/BetterCharacterStats"
-      },
-      {
-        "label": "jtaylormayfield",
-        "repo": "https://github.com/jtaylormayfield/BetterCharacterStats"
-      },
-      {
-        "label": "seamonly6578",
-        "repo": "https://github.com/seamonly6578/BetterCharacterStats"
-      },
-      {
-        "label": "Chad90b/BetterCharacterStats_1",
-        "repo": "https://github.com/Chad90b/BetterCharacterStats_1"
       }
     ],
     "release_downloads_repo": "Otari98/BetterCharacterStats",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "BetterEverlookBroadcastingCo",
@@ -3296,12 +3087,6 @@
     "source": "turtle_wiki",
     "turtle_custom": true,
     "folder": "BetterEverlookBroadcastingCo",
-    "forks": [
-      {
-        "label": "terradcm-code",
-        "repo": "https://github.com/terradcm-code/BetterEverlookBroadcastingCo"
-      }
-    ],
     "release_downloads_repo": "JeromeM/BetterEverlookBroadcastingCo",
     "release_downloads_state": "ok",
     "release_downloads": 12,
@@ -11632,15 +11417,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "CallOfElements",
-    "repo": "",
-    "category": "PvP",
-    "description": "Shaman addon to simplify totem usage, increase your efficiency in party and PVP [Img1], updated to work with Turtle Warcraft",
-    "source": "turtle_wiki",
-    "folder": "CallOfElements",
-    "installable": false
-  },
-  {
     "name": "HCWarn",
     "repo": "https://github.com/neimad-mp/HCWarn",
     "category": "PvP",
@@ -11809,7 +11585,7 @@
   },
   {
     "name": "AutoBar",
-    "repo": "https://github.com/laytya/AutoBar-for-Turtle-WoW",
+    "repo": "https://github.com/Bestoriop/AutoBar",
     "category": "Questing",
     "description": "automatically adds potions, water, food, quest and other items you specify into buttons for easy use [Img1]",
     "source": "turtle_wiki",
@@ -11817,18 +11593,15 @@
     "folder": "AutoBar-for-Turtle-WoW",
     "forks": [
       {
-        "label": "Bestoriop/AutoBar",
-        "repo": "https://github.com/Bestoriop/AutoBar"
-      },
-      {
-        "label": "codeshard/AutoBar",
-        "repo": "https://github.com/codeshard/AutoBar"
+        "label": "laytya",
+        "repo": "https://github.com/laytya/AutoBar-for-Turtle-WoW"
       }
     ],
     "release_downloads_repo": "laytya/AutoBar-for-Turtle-WoW",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "AutoConfirm",
@@ -11865,14 +11638,6 @@
       {
         "label": "McPewPew/HideBattlegroundFinder",
         "repo": "https://github.com/McPewPew/HideBattlegroundFinder"
-      },
-      {
-        "label": "nandin-borjigin",
-        "repo": "https://github.com/nandin-borjigin/AutoDB2"
-      },
-      {
-        "label": "Pallaladin/AutoDB",
-        "repo": "https://github.com/Pallaladin/AutoDB"
       }
     ],
     "release_downloads_repo": "refaim/AutoDB2",
@@ -12642,12 +12407,16 @@
   },
   {
     "name": "AutoMasterLooter",
-    "repo": "https://github.com/balakethelock/AutoMasterLooter",
+    "repo": "https://github.com/Otari98/AutoMasterLooter",
     "category": "Raiding",
     "description": "Automatically loot items as masterlooter",
     "source": "turtle_wiki",
     "folder": "AutoMasterLooter",
     "forks": [
+      {
+        "label": "balakethelock",
+        "repo": "https://github.com/balakethelock/AutoMasterLooter"
+      },
       {
         "label": "NoaF-Guild",
         "repo": "https://github.com/NoaF-Guild/AutoMasterLooter"
@@ -12655,20 +12424,13 @@
       {
         "label": "BahamutxD",
         "repo": "https://github.com/BahamutxD/AutoMasterLooter"
-      },
-      {
-        "label": "Otari98",
-        "repo": "https://github.com/Otari98/AutoMasterLooter"
-      },
-      {
-        "label": "onyz4x",
-        "repo": "https://github.com/onyz4x/AutoMasterLooter"
       }
     ],
     "release_downloads_repo": "balakethelock/AutoMasterLooter",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "Automaton",
@@ -12680,37 +12442,22 @@
   },
   {
     "name": "BananaBar",
-    "repo": "https://github.com/balakethelock/bananabar",
+    "repo": "https://github.com/Otari98/bananabar",
     "category": "Raiding",
     "description": "buttons to set raid symbols/hunter's mark, target by symbol and many other features [Img1]",
     "source": "turtle_wiki",
     "folder": "bananabar",
     "forks": [
       {
-        "label": "Gazeshooter/bananabar-3.3.5",
-        "repo": "https://github.com/Gazeshooter/bananabar-3.3.5"
-      },
-      {
-        "label": "Otari98",
-        "repo": "https://github.com/Otari98/bananabar"
-      },
-      {
-        "label": "dingleshu",
-        "repo": "https://github.com/dingleshu/bananabar"
-      },
-      {
-        "label": "shikulja",
-        "repo": "https://github.com/shikulja/bananabar"
-      },
-      {
-        "label": "SaxxonPike/Banana",
-        "repo": "https://github.com/SaxxonPike/Banana"
+        "label": "balakethelock",
+        "repo": "https://github.com/balakethelock/bananabar"
       }
     ],
     "release_downloads_repo": "balakethelock/bananabar",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "BigTimer",
@@ -12723,12 +12470,23 @@
   },
   {
     "name": "BigWigs",
-    "repo": "",
+    "repo": "https://github.com/ElesionWoW/BigWigs",
     "category": "Raiding",
     "description": "raid encounter helper",
     "source": "turtle_wiki",
     "folder": "BigWigs",
-    "installable": false
+    "installable": false,
+    "forks": [
+      {
+        "label": "previous",
+        "repo": ""
+      },
+      {
+        "label": "pepopo978",
+        "repo": "https://github.com/pepopo978/BigWigs"
+      }
+    ],
+    "recommended": true
   },
   {
     "name": "BMLoot",
@@ -14575,52 +14333,12 @@
         "repo": "https://github.com/JeSmyrna/Stonewall-Inn---AutoMarker"
       },
       {
-        "label": "al3xc1985",
-        "repo": "https://github.com/al3xc1985/AutoMarker"
-      },
-      {
-        "label": "bretharte89",
-        "repo": "https://github.com/bretharte89/AutoMarker"
-      },
-      {
         "label": "TheRealFayz",
         "repo": "https://github.com/TheRealFayz/AutoMarker"
       },
       {
-        "label": "jilinge2",
-        "repo": "https://github.com/jilinge2/AutoMarker"
-      },
-      {
         "label": "jrc13245",
         "repo": "https://github.com/jrc13245/AutoMarker"
-      },
-      {
-        "label": "michaelmano",
-        "repo": "https://github.com/michaelmano/AutoMarker"
-      },
-      {
-        "label": "kintsugitwow",
-        "repo": "https://github.com/kintsugitwow/AutoMarker"
-      },
-      {
-        "label": "Zhinj",
-        "repo": "https://github.com/Zhinj/AutoMarker"
-      },
-      {
-        "label": "whtmst",
-        "repo": "https://github.com/whtmst/AutoMarker"
-      },
-      {
-        "label": "flyinbed",
-        "repo": "https://github.com/flyinbed/AutoMarker"
-      },
-      {
-        "label": "codefracas",
-        "repo": "https://github.com/codefracas/AutoMarker"
-      },
-      {
-        "label": "pepopo978",
-        "repo": "https://github.com/pepopo978/AutoMarker"
       }
     ],
     "release_downloads_repo": "MarcelineVQ/AutoMarker",
@@ -17376,20 +17094,11 @@
     "source": "community",
     "folder": "CallOfElements",
     "description": "This is a fork of [MarcelineVQ version](https://github.com/MarcelineVQ/CallOfElements)\n\n# Features\n* Supports dropping all totems with 1 click if [nampower](https://gitea.com/avitasia/nampower) mod is installed. If not, you have to click the button 4 times.\n* Shows when a totem is out of range. If you have [superWoW](https://github.com/balakethelock/SuperWoW) mod installed it will work on all totems, if not it will only work on totems that give you a buff.\n* Option to show reminder to recall totems when they are all out of range. Only works for totems that give you a buff if superWoW is not installed.\n* Option to show/sound warning when your current shield fades.\n* Option to show/sound warning when your weapon enchant fades.\n* Totemic Recall button included with dedicated key binding. Off by default, toggle on in settings.\n* Right click any anchor button to quickly switch set or access config dialog.\n* Ctrl-clicking a totem not in current set will drop and move it to current set.\n* SuperWow only: Config option to re-drop active totems if they're more then 20y away.\n* SuperWoW only: Throwing advised totems will re-drop any totem that is out of range.\n* Bug fixes: Timers will reset if a totem is destroyed. Improved performance by fixing a bug that made buttons update to frequently.\n\n# CallOfElements for vanilla WOW\n\nThis is an All-In-One Shaman class addon for World Of Warcraft.\nCurrently, it features a complete totem module to simplify totem usage\nand increase your efficiency in party and in PVP.\nYet to come are a healing module and some miscellanous options that\nhelp with different tasks.\n\nThe totem module provides you with customizable frames that hold all\nof your totems separated by element and work just like a standard action bars. \nIn addition, each totem has its own timer that displays how long the totem \nwill still be active. When there are only 10 or 5 seconds left or when\nthe totem expires, a notification is shown in the screen center.\nFurthermore you are able to create your own totem sets which hold a totem\nof each element that can be cast using only one command or button. \nThere is also one predefined set for each class that is automatically \nactivated in pvp when you target a hostile player of the corresponding class. \n\n# Commands\n\n* `/coe` or `/coe config` - Shows the configuration dialog\n* `/coe list` or `/coe help` - Shows list of all commands\n* `/coe nextset` - Switches to the next custom totem set or the default set\n* `/coe priorset` - Switches to the prior custom totem set or the default set\n* `/coe set <name>` - Switches to set with the specified name. <name> is case-sensitive\n* `/coe restartset` - Next time you throw the active set, it recasts all totems\n* `/coe reset` - Resets all timers and the active set\n* `/coe resetframes` - Returns all element bars to the screen center\n* `/coe resetordering` - Resets the ordering of your totem bars\n* `/coe reload` - Reloads all totems and sets\n\nThe following commands only work as macros dragged to your action bars:\n* `/coe throwset <name?>`- Throws the active totem set or named set if specificed\n* `/coe forcethrowset <name?>` - Will refresh existing totems regardless of settings\n* `/coe advised` - Throws the next advised totem\n\n# Basic install instructions\n\n- Extract the archive\n- Copy \"CallOfElements\" folder into your \"\\<WOW FOLDER>/Interface/Addons/\" directory",
-    "forks": [
-      {
-        "label": "techi602",
-        "repo": "https://github.com/techi602/CallOfElements"
-      },
-      {
-        "label": "RavenOfSeven",
-        "repo": "https://github.com/RavenOfSeven/CallOfElements"
-      }
-    ],
     "release_downloads_repo": "sica42/CallOfElements",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "pfQuest-turtle",
@@ -18197,18 +17906,6 @@
     "release_downloads_repo": "laytya/TomTom-TWOW",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-09-02T05:51:38Z"
-  },
-  {
-    "name": "Auctionator (ClassicAPI)",
-    "repo": "https://github.com/brues-code/Auctionator",
-    "category": "General",
-    "source": "community",
-    "folder": "Auctionator",
-    "description": "1.12.1 backport. Requires ClassicAPI",
-    "release_downloads_repo": "brues-code/Auctionator",
-    "release_downloads_state": "ok",
-    "release_downloads": 17,
     "release_downloads_at": "2026-09-02T05:51:38Z"
   },
   {
