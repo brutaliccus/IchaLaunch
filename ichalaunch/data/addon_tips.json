@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-01T21:19:03Z",
+  "generated_at": "2026-09-02T01:18:18Z",
   "source": "git-upload-pack",
   "repos": {
     "shirsig/clean_up": {
@@ -520,34 +520,6 @@
         "master": "b27840c425b665a3e8c0c9cd6fe3ddf0f72eeb6e"
       }
     },
-    "macumbafeh/shaguinventory": {
-      "default_branch": "master",
-      "sha": "00eeeb2da84d33bb2f51f1a5bda97dc08978772c",
-      "branches": {
-        "master": "00eeeb2da84d33bb2f51f1a5bda97dc08978772c"
-      }
-    },
-    "amonra/shaguinventory": {
-      "default_branch": "master",
-      "sha": "00eeeb2da84d33bb2f51f1a5bda97dc08978772c",
-      "branches": {
-        "master": "00eeeb2da84d33bb2f51f1a5bda97dc08978772c"
-      }
-    },
-    "dwbclz/shaguinventory": {
-      "default_branch": "master",
-      "sha": "00eeeb2da84d33bb2f51f1a5bda97dc08978772c",
-      "branches": {
-        "master": "00eeeb2da84d33bb2f51f1a5bda97dc08978772c"
-      }
-    },
-    "jiangxt316/shaguinventory": {
-      "default_branch": "master",
-      "sha": "00eeeb2da84d33bb2f51f1a5bda97dc08978772c",
-      "branches": {
-        "master": "00eeeb2da84d33bb2f51f1a5bda97dc08978772c"
-      }
-    },
     "robs898/shaguinventory": {
       "default_branch": "master",
       "sha": "251b678d80dccb972cdde48820e0ff88b583aaaf",
@@ -770,34 +742,6 @@
       "sha": "919898418d579bf1478832f29bca7d2066aab72a",
       "branches": {
         "main": "919898418d579bf1478832f29bca7d2066aab72a"
-      }
-    },
-    "conquistadorestwow/akkio_consume_helper": {
-      "default_branch": "main",
-      "sha": "9af15e3c236d14d6d704d4db78cb210620849b24",
-      "branches": {
-        "main": "9af15e3c236d14d6d704d4db78cb210620849b24"
-      }
-    },
-    "allyrwastaken/akkio_consume_helper": {
-      "default_branch": "main",
-      "sha": "d78565aa8f6844865c13bff4754cfeb3b5dd32c3",
-      "branches": {
-        "main": "d78565aa8f6844865c13bff4754cfeb3b5dd32c3"
-      }
-    },
-    "madskrist/akkio_consume_helper": {
-      "default_branch": "main",
-      "sha": "169466ec6b92f04b73e28d624336f56885c4e32c",
-      "branches": {
-        "main": "169466ec6b92f04b73e28d624336f56885c4e32c"
-      }
-    },
-    "jjungnickel/akkio_consume_helper": {
-      "default_branch": "main",
-      "sha": "1cd971bcf5e722473abafa535267d4066876c57e",
-      "branches": {
-        "main": "1cd971bcf5e722473abafa535267d4066876c57e"
       }
     },
     "nikoichu/autobuff-turtle": {
@@ -1618,13 +1562,6 @@
         "master": "e97889a080370ee5a7d8988965ff4b508e4301e1"
       }
     },
-    "vargv666/smarthealer": {
-      "default_branch": "master",
-      "sha": "3c550f8ee8e185ee223d1a1f5910847fe81e92f9",
-      "branches": {
-        "master": "3c550f8ee8e185ee223d1a1f5910847fe81e92f9"
-      }
-    },
     "dauls/smartrestore": {
       "default_branch": "main",
       "sha": "ce7ccc9ba7bc18a52ab9fc85d1e85fbe2a78bc93",
@@ -1808,20 +1745,6 @@
       "sha": "d437689a057cd27027e0528767adc7d7cdbf5776",
       "branches": {
         "master": "d437689a057cd27027e0528767adc7d7cdbf5776"
-      }
-    },
-    "amonra/antispam": {
-      "default_branch": "master",
-      "sha": "c1efb663f2fd722c23eef8c6087ec081bd151125",
-      "branches": {
-        "master": "c1efb663f2fd722c23eef8c6087ec081bd151125"
-      }
-    },
-    "jiangxt316/antispam": {
-      "default_branch": "master",
-      "sha": "c1efb663f2fd722c23eef8c6087ec081bd151125",
-      "branches": {
-        "master": "c1efb663f2fd722c23eef8c6087ec081bd151125"
       }
     },
     "einbaum/auctionaltbuy": {
@@ -2485,14 +2408,6 @@
       },
       "latest_tag": "v0.3"
     },
-    "jimsjoh/_antinvite": {
-      "default_branch": "master",
-      "sha": "35257bba9cf9645c1c9a927525a6c3880d2381a5",
-      "branches": {
-        "master": "35257bba9cf9645c1c9a927525a6c3880d2381a5"
-      },
-      "latest_tag": "v0.3"
-    },
     "xorann/abraxas": {
       "default_branch": "master",
       "sha": "9eb1bc1b81f27943c605bb39d383f10fad4fe0b7",
@@ -2531,20 +2446,6 @@
         "master": "f6304c8834f1c8a0289f5ce93e49b29aed0585dc"
       }
     },
-    "kameleonuk/aero": {
-      "default_branch": "master",
-      "sha": "96e5d9d85d7e33e20409608a3b3e0078b4698be7",
-      "branches": {
-        "master": "96e5d9d85d7e33e20409608a3b3e0078b4698be7"
-      }
-    },
-    "shikulja/aero": {
-      "default_branch": "master",
-      "sha": "d44d23a7f4e93aec983115c685686b59c62bd119",
-      "branches": {
-        "master": "d44d23a7f4e93aec983115c685686b59c62bd119"
-      }
-    },
     "nehswu/altoholic_vanilla": {
       "default_branch": "master",
       "sha": "d6929562ecbcd562dccba285935ecd36ee905435",
@@ -2575,13 +2476,6 @@
         "master": "95e17fc04b70eb48cee7051ff2d739927c0eaafb"
       },
       "latest_tag": "1.0.0"
-    },
-    "twito-codes/announcekick": {
-      "default_branch": "master",
-      "sha": "95e17fc04b70eb48cee7051ff2d739927c0eaafb",
-      "branches": {
-        "master": "95e17fc04b70eb48cee7051ff2d739927c0eaafb"
-      }
     },
     "thepparker/antispamstopcast": {
       "default_branch": "master",
@@ -2616,28 +2510,6 @@
       "sha": "b2aa56ca6ba10b52bcf3cdb7eb91c43f3a822abc",
       "branches": {
         "master": "b2aa56ca6ba10b52bcf3cdb7eb91c43f3a822abc"
-      },
-      "latest_tag": "v1.6.3"
-    },
-    "taabu-git/architotem": {
-      "default_branch": "master",
-      "sha": "b2aa56ca6ba10b52bcf3cdb7eb91c43f3a822abc",
-      "branches": {
-        "master": "b2aa56ca6ba10b52bcf3cdb7eb91c43f3a822abc"
-      }
-    },
-    "whtmst/architotem": {
-      "default_branch": "master",
-      "sha": "b2aa56ca6ba10b52bcf3cdb7eb91c43f3a822abc",
-      "branches": {
-        "master": "b2aa56ca6ba10b52bcf3cdb7eb91c43f3a822abc"
-      }
-    },
-    "javierherasa/architotem": {
-      "default_branch": "master",
-      "sha": "40b3098604d4aa34a9e9960c5d9ae5cdcda4ba88",
-      "branches": {
-        "master": "40b3098604d4aa34a9e9960c5d9ae5cdcda4ba88"
       },
       "latest_tag": "v1.6.3"
     },
@@ -3593,27 +3465,6 @@
       "sha": "872d441ca796e08eba79747909632cf3097100a9",
       "branches": {
         "master": "872d441ca796e08eba79747909632cf3097100a9"
-      }
-    },
-    "amonra/clique": {
-      "default_branch": "master",
-      "sha": "87717adc0ba5456aadfb88cb9fa0a2189c241763",
-      "branches": {
-        "master": "87717adc0ba5456aadfb88cb9fa0a2189c241763"
-      }
-    },
-    "dwbclz/clique": {
-      "default_branch": "master",
-      "sha": "87717adc0ba5456aadfb88cb9fa0a2189c241763",
-      "branches": {
-        "master": "87717adc0ba5456aadfb88cb9fa0a2189c241763"
-      }
-    },
-    "max-bruhn/clique": {
-      "default_branch": "master",
-      "sha": "87717adc0ba5456aadfb88cb9fa0a2189c241763",
-      "branches": {
-        "master": "87717adc0ba5456aadfb88cb9fa0a2189c241763"
       }
     },
     "cabro/clog": {
@@ -9554,34 +9405,6 @@
         "main": "cd2089bb15240a764dfc9d68b0755166c0f2a7d2"
       }
     },
-    "lioryx/artisan": {
-      "default_branch": "main",
-      "sha": "ade58f6e1c2a1746a35ac060f48b78fd84cb4c83",
-      "branches": {
-        "main": "ade58f6e1c2a1746a35ac060f48b78fd84cb4c83"
-      }
-    },
-    "chad90b/artisan": {
-      "default_branch": "main",
-      "sha": "2d95169813b43c93e255305cb95cf95fe7272ca9",
-      "branches": {
-        "main": "2d95169813b43c93e255305cb95cf95fe7272ca9"
-      }
-    },
-    "acid9000/artisan": {
-      "default_branch": "main",
-      "sha": "2e656e806e10bb3d564fc207cb29cddf6e7c3aaf",
-      "branches": {
-        "main": "2e656e806e10bb3d564fc207cb29cddf6e7c3aaf"
-      }
-    },
-    "amonra/artisan": {
-      "default_branch": "main",
-      "sha": "f04d20ecd6cf9481aefeb0dce9c1b72a34456d76",
-      "branches": {
-        "main": "f04d20ecd6cf9481aefeb0dce9c1b72a34456d76"
-      }
-    },
     "fox2k7/bananarepublicprofs": {
       "default_branch": "main",
       "sha": "fa360b807e302fb40002539c70c9ee3f9099ea3c",
@@ -10377,48 +10200,6 @@
       "sha": "b61805c0da7b8cbef410af95b703d217b7e56d55",
       "branches": {
         "master": "b61805c0da7b8cbef410af95b703d217b7e56d55"
-      }
-    },
-    "bycfm2/atlas-tw": {
-      "default_branch": "main",
-      "sha": "07218cc2e6a43a00f37444abebbee20b71f4e944",
-      "branches": {
-        "main": "07218cc2e6a43a00f37444abebbee20b71f4e944"
-      }
-    },
-    "c4rcer/atlas-cfm": {
-      "default_branch": "main",
-      "sha": "9a9936a1923fd503ba8abda375371e747a2a2cff",
-      "branches": {
-        "main": "9a9936a1923fd503ba8abda375371e747a2a2cff"
-      }
-    },
-    "eqomdx/atlas-cfm-destinationclick": {
-      "default_branch": "main",
-      "sha": "9d92e187cb327290feccf55542d5d3e05215a2e2",
-      "branches": {
-        "main": "9d92e187cb327290feccf55542d5d3e05215a2e2"
-      }
-    },
-    "marvick-liu/atlas-tw": {
-      "default_branch": "main",
-      "sha": "f44a70a9358ecec2564458fafd8fdf8de1a547f6",
-      "branches": {
-        "main": "f44a70a9358ecec2564458fafd8fdf8de1a547f6"
-      }
-    },
-    "ravenofseven/atlas-tw": {
-      "default_branch": "main",
-      "sha": "65284019a90fb52a1393eedb04784491e79b4a8f",
-      "branches": {
-        "main": "65284019a90fb52a1393eedb04784491e79b4a8f"
-      }
-    },
-    "whtmst/atlas-tw": {
-      "default_branch": "main",
-      "sha": "3ca05f1e0b02cb9b085cb27f661659de56b7fc06",
-      "branches": {
-        "main": "3ca05f1e0b02cb9b085cb27f661659de56b7fc06"
       }
     },
     "laytya/autobar-for-turtle-wow": {
@@ -12603,32 +12384,11 @@
       },
       "latest_tag": "1.7"
     },
-    "bretharte89/turtlecalendar": {
-      "default_branch": "main",
-      "sha": "aad7b6a628992ea7d96e59982215e0bcd6901135",
-      "branches": {
-        "main": "aad7b6a628992ea7d96e59982215e0bcd6901135"
-      }
-    },
     "ravenofseven/turtlecalendar": {
       "default_branch": "main",
       "sha": "d469a685d5746bbcce57399a3e7e92413bc568af",
       "branches": {
         "main": "d469a685d5746bbcce57399a3e7e92413bc568af"
-      }
-    },
-    "orange-pig/turtlecalendar": {
-      "default_branch": "main",
-      "sha": "9e880ac2e80461ca0b6b13e9c2e4b9ab6eec7985",
-      "branches": {
-        "main": "9e880ac2e80461ca0b6b13e9c2e4b9ab6eec7985"
-      }
-    },
-    "whtmst/turtlecalendar": {
-      "default_branch": "main",
-      "sha": "6e86fdfc634ad953cec384b78b52408bed0012e6",
-      "branches": {
-        "main": "6e86fdfc634ad953cec384b78b52408bed0012e6"
       }
     },
     "cosminpop/twlc2c": {
@@ -12833,13 +12593,6 @@
       "sha": "b26d774db501a687461ead891985fcc85dee606c",
       "branches": {
         "master": "b26d774db501a687461ead891985fcc85dee606c"
-      }
-    },
-    "balakethelock/adf": {
-      "default_branch": "master",
-      "sha": "240e45873fb15c90967f1a35f4f689d8d26145b3",
-      "branches": {
-        "master": "240e45873fb15c90967f1a35f4f689d8d26145b3"
       }
     },
     "davidbecht/autolock": {
@@ -14362,60 +14115,11 @@
         "master": "081327a9ed780038ad8ef90a7f699b7a37d31a3c"
       }
     },
-    "bretharte89/simpleactionsets": {
-      "default_branch": "master",
-      "sha": "e2486ad2169333c1e69f18815224fb7962269ca0",
-      "branches": {
-        "master": "e2486ad2169333c1e69f18815224fb7962269ca0"
-      }
-    },
-    "ravenofseven/simpleactionsets": {
-      "default_branch": "master",
-      "sha": "e2486ad2169333c1e69f18815224fb7962269ca0",
-      "branches": {
-        "master": "e2486ad2169333c1e69f18815224fb7962269ca0"
-      }
-    },
     "diginfotek/simpleactionsets": {
       "default_branch": "master",
       "sha": "0a11689e189d0a2d7f5988d7cc477ab922027f5c",
       "branches": {
         "master": "0a11689e189d0a2d7f5988d7cc477ab922027f5c"
-      }
-    },
-    "lythandrawow/lythsimpleactionsets": {
-      "default_branch": "master",
-      "sha": "193f15010de4b0889d10361aa287d324cf5895d5",
-      "branches": {
-        "master": "193f15010de4b0889d10361aa287d324cf5895d5"
-      }
-    },
-    "paenthy/simpleactionsets": {
-      "default_branch": "master",
-      "sha": "25fe8718eb10b1b7f5883651b1a16adb56c4ab63",
-      "branches": {
-        "master": "25fe8718eb10b1b7f5883651b1a16adb56c4ab63"
-      }
-    },
-    "whtmst/simpleactionsets": {
-      "default_branch": "master",
-      "sha": "25fe8718eb10b1b7f5883651b1a16adb56c4ab63",
-      "branches": {
-        "master": "25fe8718eb10b1b7f5883651b1a16adb56c4ab63"
-      }
-    },
-    "evilbunny235/simpleactionsets": {
-      "default_branch": "master",
-      "sha": "8f1a268c9c07bbc9bb9614e748dc954e40d42c23",
-      "branches": {
-        "master": "8f1a268c9c07bbc9bb9614e748dc954e40d42c23"
-      }
-    },
-    "marcelinevq/simpleactionsets": {
-      "default_branch": "master",
-      "sha": "112ae0ed793c3668cf2be0ef727de1297e80c92c",
-      "branches": {
-        "master": "112ae0ed793c3668cf2be0ef727de1297e80c92c"
       }
     },
     "refaim/soloraidtargeticons": {
@@ -14891,41 +14595,6 @@
       "sha": "b474c145e365466e3b00fc4375489dc7e95a108a",
       "branches": {
         "master": "b474c145e365466e3b00fc4375489dc7e95a108a"
-      }
-    },
-    "amonra/actionbarprofiles": {
-      "default_branch": "master",
-      "sha": "b62477f279799808cdfa7398967c43437cff762d",
-      "branches": {
-        "master": "b62477f279799808cdfa7398967c43437cff762d"
-      }
-    },
-    "rthrth1079/actionbarprofiles": {
-      "default_branch": "master",
-      "sha": "b62477f279799808cdfa7398967c43437cff762d",
-      "branches": {
-        "master": "b62477f279799808cdfa7398967c43437cff762d"
-      }
-    },
-    "vargv666/actionbarprofiles": {
-      "default_branch": "master",
-      "sha": "b62477f279799808cdfa7398967c43437cff762d",
-      "branches": {
-        "master": "b62477f279799808cdfa7398967c43437cff762d"
-      }
-    },
-    "andrgita/actionbarprofiles": {
-      "default_branch": "master",
-      "sha": "523a4918433e58b7e685e7639e665b4f0ac177c3",
-      "branches": {
-        "master": "523a4918433e58b7e685e7639e665b4f0ac177c3"
-      }
-    },
-    "kangaroux/actionbarprofiles": {
-      "default_branch": "master",
-      "sha": "0f8d57fe07c6f9b29489fc8780541e74bf3f0783",
-      "branches": {
-        "master": "0f8d57fe07c6f9b29489fc8780541e74bf3f0783"
       }
     },
     "satan666/ag_unitframes_improved": {
@@ -16037,212 +15706,6 @@
         "master": "4c6f8d0a659bc7fc80867d51823b0dc967146087"
       }
     },
-    "19xxx/atlasloot": {
-      "default_branch": "master",
-      "sha": "5e5a5ccd95ceace73d5646db758f9fc81cde5dea",
-      "branches": {
-        "master": "5e5a5ccd95ceace73d5646db758f9fc81cde5dea"
-      }
-    },
-    "dayewozhuangfeng/atlasloot": {
-      "default_branch": "main",
-      "sha": "845bd54ae9173c5737ff6b76647a769ad617b237",
-      "branches": {
-        "main": "845bd54ae9173c5737ff6b76647a769ad617b237"
-      }
-    },
-    "alfartuna/atlasloot": {
-      "default_branch": "master",
-      "sha": "606b944002a79edef2c206676cca2da435f864b4",
-      "branches": {
-        "master": "606b944002a79edef2c206676cca2da435f864b4"
-      },
-      "latest_tag": "1.16.1"
-    },
-    "artur91425/atlasloot": {
-      "default_branch": "main",
-      "sha": "f2d523e94c6388242e23297db7c31dda54fc2042",
-      "branches": {
-        "main": "f2d523e94c6388242e23297db7c31dda54fc2042"
-      }
-    },
-    "hellowind777/atlasloot": {
-      "default_branch": "master",
-      "sha": "14142a674cc92a7a90c336b0db550af4992b4404",
-      "branches": {
-        "master": "14142a674cc92a7a90c336b0db550af4992b4404"
-      }
-    },
-    "haaxor1689/atlasloot": {
-      "default_branch": "main",
-      "sha": "b19b8f319c6f79428c3159f9d34dbee867d86ee5",
-      "branches": {
-        "main": "b19b8f319c6f79428c3159f9d34dbee867d86ee5"
-      }
-    },
-    "gidrabw/atlasloot": {
-      "default_branch": "main",
-      "sha": "845bd54ae9173c5737ff6b76647a769ad617b237",
-      "branches": {
-        "main": "845bd54ae9173c5737ff6b76647a769ad617b237"
-      }
-    },
-    "a06555/atlasloot": {
-      "default_branch": "master",
-      "sha": "78022f8531d5095f32858514747c2c54ddcfe7e9",
-      "branches": {
-        "master": "78022f8531d5095f32858514747c2c54ddcfe7e9"
-      }
-    },
-    "cyaohiri/atlasloot": {
-      "default_branch": "master",
-      "sha": "0298e9534315dc06696d89f1c148cf27a9ad3255",
-      "branches": {
-        "master": "0298e9534315dc06696d89f1c148cf27a9ad3255"
-      }
-    },
-    "destroses5100/atlasloot": {
-      "default_branch": "master",
-      "sha": "a7daffed342e3198c3969b30f53390a68c1b1d0d",
-      "branches": {
-        "master": "a7daffed342e3198c3969b30f53390a68c1b1d0d"
-      }
-    },
-    "cama-dev/atlasloot": {
-      "default_branch": "master",
-      "sha": "35013da749a04fc6e8052c5ab45841135311a3de",
-      "branches": {
-        "master": "35013da749a04fc6e8052c5ab45841135311a3de"
-      }
-    },
-    "floppysq/atlasloot": {
-      "default_branch": "master",
-      "sha": "86411aa73527db9af9ec5e4725f4f19791646984",
-      "branches": {
-        "master": "86411aa73527db9af9ec5e4725f4f19791646984"
-      }
-    },
-    "envidance/atlasloot": {
-      "default_branch": "master",
-      "sha": "687dc418f59173a3190d167513963d634ee9df83",
-      "branches": {
-        "master": "687dc418f59173a3190d167513963d634ee9df83"
-      }
-    },
-    "cote-code/atlasloot": {
-      "default_branch": "main",
-      "sha": "0938fffb623b741742e32631f1b551bdf5540b18",
-      "branches": {
-        "main": "0938fffb623b741742e32631f1b551bdf5540b18"
-      }
-    },
-    "gescht/atlasloot-turtle-wow": {
-      "default_branch": "master",
-      "sha": "0938fffb623b741742e32631f1b551bdf5540b18",
-      "branches": {
-        "master": "0938fffb623b741742e32631f1b551bdf5540b18"
-      }
-    },
-    "divinosa/atlasloot": {
-      "default_branch": "master",
-      "sha": "0080d0c133716ac4710b47d2c82ec1bfc21856fd",
-      "branches": {
-        "master": "0080d0c133716ac4710b47d2c82ec1bfc21856fd"
-      },
-      "latest_tag": "1.16.1"
-    },
-    "aiashtu94/atlasloot": {
-      "default_branch": "main",
-      "sha": "0298e9534315dc06696d89f1c148cf27a9ad3255",
-      "branches": {
-        "main": "0298e9534315dc06696d89f1c148cf27a9ad3255"
-      }
-    },
-    "shek2787/atlasloot": {
-      "default_branch": "master",
-      "sha": "78022f8531d5095f32858514747c2c54ddcfe7e9",
-      "branches": {
-        "master": "78022f8531d5095f32858514747c2c54ddcfe7e9"
-      }
-    },
-    "neoxyte/atlasloot": {
-      "default_branch": "main",
-      "sha": "405c10ab1039800533fd01dadb4c1bf7059d139b",
-      "branches": {
-        "main": "405c10ab1039800533fd01dadb4c1bf7059d139b"
-      }
-    },
-    "vantron21/atlasloot": {
-      "default_branch": "master",
-      "sha": "45333e81ca3c38f9c814fb930a474d2844c598eb",
-      "branches": {
-        "master": "45333e81ca3c38f9c814fb930a474d2844c598eb"
-      }
-    },
-    "sixshoot/atlasloot": {
-      "default_branch": "master",
-      "sha": "78022f8531d5095f32858514747c2c54ddcfe7e9",
-      "branches": {
-        "master": "78022f8531d5095f32858514747c2c54ddcfe7e9"
-      }
-    },
-    "tativen/atlasloot": {
-      "default_branch": "master",
-      "sha": "78022f8531d5095f32858514747c2c54ddcfe7e9",
-      "branches": {
-        "master": "78022f8531d5095f32858514747c2c54ddcfe7e9"
-      }
-    },
-    "kazmin007/atlasloot": {
-      "default_branch": "master",
-      "sha": "606b944002a79edef2c206676cca2da435f864b4",
-      "branches": {
-        "master": "606b944002a79edef2c206676cca2da435f864b4"
-      }
-    },
-    "teaboy2227/atlasloot": {
-      "default_branch": "master",
-      "sha": "606b944002a79edef2c206676cca2da435f864b4",
-      "branches": {
-        "master": "606b944002a79edef2c206676cca2da435f864b4"
-      },
-      "latest_tag": "1.16.1"
-    },
-    "thorben-petersen/atlasloot": {
-      "default_branch": "master",
-      "sha": "606b944002a79edef2c206676cca2da435f864b4",
-      "branches": {
-        "master": "606b944002a79edef2c206676cca2da435f864b4"
-      }
-    },
-    "neoleg70/atlasloot": {
-      "default_branch": "master",
-      "sha": "78022f8531d5095f32858514747c2c54ddcfe7e9",
-      "branches": {
-        "master": "78022f8531d5095f32858514747c2c54ddcfe7e9"
-      }
-    },
-    "xsears/atlasloot": {
-      "default_branch": "main",
-      "sha": "fd2c1f7f9e885284a336bc25461229f8976d2810",
-      "branches": {
-        "main": "fd2c1f7f9e885284a336bc25461229f8976d2810"
-      }
-    },
-    "zaruth/atlasloot": {
-      "default_branch": "main",
-      "sha": "0938fffb623b741742e32631f1b551bdf5540b18",
-      "branches": {
-        "main": "0938fffb623b741742e32631f1b551bdf5540b18"
-      }
-    },
-    "sobeq/atlasloot": {
-      "default_branch": "master",
-      "sha": "5e5a5ccd95ceace73d5646db758f9fc81cde5dea",
-      "branches": {
-        "master": "5e5a5ccd95ceace73d5646db758f9fc81cde5dea"
-      }
-    },
     "vaniron/tourguide-turtle": {
       "default_branch": "master",
       "sha": "90d3837e3f1f3a97d9cd446696598b8207cc0de4",
@@ -16364,13 +15827,6 @@
         "master": "23f0f2909d9210b0af87102be5a2a3d4b5d57f66"
       },
       "latest_tag": "v0.15.2"
-    },
-    "jrc13245/_lazypig": {
-      "default_branch": "master",
-      "sha": "9319eeb79bd39d7952bc09ee62e62c303c8deee6",
-      "branches": {
-        "master": "9319eeb79bd39d7952bc09ee62e62c303c8deee6"
-      }
     },
     "judo101/chronometer": {
       "default_branch": "master",
@@ -16504,13 +15960,6 @@
       "sha": "b7eb990c0a92affc543d5e549026ab938a150911",
       "branches": {
         "main": "b7eb990c0a92affc543d5e549026ab938a150911"
-      }
-    },
-    "otari98/atlasloot": {
-      "default_branch": "main",
-      "sha": "3c229608cad0a8b7f46e2746d6a10d938b6c9003",
-      "branches": {
-        "main": "3c229608cad0a8b7f46e2746d6a10d938b6c9003"
       }
     },
     "ashigaru/atlasloot": {
@@ -16702,6 +16151,41 @@
         "master": "c4d29afe690193ad673bd84d1299fa56665a20a2"
       },
       "latest_tag": "1.3.1"
+    },
+    "c4rcer/atlas-cfm": {
+      "default_branch": "main",
+      "sha": "9a9936a1923fd503ba8abda375371e747a2a2cff",
+      "branches": {
+        "main": "9a9936a1923fd503ba8abda375371e747a2a2cff"
+      }
+    },
+    "eqomdx/atlas-cfm-destinationclick": {
+      "default_branch": "main",
+      "sha": "9d92e187cb327290feccf55542d5d3e05215a2e2",
+      "branches": {
+        "main": "9d92e187cb327290feccf55542d5d3e05215a2e2"
+      }
+    },
+    "jrc13245/_lazypig": {
+      "default_branch": "master",
+      "sha": "9319eeb79bd39d7952bc09ee62e62c303c8deee6",
+      "branches": {
+        "master": "9319eeb79bd39d7952bc09ee62e62c303c8deee6"
+      }
+    },
+    "greendam/theorycraft-turtle": {
+      "default_branch": "master",
+      "sha": "10d128aa3855c3fa10cb3609e121e272fba5b1a0",
+      "branches": {
+        "master": "10d128aa3855c3fa10cb3609e121e272fba5b1a0"
+      }
+    },
+    "roby-brok/mikscrollingbattletext": {
+      "default_branch": "octo",
+      "sha": "6169f104c873e3c90605339a4494b983892c5978",
+      "branches": {
+        "octo": "6169f104c873e3c90605339a4494b983892c5978"
+      }
     }
   }
 }
