@@ -1,14 +1,14 @@
 {
   "product": "RavenLaunch",
   "schema": 1,
-  "generated_at": "2026-09-03T12:40:00Z",
-  "updated_at": "2026-09-03T12:40:00Z",
+  "generated_at": "2026-09-03T15:20:54Z",
+  "updated_at": "2026-09-03T15:20:54Z",
   "catalogs": {
-    "addons": "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/ichalaunch/data/addons.json",
-    "addon_tips": "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/ichalaunch/data/addon_tips.json",
-    "home_art": "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/ichalaunch/data/home_art.json",
-    "mods": "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/ichalaunch/data/mods.json",
-    "client_manifest": "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/ichalaunch/data/client_manifest.json"
+    "addons": "https://download.ravencraft.io/ichalaunch/data/addons.json",
+    "addon_tips": "https://download.ravencraft.io/ichalaunch/data/addon_tips.json",
+    "home_art": "https://download.ravencraft.io/ichalaunch/data/home_art.json",
+    "mods": "https://download.ravencraft.io/ichalaunch/data/mods.json",
+    "client_manifest": "https://download.ravencraft.io/ichalaunch/data/client_manifest.json"
   },
   "client_zip": {
     "url": "https://download.ravencraft.io/RavenCraft.zip",
@@ -18,12 +18,13 @@
   },
   "launcher": {
     "id": "ichalaunch",
-    "url": "https://github.com/brutaliccus/IchaLaunch/releases/download/v1.6.2/IchaLaunch.exe",
-    "version": "1.6.2",
-    "sha256": "ddfc8f19b01c9136cd4e6626d3025814ec12676abacf6740178183346bc854ae",
-    "size": 277490033
+    "url": "https://download.ravencraft.io/IchaLaunch.exe",
+    "version": "1.6.0",
+    "sha256": "db0564fe9241bfeead9f6b31d417b766e930a41fa110301f2c5604a67a1d3b43",
+    "size": 277481858
   },
   "news": {
-    "url": "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/ichalaunch/data/news.json"
+    "url": "https://update.ravencraft.io/v1/raven-launcher/news",
+    "legacy_url": "https://update.ravencraft.io/v1/raven-launcher/news"
   }
 }
