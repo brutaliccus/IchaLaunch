@@ -1450,10 +1450,6 @@
       {
         "label": "akzkak",
         "repo": "https://github.com/akzkak/pfUI-lazyres"
-      },
-      {
-        "label": "terradcm-code",
-        "repo": "https://github.com/terradcm-code/pfUI-lazyres"
       }
     ],
     "release_downloads_repo": "liiora/pfUI-lazyres",
@@ -3154,33 +3150,34 @@
   },
   {
     "name": "BitesCookBook",
-    "repo": "https://github.com/DBFBlackbull/BitesCookBook",
+    "repo": "https://github.com/chrisbigart/BitesCookBook",
     "category": "General",
     "description": "(Better Ingredients Tracking for Efficient Seasoning) shows you which cooking ingredients can be used to cook meals with.",
     "source": "turtle_wiki",
     "folder": "BitesCookBook",
     "forks": [
       {
-        "label": "chrisbigart",
-        "repo": "https://github.com/chrisbigart/BitesCookBook"
+        "label": "DBFBlackbull",
+        "repo": "https://github.com/DBFBlackbull/BitesCookBook"
       }
     ],
     "release_downloads_repo": "DBFBlackbull/BitesCookBook",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "BlackList",
-    "repo": "https://github.com/Zerf/BlackList",
+    "repo": "https://github.com/matwebmasta/BlackList",
     "category": "General",
     "description": "is like Ignore, except unlimited",
     "source": "turtle_wiki",
     "folder": "BlackList",
     "forks": [
       {
-        "label": "matwebmasta",
-        "repo": "https://github.com/matwebmasta/BlackList"
+        "label": "Zerf",
+        "repo": "https://github.com/Zerf/BlackList"
       },
       {
         "label": "Gescht",
@@ -3194,7 +3191,8 @@
     "release_downloads_repo": "Zerf/BlackList",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "Blockvalue",
@@ -6807,21 +6805,22 @@
   },
   {
     "name": "pfUI-fonts",
-    "repo": "https://github.com/shagu/pfUI-fonts",
+    "repo": "https://github.com/Gescht/pfUI-fonts",
     "category": "General",
     "description": "A font package for pfUI, providing additional fonts from the google font project. [Img1]",
     "source": "turtle_wiki",
     "folder": "pfUI-fonts",
     "forks": [
       {
-        "label": "Gescht",
-        "repo": "https://github.com/Gescht/pfUI-fonts"
+        "label": "shagu",
+        "repo": "https://github.com/shagu/pfUI-fonts"
       }
     ],
     "release_downloads_repo": "shagu/pfUI-fonts",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "pfUI-turtle",
@@ -6836,44 +6835,12 @@
         "repo": "https://github.com/doorknob6/pfUI-turtle"
       },
       {
-        "label": "bagaze",
-        "repo": "https://github.com/bagaze/pfUI-turtle"
-      },
-      {
         "label": "Aalandriel",
         "repo": "https://github.com/Aalandriel/pfUI-turtle"
       },
       {
-        "label": "wierdthing",
-        "repo": "https://github.com/wierdthing/pfUI-turtle"
-      },
-      {
         "label": "yani9o",
         "repo": "https://github.com/yani9o/pfUI-turtle"
-      },
-      {
-        "label": "terradcm-code",
-        "repo": "https://github.com/terradcm-code/pfUI-turtle"
-      },
-      {
-        "label": "Mnemozin",
-        "repo": "https://github.com/Mnemozin/pfUI-turtle"
-      },
-      {
-        "label": "hp-data",
-        "repo": "https://github.com/hp-data/pfUI-turtle"
-      },
-      {
-        "label": "airfinder",
-        "repo": "https://github.com/airfinder/pfUI-turtle"
-      },
-      {
-        "label": "0Ninzya",
-        "repo": "https://github.com/0Ninzya/pfUI-turtle"
-      },
-      {
-        "label": "lxxie1988",
-        "repo": "https://github.com/lxxie1988/pfUI-turtle"
       }
     ],
     "release_downloads_repo": "dsidirop/pfUI-turtle",
@@ -11929,40 +11896,12 @@
         "repo": "https://github.com/liruqi/pfQuest"
       },
       {
-        "label": "paokkerkir",
-        "repo": "https://github.com/paokkerkir/pfQuest"
-      },
-      {
-        "label": "twapegg",
-        "repo": "https://github.com/twapegg/pfQuest"
-      },
-      {
         "label": "Bluewhale1337",
         "repo": "https://github.com/Bluewhale1337/pfQuest"
       },
       {
-        "label": "balakethelock",
-        "repo": "https://github.com/balakethelock/pfQuest"
-      },
-      {
-        "label": "alandarev",
-        "repo": "https://github.com/alandarev/pfQuest"
-      },
-      {
-        "label": "al3xc1985",
-        "repo": "https://github.com/al3xc1985/pfQuest"
-      },
-      {
-        "label": "Hippoom",
-        "repo": "https://github.com/Hippoom/pfQuest"
-      },
-      {
-        "label": "copypasteonly",
-        "repo": "https://github.com/copypasteonly/pfQuest"
-      },
-      {
-        "label": "RavenOfSeven",
-        "repo": "https://github.com/RavenOfSeven/pfQuest"
+        "label": "roby-brok",
+        "repo": "https://github.com/roby-brok/pfQuest"
       }
     ],
     "release_downloads_repo": "The-Kludge-Bureau/pfQuest",
@@ -12006,7 +11945,7 @@
   },
   {
     "name": "pfQuest-turtle",
-    "repo": "https://github.com/The-Kludge-Bureau/pfQuest-turtle",
+    "repo": "https://gitlab.com/Taroven/pfQuest-turtle",
     "category": "Questing",
     "description": "A TurtleWoW DB extension for pfQuest. You need base pfQuest for this to work!",
     "source": "turtle_wiki",
@@ -12014,12 +11953,12 @@
     "folder": "pfQuest-turtle",
     "forks": [
       {
-        "label": "KameleonUK",
-        "repo": "https://github.com/KameleonUK/pfQuest-turtle"
+        "label": "The-Kludge-Bureau",
+        "repo": "https://github.com/The-Kludge-Bureau/pfQuest-turtle"
       },
       {
-        "label": "paokkerkir/pfQuest-octo",
-        "repo": "https://github.com/paokkerkir/pfQuest-octo"
+        "label": "KameleonUK",
+        "repo": "https://github.com/KameleonUK/pfQuest-turtle"
       },
       {
         "label": "dvmanlosa",
@@ -12041,7 +11980,8 @@
     "release_downloads_repo": "The-Kludge-Bureau/pfQuest-turtle",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "PPBuddy",
@@ -14752,33 +14692,22 @@
   },
   {
     "name": "pfUI-bettertotems",
-    "repo": "https://github.com/Bombg/pfUI-bettertotems",
+    "repo": "https://github.com/roby-brok/pfUI-bettertotems",
     "category": "SuperWoW",
     "description": "External module for pfUI providing some extra features to totems [Img1]",
     "source": "turtle_wiki",
     "folder": "pfUI-bettertotems",
     "forks": [
       {
-        "label": "roby-brok",
-        "repo": "https://github.com/roby-brok/pfUI-bettertotems"
-      },
-      {
-        "label": "RavenOfSeven",
-        "repo": "https://github.com/RavenOfSeven/pfUI-bettertotems"
-      },
-      {
-        "label": "terradcm-code",
-        "repo": "https://github.com/terradcm-code/pfUI-bettertotems"
-      },
-      {
-        "label": "whtmst",
-        "repo": "https://github.com/whtmst/pfUI-bettertotems"
+        "label": "Bombg",
+        "repo": "https://github.com/Bombg/pfUI-bettertotems"
       }
     ],
     "release_downloads_repo": "Bombg/pfUI-bettertotems",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "Puppeteer",
@@ -15949,14 +15878,6 @@
     "folder": "BlizzPlates",
     "forks": [
       {
-        "label": "wow-br",
-        "repo": "https://github.com/wow-br/BlizzPlates"
-      },
-      {
-        "label": "alexpoatato",
-        "repo": "https://github.com/alexpoatato/BlizzPlates"
-      },
-      {
         "label": "HumbleKagu/BlizzardPlates",
         "repo": "https://github.com/HumbleKagu/BlizzardPlates"
       }
@@ -16524,61 +16445,26 @@
   },
   {
     "name": "pfUI-addonskinner",
-    "repo": "https://github.com/jrc13245/pfUI-addonskinner",
+    "repo": "https://github.com/roby-brok/pfUI-addonskinner",
     "category": "UI",
     "description": "External module for pfUI that provides you with pfUI-themed skins for other addons [Img1]",
     "source": "turtle_wiki",
     "folder": "pfUI-addonskinner",
     "forks": [
       {
-        "label": "roby-brok",
-        "repo": "https://github.com/roby-brok/pfUI-addonskinner"
+        "label": "jrc13245",
+        "repo": "https://github.com/jrc13245/pfUI-addonskinner"
       },
       {
         "label": "EVANnnn1996",
         "repo": "https://github.com/EVANnnn1996/pfUI-addonskinner"
-      },
-      {
-        "label": "RavenOfSeven",
-        "repo": "https://github.com/RavenOfSeven/pfUI-addonskinner"
-      },
-      {
-        "label": "blehz-be",
-        "repo": "https://github.com/blehz-be/pfUI-addonskinner"
-      },
-      {
-        "label": "MaZDuR",
-        "repo": "https://github.com/MaZDuR/pfUI-addonskinner"
-      },
-      {
-        "label": "terradcm-code",
-        "repo": "https://github.com/terradcm-code/pfUI-addonskinner"
-      },
-      {
-        "label": "Zedris",
-        "repo": "https://github.com/Zedris/pfUI-addonskinner"
-      },
-      {
-        "label": "mr-rosh",
-        "repo": "https://github.com/mr-rosh/pfUI-addonskinner"
-      },
-      {
-        "label": "Dirty-git",
-        "repo": "https://github.com/Dirty-git/pfUI-addonskinner"
-      },
-      {
-        "label": "jiangxt316",
-        "repo": "https://github.com/jiangxt316/pfUI-addonskinner"
-      },
-      {
-        "label": "ShigemuneKurogane",
-        "repo": "https://github.com/ShigemuneKurogane/pfUI-addonskinner"
       }
     ],
     "release_downloads_repo": "jrc13245/pfUI-addonskinner",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "pfUI-autoinvite",
@@ -16587,12 +16473,6 @@
     "description": "External module for pfUI that allows you to set auto invites through whispers [Img1]",
     "source": "turtle_wiki",
     "folder": "pfUI-autoinvite",
-    "forks": [
-      {
-        "label": "CommanderSouza",
-        "repo": "https://github.com/CommanderSouza/pfUI-autoinvite"
-      }
-    ],
     "release_downloads_repo": "BahamutxD/pfUI-autoinvite",
     "release_downloads_state": "none",
     "release_downloads": 0,
@@ -16600,29 +16480,22 @@
   },
   {
     "name": "pfUI-CustomMedia",
-    "repo": "https://github.com/mr-rosh/pfUI-CustomMedia",
+    "repo": "https://github.com/Longpiggy/pfUI-CustomMedia",
     "category": "UI",
     "description": "External module for pfUI providing additional textures for the unit frames and casting bars, background texture for button slots, new fonts, new gryphons. [Img1]",
     "source": "turtle_wiki",
     "folder": "pfUI-CustomMedia",
     "forks": [
       {
-        "label": "Longpiggy",
-        "repo": "https://github.com/Longpiggy/pfUI-CustomMedia"
-      },
-      {
-        "label": "RavenOfSeven",
-        "repo": "https://github.com/RavenOfSeven/pfUI-CustomMedia"
-      },
-      {
-        "label": "terradcm-code",
-        "repo": "https://github.com/terradcm-code/pfUI-CustomMedia"
+        "label": "mr-rosh",
+        "repo": "https://github.com/mr-rosh/pfUI-CustomMedia"
       }
     ],
     "release_downloads_repo": "mr-rosh/pfUI-CustomMedia",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "pfUI-eliteoverlay",
@@ -16635,34 +16508,6 @@
       {
         "label": "leperidot",
         "repo": "https://github.com/leperidot/pfUI-eliteoverlay"
-      },
-      {
-        "label": "Macumbafeh",
-        "repo": "https://github.com/Macumbafeh/pfUI-eliteoverlay"
-      },
-      {
-        "label": "AmonRA",
-        "repo": "https://github.com/AmonRA/pfUI-eliteoverlay"
-      },
-      {
-        "label": "dwbclz",
-        "repo": "https://github.com/dwbclz/pfUI-eliteoverlay"
-      },
-      {
-        "label": "jiangxt316",
-        "repo": "https://github.com/jiangxt316/pfUI-eliteoverlay"
-      },
-      {
-        "label": "RavenOfSeven",
-        "repo": "https://github.com/RavenOfSeven/pfUI-eliteoverlay"
-      },
-      {
-        "label": "spawnedc",
-        "repo": "https://github.com/spawnedc/pfUI-eliteoverlay"
-      },
-      {
-        "label": "yani9o",
-        "repo": "https://github.com/yani9o/pfUI-eliteoverlay"
       },
       {
         "label": "SMILEWHENYOUDIE",
@@ -16681,16 +16526,6 @@
     "description": "An external module for pfUI that adds a location panel and more! [Img1]",
     "source": "turtle_wiki",
     "folder": "pfUI-LocationPlus",
-    "forks": [
-      {
-        "label": "terradcm-code",
-        "repo": "https://github.com/terradcm-code/pfUI-LocationPlus"
-      },
-      {
-        "label": "RavenOfSeven",
-        "repo": "https://github.com/RavenOfSeven/pfUI-LocationPlus"
-      }
-    ],
     "release_downloads_repo": "Arthur-Helias/pfUI-LocationPlus",
     "release_downloads_state": "none",
     "release_downloads": 0,
@@ -16703,16 +16538,6 @@
     "description": "An external module for pfUI that adds more datatexts for your panels! [Img1]",
     "source": "turtle_wiki",
     "folder": "pfUI-MoreDatatexts",
-    "forks": [
-      {
-        "label": "RavenOfSeven",
-        "repo": "https://github.com/RavenOfSeven/pfUI-MoreDatatexts"
-      },
-      {
-        "label": "terradcm-code",
-        "repo": "https://github.com/terradcm-code/pfUI-MoreDatatexts"
-      }
-    ],
     "release_downloads_repo": "Arthur-Helias/pfUI-MoreDatatexts",
     "release_downloads_state": "none",
     "release_downloads": 0,
@@ -17088,19 +16913,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "CallOfElements",
-    "repo": "https://github.com/sica42/CallOfElements",
-    "category": "Combat",
-    "source": "community",
-    "folder": "CallOfElements",
-    "description": "This is a fork of [MarcelineVQ version](https://github.com/MarcelineVQ/CallOfElements)\n\n# Features\n* Supports dropping all totems with 1 click if [nampower](https://gitea.com/avitasia/nampower) mod is installed. If not, you have to click the button 4 times.\n* Shows when a totem is out of range. If you have [superWoW](https://github.com/balakethelock/SuperWoW) mod installed it will work on all totems, if not it will only work on totems that give you a buff.\n* Option to show reminder to recall totems when they are all out of range. Only works for totems that give you a buff if superWoW is not installed.\n* Option to show/sound warning when your current shield fades.\n* Option to show/sound warning when your weapon enchant fades.\n* Totemic Recall button included with dedicated key binding. Off by default, toggle on in settings.\n* Right click any anchor button to quickly switch set or access config dialog.\n* Ctrl-clicking a totem not in current set will drop and move it to current set.\n* SuperWow only: Config option to re-drop active totems if they're more then 20y away.\n* SuperWoW only: Throwing advised totems will re-drop any totem that is out of range.\n* Bug fixes: Timers will reset if a totem is destroyed. Improved performance by fixing a bug that made buttons update to frequently.\n\n# CallOfElements for vanilla WOW\n\nThis is an All-In-One Shaman class addon for World Of Warcraft.\nCurrently, it features a complete totem module to simplify totem usage\nand increase your efficiency in party and in PVP.\nYet to come are a healing module and some miscellanous options that\nhelp with different tasks.\n\nThe totem module provides you with customizable frames that hold all\nof your totems separated by element and work just like a standard action bars. \nIn addition, each totem has its own timer that displays how long the totem \nwill still be active. When there are only 10 or 5 seconds left or when\nthe totem expires, a notification is shown in the screen center.\nFurthermore you are able to create your own totem sets which hold a totem\nof each element that can be cast using only one command or button. \nThere is also one predefined set for each class that is automatically \nactivated in pvp when you target a hostile player of the corresponding class. \n\n# Commands\n\n* `/coe` or `/coe config` - Shows the configuration dialog\n* `/coe list` or `/coe help` - Shows list of all commands\n* `/coe nextset` - Switches to the next custom totem set or the default set\n* `/coe priorset` - Switches to the prior custom totem set or the default set\n* `/coe set <name>` - Switches to set with the specified name. <name> is case-sensitive\n* `/coe restartset` - Next time you throw the active set, it recasts all totems\n* `/coe reset` - Resets all timers and the active set\n* `/coe resetframes` - Returns all element bars to the screen center\n* `/coe resetordering` - Resets the ordering of your totem bars\n* `/coe reload` - Reloads all totems and sets\n\nThe following commands only work as macros dragged to your action bars:\n* `/coe throwset <name?>`- Throws the active totem set or named set if specificed\n* `/coe forcethrowset <name?>` - Will refresh existing totems regardless of settings\n* `/coe advised` - Throws the next advised totem\n\n# Basic install instructions\n\n- Extract the archive\n- Copy \"CallOfElements\" folder into your \"\\<WOW FOLDER>/Interface/Addons/\" directory",
-    "release_downloads_repo": "sica42/CallOfElements",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z",
-    "recommended": true
-  },
-  {
     "name": "pfQuest-turtle",
     "repo": "https://github.com/leokem/pfQuest-turtle",
     "category": "General",
@@ -17141,7 +16953,7 @@
   },
   {
     "name": "pfQuest-octo",
-    "repo": "https://github.com/vill8/pfQuest-octo",
+    "repo": "https://github.com/roby-brok/pfQuest-octo",
     "category": "General",
     "source": "community",
     "turtle_custom": true,
@@ -17150,7 +16962,18 @@
     "release_downloads_repo": "vill8/pfQuest-octo",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "forks": [
+      {
+        "label": "vill8",
+        "repo": "https://github.com/vill8/pfQuest-octo"
+      },
+      {
+        "label": "paokkerkir",
+        "repo": "https://github.com/paokkerkir/pfQuest-octo"
+      }
+    ],
+    "recommended": true
   },
   {
     "name": "pfQuest-turtle",
@@ -17445,7 +17268,7 @@
   },
   {
     "name": "pfUI",
-    "repo": "https://github.com/roby-brok/pfUI",
+    "repo": "https://github.com/brues-code/pfUI",
     "category": "UI",
     "source": "community",
     "turtle_custom": true,
@@ -17454,7 +17277,18 @@
     "release_downloads_repo": "roby-brok/pfUI",
     "release_downloads_state": "ok",
     "release_downloads": 14,
-    "release_downloads_at": "2026-09-03T12:51:29Z"
+    "release_downloads_at": "2026-09-03T12:51:29Z",
+    "forks": [
+      {
+        "label": "roby-brok",
+        "repo": "https://github.com/roby-brok/pfUI"
+      },
+      {
+        "label": "shagu",
+        "repo": "https://github.com/shagu/pfUI"
+      }
+    ],
+    "recommended": true
   },
   {
     "name": "pfUI",
