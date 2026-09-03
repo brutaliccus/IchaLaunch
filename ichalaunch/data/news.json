@@ -1,7 +1,7 @@
 {
   "product": "RavenLaunch",
   "version": 2,
-  "updated_at": "2026-09-03T15:19:44Z",
+  "updated_at": "2026-09-03T17:10:10Z",
   "title": "LAUNCH EVENT EXTENSION",
   "body": "Given the latest developments and the influx of new members over the last 24 hours, we will be extending the launch event for an additional 7 days.\n\nThe event will remain active until September 5, 2026 at 2:00 PM, ending in 3 days.\n\nWe look forward to welcoming new players and continuing to build this community together.\n\nThank you to everyone who chooses to join us, and to those who have been here from the beginning, helping us carry this legacy forward.",
   "items": [
@@ -14,9 +14,11 @@
       "tag": "",
       "align": {
         "h": "left",
-        "v": "top"
+        "v": "center"
       },
-      "nudge_y": -1
+      "nudge_y": -1,
+      "title_size": 18,
+      "body_size": 14
     },
     {
       "id": "n_46bea399",
@@ -27,8 +29,10 @@
       "tag": "",
       "align": {
         "h": "left",
-        "v": "top"
-      }
+        "v": "center"
+      },
+      "title_size": 18,
+      "body_size": 14
     },
     {
       "id": "n_eb718cd5",
@@ -39,8 +43,10 @@
       "tag": "",
       "align": {
         "h": "left",
-        "v": "top"
-      }
+        "v": "center"
+      },
+      "title_size": 18,
+      "body_size": 14
     }
   ],
   "pairing": "art-bound",
@@ -112,13 +118,7 @@
       "nudge_y": 0,
       "shrink_w": 0,
       "object_position": "100% 50%",
-      "vignette": 0.45,
-      "feather": {
-        "left": 0.2,
-        "right": 0.0,
-        "top": 0.0,
-        "bottom": 0.0
-      },
+      "vignette": 0.4,
       "news_id": "welcome-to-ravenlaunch-1-6",
       "news_fade": {
         "enabled": true,
