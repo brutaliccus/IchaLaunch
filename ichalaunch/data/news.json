@@ -1,5 +1,38 @@
 {
-  "slides": [
+  "product": "RavenLaunch",
+  "version": 2,
+  "updated_at": "2026-09-03T10:00:20Z",
+  "title": "LAUNCH EVENT EXTENSION",
+  "body": "Given the latest developments and the influx of new members over the last 24 hours, we will be extending the launch event for an additional 7 days.\n\nThe event will remain active until September 5, 2026 at 2:00 PM, ending in 3 days.\n\nWe look forward to welcoming new players and continuing to build this community together.\n\nThank you to everyone who chooses to join us, and to those who have been here from the beginning, helping us carry this legacy forward.",
+  "items": [
+    {
+      "id": "welcome-to-ravenlaunch-1-6",
+      "title": "LAUNCH EVENT EXTENSION",
+      "body": "Given the latest developments and the influx of new members over the last 24 hours, we will be extending the launch event for an additional 7 days.\n\nThe event will remain active until September 5, 2026 at 2:00 PM, ending in 3 days.\n\nWe look forward to welcoming new players and continuing to build this community together.\n\nThank you to everyone who chooses to join us, and to those who have been here from the beginning, helping us carry this legacy forward.",
+      "published_at": "2026-09-02T00:00:00Z",
+      "link": "",
+      "tag": ""
+    },
+    {
+      "id": "n_46bea399",
+      "title": "BUG TRACKER",
+      "body": "The Bug Tracker is where confirmed and reproducible bugs should be reported so our team can investigate and address them.\n\nIf you're unsure whether an issue is a bug, or you're unable to reproduce it, contact a Game Master through /gm first so it can be investigated.\n\nBefore submitting a report, please check existing reports to avoid duplicates and include all relevant information needed to reproduce the issue.",
+      "published_at": "2026-09-03T01:54:22Z",
+      "link": "",
+      "tag": ""
+    },
+    {
+      "id": "n_eb718cd5",
+      "title": "DATABASE",
+      "body": "The Database is your go-to place for information about our server.\n\nExplore items, creatures, locations, quests, and more, including all the latest content from Nightmare of Ursol — 1.18.1.\n\nWe'll continue expanding and updating it as new content is added and existing information is reviewed.",
+      "published_at": "2026-09-03T01:54:50Z",
+      "link": "",
+      "tag": ""
+    }
+  ],
+  "pairing": "art-bound",
+  "news_play": "manual",
+  "art": [
     {
       "id": "zaeya_first_60",
       "image": "zaeya_first_60.jpg",

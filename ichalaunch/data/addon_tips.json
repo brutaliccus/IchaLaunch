@@ -15722,6 +15722,35 @@
         "master": "eb09c7ba336e299985dd053135769954269ad056"
       },
       "latest_tag": "v1.5.7"
+    },
+    "fiurs-hearth/battlemusic": {
+      "default_branch": "master",
+      "sha": "e92c913c3366dbfb7dc5cd97c67e36dd0d4440c7",
+      "branches": {
+        "master": "e92c913c3366dbfb7dc5cd97c67e36dd0d4440c7"
+      }
+    },
+    "brues-code/auctionator": {
+      "default_branch": "main",
+      "sha": "b321b95287f300167a85fad636b2bf0ff3380ee8",
+      "branches": {
+        "main": "b321b95287f300167a85fad636b2bf0ff3380ee8"
+      },
+      "latest_tag": "v1.0.5"
+    },
+    "elesionwow/bigwigs": {
+      "default_branch": "master",
+      "sha": "47b538024cf127346d624ba7b21a8aff56cb4587",
+      "branches": {
+        "master": "47b538024cf127346d624ba7b21a8aff56cb4587"
+      }
+    },
+    "pepopo978/bigwigs": {
+      "default_branch": "master",
+      "sha": "e53a09a4e86170a1a29178f8500e601bdd58e9ce",
+      "branches": {
+        "master": "e53a09a4e86170a1a29178f8500e601bdd58e9ce"
+      }
     }
   }
 }
