@@ -6220,9 +6220,9 @@
     },
     "morkahja/roarguild": {
       "default_branch": "main",
-      "sha": "b5391191dc30a7b63593ff25d9473d7c2d82ec1a",
+      "sha": "1ba833dab3d546dc165cf9b17207b8c710eeba61",
       "branches": {
-        "main": "b5391191dc30a7b63593ff25d9473d7c2d82ec1a"
+        "main": "1ba833dab3d546dc165cf9b17207b8c710eeba61"
       }
     },
     "road-block/roguefocus": {
@@ -11465,9 +11465,9 @@
     },
     "obszczymucha/roll-for-vanilla": {
       "default_branch": "master",
-      "sha": "7ea3e165e8a7c94fe484796d641bfd3dc35249ea",
+      "sha": "e70200790b79a8d8650126d2a5c795d69a0bba44",
       "branches": {
-        "master": "7ea3e165e8a7c94fe484796d641bfd3dc35249ea"
+        "master": "e70200790b79a8d8650126d2a5c795d69a0bba44"
       },
       "latest_tag": "v4.6.5"
     },
@@ -13859,9 +13859,9 @@
     },
     "brues-code/supercleveroidmacros": {
       "default_branch": "main",
-      "sha": "daa7d6f2bf239fb5fb04d11eb3434a181b96cc39",
+      "sha": "61bab6c734e646f67a9252bca57841059c5cdb0e",
       "branches": {
-        "main": "daa7d6f2bf239fb5fb04d11eb3434a181b96cc39"
+        "main": "61bab6c734e646f67a9252bca57841059c5cdb0e"
       },
       "latest_tag": "v3.1.10"
     },
@@ -15018,9 +15018,9 @@
     },
     "torchlite-bit/aegis_sbr": {
       "default_branch": "main",
-      "sha": "9b26c5210d749d2760d8104f83b88287fbe5ea89",
+      "sha": "37520c49aa495dc2fe37d131889566b5f4953732",
       "branches": {
-        "main": "9b26c5210d749d2760d8104f83b88287fbe5ea89"
+        "main": "37520c49aa495dc2fe37d131889566b5f4953732"
       }
     },
     "eirikaskheim/aegis_sbr": {
@@ -15060,9 +15060,9 @@
     },
     "torchlite-bit/aegis_rallypower": {
       "default_branch": "main",
-      "sha": "8d244f646c03351bfb0037cfc82e5a9dbe7bade9",
+      "sha": "96f7f56d2ad986f7fc2467c54d80a2e07e46edf6",
       "branches": {
-        "main": "8d244f646c03351bfb0037cfc82e5a9dbe7bade9"
+        "main": "96f7f56d2ad986f7fc2467c54d80a2e07e46edf6"
       }
     },
     "cinos03/bijoucounter": {
@@ -15307,11 +15307,11 @@
     },
     "brues-code/pfui": {
       "default_branch": "master",
-      "sha": "2b5288a6889438f4d2d97a08e4279bac89284df0",
+      "sha": "5815b9e81e1567d7bcb768338876764d30ed5bee",
       "branches": {
-        "master": "2b5288a6889438f4d2d97a08e4279bac89284df0"
+        "master": "5815b9e81e1567d7bcb768338876764d30ed5bee"
       },
-      "latest_tag": "v9.0.21"
+      "latest_tag": "v9.0.23"
     },
     "wurmschwanz/nicedamage-1.12": {
       "default_branch": "main",
@@ -15366,16 +15366,16 @@
     },
     "kobeniiiiii/combatledger": {
       "default_branch": "main",
-      "sha": "df8107e8d7260916201f63d17ea1c5ec3919e67b",
+      "sha": "515e791a9daaf4a6dc56cc54e05c99fe94c3152a",
       "branches": {
-        "main": "df8107e8d7260916201f63d17ea1c5ec3919e67b"
+        "main": "515e791a9daaf4a6dc56cc54e05c99fe94c3152a"
       }
     },
     "sandreasub/questie-octo": {
       "default_branch": "main",
-      "sha": "1a87e22a64ec8d91efa9130839dc691216745b02",
+      "sha": "7b33aee91bcdce4e387559222a1428768c08643f",
       "branches": {
-        "main": "1a87e22a64ec8d91efa9130839dc691216745b02"
+        "main": "7b33aee91bcdce4e387559222a1428768c08643f"
       }
     },
     "jordanfaz/questie-octo": {
@@ -15401,9 +15401,9 @@
     },
     "wurmschwanz/blizznameplatesplus": {
       "default_branch": "main",
-      "sha": "ca68dac27230e83c0dafaddbceba5e2bcdc6dd09",
+      "sha": "4fb662bbd67ccda645c779f045fc917ff99006cc",
       "branches": {
-        "main": "ca68dac27230e83c0dafaddbceba5e2bcdc6dd09"
+        "main": "4fb662bbd67ccda645c779f045fc917ff99006cc"
       }
     },
     "otari98/atlas": {
@@ -15558,11 +15558,11 @@
     },
     "brues-code/classicapi": {
       "default_branch": "master",
-      "sha": "695077b6da9bad3656417ff99959b695b4a1f135",
+      "sha": "fdbe66b05740bc34cef3d93754ac409f6abaa5bb",
       "branches": {
-        "master": "695077b6da9bad3656417ff99959b695b4a1f135"
+        "master": "fdbe66b05740bc34cef3d93754ac409f6abaa5bb"
       },
-      "latest_tag": "v1.13.2"
+      "latest_tag": "v1.13.3"
     },
     "retrocro/turtlewow-mods": {
       "default_branch": "main",
@@ -15573,9 +15573,9 @@
     },
     "doitsujin/dxvk": {
       "default_branch": "master",
-      "sha": "adeda6639a09ad1b6a1b7c4158a781ffaf68947d",
+      "sha": "9c4ee2117f8ef028533a4736e32e99aa22faf986",
       "branches": {
-        "master": "adeda6639a09ad1b6a1b7c4158a781ffaf68947d"
+        "master": "9c4ee2117f8ef028533a4736e32e99aa22faf986"
       },
       "latest_tag": "v3.1"
     },
@@ -15717,11 +15717,11 @@
     },
     "brutaliccus/ichalaunch": {
       "default_branch": "master",
-      "sha": "eb09c7ba336e299985dd053135769954269ad056",
+      "sha": "c476f2a238cb40bb49d8ce643ac5cdbc5a619691",
       "branches": {
-        "master": "eb09c7ba336e299985dd053135769954269ad056"
+        "master": "c476f2a238cb40bb49d8ce643ac5cdbc5a619691"
       },
-      "latest_tag": "v1.5.7"
+      "latest_tag": "v1.6.2"
     },
     "fiurs-hearth/battlemusic": {
       "default_branch": "master",
