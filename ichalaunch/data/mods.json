@@ -96,6 +96,46 @@
     "author": "hannesmann"
   },
   {
+    "id": "hd_dxvk",
+    "name": "DXVK 2.7.1",
+    "category": "Performance / Fixes",
+    "list_label": "Recommended",
+    "description": "Optional DXVK 2.7.1 upgrade over VanillaFixes + DXVK (Vulkan). Does not require VanillaHelpers. Installs d3d9.dll and a tuned dxvk.conf; disabling restores the VanillaFixes-bundled DXVK layer.",
+    "info_url": "https://projectreforged.github.io/vanilla/downloads/turtle/",
+    "detect": {
+      "all_files": [
+        "d3d9.dll",
+        "dxvk.conf"
+      ],
+      "config_file_contains": [
+        "dxvk.conf",
+        "DXVK 2.7.1"
+      ]
+    },
+    "source": {
+      "type": "raw",
+      "url": "https://github.com/doitsujin/dxvk/releases/download/v2.7.1/dxvk-2.7.1.tar.gz",
+      "filename": "dxvk-2.7.1.tar.gz",
+      "sha256": "d85ce7c79f57ecd765aaa1b9e7007cb875e6fde9f6d331df799bce73d513ce87"
+    },
+    "bundled_files": [
+      {
+        "resource": "dxvk.conf",
+        "destination": "dxvk.conf"
+      }
+    ],
+    "kind": "dxvk_hd",
+    "nest_under": "dxvk",
+    "requires": [
+      "dxvk"
+    ],
+    "dependencies": [
+      "dxvk"
+    ],
+    "conflicts": [],
+    "author": "doitsujin"
+  },
+  {
     "id": "superwow",
     "name": "SuperWoW",
     "category": "Client Enhancements",
@@ -406,42 +446,6 @@
     "kind": "config_script_memory",
     "dependencies": [],
     "conflicts": []
-  },
-  {
-    "id": "hd_dxvk",
-    "name": "DXVK 2.7.1",
-    "category": "HD Graphics",
-    "list_label": "Recommended",
-    "description": "Optional DXVK 2.7.1 upgrade over VanillaFixes + DXVK (Vulkan). Does not require VanillaHelpers. Installs d3d9.dll and a tuned dxvk.conf; disabling restores the VanillaFixes-bundled DXVK layer.",
-    "info_url": "https://projectreforged.github.io/vanilla/downloads/turtle/",
-    "detect": {
-      "all_files": [
-        "d3d9.dll",
-        "dxvk.conf"
-      ],
-      "config_file_contains": [
-        "dxvk.conf",
-        "DXVK 2.7.1"
-      ]
-    },
-    "source": {
-      "type": "raw",
-      "url": "https://github.com/doitsujin/dxvk/releases/download/v2.7.1/dxvk-2.7.1.tar.gz",
-      "filename": "dxvk-2.7.1.tar.gz",
-      "sha256": "d85ce7c79f57ecd765aaa1b9e7007cb875e6fde9f6d331df799bce73d513ce87"
-    },
-    "bundled_files": [
-      {
-        "resource": "dxvk.conf",
-        "destination": "dxvk.conf"
-      }
-    ],
-    "kind": "dxvk_hd",
-    "dependencies": [
-      "dxvk"
-    ],
-    "conflicts": [],
-    "author": "doitsujin"
   },
   {
     "id": "vanilla_helpers",
@@ -1448,11 +1452,11 @@
     "name": "Raven Launcher",
     "source": {
       "type": "raw",
-      "url": "https://github.com/brutaliccus/IchaLaunch/releases/download/v1.5.9/IchaLaunch.exe",
+      "url": "https://github.com/brutaliccus/IchaLaunch/releases/download/v1.6.2/IchaLaunch.exe",
       "filename": "IchaLaunch.exe",
-      "sha256": "dc2d770a0a8798da1336e46a3236b381afc4ddf86b672faca06b1503710d276e",
-      "version": "1.5.9",
-      "size": 277383531
+      "sha256": "ddfc8f19b01c9136cd4e6626d3025814ec12676abacf6740178183346bc854ae",
+      "version": "1.6.2",
+      "size": 277490033
     }
   }
 ]
