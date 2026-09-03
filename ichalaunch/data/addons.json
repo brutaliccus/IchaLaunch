@@ -51,10 +51,10 @@
     "description": "All-in-one auto-categorizing and sorting inventory replacement for Bags and Bank with customizable layout and rules. Pinned to 1.5.16 (1.12 / Turtle); newer GitHub releases target 3.3.5 and are not auto-updated. https://github.com/NiclasEriksen/Bagshui Alt",
     "source": "turtle_wiki",
     "folder": "Bagshui",
-    "release_downloads_repo": "selfinterest/Bagshui",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-09-03T19:26:40Z",
+    "release_downloads_repo": "The-Kludge-Bureau/Bagshui",
+    "release_downloads_state": "ok",
+    "release_downloads": 235,
+    "release_downloads_at": "2026-09-02T05:51:38Z",
     "recommended": true
   },
   {
@@ -714,10 +714,10 @@
         "repo": "https://github.com/Nelethor/BattleMusic"
       }
     ],
-    "release_downloads_repo": "Fiurs-Hearth/BattleMusic",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-09-03T19:26:40Z",
+    "release_downloads_repo": "zmarotrix/BattleMusic",
+    "release_downloads_state": "ok",
+    "release_downloads": 1400,
+    "release_downloads_at": "2026-09-02T05:51:38Z",
     "recommended": true
   },
   {
@@ -2101,10 +2101,10 @@
         "repo": "https://github.com/tomek7667/aux-addon"
       }
     ],
-    "release_downloads_repo": "Otari98/aux-addon",
+    "release_downloads_repo": "OldManAlpha/aux-addon",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-09-03T19:26:40Z",
+    "release_downloads_at": "2026-08-26T23:44:09Z",
     "recommended": true
   },
   {
@@ -2805,10 +2805,10 @@
         "repo": "https://github.com/paokkerkir/AttackBar_DragonflightUI"
       }
     ],
-    "release_downloads_repo": "deceius/AttackBar",
+    "release_downloads_repo": "Siventt/AttackBar-TWoW",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-09-03T19:26:40Z",
+    "release_downloads_at": "2026-08-26T23:44:09Z",
     "recommended": true
   },
   {
@@ -2828,10 +2828,10 @@
         "repo": "https://github.com/KameleonUK/AuldLangSyne"
       }
     ],
-    "release_downloads_repo": "refaim/AuldLangSyne",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-09-03T19:26:40Z",
+    "release_downloads_repo": "Road-block/AuldLangSyne",
+    "release_downloads_state": "ok",
+    "release_downloads": 304,
+    "release_downloads_at": "2026-08-26T23:44:09Z",
     "recommended": true
   },
   {
@@ -11597,10 +11597,10 @@
         "repo": "https://github.com/laytya/AutoBar-for-Turtle-WoW"
       }
     ],
-    "release_downloads_repo": "Bestoriop/AutoBar",
+    "release_downloads_repo": "laytya/AutoBar-for-Turtle-WoW",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-09-03T19:26:40Z",
+    "release_downloads_at": "2026-08-26T23:44:09Z",
     "recommended": true
   },
   {
@@ -12426,10 +12426,10 @@
         "repo": "https://github.com/BahamutxD/AutoMasterLooter"
       }
     ],
-    "release_downloads_repo": "Otari98/AutoMasterLooter",
+    "release_downloads_repo": "balakethelock/AutoMasterLooter",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-09-03T19:26:40Z",
+    "release_downloads_at": "2026-08-26T23:44:09Z",
     "recommended": true
   },
   {
@@ -12453,10 +12453,10 @@
         "repo": "https://github.com/balakethelock/bananabar"
       }
     ],
-    "release_downloads_repo": "Otari98/bananabar",
+    "release_downloads_repo": "balakethelock/bananabar",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-09-03T19:26:40Z",
+    "release_downloads_at": "2026-08-26T23:44:09Z",
     "recommended": true
   },
   {
@@ -12486,11 +12486,7 @@
         "repo": "https://github.com/pepopo978/BigWigs"
       }
     ],
-    "recommended": true,
-    "release_downloads_repo": "ElesionWoW/BigWigs",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-09-03T19:26:40Z"
+    "recommended": true
   },
   {
     "name": "BMLoot",
