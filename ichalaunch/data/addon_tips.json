@@ -15460,6 +15460,297 @@
       "branches": {
         "master": "e53a09a4e86170a1a29178f8500e601bdd58e9ce"
       }
+    },
+    "bagaze/pfui-turtle": {
+      "default_branch": "master",
+      "sha": "f43019aba2c7816d02a76265cfc827ddc566d064",
+      "branches": {
+        "master": "f43019aba2c7816d02a76265cfc827ddc566d064"
+      }
+    },
+    "wierdthing/pfui-turtle": {
+      "default_branch": "master",
+      "sha": "fefde810f979bfbcbdccfbe30472de3a68701652",
+      "branches": {
+        "master": "fefde810f979bfbcbdccfbe30472de3a68701652"
+      }
+    },
+    "mnemozin/pfui-turtle": {
+      "default_branch": "master",
+      "sha": "48562174a3a1fd861b10ca4c2668625b67ac4e22",
+      "branches": {
+        "master": "48562174a3a1fd861b10ca4c2668625b67ac4e22"
+      }
+    },
+    "hp-data/pfui-turtle": {
+      "default_branch": "master",
+      "sha": "f43019aba2c7816d02a76265cfc827ddc566d064",
+      "branches": {
+        "master": "f43019aba2c7816d02a76265cfc827ddc566d064"
+      }
+    },
+    "airfinder/pfui-turtle": {
+      "default_branch": "master",
+      "sha": "f43019aba2c7816d02a76265cfc827ddc566d064",
+      "branches": {
+        "master": "f43019aba2c7816d02a76265cfc827ddc566d064"
+      }
+    },
+    "0ninzya/pfui-turtle": {
+      "default_branch": "master",
+      "sha": "ceae89b14544fd87a8449bd4a751802dd118809c",
+      "branches": {
+        "master": "ceae89b14544fd87a8449bd4a751802dd118809c"
+      }
+    },
+    "lxxie1988/pfui-turtle": {
+      "default_branch": "master",
+      "sha": "ceae89b14544fd87a8449bd4a751802dd118809c",
+      "branches": {
+        "master": "ceae89b14544fd87a8449bd4a751802dd118809c"
+      }
+    },
+    "paokkerkir/pfquest": {
+      "default_branch": "main",
+      "sha": "2a64fbf296c2dafd19f468997cdb9cf2600dddf9",
+      "branches": {
+        "main": "2a64fbf296c2dafd19f468997cdb9cf2600dddf9"
+      }
+    },
+    "twapegg/pfquest": {
+      "default_branch": "main",
+      "sha": "6b7085f0d8c49f833c2ff54fc97ae07dccc83379",
+      "branches": {
+        "main": "6b7085f0d8c49f833c2ff54fc97ae07dccc83379"
+      },
+      "latest_tag": "8.0.0"
+    },
+    "balakethelock/pfquest": {
+      "default_branch": "main",
+      "sha": "6b7085f0d8c49f833c2ff54fc97ae07dccc83379",
+      "branches": {
+        "main": "6b7085f0d8c49f833c2ff54fc97ae07dccc83379"
+      }
+    },
+    "alandarev/pfquest": {
+      "default_branch": "main",
+      "sha": "6b7085f0d8c49f833c2ff54fc97ae07dccc83379",
+      "branches": {
+        "main": "6b7085f0d8c49f833c2ff54fc97ae07dccc83379"
+      },
+      "latest_tag": "8.0.0"
+    },
+    "al3xc1985/pfquest": {
+      "default_branch": "main",
+      "sha": "6b7085f0d8c49f833c2ff54fc97ae07dccc83379",
+      "branches": {
+        "main": "6b7085f0d8c49f833c2ff54fc97ae07dccc83379"
+      }
+    },
+    "hippoom/pfquest": {
+      "default_branch": "main",
+      "sha": "6b7085f0d8c49f833c2ff54fc97ae07dccc83379",
+      "branches": {
+        "main": "6b7085f0d8c49f833c2ff54fc97ae07dccc83379"
+      }
+    },
+    "copypasteonly/pfquest": {
+      "default_branch": "main",
+      "sha": "2a64fbf296c2dafd19f468997cdb9cf2600dddf9",
+      "branches": {
+        "main": "2a64fbf296c2dafd19f468997cdb9cf2600dddf9"
+      },
+      "latest_tag": "8.0.0"
+    },
+    "ravenofseven/pfquest": {
+      "default_branch": "main",
+      "sha": "2a64fbf296c2dafd19f468997cdb9cf2600dddf9",
+      "branches": {
+        "main": "2a64fbf296c2dafd19f468997cdb9cf2600dddf9"
+      }
+    },
+    "paokkerkir/pfquest-octo": {
+      "default_branch": "main",
+      "sha": "dd3dc1fb80afe7a71e5c8ca8c31ca2a3ef57af67",
+      "branches": {
+        "main": "dd3dc1fb80afe7a71e5c8ca8c31ca2a3ef57af67"
+      }
+    },
+    "ravenofseven/pfui-bettertotems": {
+      "default_branch": "main",
+      "sha": "4bcb23338570476c97db89590a70d102b0438b09",
+      "branches": {
+        "main": "4bcb23338570476c97db89590a70d102b0438b09"
+      }
+    },
+    "whtmst/pfui-bettertotems": {
+      "default_branch": "main",
+      "sha": "4bcb23338570476c97db89590a70d102b0438b09",
+      "branches": {
+        "main": "4bcb23338570476c97db89590a70d102b0438b09"
+      }
+    },
+    "wow-br/blizzplates": {
+      "default_branch": "master",
+      "sha": "8aa50c0fe0d50aabeab39472abebb3f5f241672b",
+      "branches": {
+        "master": "8aa50c0fe0d50aabeab39472abebb3f5f241672b"
+      }
+    },
+    "alexpoatato/blizzplates": {
+      "default_branch": "master",
+      "sha": "8aa50c0fe0d50aabeab39472abebb3f5f241672b",
+      "branches": {
+        "master": "8aa50c0fe0d50aabeab39472abebb3f5f241672b"
+      }
+    },
+    "ravenofseven/pfui-addonskinner": {
+      "default_branch": "main",
+      "sha": "f9873f69b656c9cb717febbb536beee51b7f910f",
+      "branches": {
+        "main": "f9873f69b656c9cb717febbb536beee51b7f910f"
+      }
+    },
+    "blehz-be/pfui-addonskinner": {
+      "default_branch": "main",
+      "sha": "f9873f69b656c9cb717febbb536beee51b7f910f",
+      "branches": {
+        "main": "f9873f69b656c9cb717febbb536beee51b7f910f"
+      }
+    },
+    "mazdur/pfui-addonskinner": {
+      "default_branch": "main",
+      "sha": "f9873f69b656c9cb717febbb536beee51b7f910f",
+      "branches": {
+        "main": "f9873f69b656c9cb717febbb536beee51b7f910f"
+      }
+    },
+    "zedris/pfui-addonskinner": {
+      "default_branch": "main",
+      "sha": "86e8962b94af6bc057b3c697553ec67577569c4c",
+      "branches": {
+        "main": "86e8962b94af6bc057b3c697553ec67577569c4c"
+      }
+    },
+    "mr-rosh/pfui-addonskinner": {
+      "default_branch": "main",
+      "sha": "2c9d3e84131dcc12c3f2844b8d369fbde048398f",
+      "branches": {
+        "main": "2c9d3e84131dcc12c3f2844b8d369fbde048398f"
+      }
+    },
+    "dirty-git/pfui-addonskinner": {
+      "default_branch": "main",
+      "sha": "48cd30bff231add81b7d892b4fc1c9d40912c57e",
+      "branches": {
+        "main": "48cd30bff231add81b7d892b4fc1c9d40912c57e"
+      }
+    },
+    "jiangxt316/pfui-addonskinner": {
+      "default_branch": "main",
+      "sha": "8cc036f32f67ace0baf749f2e67163460374c5a8",
+      "branches": {
+        "main": "8cc036f32f67ace0baf749f2e67163460374c5a8"
+      }
+    },
+    "shigemunekurogane/pfui-addonskinner": {
+      "default_branch": "main",
+      "sha": "a499442783df407737a914e63718e26ec3b74a31",
+      "branches": {
+        "main": "a499442783df407737a914e63718e26ec3b74a31"
+      }
+    },
+    "commandersouza/pfui-autoinvite": {
+      "default_branch": "main",
+      "sha": "e67988f1f28478c2df1163e3b8a2a1b50656ad0a",
+      "branches": {
+        "main": "e67988f1f28478c2df1163e3b8a2a1b50656ad0a"
+      }
+    },
+    "ravenofseven/pfui-custommedia": {
+      "default_branch": "main",
+      "sha": "701bee8b249fbe91050e6e3645bf810841704696",
+      "branches": {
+        "main": "701bee8b249fbe91050e6e3645bf810841704696"
+      }
+    },
+    "macumbafeh/pfui-eliteoverlay": {
+      "default_branch": "master",
+      "sha": "aca68921e9b08139bf48e7762a46e737b9cf0ba0",
+      "branches": {
+        "master": "aca68921e9b08139bf48e7762a46e737b9cf0ba0"
+      }
+    },
+    "amonra/pfui-eliteoverlay": {
+      "default_branch": "master",
+      "sha": "aca68921e9b08139bf48e7762a46e737b9cf0ba0",
+      "branches": {
+        "master": "aca68921e9b08139bf48e7762a46e737b9cf0ba0"
+      }
+    },
+    "dwbclz/pfui-eliteoverlay": {
+      "default_branch": "master",
+      "sha": "aca68921e9b08139bf48e7762a46e737b9cf0ba0",
+      "branches": {
+        "master": "aca68921e9b08139bf48e7762a46e737b9cf0ba0"
+      }
+    },
+    "jiangxt316/pfui-eliteoverlay": {
+      "default_branch": "master",
+      "sha": "aca68921e9b08139bf48e7762a46e737b9cf0ba0",
+      "branches": {
+        "master": "aca68921e9b08139bf48e7762a46e737b9cf0ba0"
+      }
+    },
+    "ravenofseven/pfui-eliteoverlay": {
+      "default_branch": "master",
+      "sha": "aca68921e9b08139bf48e7762a46e737b9cf0ba0",
+      "branches": {
+        "master": "aca68921e9b08139bf48e7762a46e737b9cf0ba0"
+      }
+    },
+    "spawnedc/pfui-eliteoverlay": {
+      "default_branch": "master",
+      "sha": "aca68921e9b08139bf48e7762a46e737b9cf0ba0",
+      "branches": {
+        "master": "aca68921e9b08139bf48e7762a46e737b9cf0ba0"
+      }
+    },
+    "yani9o/pfui-eliteoverlay": {
+      "default_branch": "master",
+      "sha": "aca68921e9b08139bf48e7762a46e737b9cf0ba0",
+      "branches": {
+        "master": "aca68921e9b08139bf48e7762a46e737b9cf0ba0"
+      }
+    },
+    "ravenofseven/pfui-locationplus": {
+      "default_branch": "master",
+      "sha": "e741cddc085dbefe955d9d128af016bbe697d657",
+      "branches": {
+        "master": "e741cddc085dbefe955d9d128af016bbe697d657"
+      }
+    },
+    "ravenofseven/pfui-moredatatexts": {
+      "default_branch": "master",
+      "sha": "5447b2a3e3ed9071a79240d52664884f0706903d",
+      "branches": {
+        "master": "5447b2a3e3ed9071a79240d52664884f0706903d"
+      }
+    },
+    "sica42/callofelements": {
+      "default_branch": "master",
+      "sha": "afc5398aef1f2f31ed34732ec89eaf77bce06d2f",
+      "branches": {
+        "master": "afc5398aef1f2f31ed34732ec89eaf77bce06d2f"
+      }
+    },
+    "roby-brok/pfquest-classicapi": {
+      "default_branch": "master",
+      "sha": "a71931538988b930ee51f115a7d5683fe914ec21",
+      "branches": {
+        "master": "a71931538988b930ee51f115a7d5683fe914ec21"
+      },
+      "latest_tag": "8.1.0"
     }
   }
 }
