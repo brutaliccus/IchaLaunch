@@ -8,22 +8,16 @@
       "frame_url": "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/ichalaunch/ui/theme/zaeya_first_60_frame.png",
       "hold": 2.0,
       "fit": "width",
-      "nudge_x": 12,
-      "nudge_y": -5,
-      "shrink_w": 30,
+      "nudge_x": 0,
+      "nudge_y": 0,
+      "shrink_w": 0,
       "object_position": "100% 50%",
-      "crop": {
-        "x": 0.0,
-        "y": 0.0,
-        "w": 0.9,
-        "h": 1.0
-      },
-      "vignette": 0.1,
+      "vignette": 0.45,
       "feather": {
         "left": 0.0,
         "right": 0.0,
         "top": 0.1,
-        "bottom": 0.15
+        "bottom": 0.1
       },
       "news_id": null,
       "news": null,
@@ -41,22 +35,16 @@
       "frame_url": "",
       "hold": 1.0,
       "fit": "width",
-      "nudge_x": 9,
-      "nudge_y": -5,
-      "shrink_w": 30,
+      "nudge_x": 0,
+      "nudge_y": 0,
+      "shrink_w": 0,
       "object_position": "100% 50%",
-      "crop": {
-        "x": 0.0,
-        "y": 0.0,
-        "w": 0.9,
-        "h": 1.0
-      },
       "vignette": 0.45,
       "feather": {
         "left": 0.0,
         "right": 0.0,
         "top": 0.1,
-        "bottom": 0.15
+        "bottom": 0.1
       },
       "news_id": null,
       "news": null,
