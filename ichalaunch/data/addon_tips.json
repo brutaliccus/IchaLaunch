@@ -15018,9 +15018,9 @@
     },
     "torchlite-bit/aegis_sbr": {
       "default_branch": "main",
-      "sha": "37520c49aa495dc2fe37d131889566b5f4953732",
+      "sha": "c99a0e8dbd47e9d38e24fe579f56b87a6e6650bf",
       "branches": {
-        "main": "37520c49aa495dc2fe37d131889566b5f4953732"
+        "main": "c99a0e8dbd47e9d38e24fe579f56b87a6e6650bf"
       }
     },
     "eirikaskheim/aegis_sbr": {
@@ -15060,9 +15060,9 @@
     },
     "torchlite-bit/aegis_rallypower": {
       "default_branch": "main",
-      "sha": "96f7f56d2ad986f7fc2467c54d80a2e07e46edf6",
+      "sha": "f1fe55346937aca8642a49383a567f1e53556100",
       "branches": {
-        "main": "96f7f56d2ad986f7fc2467c54d80a2e07e46edf6"
+        "main": "f1fe55346937aca8642a49383a567f1e53556100"
       }
     },
     "cinos03/bijoucounter": {
@@ -15573,9 +15573,9 @@
     },
     "doitsujin/dxvk": {
       "default_branch": "master",
-      "sha": "9c4ee2117f8ef028533a4736e32e99aa22faf986",
+      "sha": "d7ac2580aa274a14a500e74edbe4ec6aae250e4a",
       "branches": {
-        "master": "9c4ee2117f8ef028533a4736e32e99aa22faf986"
+        "master": "d7ac2580aa274a14a500e74edbe4ec6aae250e4a"
       },
       "latest_tag": "v3.1"
     },
@@ -15717,11 +15717,11 @@
     },
     "brutaliccus/ichalaunch": {
       "default_branch": "master",
-      "sha": "c476f2a238cb40bb49d8ce643ac5cdbc5a619691",
+      "sha": "83ee461383ff0ce0a0d51ec58019f7e14da73cc8",
       "branches": {
-        "master": "c476f2a238cb40bb49d8ce643ac5cdbc5a619691"
+        "master": "83ee461383ff0ce0a0d51ec58019f7e14da73cc8"
       },
-      "latest_tag": "v1.6.2"
+      "latest_tag": "v1.6.3"
     },
     "fiurs-hearth/battlemusic": {
       "default_branch": "master",
