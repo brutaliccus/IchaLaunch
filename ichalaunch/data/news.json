@@ -1,7 +1,7 @@
 {
   "product": "RavenLaunch",
   "version": 2,
-  "updated_at": "2026-09-03T10:00:20Z",
+  "updated_at": "2026-09-03T15:19:44Z",
   "title": "LAUNCH EVENT EXTENSION",
   "body": "Given the latest developments and the influx of new members over the last 24 hours, we will be extending the launch event for an additional 7 days.\n\nThe event will remain active until September 5, 2026 at 2:00 PM, ending in 3 days.\n\nWe look forward to welcoming new players and continuing to build this community together.\n\nThank you to everyone who chooses to join us, and to those who have been here from the beginning, helping us carry this legacy forward.",
   "items": [
@@ -11,7 +11,12 @@
       "body": "Given the latest developments and the influx of new members over the last 24 hours, we will be extending the launch event for an additional 7 days.\n\nThe event will remain active until September 5, 2026 at 2:00 PM, ending in 3 days.\n\nWe look forward to welcoming new players and continuing to build this community together.\n\nThank you to everyone who chooses to join us, and to those who have been here from the beginning, helping us carry this legacy forward.",
       "published_at": "2026-09-02T00:00:00Z",
       "link": "",
-      "tag": ""
+      "tag": "",
+      "align": {
+        "h": "left",
+        "v": "top"
+      },
+      "nudge_y": -1
     },
     {
       "id": "n_46bea399",
@@ -19,7 +24,11 @@
       "body": "The Bug Tracker is where confirmed and reproducible bugs should be reported so our team can investigate and address them.\n\nIf you're unsure whether an issue is a bug, or you're unable to reproduce it, contact a Game Master through /gm first so it can be investigated.\n\nBefore submitting a report, please check existing reports to avoid duplicates and include all relevant information needed to reproduce the issue.",
       "published_at": "2026-09-03T01:54:22Z",
       "link": "",
-      "tag": ""
+      "tag": "",
+      "align": {
+        "h": "left",
+        "v": "top"
+      }
     },
     {
       "id": "n_eb718cd5",
@@ -27,7 +36,11 @@
       "body": "The Database is your go-to place for information about our server.\n\nExplore items, creatures, locations, quests, and more, including all the latest content from Nightmare of Ursol — 1.18.1.\n\nWe'll continue expanding and updating it as new content is added and existing information is reviewed.",
       "published_at": "2026-09-03T01:54:50Z",
       "link": "",
-      "tag": ""
+      "tag": "",
+      "align": {
+        "h": "left",
+        "v": "top"
+      }
     }
   ],
   "pairing": "art-bound",
@@ -41,22 +54,16 @@
       "frame_url": "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/ichalaunch/ui/theme/zaeya_first_60_frame.png",
       "hold": 2.0,
       "fit": "width",
-      "nudge_x": 12,
-      "nudge_y": -5,
-      "shrink_w": 30,
+      "nudge_x": 0,
+      "nudge_y": 0,
+      "shrink_w": 0,
       "object_position": "100% 50%",
-      "crop": {
-        "x": 0.0,
-        "y": 0.0,
-        "w": 0.9,
-        "h": 1.0
-      },
-      "vignette": 0.1,
+      "vignette": 0.45,
       "feather": {
         "left": 0.0,
         "right": 0.0,
         "top": 0.1,
-        "bottom": 0.15
+        "bottom": 0.1
       },
       "news_id": null,
       "news": null,
@@ -74,22 +81,16 @@
       "frame_url": "",
       "hold": 1.0,
       "fit": "width",
-      "nudge_x": 9,
-      "nudge_y": -5,
-      "shrink_w": 30,
+      "nudge_x": 0,
+      "nudge_y": 0,
+      "shrink_w": 0,
       "object_position": "100% 50%",
-      "crop": {
-        "x": 0.0,
-        "y": 0.0,
-        "w": 0.9,
-        "h": 1.0
-      },
       "vignette": 0.45,
       "feather": {
         "left": 0.0,
         "right": 0.0,
         "top": 0.1,
-        "bottom": 0.15
+        "bottom": 0.1
       },
       "news_id": null,
       "news": null,
