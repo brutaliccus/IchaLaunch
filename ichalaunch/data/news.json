@@ -1,7 +1,7 @@
 {
   "product": "RavenLaunch",
   "version": 2,
-  "updated_at": "2026-09-03T17:10:10Z",
+  "updated_at": "2026-09-03T18:08:29Z",
   "title": "LAUNCH EVENT EXTENSION",
   "body": "Given the latest developments and the influx of new members over the last 24 hours, we will be extending the launch event for an additional 7 days.\n\nThe event will remain active until September 5, 2026 at 2:00 PM, ending in 3 days.\n\nWe look forward to welcoming new players and continuing to build this community together.\n\nThank you to everyone who chooses to join us, and to those who have been here from the beginning, helping us carry this legacy forward.",
   "items": [
@@ -58,7 +58,7 @@
       "url": "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/ichalaunch/ui/theme/zaeya_first_60.jpg",
       "frame": "zaeya_first_60_frame.png",
       "frame_url": "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/ichalaunch/ui/theme/zaeya_first_60_frame.png",
-      "hold": 2.0,
+      "hold": 0.5,
       "fit": "width",
       "nudge_x": 0,
       "nudge_y": 0,
@@ -85,7 +85,7 @@
       "url": "https://download.ravencraft.io/ichalaunch/ui/theme/official_artworks/Flag_First-60-HC_Immortal.png",
       "frame": "",
       "frame_url": "",
-      "hold": 1.0,
+      "hold": 0.5,
       "fit": "width",
       "nudge_x": 0,
       "nudge_y": 0,
