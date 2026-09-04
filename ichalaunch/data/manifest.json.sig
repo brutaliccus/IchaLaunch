@@ -1,10 +1,10 @@
 {
   "key_id": "cNGIDU6hwD8nlj+kXxMr32a47pRNYPszTfH7S4p+oEk=",
-  "sig": "RXCC3XsplEwQa60VmUSMzSlqbSeXgEwWClLdXlR7AVwiM3F2Pwxndx/wF1mBQ3L3BYrydwWBqmIHrdajqNxaAA==",
+  "sig": "egvqPtMaEDNjuJ+NlK2jm7ZDML83rhAW4F5AGa5LGJfQ+Q7qoqiN9ZsVI5913WV/lG37+AG+RJUcDR7H4ZmhCA==",
   "attestation": {
     "purpose": "ichalaunch-catalog",
     "version": "catalog",
-    "sha256": "0a03d289fa109d63c0c334b8905db878340ca31164e2b7367bc9afaca1e7770d"
+    "sha256": "01bf1e2bc93ffd0be80f9a766cefdd152d9db58c382f97d66f19d22de145efd4"
   },
-  "attestation_sig": "7ZZ5HCJFJ8H7Uo/Joom6dtMbON02DjhizxT14C15Gc06A6tjmCKwyLTffYA5MVO7BR7SOasL/QdakShqrkNMAA=="
+  "attestation_sig": "1L+Xxf50S8P0mMJj3x/TrOKsNzylPNechzniBhlKsu7LBYN13blzj4+sF7CYScdvk8JJBf6shS3NTw1lVM8KBA=="
 }
