@@ -1452,11 +1452,11 @@
     "name": "Raven Launcher",
     "source": {
       "type": "raw",
-      "url": "https://github.com/brutaliccus/IchaLaunch/releases/download/v1.6.4/IchaLaunch.exe",
+      "url": "https://github.com/brutaliccus/IchaLaunch/releases/download/v1.6.3/IchaLaunch.exe",
       "filename": "IchaLaunch.exe",
-      "sha256": "8f7c1865b01d7c0f223d76413ebcb313f608164ed1c005a114e6261fab626bd3",
-      "version": "1.6.4",
-      "size": 277546556
+      "sha256": "822a0b0a12a3fc9014df7e9afd33f7f6cdba70518ed54305c6588e4dd107c665",
+      "version": "1.6.3",
+      "size": 277522639
     }
   }
 ]
