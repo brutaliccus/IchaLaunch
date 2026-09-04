@@ -1,13 +1,13 @@
 {
   "product": "RavenLaunch",
   "schema": 1,
-  "generated_at": "2026-09-04T02:06:38Z",
-  "updated_at": "2026-09-04T02:17:55Z",
+  "generated_at": "2026-09-04T22:40:00Z",
+  "updated_at": "2026-09-04T22:40:00Z",
   "catalogs": {
-    "addons": "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/ichalaunch/data/addons.json",
-    "addon_tips": "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/ichalaunch/data/addon_tips.json",
-    "home_art": "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/ichalaunch/data/home_art.json",
-    "mods": "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/ichalaunch/data/mods.json",
+    "addons": "https://download.ravencraft.io/ichalaunch/data/addons.json",
+    "addon_tips": "https://download.ravencraft.io/ichalaunch/data/addon_tips.json",
+    "home_art": "https://download.ravencraft.io/ichalaunch/data/home_art.json",
+    "mods": "https://download.ravencraft.io/ichalaunch/data/mods.json",
     "client_manifest": "https://download.ravencraft.io/ichalaunch/data/client_manifest.json"
   },
   "client_zip": {
@@ -18,12 +18,12 @@
   },
   "launcher": {
     "id": "ichalaunch",
-    "url": "https://github.com/brutaliccus/IchaLaunch/releases/download/v1.6.3/IchaLaunch.exe",
-    "version": "1.6.3",
-    "sha256": "822a0b0a12a3fc9014df7e9afd33f7f6cdba70518ed54305c6588e4dd107c665",
-    "size": 277522639
+    "url": "https://download.ravencraft.io/IchaLaunch.exe",
+    "version": "1.6.4",
+    "sha256": "7d7e48a22f189c27c9401d52ca9eeab2f885b94202fed8ef6b1f771047559768",
+    "size": 277608242
   },
   "news": {
-    "url": "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/ichalaunch/data/news.json"
+    "url": "https://download.ravencraft.io/ichalaunch/data/news.json"
   }
 }

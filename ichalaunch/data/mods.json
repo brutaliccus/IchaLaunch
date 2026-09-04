@@ -345,8 +345,8 @@
       "type": "github_release_latest",
       "repo": "brues-code/ClassicAPI",
       "asset_contains": "ClassicAPI.dll",
-      "sha256": "a3864f78fc90720a8143972f05d64caa0edfa572a94cc0149d7683ad4736b8ba",
-      "pinned_tag": "v1.13.3"
+      "sha256": "0c0d3887920d05589b76f52b003a7a671d902212e6c1c6bcd50fa994553686ef",
+      "pinned_tag": "v1.13.4"
     },
     "files": [
       {
@@ -1452,11 +1452,11 @@
     "name": "Raven Launcher",
     "source": {
       "type": "raw",
-      "url": "https://github.com/brutaliccus/IchaLaunch/releases/download/v1.6.3/IchaLaunch.exe",
+      "url": "https://download.ravencraft.io/IchaLaunch.exe",
       "filename": "IchaLaunch.exe",
-      "sha256": "822a0b0a12a3fc9014df7e9afd33f7f6cdba70518ed54305c6588e4dd107c665",
-      "version": "1.6.3",
-      "size": 277522639
+      "sha256": "7d7e48a22f189c27c9401d52ca9eeab2f885b94202fed8ef6b1f771047559768",
+      "version": "1.6.4",
+      "size": 277608242
     }
   }
 ]
