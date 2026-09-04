@@ -3154,33 +3154,34 @@
   },
   {
     "name": "BitesCookBook",
-    "repo": "https://github.com/DBFBlackbull/BitesCookBook",
+    "repo": "https://github.com/chrisbigart/BitesCookBook",
     "category": "General",
     "description": "(Better Ingredients Tracking for Efficient Seasoning) shows you which cooking ingredients can be used to cook meals with.",
     "source": "turtle_wiki",
     "folder": "BitesCookBook",
     "forks": [
       {
-        "label": "chrisbigart",
-        "repo": "https://github.com/chrisbigart/BitesCookBook"
+        "label": "DBFBlackbull",
+        "repo": "https://github.com/DBFBlackbull/BitesCookBook"
       }
     ],
     "release_downloads_repo": "DBFBlackbull/BitesCookBook",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "BlackList",
-    "repo": "https://github.com/Zerf/BlackList",
+    "repo": "https://github.com/matwebmasta/BlackList",
     "category": "General",
     "description": "is like Ignore, except unlimited",
     "source": "turtle_wiki",
     "folder": "BlackList",
     "forks": [
       {
-        "label": "matwebmasta",
-        "repo": "https://github.com/matwebmasta/BlackList"
+        "label": "Zerf",
+        "repo": "https://github.com/Zerf/BlackList"
       },
       {
         "label": "Gescht",
@@ -3194,7 +3195,8 @@
     "release_downloads_repo": "Zerf/BlackList",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "Blockvalue",
@@ -6807,21 +6809,22 @@
   },
   {
     "name": "pfUI-fonts",
-    "repo": "https://github.com/shagu/pfUI-fonts",
+    "repo": "https://github.com/Gescht/pfUI-fonts",
     "category": "General",
     "description": "A font package for pfUI, providing additional fonts from the google font project. [Img1]",
     "source": "turtle_wiki",
     "folder": "pfUI-fonts",
     "forks": [
       {
-        "label": "Gescht",
-        "repo": "https://github.com/Gescht/pfUI-fonts"
+        "label": "shagu",
+        "repo": "https://github.com/shagu/pfUI-fonts"
       }
     ],
     "release_downloads_repo": "shagu/pfUI-fonts",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "pfUI-turtle",
@@ -11963,6 +11966,10 @@
       {
         "label": "RavenOfSeven",
         "repo": "https://github.com/RavenOfSeven/pfQuest"
+      },
+      {
+        "label": "roby-brok",
+        "repo": "https://github.com/roby-brok/pfQuest"
       }
     ],
     "release_downloads_repo": "The-Kludge-Bureau/pfQuest",
@@ -12006,13 +12013,17 @@
   },
   {
     "name": "pfQuest-turtle",
-    "repo": "https://github.com/The-Kludge-Bureau/pfQuest-turtle",
+    "repo": "https://gitlab.com/Taroven/pfQuest-turtle",
     "category": "Questing",
     "description": "A TurtleWoW DB extension for pfQuest. You need base pfQuest for this to work!",
     "source": "turtle_wiki",
     "turtle_custom": true,
     "folder": "pfQuest-turtle",
     "forks": [
+      {
+        "label": "The-Kludge-Bureau",
+        "repo": "https://github.com/The-Kludge-Bureau/pfQuest-turtle"
+      },
       {
         "label": "KameleonUK",
         "repo": "https://github.com/KameleonUK/pfQuest-turtle"
@@ -12041,7 +12052,8 @@
     "release_downloads_repo": "The-Kludge-Bureau/pfQuest-turtle",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "PPBuddy",
@@ -14752,15 +14764,15 @@
   },
   {
     "name": "pfUI-bettertotems",
-    "repo": "https://github.com/Bombg/pfUI-bettertotems",
+    "repo": "https://github.com/roby-brok/pfUI-bettertotems",
     "category": "SuperWoW",
     "description": "External module for pfUI providing some extra features to totems [Img1]",
     "source": "turtle_wiki",
     "folder": "pfUI-bettertotems",
     "forks": [
       {
-        "label": "roby-brok",
-        "repo": "https://github.com/roby-brok/pfUI-bettertotems"
+        "label": "Bombg",
+        "repo": "https://github.com/Bombg/pfUI-bettertotems"
       },
       {
         "label": "RavenOfSeven",
@@ -14778,7 +14790,8 @@
     "release_downloads_repo": "Bombg/pfUI-bettertotems",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "Puppeteer",
@@ -16524,15 +16537,15 @@
   },
   {
     "name": "pfUI-addonskinner",
-    "repo": "https://github.com/jrc13245/pfUI-addonskinner",
+    "repo": "https://github.com/roby-brok/pfUI-addonskinner",
     "category": "UI",
     "description": "External module for pfUI that provides you with pfUI-themed skins for other addons [Img1]",
     "source": "turtle_wiki",
     "folder": "pfUI-addonskinner",
     "forks": [
       {
-        "label": "roby-brok",
-        "repo": "https://github.com/roby-brok/pfUI-addonskinner"
+        "label": "jrc13245",
+        "repo": "https://github.com/jrc13245/pfUI-addonskinner"
       },
       {
         "label": "EVANnnn1996",
@@ -16578,7 +16591,8 @@
     "release_downloads_repo": "jrc13245/pfUI-addonskinner",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "pfUI-autoinvite",
@@ -16600,15 +16614,15 @@
   },
   {
     "name": "pfUI-CustomMedia",
-    "repo": "https://github.com/mr-rosh/pfUI-CustomMedia",
+    "repo": "https://github.com/Longpiggy/pfUI-CustomMedia",
     "category": "UI",
     "description": "External module for pfUI providing additional textures for the unit frames and casting bars, background texture for button slots, new fonts, new gryphons. [Img1]",
     "source": "turtle_wiki",
     "folder": "pfUI-CustomMedia",
     "forks": [
       {
-        "label": "Longpiggy",
-        "repo": "https://github.com/Longpiggy/pfUI-CustomMedia"
+        "label": "mr-rosh",
+        "repo": "https://github.com/mr-rosh/pfUI-CustomMedia"
       },
       {
         "label": "RavenOfSeven",
@@ -16622,7 +16636,8 @@
     "release_downloads_repo": "mr-rosh/pfUI-CustomMedia",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "pfUI-eliteoverlay",
@@ -17141,7 +17156,7 @@
   },
   {
     "name": "pfQuest-octo",
-    "repo": "https://github.com/vill8/pfQuest-octo",
+    "repo": "https://github.com/roby-brok/pfQuest-octo",
     "category": "General",
     "source": "community",
     "turtle_custom": true,
@@ -17150,7 +17165,18 @@
     "release_downloads_repo": "vill8/pfQuest-octo",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "forks": [
+      {
+        "label": "vill8",
+        "repo": "https://github.com/vill8/pfQuest-octo"
+      },
+      {
+        "label": "paokkerkir",
+        "repo": "https://github.com/paokkerkir/pfQuest-octo"
+      }
+    ],
+    "recommended": true
   },
   {
     "name": "pfQuest-turtle",
@@ -17454,7 +17480,22 @@
     "release_downloads_repo": "roby-brok/pfUI",
     "release_downloads_state": "ok",
     "release_downloads": 14,
-    "release_downloads_at": "2026-09-03T12:51:29Z"
+    "release_downloads_at": "2026-09-03T12:51:29Z",
+    "forks": [
+      {
+        "label": "brues-code",
+        "repo": "https://github.com/brues-code/pfUI"
+      },
+      {
+        "label": "shagu",
+        "repo": "https://github.com/shagu/pfUI"
+      },
+      {
+        "label": "IndieMiao",
+        "repo": "https://github.com/IndieMiao/pfUI"
+      }
+    ],
+    "recommended": true
   },
   {
     "name": "pfUI",
@@ -17560,7 +17601,8 @@
     "release_downloads_repo": "iGreed1993/GreedMeter",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "CombatLedger",
@@ -17790,18 +17832,6 @@
     "release_downloads_at": "2026-09-03T19:26:40Z"
   },
   {
-    "name": "pfQuest-classicAPI",
-    "repo": "https://github.com/roby-brok/pfQuest-classicAPI",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-classicAPI",
-    "description": "> ### Attribution\n>\n> **This is a downstream fork. Almost none of the work here is mine.**\n>\n> | | |\n> |---|---|\n> | **[Shagu](https://github.com/shagu/pfQuest)** | created pfQuest, with **txtsd** maintaining. |\n> | **[brues-code / Railgun](https://github.com/brues-code/pfQuest)** | modernised it onto ClassicAPI — reading through the API instead of shipped tables (`C_QuestLog`, `C_Item`, `C_TaxiMap`, DBC-derived race/class bitmasks). **Also the author of [ClassicAPI](https://github.com/brues-code/ClassicAPI)** itself. |\n> | **[The Kludge Bureau](https://github.com/The-Kludge-Bureau/pfQuest)** | the build this fork's data lineage came from. |\n> | **[VMaNGOS](https://github.com/vmangos)** | the underlying quest database. |\n> | **Roby_Brok** | this repo: four local patches for OctoWoW on top of Railgun's tree. |\n>\n> Upstream is **https://github.com/brues-code/pfQuest** — go there for the real project.\n>\n> 📋 **[CHANGES-octo.md](CHANGES-octo.md) — full changelog of the changes on top of upstream.**\n> Local changes live on the `octo` branch. GPLv3, same as upstream; see `LICENSE`.\n\n# pfQuest\n\n<img src=\"https://raw.githubusercontent.com/The-Kludge-Bureau/pfQuest/main/_img/mode.png\" float=\"right\" align=\"right\" width=\"25%\">\n\npfQuest is a quest helper and database browser for World of Warcraft Vanilla (1.12), The Burning Crusade (2.4.3), and Wrath of the Lich King (3.3.5a). Accept a quest and the relevant NPCs, monsters, and objects are automatically pinned on your world map and minimap. Open the database browser to look up any unit, item, or game object in the game — or use the chat commands to build macros for tracking gathering nodes.\n\nThe goal is to provide an accurate in-game equivalent of [AoWoW](http://db.vanillagaming.org/) or [Wowhead](http://www.wowhead.com/), not a quest guide or turn-by-turn assistant. The Vanilla database is powered by [VMaNGOS](https://github.com/vmangos). The Burning Crusade version uses data from [CMaNGOS](https://github.com/cmangos) with translations from [MaNGOS Extras](https://github.com/MangosExtras).\n\npfQuest is the successor of [ShaguQuest](https://shagu.org/ShaguQuest/), written from scratch with no dependency on any specific map or questlog addon. It is designed to work alongside the default UI and any other addon. If you run into a conflict, please open an issue on the bugtracker.\n\nYou can check the [Latest Changes](https://github.com/The-Kludge-Bureau/pfQuest/commits/main) page to see what has changed recently.\n\n## What this fork changes, briefly\n\n*(as of 2026-08-10 — details and reasoning in [CHANGES-octo.md](CHANGES-octo.md))*\n\n- **The `[Translate]` button works** — it was inert on every install; a new *Quest Text\n  Translations* option (default on) keeps the quest locale data it reads, and turning it\n  off frees the memory and hides the button. Offered upstream as\n  [PR #2](https://github.com/brues-code/pfQuest/pull/2).\n- **Tracker defaults to Current Zone** instead of every active quest at once\n- **Configurable quest-database website** (defaults to OctoWoW's DB) and\n  **world map / minimap node scale** options\n- **Seven quests with missing objective data restored** (`corrections.lua`, each verified\n  by hand); **`/db checkdb`** lists quests in your log that draw no pins\n- `/db` shows a build identity instead of the raw packager placeholder\n- The changelog's claims are **audited against upstream** — the ones that turned out wrong\n  stay visible, struck through, rather than quietly deleted.\n\n## Before You Install\n\npfQuest ships a complete database of all spawns, objects, items, and quests. The full package is approximately 80 MB and is loaded into memory once at login — memory usage is stable after that and does not grow during play.\n\nOn Vanilla clients, WoW will show a warning if an addon exceeds the default memory limit. **Before installing, set Script Memory to `0` (no limit)** in the AddOns panel of the character selection screen. This is a one-time step. A [screenshot\n\n… (truncated)",
-    "release_downloads_repo": "roby-brok/pfQuest-classicAPI",
-    "release_downloads_state": "ok",
-    "release_downloads": 27,
-    "release_downloads_at": "2026-09-03T19:26:40Z"
-  },
-  {
     "name": "AddOnOrganizer",
     "repo": "https://github.com/Monteo/AddOnOrganizer",
     "category": "General",
@@ -17920,5 +17950,14 @@
     "release_downloads_state": "ok",
     "release_downloads": 0,
     "release_downloads_at": "2026-09-02T05:51:38Z"
+  },
+  {
+    "name": "Caw DPS Meter",
+    "repo": "https://github.com/NovaElysium/CawDPSMeter",
+    "category": "Combat",
+    "source": "community",
+    "folder": "CawDPSMeter",
+    "description": "Caw DPS Meter is a compact damage/healing/utility meter for the 1.12 client",
+    "recommended": true
   }
 ]
