@@ -14784,9 +14784,9 @@
     },
     "torchlite-bit/aegis_rallypower": {
       "default_branch": "main",
-      "sha": "f1fe55346937aca8642a49383a567f1e53556100",
+      "sha": "8f1ba229ce018c23811dbeaa3e93f0b6368fb563",
       "branches": {
-        "main": "f1fe55346937aca8642a49383a567f1e53556100"
+        "main": "8f1ba229ce018c23811dbeaa3e93f0b6368fb563"
       }
     },
     "cinos03/bijoucounter": {
@@ -15076,9 +15076,9 @@
     },
     "igreed1993/greedmeter": {
       "default_branch": "main",
-      "sha": "0c0b0236315ae70407a70eba8c5db8caaa4f6995",
+      "sha": "899d7a28f0b4c35e41d6e4b11f4c02668395a22b",
       "branches": {
-        "main": "0c0b0236315ae70407a70eba8c5db8caaa4f6995"
+        "main": "899d7a28f0b4c35e41d6e4b11f4c02668395a22b"
       }
     },
     "kobeniiiiii/combatledger": {
@@ -15426,11 +15426,11 @@
     },
     "brutaliccus/ichalaunch": {
       "default_branch": "master",
-      "sha": "f36ad144594747323f1e1641c861a79bb253a6e9",
+      "sha": "5c502023d0ecd077c868f1cde7118e1001601178",
       "branches": {
-        "master": "f36ad144594747323f1e1641c861a79bb253a6e9"
+        "master": "5c502023d0ecd077c868f1cde7118e1001601178"
       },
-      "latest_tag": "v1.6.3"
+      "latest_tag": "v1.6.4"
     },
     "fiurs-hearth/battlemusic": {
       "default_branch": "master",
