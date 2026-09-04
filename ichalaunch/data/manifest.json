@@ -1,8 +1,8 @@
 {
   "product": "RavenLaunch",
   "schema": 1,
-  "generated_at": "2026-09-03T17:34:28Z",
-  "updated_at": "2026-09-03T17:34:28Z",
+  "generated_at": "2026-09-04T00:25:44Z",
+  "updated_at": "2026-09-04T00:25:44Z",
   "catalogs": {
     "addons": "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/ichalaunch/data/addons.json",
     "addon_tips": "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/ichalaunch/data/addon_tips.json",
@@ -18,10 +18,10 @@
   },
   "launcher": {
     "id": "ichalaunch",
-    "url": "https://github.com/brutaliccus/IchaLaunch/releases/download/v1.6.3/IchaLaunch.exe",
-    "version": "1.6.3",
-    "sha256": "822a0b0a12a3fc9014df7e9afd33f7f6cdba70518ed54305c6588e4dd107c665",
-    "size": 277522639
+    "url": "https://github.com/brutaliccus/IchaLaunch/releases/download/v1.6.4/IchaLaunch.exe",
+    "version": "1.6.4",
+    "sha256": "289cc91f258fead2e47e4a4c26e1740eb33eb3e5473d56e5562d4702b9bf2643",
+    "size": 277533337
   },
   "news": {
     "url": "https://raw.githubusercontent.com/brutaliccus/IchaLaunch/master/ichalaunch/data/news.json"
