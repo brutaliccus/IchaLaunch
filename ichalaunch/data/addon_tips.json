@@ -10521,9 +10521,9 @@
     },
     "emyrk/chroniclecompanion": {
       "default_branch": "main",
-      "sha": "3dbc41d13b433eedd375f11fa0bb3d9a8c7ae426",
+      "sha": "36d9265604ad15baa918aeee576264962632dd47",
       "branches": {
-        "main": "3dbc41d13b433eedd375f11fa0bb3d9a8c7ae426"
+        "main": "36d9265604ad15baa918aeee576264962632dd47"
       }
     },
     "artificialowl/chroniclecompanion": {
@@ -15426,9 +15426,9 @@
     },
     "brutaliccus/ichalaunch": {
       "default_branch": "master",
-      "sha": "83ee461383ff0ce0a0d51ec58019f7e14da73cc8",
+      "sha": "f36ad144594747323f1e1641c861a79bb253a6e9",
       "branches": {
-        "master": "83ee461383ff0ce0a0d51ec58019f7e14da73cc8"
+        "master": "f36ad144594747323f1e1641c861a79bb253a6e9"
       },
       "latest_tag": "v1.6.3"
     },
