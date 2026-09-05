@@ -15751,6 +15751,29 @@
         "master": "a71931538988b930ee51f115a7d5683fe914ec21"
       },
       "latest_tag": "8.1.0"
+    },
+    "roby-brok/pfquest": {
+      "default_branch": "master",
+      "sha": "a71931538988b930ee51f115a7d5683fe914ec21",
+      "branches": {
+        "master": "a71931538988b930ee51f115a7d5683fe914ec21"
+      },
+      "latest_tag": "8.1.0"
+    },
+    "indiemiao/pfui": {
+      "default_branch": "master",
+      "sha": "dfa541df002dfae4604b01fa3ab09201bc852c57",
+      "branches": {
+        "master": "dfa541df002dfae4604b01fa3ab09201bc852c57"
+      }
+    },
+    "novaelysium/cawdpsmeter": {
+      "default_branch": "main",
+      "sha": "df34c37e7b6652afc2f42e8d01e2af8d8b5fd357",
+      "branches": {
+        "main": "df34c37e7b6652afc2f42e8d01e2af8d8b5fd357"
+      },
+      "latest_tag": "v1.0.8"
     }
   }
 }
