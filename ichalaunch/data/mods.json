@@ -1454,9 +1454,9 @@
       "type": "raw",
       "url": "https://download.ravencraft.io/IchaLaunch.exe",
       "filename": "IchaLaunch.exe",
-      "sha256": "7d7e48a22f189c27c9401d52ca9eeab2f885b94202fed8ef6b1f771047559768",
-      "version": "1.6.4",
-      "size": 277608242
+      "sha256": "6e3dca53cc830931512f9769aeb536f87a1f5ddce58af81b0552c33d57193180",
+      "version": "1.6.5",
+      "size": 280469362
     }
   }
 ]
