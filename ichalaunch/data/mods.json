@@ -345,8 +345,8 @@
       "type": "github_release_latest",
       "repo": "brues-code/ClassicAPI",
       "asset_contains": "ClassicAPI.dll",
-      "sha256": "0c0d3887920d05589b76f52b003a7a671d902212e6c1c6bcd50fa994553686ef",
-      "pinned_tag": "v1.13.4"
+      "sha256": "367088ccbd6486417b96b67a5384f0bc921c3174b61b5364003d8a365689f43d",
+      "pinned_tag": "v1.14.0"
     },
     "files": [
       {
@@ -1420,19 +1420,19 @@
       ]
     },
     "source": {
-      "type": "github_release",
-      "url": "https://github.com/brutaliccus/IchaLaunch/releases/download/ichalaunch-discord-1.3/ichalaunch_discord.dll",
+      "type": "raw",
+      "url": "https://download.ravencraft.io/ichalaunch/discord/1.6/ichalaunch_discord.dll",
       "filename": "ichalaunch_discord.dll",
-      "sha256": "fdfdb9c25c492de2196e9884bf14b17e959332029eef973e044e2a73dba6202f",
-      "dest_sha256": "fdfdb9c25c492de2196e9884bf14b17e959332029eef973e044e2a73dba6202f",
-      "version": "1.3",
+      "sha256": "076c530e19c2a67b420b22ba58acc63a89662cc60e043c6ef352c7b01c71df83",
+      "dest_sha256": "076c530e19c2a67b420b22ba58acc63a89662cc60e043c6ef352c7b01c71df83",
+      "version": "1.6",
       "path": "tools/_discord_presence/out/ichalaunch_discord.dll"
     },
     "files": [
       {
         "match": "ichalaunch_discord.dll",
         "destination": "ichalaunch_discord.dll",
-        "sha256": "fdfdb9c25c492de2196e9884bf14b17e959332029eef973e044e2a73dba6202f"
+        "sha256": "076c530e19c2a67b420b22ba58acc63a89662cc60e043c6ef352c7b01c71df83"
       }
     ],
     "dlls_txt": {
@@ -1454,9 +1454,53 @@
       "type": "raw",
       "url": "https://download.ravencraft.io/IchaLaunch.exe",
       "filename": "IchaLaunch.exe",
-      "sha256": "6e3dca53cc830931512f9769aeb536f87a1f5ddce58af81b0552c33d57193180",
-      "version": "1.6.5",
-      "size": 280469362
+      "sha256": "937de6f86b4fe0db4aa7b9b5b8bcff7240e0754792ab710045680bee1e6a7095",
+      "version": "1.6.6",
+      "size": 55363433,
+      "platforms": {
+        "windows": {
+          "type": "raw",
+          "url": "https://download.ravencraft.io/IchaLaunch.exe",
+          "filename": "IchaLaunch.exe",
+          "sha256": "937de6f86b4fe0db4aa7b9b5b8bcff7240e0754792ab710045680bee1e6a7095",
+          "version": "1.6.6",
+          "size": 55363433
+        },
+        "linux": {
+          "type": "raw",
+          "url": "https://download.ravencraft.io/IchaLaunch-linux-x86_64",
+          "filename": "IchaLaunch-linux-x86_64",
+          "sha256": "ea92f57f1c700987db186404df7e107e9bc45ad962a1155700d8991f5b26a1e3",
+          "version": "1.6.6",
+          "size": 67906816
+        }
+      },
+      "downloads": {
+        "windows_exe": {
+          "type": "raw",
+          "url": "https://download.ravencraft.io/IchaLaunch.exe",
+          "filename": "IchaLaunch.exe",
+          "sha256": "937de6f86b4fe0db4aa7b9b5b8bcff7240e0754792ab710045680bee1e6a7095",
+          "version": "1.6.6",
+          "size": 55363433
+        },
+        "linux_appimage": {
+          "type": "raw",
+          "url": "https://download.ravencraft.io/Raven_Launcher-1.6.6-x86_64.AppImage",
+          "filename": "Raven_Launcher-1.6.6-x86_64.AppImage",
+          "sha256": "96d2a6657c8cd174853373b3314d6cc748bca0124d0727d587ba015bdd05ab9f",
+          "version": "1.6.6",
+          "size": 68434424
+        },
+        "linux_tarball": {
+          "type": "raw",
+          "url": "https://download.ravencraft.io/IchaLaunch-1.6.6-linux-x86_64.tar.gz",
+          "filename": "IchaLaunch-1.6.6-linux-x86_64.tar.gz",
+          "sha256": "5ba399b96b0b662536dc532cfc7380426614dd35c52d7c432fe67f5d7acc0920",
+          "version": "1.6.6",
+          "size": 67278928
+        }
+      }
     }
   }
 ]

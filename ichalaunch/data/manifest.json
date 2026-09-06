@@ -1,8 +1,8 @@
 {
   "product": "RavenLaunch",
   "schema": 1,
-  "generated_at": "2026-09-05T16:44:25Z",
-  "updated_at": "2026-09-05T16:44:25Z",
+  "generated_at": "2026-09-06T12:59:40Z",
+  "updated_at": "2026-09-06T12:59:40Z",
   "catalogs": {
     "addons": "https://download.ravencraft.io/ichalaunch/data/addons.json",
     "addon_tips": "https://download.ravencraft.io/ichalaunch/data/addon_tips.json",
@@ -20,9 +20,53 @@
   "launcher": {
     "id": "ichalaunch",
     "url": "https://download.ravencraft.io/IchaLaunch.exe",
-    "version": "1.6.5",
-    "sha256": "6e3dca53cc830931512f9769aeb536f87a1f5ddce58af81b0552c33d57193180",
-    "size": 280469362
+    "version": "1.6.6",
+    "sha256": "937de6f86b4fe0db4aa7b9b5b8bcff7240e0754792ab710045680bee1e6a7095",
+    "size": 55363433,
+    "platforms": {
+      "windows": {
+        "type": "raw",
+        "url": "https://download.ravencraft.io/IchaLaunch.exe",
+        "filename": "IchaLaunch.exe",
+        "sha256": "937de6f86b4fe0db4aa7b9b5b8bcff7240e0754792ab710045680bee1e6a7095",
+        "version": "1.6.6",
+        "size": 55363433
+      },
+      "linux": {
+        "type": "raw",
+        "url": "https://download.ravencraft.io/IchaLaunch-linux-x86_64",
+        "filename": "IchaLaunch-linux-x86_64",
+        "sha256": "ea92f57f1c700987db186404df7e107e9bc45ad962a1155700d8991f5b26a1e3",
+        "version": "1.6.6",
+        "size": 67906816
+      }
+    },
+    "downloads": {
+      "windows_exe": {
+        "type": "raw",
+        "url": "https://download.ravencraft.io/IchaLaunch.exe",
+        "filename": "IchaLaunch.exe",
+        "sha256": "937de6f86b4fe0db4aa7b9b5b8bcff7240e0754792ab710045680bee1e6a7095",
+        "version": "1.6.6",
+        "size": 55363433
+      },
+      "linux_appimage": {
+        "type": "raw",
+        "url": "https://download.ravencraft.io/Raven_Launcher-1.6.6-x86_64.AppImage",
+        "filename": "Raven_Launcher-1.6.6-x86_64.AppImage",
+        "sha256": "96d2a6657c8cd174853373b3314d6cc748bca0124d0727d587ba015bdd05ab9f",
+        "version": "1.6.6",
+        "size": 68434424
+      },
+      "linux_tarball": {
+        "type": "raw",
+        "url": "https://download.ravencraft.io/IchaLaunch-1.6.6-linux-x86_64.tar.gz",
+        "filename": "IchaLaunch-1.6.6-linux-x86_64.tar.gz",
+        "sha256": "5ba399b96b0b662536dc532cfc7380426614dd35c52d7c432fe67f5d7acc0920",
+        "version": "1.6.6",
+        "size": 67278928
+      }
+    }
   },
   "news": {
     "url": "https://download.ravencraft.io/ichalaunch/data/news.json"
