@@ -497,8 +497,7 @@
     "release_downloads_repo": "JembaWoW/ShaguInventory",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-09-02T05:51:38Z",
-    "recommended": true
+    "release_downloads_at": "2026-09-02T05:51:38Z"
   },
   {
     "name": "SortBags",
@@ -681,8 +680,7 @@
     "release_downloads_repo": "1petru/Akkio_Consume_Helper",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-09-02T05:51:38Z",
-    "recommended": true
+    "release_downloads_at": "2026-09-02T05:51:38Z"
   },
   {
     "name": "AutoBuff",
@@ -717,8 +715,7 @@
     "release_downloads_repo": "zmarotrix/BattleMusic",
     "release_downloads_state": "ok",
     "release_downloads": 1400,
-    "release_downloads_at": "2026-09-02T05:51:38Z",
-    "recommended": true
+    "release_downloads_at": "2026-09-02T05:51:38Z"
   },
   {
     "name": "BattleScribe",
@@ -1947,8 +1944,7 @@
     "release_downloads_repo": "Kingfisher387/AntiAfk",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-09-02T05:51:38Z",
-    "recommended": true
+    "release_downloads_at": "2026-09-02T05:51:38Z"
   },
   {
     "name": "Antispam",
@@ -2698,8 +2694,7 @@
     "release_downloads_repo": "gbl/Altoholic_Vanilla",
     "release_downloads_state": "ok",
     "release_downloads": 0,
-    "release_downloads_at": "2026-09-02T05:51:38Z",
-    "recommended": true
+    "release_downloads_at": "2026-09-02T05:51:38Z"
   },
   {
     "name": "AnnounceKick",
@@ -2754,8 +2749,7 @@
     "release_downloads_repo": "TheRealFayz/Arcanum",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-09-02T05:51:38Z",
-    "recommended": true
+    "release_downloads_at": "2026-09-02T05:51:38Z"
   },
   {
     "name": "ArchiTotem",
@@ -2790,7 +2784,7 @@
   {
     "name": "AttackBar Turtle",
     "repo": "https://github.com/deceius/AttackBar",
-    "category": "General",
+    "category": "Combat",
     "description": "Player and Enemy Swing Timer addon [Img1] + Turtle WoW's Holy Strike support.",
     "source": "turtle_wiki",
     "turtle_custom": true,
@@ -2808,8 +2802,7 @@
     "release_downloads_repo": "Siventt/AttackBar-TWoW",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z",
-    "recommended": true
+    "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
     "name": "AuldLangSyne",
@@ -2831,8 +2824,7 @@
     "release_downloads_repo": "Road-block/AuldLangSyne",
     "release_downloads_state": "ok",
     "release_downloads": 304,
-    "release_downloads_at": "2026-08-26T23:44:09Z",
-    "recommended": true
+    "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
     "name": "AutoDecline",
@@ -3168,8 +3160,7 @@
     "release_downloads_repo": "DBFBlackbull/BitesCookBook",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z",
-    "recommended": true
+    "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
     "name": "BlackList",
@@ -3762,46 +3753,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "CleverMacro",
-    "repo": "https://github.com/DanielAdolfsson/CleverMacro",
-    "category": "General",
-    "description": "Adds extra slash commands for use in macros",
-    "source": "turtle_wiki",
-    "folder": "CleverMacro",
-    "forks": [
-      {
-        "label": "Ironscyde",
-        "repo": "https://github.com/Ironscyde/CleverMacro"
-      },
-      {
-        "label": "NightTripperID",
-        "repo": "https://github.com/NightTripperID/CleverMacro"
-      }
-    ],
-    "release_downloads_repo": "DanielAdolfsson/CleverMacro",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "CleveRoidMacros",
-    "repo": "https://github.com/cutiepoka/CleveRoidMacros",
-    "category": "General",
-    "description": "More advanced and modern style macros. Lovechild of CleverMacro + Roid-Macros",
-    "source": "turtle_wiki",
-    "folder": "CleveRoidMacros",
-    "forks": [
-      {
-        "label": "unemployedwaifu",
-        "repo": "https://github.com/unemployedwaifu/CleveRoidMacros"
-      }
-    ],
-    "release_downloads_repo": "cutiepoka/CleveRoidMacros",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
     "name": "CliffTells",
     "repo": "https://github.com/ItsLusse/CliffTells",
     "category": "General",
@@ -3829,8 +3780,7 @@
     "release_downloads_repo": "MarcelineVQ/Clique",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-09-02T05:51:38Z",
-    "recommended": true
+    "release_downloads_at": "2026-09-02T05:51:38Z"
   },
   {
     "name": "CLog",
@@ -6640,14 +6590,6 @@
     "folder": "Outfitter",
     "forks": [
       {
-        "label": "MarcelineVQ",
-        "repo": "https://github.com/MarcelineVQ/Outfitter"
-      },
-      {
-        "label": "sica42",
-        "repo": "https://github.com/sica42/Outfitter"
-      },
-      {
         "label": "EVANnnn1996",
         "repo": "https://github.com/EVANnnn1996/Outfitter"
       },
@@ -6668,24 +6610,8 @@
         "repo": "https://github.com/dsidirop/Outfitter"
       },
       {
-        "label": "AndrgitA",
-        "repo": "https://github.com/AndrgitA/Outfitter"
-      },
-      {
         "label": "diginfotek",
         "repo": "https://github.com/diginfotek/Outfitter"
-      },
-      {
-        "label": "zanthor",
-        "repo": "https://github.com/zanthor/Outfitter"
-      },
-      {
-        "label": "balkirrium",
-        "repo": "https://github.com/balkirrium/Outfitter"
-      },
-      {
-        "label": "xeropresence",
-        "repo": "https://github.com/xeropresence/Outfitter"
       }
     ],
     "release_downloads_repo": "pepopo978/Outfitter",
@@ -10092,7 +10018,7 @@
   },
   {
     "name": "Cartographer for TurtleWoW",
-    "repo": "https://github.com/shagu/Cartographer",
+    "repo": "https://github.com/Redbu11dev/Cartographer",
     "category": "Maps",
     "description": "A modular, lightweight, and efficient framework for manipulation of the world map",
     "source": "turtle_wiki",
@@ -10100,20 +10026,8 @@
     "folder": "Cartographer",
     "forks": [
       {
-        "label": "Redbu11dev",
-        "repo": "https://github.com/Redbu11dev/Cartographer"
-      },
-      {
-        "label": "AmonRA",
-        "repo": "https://github.com/AmonRA/Cartographer"
-      },
-      {
-        "label": "dwbclz",
-        "repo": "https://github.com/dwbclz/Cartographer"
-      },
-      {
-        "label": "jiangxt316",
-        "repo": "https://github.com/jiangxt316/Cartographer"
+        "label": "shagu",
+        "repo": "https://github.com/shagu/Cartographer"
       }
     ],
     "release_downloads_repo": "shagu/Cartographer",
@@ -10686,7 +10600,8 @@
     "release_downloads_repo": "Shellyoung/AdvancedTradeSkillWindow2",
     "release_downloads_state": "ok",
     "release_downloads": 159,
-    "release_downloads_at": "2026-09-02T05:51:38Z"
+    "release_downloads_at": "2026-09-02T05:51:38Z",
+    "recommended": true
   },
   {
     "name": "Artisan",
@@ -11603,8 +11518,7 @@
     "release_downloads_repo": "laytya/AutoBar-for-Turtle-WoW",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z",
-    "recommended": true
+    "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
     "name": "AutoConfirm",
@@ -12441,8 +12355,7 @@
     "release_downloads_repo": "balakethelock/AutoMasterLooter",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z",
-    "recommended": true
+    "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
     "name": "Automaton",
@@ -12468,8 +12381,7 @@
     "release_downloads_repo": "balakethelock/bananabar",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z",
-    "recommended": true
+    "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
     "name": "BigTimer",
@@ -12581,12 +12493,6 @@
     "description": "Combat logging for the raid logging website Raid Logging (ChronicleClassic). Upload raid logs for analysis and details.",
     "source": "turtle_wiki",
     "folder": "ChronicleCompanion",
-    "forks": [
-      {
-        "label": "ArtificialOwl",
-        "repo": "https://github.com/ArtificialOwl/ChronicleCompanion"
-      }
-    ],
     "release_downloads_repo": "Emyrk/ChronicleCompanion",
     "release_downloads_state": "none",
     "release_downloads": 0,
@@ -14287,12 +14193,16 @@
   },
   {
     "name": "aDF",
-    "repo": "https://github.com/MarcelineVQ/aDF",
+    "repo": "https://github.com/jrc13245/aDF",
     "category": "SuperWoW",
     "description": "adds a small HUD that standardizes critical info about your target's defences, including Armor, Resists, and specific debuffs [Img1] https://github.com/Autignem/aDF Alt",
     "source": "turtle_wiki",
     "folder": "aDF",
     "forks": [
+      {
+        "label": "MarcelineVQ",
+        "repo": "https://github.com/MarcelineVQ/aDF"
+      },
       {
         "label": "Zebouski",
         "repo": "https://github.com/Zebouski/aDF"
@@ -14317,8 +14227,7 @@
     "release_downloads_repo": "MarcelineVQ/aDF",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-09-02T05:51:38Z",
-    "recommended": true
+    "release_downloads_at": "2026-09-02T05:51:38Z"
   },
   {
     "name": "AutoLock",
@@ -14371,100 +14280,8 @@
         "repo": "https://github.com/Wayoff333/Cursive"
       },
       {
-        "label": "Taeko-ar/Cursive-3.3.5a",
-        "repo": "https://github.com/Taeko-ar/Cursive-3.3.5a"
-      },
-      {
         "label": "razzeee",
         "repo": "https://github.com/razzeee/Cursive"
-      },
-      {
-        "label": "bretharte89",
-        "repo": "https://github.com/bretharte89/Cursive"
-      },
-      {
-        "label": "EVANnnn1996",
-        "repo": "https://github.com/EVANnnn1996/Cursive"
-      },
-      {
-        "label": "USS-Enterprise-Guild",
-        "repo": "https://github.com/USS-Enterprise-Guild/Cursive"
-      },
-      {
-        "label": "jmiecz",
-        "repo": "https://github.com/jmiecz/Cursive"
-      },
-      {
-        "label": "DRepetsky",
-        "repo": "https://github.com/DRepetsky/Cursive"
-      },
-      {
-        "label": "freohr",
-        "repo": "https://github.com/freohr/Cursive"
-      },
-      {
-        "label": "Szalor",
-        "repo": "https://github.com/Szalor/Cursive"
-      },
-      {
-        "label": "Flaykz/CursiveRevamp",
-        "repo": "https://github.com/Flaykz/CursiveRevamp"
-      },
-      {
-        "label": "zanthor",
-        "repo": "https://github.com/zanthor/Cursive"
-      },
-      {
-        "label": "terradcm-code",
-        "repo": "https://github.com/terradcm-code/Cursive"
-      },
-      {
-        "label": "Loogosh",
-        "repo": "https://github.com/Loogosh/Cursive"
-      },
-      {
-        "label": "GruksGruks",
-        "repo": "https://github.com/GruksGruks/Cursive"
-      },
-      {
-        "label": "eickhardt",
-        "repo": "https://github.com/eickhardt/Cursive"
-      },
-      {
-        "label": "RuskeMiahahn",
-        "repo": "https://github.com/RuskeMiahahn/Cursive"
-      },
-      {
-        "label": "Khiu",
-        "repo": "https://github.com/Khiu/Cursive"
-      },
-      {
-        "label": "LythandraWoW/LythCursive",
-        "repo": "https://github.com/LythandraWoW/LythCursive"
-      },
-      {
-        "label": "CommanderSouza",
-        "repo": "https://github.com/CommanderSouza/Cursive"
-      },
-      {
-        "label": "Plokertonne",
-        "repo": "https://github.com/Plokertonne/Cursive"
-      },
-      {
-        "label": "perks",
-        "repo": "https://github.com/perks/Cursive"
-      },
-      {
-        "label": "vargv666",
-        "repo": "https://github.com/vargv666/Cursive"
-      },
-      {
-        "label": "jilinge2",
-        "repo": "https://github.com/jilinge2/Cursive"
-      },
-      {
-        "label": "waldnercharles",
-        "repo": "https://github.com/waldnercharles/Cursive"
       }
     ],
     "release_downloads_repo": "pepopo978/Cursive",
@@ -14899,15 +14716,11 @@
   {
     "name": "Rinse",
     "repo": "https://github.com/Otari98/Rinse",
-    "category": "SuperWoW",
+    "category": "Combat",
     "description": "This addon is very similar to Decursive, it helps with removing debuffs from friendly units",
     "source": "turtle_wiki",
     "folder": "Rinse",
     "forks": [
-      {
-        "label": "MarcelineVQ",
-        "repo": "https://github.com/MarcelineVQ/Rinse"
-      },
       {
         "label": "Dauls/Rinse-V-",
         "repo": "https://github.com/Dauls/Rinse-V-"
@@ -14915,45 +14728,18 @@
       {
         "label": "EVANnnn1996",
         "repo": "https://github.com/EVANnnn1996/Rinse"
-      },
-      {
-        "label": "al3xc1985",
-        "repo": "https://github.com/al3xc1985/Rinse"
-      },
-      {
-        "label": "tubtubs",
-        "repo": "https://github.com/tubtubs/Rinse"
-      },
-      {
-        "label": "verge20",
-        "repo": "https://github.com/verge20/Rinse"
-      },
-      {
-        "label": "Mats391",
-        "repo": "https://github.com/Mats391/Rinse"
-      },
-      {
-        "label": "whtmst",
-        "repo": "https://github.com/whtmst/Rinse"
-      },
-      {
-        "label": "Nikki1993",
-        "repo": "https://github.com/Nikki1993/Rinse"
-      },
-      {
-        "label": "Paenthy",
-        "repo": "https://github.com/Paenthy/Rinse"
       }
     ],
     "release_downloads_repo": "Otari98/Rinse",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "ShaguDPS",
     "repo": "https://github.com/shagu/ShaguDPS",
-    "category": "SuperWoW",
+    "category": "Combat",
     "description": "A very small and lightweight damage meter [Img1] [Img2]",
     "source": "turtle_wiki",
     "folder": "ShaguDPS",
@@ -14965,10 +14751,6 @@
       {
         "label": "Nelethor",
         "repo": "https://github.com/Nelethor/ShaguDPS"
-      },
-      {
-        "label": "EVANnnn1996",
-        "repo": "https://github.com/EVANnnn1996/ShaguDPS"
       },
       {
         "label": "96Rex",
@@ -15003,68 +14785,8 @@
         "repo": "https://github.com/Arthur-Helias/ShaguDPS"
       },
       {
-        "label": "Macumbafeh",
-        "repo": "https://github.com/Macumbafeh/ShaguDPS"
-      },
-      {
         "label": "Otari98",
         "repo": "https://github.com/Otari98/ShaguDPS"
-      },
-      {
-        "label": "AmonRA",
-        "repo": "https://github.com/AmonRA/ShaguDPS"
-      },
-      {
-        "label": "dwbclz",
-        "repo": "https://github.com/dwbclz/ShaguDPS"
-      },
-      {
-        "label": "jiangxt316",
-        "repo": "https://github.com/jiangxt316/ShaguDPS"
-      },
-      {
-        "label": "Sandworlds-MMO",
-        "repo": "https://github.com/Sandworlds-MMO/ShaguDPS"
-      },
-      {
-        "label": "ShigemuneKurogane",
-        "repo": "https://github.com/ShigemuneKurogane/ShaguDPS"
-      },
-      {
-        "label": "xinleibird",
-        "repo": "https://github.com/xinleibird/ShaguDPS"
-      },
-      {
-        "label": "yani9o",
-        "repo": "https://github.com/yani9o/ShaguDPS"
-      },
-      {
-        "label": "zyyysxd",
-        "repo": "https://github.com/zyyysxd/ShaguDPS"
-      },
-      {
-        "label": "dbulatovicx32",
-        "repo": "https://github.com/dbulatovicx32/ShaguDPS"
-      },
-      {
-        "label": "CommanderSouza",
-        "repo": "https://github.com/CommanderSouza/ShaguDPS"
-      },
-      {
-        "label": "Beardedrasta",
-        "repo": "https://github.com/Beardedrasta/ShaguDPS"
-      },
-      {
-        "label": "tperraut",
-        "repo": "https://github.com/tperraut/ShaguDPS"
-      },
-      {
-        "label": "WanLiQiaoXi",
-        "repo": "https://github.com/WanLiQiaoXi/ShaguDPS"
-      },
-      {
-        "label": "empty1021",
-        "repo": "https://github.com/empty1021/ShaguDPS"
       }
     ],
     "release_downloads_repo": "shagu/ShaguDPS",
@@ -15074,27 +14796,23 @@
   },
   {
     "name": "ShaguPlates",
-    "repo": "https://github.com/shagu/ShaguPlates",
+    "repo": "https://github.com/MarcelineVQ/ShaguPlatesX",
     "category": "SuperWoW",
     "description": "modifies and extends the default nameplates [Img1] TidyPlates-Edit",
     "source": "turtle_wiki",
     "folder": "ShaguPlates",
     "forks": [
       {
+        "label": "shagu",
+        "repo": "https://github.com/shagu/ShaguPlates"
+      },
+      {
         "label": "Redbu11dev/ShaguPlates-extra",
         "repo": "https://github.com/Redbu11dev/ShaguPlates-extra"
       },
       {
-        "label": "MarcelineVQ/ShaguPlatesX",
-        "repo": "https://github.com/MarcelineVQ/ShaguPlatesX"
-      },
-      {
         "label": "paokkerkir",
         "repo": "https://github.com/paokkerkir/ShaguPlates"
-      },
-      {
-        "label": "Sandworlds-MMO",
-        "repo": "https://github.com/Sandworlds-MMO/ShaguPlates"
       },
       {
         "label": "hellowind777",
@@ -15105,74 +14823,15 @@
         "repo": "https://github.com/eqomdx/ShaguPlates-Fixes"
       },
       {
-        "label": "tuxpainter",
-        "repo": "https://github.com/tuxpainter/ShaguPlates"
-      },
-      {
-        "label": "Otari98",
-        "repo": "https://github.com/Otari98/ShaguPlates"
-      },
-      {
-        "label": "Macumbafeh",
-        "repo": "https://github.com/Macumbafeh/ShaguPlates"
-      },
-      {
         "label": "michewarr",
         "repo": "https://github.com/michewarr/ShaguPlates"
-      },
-      {
-        "label": "AmonRA",
-        "repo": "https://github.com/AmonRA/ShaguPlates"
-      },
-      {
-        "label": "dvmanlosa",
-        "repo": "https://github.com/dvmanlosa/ShaguPlates"
-      },
-      {
-        "label": "dwbclz",
-        "repo": "https://github.com/dwbclz/ShaguPlates"
-      },
-      {
-        "label": "Hippoom",
-        "repo": "https://github.com/Hippoom/ShaguPlates"
-      },
-      {
-        "label": "jiangxt316",
-        "repo": "https://github.com/jiangxt316/ShaguPlates"
-      },
-      {
-        "label": "jilinge2",
-        "repo": "https://github.com/jilinge2/ShaguPlates"
-      },
-      {
-        "label": "koraykarakus",
-        "repo": "https://github.com/koraykarakus/ShaguPlates"
-      },
-      {
-        "label": "RavenOfSeven",
-        "repo": "https://github.com/RavenOfSeven/ShaguPlates"
-      },
-      {
-        "label": "terradcm-code",
-        "repo": "https://github.com/terradcm-code/ShaguPlates"
-      },
-      {
-        "label": "flyinbed",
-        "repo": "https://github.com/flyinbed/ShaguPlates"
-      },
-      {
-        "label": "shikulja",
-        "repo": "https://github.com/shikulja/ShaguPlates"
-      },
-      {
-        "label": "skllskll",
-        "repo": "https://github.com/skllskll/ShaguPlates"
       }
     ],
     "release_downloads_repo": "shagu/ShaguPlates",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "ShaguScan",
@@ -15902,8 +15561,7 @@
     "release_downloads_repo": "Otari98/ActionBarProfiles",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-09-02T05:51:38Z",
-    "recommended": true
+    "release_downloads_at": "2026-09-02T05:51:38Z"
   },
   {
     "name": "agUnitFramesImproved",
@@ -17003,7 +16661,8 @@
     "release_downloads_repo": "Torchlite-bit/Aegis_Courier",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "Aegis Exchange",
@@ -17026,7 +16685,8 @@
     "release_downloads_repo": "Torchlite-bit/Aegis_Exchange",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "Aegis RallyPower",
@@ -17039,7 +16699,8 @@
     "release_downloads_repo": "Torchlite-bit/Aegis_RallyPower",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "BijouCounter",
@@ -17594,7 +17255,7 @@
   {
     "name": "GreedMeter",
     "repo": "https://github.com/iGreed1993/GreedMeter",
-    "category": "General",
+    "category": "Combat",
     "source": "community",
     "folder": "GreedMeter",
     "description": "# GreedMeter\n\nA lightweight combat meter for Vanilla 1.12 (and private servers based on it).\n\nGreedMeter tracks damage, healing, dispels, interrupts, hard CCs, CC breaks, damage taken, and deaths. It is designed to work cleanly on classic clients, with optional SuperWoW support for more accurate pet ownership and combat-log range.\n\n![GreedMeter](ScreenShots/GreedMeterWindows.png)\n![GreedMeter](ScreenShots/GreedMeterThreat.png)\n\n### Features\n\n* **Multiple meter windows** – Open extra frames (up to 6) so you can watch Damage, Healing, Interrupts, etc. at the same time\n* **Modes** – Damage, Healing, Dispels, Damage Taken, Interrupts, CC, CC Breaks, Deaths, Threat\n* **Segments** – Current fight, Overall, recent fights, and recent boss fights\n* **Absorbs automatically included in healing**\n* **CC tracking** – Lists enemies that were crowd-controlled and any broken CCs (estimated duration)\n* **Class icons** – Optional class icons before player names on the bars\n* **Combat log range** – Expand beyond the default 40 yards (up to 200) so distant raid members are still tracked\n* **Announce** – Report a window to SAY / PARTY / RAID (with optional confirmation)\n* **Name filter** – Quickly hide individual players from a window\n* **Layout saving** – Position, size, mode, and shown state saved per character (or account-wide if enabled in settings)\n* **Minimap button** – Left-click toggle meters, right-click settings, drag to reposition\n* **Settings** – Class colors, bar height, font size, opacity, lock frames, Customization and more\n\n### Commands\n\n| Command | What it does |\n|---------|--------------|\n| `/gdm` or `/gdm show` | Show / hide all meter windows |\n| `/gdm set` or `/gdm settings` | Open the settings window |\n| `/gdm reset` | Clear all recorded combat data |\n| `/gdm range` | Show current combat log range |\n| `/gdm range 200` | Set combat log range to 200 yards |\n| `/gdm range 40` | Restore default 40-yard range |\n| `/gdm test` | Load fake 40-player raid data for UI testing |\n| `/gdm help` | Show this help |\n\n![GreedMeter](ScreenShots/GreedMeterSettings.png)\n![GreedMeter](ScreenShots/GreedMeterCustom.png)\n\n### Installation\n\n1. Place the `GreedMeter` folder into your `Interface/AddOns` directory.\n2. Restart the client or type `/reload`.\n\nFor the OctoLauncher / GitAddonsManager update system to work, install via Git so the `.git` folder is present.\n\n### Notes\n\nWorks on standard Vanilla 1.12 clients. SuperWoW is optional but recommended — it improves pet ownership detection and gives a cleaner combat-log path.\n\nFree to use and modify under the MIT License.",
@@ -17689,7 +17350,8 @@
     "release_downloads_repo": "Otari98/Atlas",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "FishingBuddy",
@@ -17802,7 +17464,7 @@
   },
   {
     "name": "AtlasLoot",
-    "repo": "https://github.com/ashigaru/AtlasLoot",
+    "repo": "https://github.com/Otari98/AtlasLoot",
     "category": "General",
     "source": "community",
     "turtle_custom": true,
@@ -17814,10 +17476,15 @@
     "release_downloads_at": "2026-08-27T13:39:38Z",
     "forks": [
       {
+        "label": "ashigaru",
+        "repo": "https://github.com/ashigaru/AtlasLoot"
+      },
+      {
         "label": "jordanfaz",
         "repo": "https://github.com/jordanfaz/AtlasLoot"
       }
-    ]
+    ],
+    "recommended": true
   },
   {
     "name": "pfQuest",

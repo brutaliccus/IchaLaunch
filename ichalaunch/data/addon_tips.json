@@ -3050,42 +3050,6 @@
         "master": "4c83ecb84f376979a0ac6b4747a0bed467cb9b90"
       }
     },
-    "danieladolfsson/clevermacro": {
-      "default_branch": "master",
-      "sha": "7b85b4c4e59cfea121e5460dfc19e0dde8c89472",
-      "branches": {
-        "master": "7b85b4c4e59cfea121e5460dfc19e0dde8c89472"
-      },
-      "latest_tag": "v1.4"
-    },
-    "ironscyde/clevermacro": {
-      "default_branch": "master",
-      "sha": "b31aa55e2276a7c99e11a65e55a25d9b7c8e4a60",
-      "branches": {
-        "master": "b31aa55e2276a7c99e11a65e55a25d9b7c8e4a60"
-      }
-    },
-    "nighttripperid/clevermacro": {
-      "default_branch": "master",
-      "sha": "7b85b4c4e59cfea121e5460dfc19e0dde8c89472",
-      "branches": {
-        "master": "7b85b4c4e59cfea121e5460dfc19e0dde8c89472"
-      }
-    },
-    "cutiepoka/cleveroidmacros": {
-      "default_branch": "main",
-      "sha": "9456c483dd21a77028aa6afc5952e8ef190426bf",
-      "branches": {
-        "main": "9456c483dd21a77028aa6afc5952e8ef190426bf"
-      }
-    },
-    "unemployedwaifu/cleveroidmacros": {
-      "default_branch": "main",
-      "sha": "9456c483dd21a77028aa6afc5952e8ef190426bf",
-      "branches": {
-        "main": "9456c483dd21a77028aa6afc5952e8ef190426bf"
-      }
-    },
     "itslusse/clifftells": {
       "default_branch": "main",
       "sha": "eade44ff6dd3693584358eadb6851ea254a1aa7b",
@@ -5399,20 +5363,6 @@
         "master": "9e8d2c6101280c995118f2195374ffbd8dbcf283"
       }
     },
-    "marcelinevq/outfitter": {
-      "default_branch": "master",
-      "sha": "779af2766aedd03e72d57750389b66ddb2ff7b3d",
-      "branches": {
-        "master": "779af2766aedd03e72d57750389b66ddb2ff7b3d"
-      }
-    },
-    "sica42/outfitter": {
-      "default_branch": "master",
-      "sha": "c6d42c7d96ad9555ebbc739d520928d15501cb75",
-      "branches": {
-        "master": "c6d42c7d96ad9555ebbc739d520928d15501cb75"
-      }
-    },
     "evannnn1996/outfitter": {
       "default_branch": "master",
       "sha": "74a833699b3a3a6f54cc3f3049e28162c01a34d0",
@@ -5448,39 +5398,11 @@
         "master": "e6827a55d07a4a06b9df9e879ed6c0862badec79"
       }
     },
-    "andrgita/outfitter": {
-      "default_branch": "master",
-      "sha": "9e8d2c6101280c995118f2195374ffbd8dbcf283",
-      "branches": {
-        "master": "9e8d2c6101280c995118f2195374ffbd8dbcf283"
-      }
-    },
     "diginfotek/outfitter": {
       "default_branch": "master",
       "sha": "eac031d8a2ee37cbf31a55dfa9382da78f79ef60",
       "branches": {
         "master": "eac031d8a2ee37cbf31a55dfa9382da78f79ef60"
-      }
-    },
-    "zanthor/outfitter": {
-      "default_branch": "master",
-      "sha": "07bf4ab4132519585287d0b45b2dbeb4e94152eb",
-      "branches": {
-        "master": "07bf4ab4132519585287d0b45b2dbeb4e94152eb"
-      }
-    },
-    "balkirrium/outfitter": {
-      "default_branch": "master",
-      "sha": "8ab8cf5ba9cdfee9ff0256bc5457e806d12225f7",
-      "branches": {
-        "master": "8ab8cf5ba9cdfee9ff0256bc5457e806d12225f7"
-      }
-    },
-    "xeropresence/outfitter": {
-      "default_branch": "master",
-      "sha": "449c6a8cdd1f466a34825b5ea486dfbe7d469a9c",
-      "branches": {
-        "master": "449c6a8cdd1f466a34825b5ea486dfbe7d469a9c"
       }
     },
     "maxcodk/paladinlibramswap": {
@@ -8450,27 +8372,6 @@
         "master": "f90b5b4db54a3ad65846454a93ca98e5a8d90ed6"
       }
     },
-    "amonra/cartographer": {
-      "default_branch": "master",
-      "sha": "9b2997bf85f2758e9d3a94028fa0ad158b001245",
-      "branches": {
-        "master": "9b2997bf85f2758e9d3a94028fa0ad158b001245"
-      }
-    },
-    "dwbclz/cartographer": {
-      "default_branch": "master",
-      "sha": "9b2997bf85f2758e9d3a94028fa0ad158b001245",
-      "branches": {
-        "master": "9b2997bf85f2758e9d3a94028fa0ad158b001245"
-      }
-    },
-    "jiangxt316/cartographer": {
-      "default_branch": "master",
-      "sha": "9b2997bf85f2758e9d3a94028fa0ad158b001245",
-      "branches": {
-        "master": "9b2997bf85f2758e9d3a94028fa0ad158b001245"
-      }
-    },
     "bergador/charactermap": {
       "default_branch": "master",
       "sha": "3f4194d5b438cee3ea48bf6fe84871951fb6ca31",
@@ -10526,13 +10427,6 @@
         "main": "36d9265604ad15baa918aeee576264962632dd47"
       }
     },
-    "artificialowl/chroniclecompanion": {
-      "default_branch": "main",
-      "sha": "0aa90950cd198c55de5025501a22826411716523",
-      "branches": {
-        "main": "0aa90950cd198c55de5025501a22826411716523"
-      }
-    },
     "einbaum/chroniclesbuffassignments": {
       "default_branch": "master",
       "sha": "996ef976bd97c3312bcdb7656c330ef0c95ce7c1",
@@ -12115,158 +12009,11 @@
       },
       "latest_tag": "1.3"
     },
-    "taeko-ar/cursive-3.3.5a": {
-      "default_branch": "master",
-      "sha": "ab73680c1e91e7e2275a4efa3d9972640682b967",
-      "branches": {
-        "master": "ab73680c1e91e7e2275a4efa3d9972640682b967"
-      }
-    },
     "razzeee/cursive": {
       "default_branch": "master",
       "sha": "4daa3bc25b07142aed8d2900a74d77b6cefa9f2e",
       "branches": {
         "master": "4daa3bc25b07142aed8d2900a74d77b6cefa9f2e"
-      }
-    },
-    "bretharte89/cursive": {
-      "default_branch": "master",
-      "sha": "e8d46dff3de8ae14fca72c68766862e32892c6c1",
-      "branches": {
-        "master": "e8d46dff3de8ae14fca72c68766862e32892c6c1"
-      }
-    },
-    "evannnn1996/cursive": {
-      "default_branch": "master",
-      "sha": "e8d46dff3de8ae14fca72c68766862e32892c6c1",
-      "branches": {
-        "master": "e8d46dff3de8ae14fca72c68766862e32892c6c1"
-      }
-    },
-    "uss-enterprise-guild/cursive": {
-      "default_branch": "master",
-      "sha": "a0c99691b7aa8928996d0f8b913494b2aa06c863",
-      "branches": {
-        "master": "a0c99691b7aa8928996d0f8b913494b2aa06c863"
-      }
-    },
-    "jmiecz/cursive": {
-      "default_branch": "master",
-      "sha": "5eabc4f34105689a349c0589009c1a2f7f0e4eb5",
-      "branches": {
-        "master": "5eabc4f34105689a349c0589009c1a2f7f0e4eb5"
-      }
-    },
-    "drepetsky/cursive": {
-      "default_branch": "master",
-      "sha": "f321bb678b757a3a619d5466b8a0906ec8f91234",
-      "branches": {
-        "master": "f321bb678b757a3a619d5466b8a0906ec8f91234"
-      }
-    },
-    "freohr/cursive": {
-      "default_branch": "master",
-      "sha": "5eabc4f34105689a349c0589009c1a2f7f0e4eb5",
-      "branches": {
-        "master": "5eabc4f34105689a349c0589009c1a2f7f0e4eb5"
-      }
-    },
-    "szalor/cursive": {
-      "default_branch": "master",
-      "sha": "648328399160841612f608e310bc6547edd54b5b",
-      "branches": {
-        "master": "648328399160841612f608e310bc6547edd54b5b"
-      }
-    },
-    "flaykz/cursiverevamp": {
-      "default_branch": "master",
-      "sha": "5eabc4f34105689a349c0589009c1a2f7f0e4eb5",
-      "branches": {
-        "master": "5eabc4f34105689a349c0589009c1a2f7f0e4eb5"
-      }
-    },
-    "zanthor/cursive": {
-      "default_branch": "master",
-      "sha": "7277850f149efd3a9bc343a1e52eb496702dc64f",
-      "branches": {
-        "master": "7277850f149efd3a9bc343a1e52eb496702dc64f"
-      }
-    },
-    "loogosh/cursive": {
-      "default_branch": "master",
-      "sha": "e734f9bac791550e73af4b6bc0412956a0f51b69",
-      "branches": {
-        "master": "e734f9bac791550e73af4b6bc0412956a0f51b69"
-      }
-    },
-    "gruksgruks/cursive": {
-      "default_branch": "master",
-      "sha": "f7c0bb9f51e34aed4a2a7aa1b9f3e46de4be2b30",
-      "branches": {
-        "master": "f7c0bb9f51e34aed4a2a7aa1b9f3e46de4be2b30"
-      }
-    },
-    "eickhardt/cursive": {
-      "default_branch": "master",
-      "sha": "f077efeb9a500d82209fa1bb2a31f1f7009e7263",
-      "branches": {
-        "master": "f077efeb9a500d82209fa1bb2a31f1f7009e7263"
-      }
-    },
-    "ruskemiahahn/cursive": {
-      "default_branch": "master",
-      "sha": "2174684775cf149112b0d52912b88165657de759",
-      "branches": {
-        "master": "2174684775cf149112b0d52912b88165657de759"
-      }
-    },
-    "khiu/cursive": {
-      "default_branch": "master",
-      "sha": "58a8133beff0485ea6786749d22dde25a47d3053",
-      "branches": {
-        "master": "58a8133beff0485ea6786749d22dde25a47d3053"
-      }
-    },
-    "lythandrawow/lythcursive": {
-      "default_branch": "master",
-      "sha": "74f5c80e228010e5b134a8319bd383a384be0d93",
-      "branches": {
-        "master": "74f5c80e228010e5b134a8319bd383a384be0d93"
-      }
-    },
-    "commandersouza/cursive": {
-      "default_branch": "master",
-      "sha": "3bb9fff354fedb136d6cae46e22e81514d0e2e61",
-      "branches": {
-        "master": "3bb9fff354fedb136d6cae46e22e81514d0e2e61"
-      }
-    },
-    "plokertonne/cursive": {
-      "default_branch": "master",
-      "sha": "dc4fc8b794f386e92c0173e6b39341927f6af636",
-      "branches": {
-        "master": "dc4fc8b794f386e92c0173e6b39341927f6af636"
-      }
-    },
-    "perks/cursive": {
-      "default_branch": "master",
-      "sha": "f2b06221d790d3b6748a17a96646f406df7e25ca",
-      "branches": {
-        "master": "f2b06221d790d3b6748a17a96646f406df7e25ca"
-      }
-    },
-    "vargv666/cursive": {
-      "default_branch": "master",
-      "sha": "e4269c043c445bd6b2c0d5fe63ba80207f17bea6",
-      "branches": {
-        "master": "e4269c043c445bd6b2c0d5fe63ba80207f17bea6"
-      }
-    },
-    "waldnercharles/cursive": {
-      "default_branch": "master",
-      "sha": "ef47b8b34ff49b882450f8271b9bbd5fddf4bd54",
-      "branches": {
-        "master": "ef47b8b34ff49b882450f8271b9bbd5fddf4bd54"
       }
     },
     "kirchlive/cursive-raid": {
@@ -12701,13 +12448,6 @@
         "master": "7fc044b901ecffd2724abe21b6502a8e419d6dc2"
       }
     },
-    "marcelinevq/rinse": {
-      "default_branch": "master",
-      "sha": "c1b02b81d004b6b2931e5bbc5f379ad41ce6a246",
-      "branches": {
-        "master": "c1b02b81d004b6b2931e5bbc5f379ad41ce6a246"
-      }
-    },
     "dauls/rinse-v-": {
       "default_branch": "master",
       "sha": "2bc316755635266dffc3f4975dff88a9a06035af",
@@ -12720,55 +12460,6 @@
       "sha": "857fad999ebac1286ddc965420e4a41d831ff305",
       "branches": {
         "master": "857fad999ebac1286ddc965420e4a41d831ff305"
-      }
-    },
-    "al3xc1985/rinse": {
-      "default_branch": "master",
-      "sha": "edfefd858cbf6f6f36e88f8a45c89474dddebdbd",
-      "branches": {
-        "master": "edfefd858cbf6f6f36e88f8a45c89474dddebdbd"
-      }
-    },
-    "tubtubs/rinse": {
-      "default_branch": "master",
-      "sha": "23c5643b37cd3f90554d074bc2ca6e0364a55f3f",
-      "branches": {
-        "master": "23c5643b37cd3f90554d074bc2ca6e0364a55f3f"
-      }
-    },
-    "verge20/rinse": {
-      "default_branch": "master",
-      "sha": "2c830e52a7b5c5bac26657cd00c32f18645daede",
-      "branches": {
-        "master": "2c830e52a7b5c5bac26657cd00c32f18645daede"
-      }
-    },
-    "mats391/rinse": {
-      "default_branch": "master",
-      "sha": "c14b56ab2bffe828a8994e71b3064cebbdeb3303",
-      "branches": {
-        "master": "c14b56ab2bffe828a8994e71b3064cebbdeb3303"
-      }
-    },
-    "whtmst/rinse": {
-      "default_branch": "master",
-      "sha": "3503370e8e8b6d30ab20a40926bcf57f96d95160",
-      "branches": {
-        "master": "3503370e8e8b6d30ab20a40926bcf57f96d95160"
-      }
-    },
-    "nikki1993/rinse": {
-      "default_branch": "master",
-      "sha": "3e178040e50e4dc584219cdb1cba901dccfae390",
-      "branches": {
-        "master": "3e178040e50e4dc584219cdb1cba901dccfae390"
-      }
-    },
-    "paenthy/rinse": {
-      "default_branch": "master",
-      "sha": "4319e2e2c58c7e6a66ab61f1eabd8433c57b89a5",
-      "branches": {
-        "master": "4319e2e2c58c7e6a66ab61f1eabd8433c57b89a5"
       }
     },
     "shagu/shagudps": {
@@ -12790,13 +12481,6 @@
       "sha": "fbf851affe40cd38a4cb6d9e000c5d5defe31c04",
       "branches": {
         "master": "fbf851affe40cd38a4cb6d9e000c5d5defe31c04"
-      }
-    },
-    "evannnn1996/shagudps": {
-      "default_branch": "master",
-      "sha": "79c25e60f9ab3f314d69bec3d3edcbf965b7c312",
-      "branches": {
-        "master": "79c25e60f9ab3f314d69bec3d3edcbf965b7c312"
       }
     },
     "96rex/shagudps": {
@@ -12856,116 +12540,11 @@
         "master": "45b270500f2228d012b03fc5130d8961e862be69"
       }
     },
-    "macumbafeh/shagudps": {
-      "default_branch": "master",
-      "sha": "79c25e60f9ab3f314d69bec3d3edcbf965b7c312",
-      "branches": {
-        "master": "79c25e60f9ab3f314d69bec3d3edcbf965b7c312"
-      }
-    },
     "otari98/shagudps": {
       "default_branch": "master",
       "sha": "922934eed916ad0e6b37dd0ac1dd9670eeb16453",
       "branches": {
         "master": "922934eed916ad0e6b37dd0ac1dd9670eeb16453"
-      }
-    },
-    "amonra/shagudps": {
-      "default_branch": "master",
-      "sha": "79c25e60f9ab3f314d69bec3d3edcbf965b7c312",
-      "branches": {
-        "master": "79c25e60f9ab3f314d69bec3d3edcbf965b7c312"
-      }
-    },
-    "dwbclz/shagudps": {
-      "default_branch": "master",
-      "sha": "79c25e60f9ab3f314d69bec3d3edcbf965b7c312",
-      "branches": {
-        "master": "79c25e60f9ab3f314d69bec3d3edcbf965b7c312"
-      }
-    },
-    "jiangxt316/shagudps": {
-      "default_branch": "master",
-      "sha": "79c25e60f9ab3f314d69bec3d3edcbf965b7c312",
-      "branches": {
-        "master": "79c25e60f9ab3f314d69bec3d3edcbf965b7c312"
-      }
-    },
-    "sandworlds-mmo/shagudps": {
-      "default_branch": "master",
-      "sha": "79c25e60f9ab3f314d69bec3d3edcbf965b7c312",
-      "branches": {
-        "master": "79c25e60f9ab3f314d69bec3d3edcbf965b7c312"
-      }
-    },
-    "shigemunekurogane/shagudps": {
-      "default_branch": "master",
-      "sha": "79c25e60f9ab3f314d69bec3d3edcbf965b7c312",
-      "branches": {
-        "master": "79c25e60f9ab3f314d69bec3d3edcbf965b7c312"
-      }
-    },
-    "xinleibird/shagudps": {
-      "default_branch": "master",
-      "sha": "79c25e60f9ab3f314d69bec3d3edcbf965b7c312",
-      "branches": {
-        "master": "79c25e60f9ab3f314d69bec3d3edcbf965b7c312"
-      }
-    },
-    "yani9o/shagudps": {
-      "default_branch": "master",
-      "sha": "79c25e60f9ab3f314d69bec3d3edcbf965b7c312",
-      "branches": {
-        "master": "79c25e60f9ab3f314d69bec3d3edcbf965b7c312"
-      }
-    },
-    "zyyysxd/shagudps": {
-      "default_branch": "master",
-      "sha": "79c25e60f9ab3f314d69bec3d3edcbf965b7c312",
-      "branches": {
-        "master": "79c25e60f9ab3f314d69bec3d3edcbf965b7c312"
-      }
-    },
-    "dbulatovicx32/shagudps": {
-      "default_branch": "master",
-      "sha": "9510167d9a3a59fb06a154c653af68bbf83b582a",
-      "branches": {
-        "master": "9510167d9a3a59fb06a154c653af68bbf83b582a"
-      }
-    },
-    "commandersouza/shagudps": {
-      "default_branch": "master",
-      "sha": "a1f3e071b9bf0437ee60530bf19a0dcfd96b939c",
-      "branches": {
-        "master": "a1f3e071b9bf0437ee60530bf19a0dcfd96b939c"
-      }
-    },
-    "beardedrasta/shagudps": {
-      "default_branch": "master",
-      "sha": "8450a27230b05b3d3cc7a31bab51ab147e50e8ac",
-      "branches": {
-        "master": "8450a27230b05b3d3cc7a31bab51ab147e50e8ac"
-      }
-    },
-    "tperraut/shagudps": {
-      "default_branch": "master",
-      "sha": "ac95a4759dc7ce259dccb0b3ee11166204217d32",
-      "branches": {
-        "master": "ac95a4759dc7ce259dccb0b3ee11166204217d32"
-      }
-    },
-    "wanliqiaoxi/shagudps": {
-      "default_branch": "master",
-      "sha": "b6170c70c2448ad2c6d598981be26b724cdd599c",
-      "branches": {
-        "master": "b6170c70c2448ad2c6d598981be26b724cdd599c"
-      }
-    },
-    "empty1021/shagudps": {
-      "default_branch": "master",
-      "sha": "2268b73f908fdfa8b6272ae05c66e961f6671576",
-      "branches": {
-        "master": "2268b73f908fdfa8b6272ae05c66e961f6671576"
       }
     },
     "shagu/shaguplates": {
@@ -12996,13 +12575,6 @@
         "master": "32799951996277b8be5eed18d6e31546fefe6efa"
       }
     },
-    "sandworlds-mmo/shaguplates": {
-      "default_branch": "master",
-      "sha": "9b2ebdf486864fea61a0bb8a5506cc88983ce37b",
-      "branches": {
-        "master": "9b2ebdf486864fea61a0bb8a5506cc88983ce37b"
-      }
-    },
     "hellowind777/shaguplates": {
       "default_branch": "master",
       "sha": "0f6a1530780552905a0237e295c37370b10898db",
@@ -13017,102 +12589,11 @@
         "master": "fcb999672bb3b7581e91936163df8a3782f326ec"
       }
     },
-    "tuxpainter/shaguplates": {
-      "default_branch": "ash-bashdev",
-      "sha": "9b2ebdf486864fea61a0bb8a5506cc88983ce37b",
-      "branches": {
-        "ash-bashdev": "9b2ebdf486864fea61a0bb8a5506cc88983ce37b"
-      }
-    },
-    "otari98/shaguplates": {
-      "default_branch": "master",
-      "sha": "9b2ebdf486864fea61a0bb8a5506cc88983ce37b",
-      "branches": {
-        "master": "9b2ebdf486864fea61a0bb8a5506cc88983ce37b"
-      }
-    },
-    "macumbafeh/shaguplates": {
-      "default_branch": "master",
-      "sha": "9b2ebdf486864fea61a0bb8a5506cc88983ce37b",
-      "branches": {
-        "master": "9b2ebdf486864fea61a0bb8a5506cc88983ce37b"
-      }
-    },
     "michewarr/shaguplates": {
       "default_branch": "master",
       "sha": "0fc82b4e7892d719d3b651ef35bad426ae426e64",
       "branches": {
         "master": "0fc82b4e7892d719d3b651ef35bad426ae426e64"
-      }
-    },
-    "amonra/shaguplates": {
-      "default_branch": "master",
-      "sha": "9b2ebdf486864fea61a0bb8a5506cc88983ce37b",
-      "branches": {
-        "master": "9b2ebdf486864fea61a0bb8a5506cc88983ce37b"
-      }
-    },
-    "dvmanlosa/shaguplates": {
-      "default_branch": "master",
-      "sha": "9b2ebdf486864fea61a0bb8a5506cc88983ce37b",
-      "branches": {
-        "master": "9b2ebdf486864fea61a0bb8a5506cc88983ce37b"
-      }
-    },
-    "dwbclz/shaguplates": {
-      "default_branch": "master",
-      "sha": "9b2ebdf486864fea61a0bb8a5506cc88983ce37b",
-      "branches": {
-        "master": "9b2ebdf486864fea61a0bb8a5506cc88983ce37b"
-      }
-    },
-    "hippoom/shaguplates": {
-      "default_branch": "master",
-      "sha": "9b2ebdf486864fea61a0bb8a5506cc88983ce37b",
-      "branches": {
-        "master": "9b2ebdf486864fea61a0bb8a5506cc88983ce37b"
-      }
-    },
-    "jiangxt316/shaguplates": {
-      "default_branch": "master",
-      "sha": "9b2ebdf486864fea61a0bb8a5506cc88983ce37b",
-      "branches": {
-        "master": "9b2ebdf486864fea61a0bb8a5506cc88983ce37b"
-      }
-    },
-    "koraykarakus/shaguplates": {
-      "default_branch": "master",
-      "sha": "9b2ebdf486864fea61a0bb8a5506cc88983ce37b",
-      "branches": {
-        "master": "9b2ebdf486864fea61a0bb8a5506cc88983ce37b"
-      }
-    },
-    "ravenofseven/shaguplates": {
-      "default_branch": "master",
-      "sha": "9b2ebdf486864fea61a0bb8a5506cc88983ce37b",
-      "branches": {
-        "master": "9b2ebdf486864fea61a0bb8a5506cc88983ce37b"
-      }
-    },
-    "flyinbed/shaguplates": {
-      "default_branch": "master",
-      "sha": "7f88d9a12a3d1d0df2a68d3ba94d90490d67ecd5",
-      "branches": {
-        "master": "7f88d9a12a3d1d0df2a68d3ba94d90490d67ecd5"
-      }
-    },
-    "shikulja/shaguplates": {
-      "default_branch": "master",
-      "sha": "ae9834da2c39272a859af8e6d90c82ecb04770bb",
-      "branches": {
-        "master": "ae9834da2c39272a859af8e6d90c82ecb04770bb"
-      }
-    },
-    "skllskll/shaguplates": {
-      "default_branch": "master",
-      "sha": "0f9f598489c3abf4bb06fe1cb07748b5e3d77c43",
-      "branches": {
-        "master": "0f9f598489c3abf4bb06fe1cb07748b5e3d77c43"
       }
     },
     "shagu/shaguscan": {
