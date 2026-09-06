@@ -111,6 +111,6 @@ Pinned public keys (SHA-256 of the raw 32-byte key):
 
 Private keys are not in this repository.
 
-Created by Ichabaddie in collaboration with Valheru and agentic coding assistance.
-
 </details>
+
+Created by Ichabaddie in collaboration with Valheru and agentic coding assistance.
