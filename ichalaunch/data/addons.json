@@ -45,6 +45,10 @@
       {
         "label": "IndieMiao",
         "repo": "https://github.com/IndieMiao/Bagshui"
+      },
+      {
+        "label": "HeartNotSmart",
+        "repo": "https://github.com/HeartNotSmart/Bagshui"
       }
     ],
     "category": "Bags",
@@ -84,8 +88,8 @@
     ],
     "release_downloads_repo": "Road-block/CooldownTimers",
     "release_downloads_state": "ok",
-    "release_downloads": 657,
-    "release_downloads_at": "2026-09-03T22:36:20Z"
+    "release_downloads": 658,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "Destroy Cursor Item",
@@ -681,8 +685,7 @@
     "release_downloads_repo": "1petru/Akkio_Consume_Helper",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-09-02T05:51:38Z",
-    "recommended": true
+    "release_downloads_at": "2026-09-02T05:51:38Z"
   },
   {
     "name": "AutoBuff",
@@ -717,8 +720,7 @@
     "release_downloads_repo": "zmarotrix/BattleMusic",
     "release_downloads_state": "ok",
     "release_downloads": 1400,
-    "release_downloads_at": "2026-09-02T05:51:38Z",
-    "recommended": true
+    "release_downloads_at": "2026-09-02T05:51:38Z"
   },
   {
     "name": "BattleScribe",
@@ -891,15 +893,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "Chronometer",
-    "repo": "",
-    "category": "Combat",
-    "description": "tracks spell effects (HoTs, DoTs, buffs, debuffs, etc.) that you cast",
-    "source": "turtle_wiki",
-    "folder": "Chronometer",
-    "installable": false
-  },
-  {
     "name": "Combat",
     "repo": "https://github.com/zirtox1992/Combat",
     "category": "Combat",
@@ -1007,41 +1000,19 @@
   },
   {
     "name": "DebuffTimers",
-    "repo": "https://github.com/Voidmenull/DebuffTimers",
+    "repo": "https://github.com/DBFBlackbull/DebuffTimers",
     "category": "Combat",
     "description": "Timer Overlays for enemy buffs and debuffs [Img1] [Img2]",
     "source": "turtle_wiki",
     "folder": "DebuffTimers",
     "forks": [
       {
-        "label": "DBFBlackbull",
-        "repo": "https://github.com/DBFBlackbull/DebuffTimers"
-      },
-      {
-        "label": "laytya",
-        "repo": "https://github.com/laytya/DebuffTimers"
+        "label": "Voidmenull",
+        "repo": "https://github.com/Voidmenull/DebuffTimers"
       }
     ],
     "release_downloads_repo": "Voidmenull/DebuffTimers",
     "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "DispelBorder",
-    "repo": "https://github.com/wardz/DispelBorder",
-    "category": "Combat",
-    "description": "Shows highlight border around enemy magic buffs [Img1]",
-    "source": "turtle_wiki",
-    "folder": "DispelBorder",
-    "forks": [
-      {
-        "label": "Macumbafeh",
-        "repo": "https://github.com/Macumbafeh/DispelBorder"
-      }
-    ],
-    "release_downloads_repo": "wardz/DispelBorder",
-    "release_downloads_state": "ok",
     "release_downloads": 0,
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
@@ -1055,57 +1026,20 @@
     "forks": [
       {
         "label": "deceius",
-        "repo": "https://github.com/deceius/DoiteAuras"
-      },
-      {
-        "label": "pepopo978",
-        "repo": "https://github.com/pepopo978/DoiteAuras"
-      },
-      {
-        "label": "ayitsyaboi",
-        "repo": "https://github.com/ayitsyaboi/DoiteAuras"
-      },
-      {
-        "label": "bretharte89",
-        "repo": "https://github.com/bretharte89/DoiteAuras"
-      },
-      {
-        "label": "koraykarakus",
-        "repo": "https://github.com/koraykarakus/DoiteAuras"
-      },
-      {
-        "label": "Zedris",
-        "repo": "https://github.com/Zedris/DoiteAuras"
-      },
-      {
-        "label": "mentalxgit",
-        "repo": "https://github.com/mentalxgit/DoiteAuras"
-      },
-      {
-        "label": "RavenOfSeven",
-        "repo": "https://github.com/RavenOfSeven/DoiteAuras"
-      },
-      {
-        "label": "Hippoom",
-        "repo": "https://github.com/Hippoom/DoiteAuras"
-      },
-      {
-        "label": "logicsec",
-        "repo": "https://github.com/logicsec/DoiteAuras"
-      },
-      {
-        "label": "isfir",
-        "repo": "https://github.com/isfir/DoiteAuras"
-      },
-      {
-        "label": "terradcm-code",
-        "repo": "https://github.com/terradcm-code/DoiteAuras"
+        "repo": "https://github.com/deceius/DoiteAuras",
+        "requires": [
+          "nampower"
+        ]
       }
     ],
     "release_downloads_repo": "Player-Doite/DoiteAuras",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [
+      "nampower"
+    ],
+    "recommended": true
   },
   {
     "name": "DPSMate",
@@ -1431,15 +1365,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "PallyPower-Turtle",
-    "repo": "",
-    "category": "Combat",
-    "description": "easy to use interface that allows you set your own blessings and automatically check for missing buffs",
-    "source": "turtle_wiki",
-    "folder": "PallyPower-Turtle",
-    "installable": false
-  },
-  {
     "name": "pfUI-lazyres",
     "repo": "https://github.com/liiora/pfUI-lazyres",
     "category": "Combat",
@@ -1512,15 +1437,6 @@
     "release_downloads_state": "ok",
     "release_downloads": 46,
     "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "PowerAuras",
-    "repo": "",
-    "category": "Combat",
-    "description": "This Mod was created to have a better visibility when you gain buffs, debuffs and many more",
-    "source": "turtle_wiki",
-    "folder": "PowerAuras",
-    "installable": false
   },
   {
     "name": "QuickHeal Turtle",
@@ -1847,15 +1763,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "VCB",
-    "repo": "",
-    "category": "Combat",
-    "description": "a highly customizable buff frame",
-    "source": "turtle_wiki",
-    "folder": "VCB",
-    "installable": false
-  },
-  {
     "name": "VGAntiCooldown",
     "repo": "https://github.com/firenahzku/VanguardAntiCooldown",
     "category": "Combat",
@@ -1884,15 +1791,6 @@
     "release_downloads_state": "none",
     "release_downloads": 0,
     "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "VitalWatch",
-    "repo": "",
-    "category": "Combat",
-    "description": "Alerts you to your own low or critical health or mana, or to a party member or pet's health, using any combination of a centered large font frame, emotes, sounds, and party message.",
-    "source": "turtle_wiki",
-    "folder": "vitalwatch",
-    "installable": false
   },
   {
     "name": "WarriorCombatManager",
@@ -1947,13 +1845,12 @@
     "release_downloads_repo": "Kingfisher387/AntiAfk",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-09-02T05:51:38Z",
-    "recommended": true
+    "release_downloads_at": "2026-09-02T05:51:38Z"
   },
   {
     "name": "Antispam",
     "repo": "https://github.com/shagu/antispam",
-    "category": "Economy",
+    "category": "Social",
     "description": "Shagu addon to filter out goldsellers and Moo spammers on Turtle WoW",
     "source": "turtle_wiki",
     "turtle_custom": true,
@@ -2002,7 +1899,10 @@
     "release_downloads_state": "ok",
     "release_downloads": 18,
     "release_downloads_at": "2026-09-03T12:51:29Z",
-    "recommended": true
+    "recommended": true,
+    "requires": [
+      "classicapi"
+    ]
   },
   {
     "name": "AuctionHelper",
@@ -2049,8 +1949,8 @@
     "folder": "AutoProfit",
     "release_downloads_repo": "Road-block/AutoProfit",
     "release_downloads_state": "ok",
-    "release_downloads": 1956,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads": 1957,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "Aux",
@@ -2194,18 +2094,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "DiivSkins",
-    "repo": "https://github.com/McPewPew/DiivSkins",
-    "category": "Economy",
-    "description": "will \"paint\" auxiliary images onto the two dimensional pane of your user interface https://camo.githubusercontent.com/60755ac7bfafaed6595c5aba294a53bc8c58e217/68747470733a2f2f692e696d6775722e636f6d2f363936577745332e6a706",
-    "source": "turtle_wiki",
-    "folder": "DiivSkins",
-    "release_downloads_repo": "McPewPew/DiivSkins",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
     "name": "DKPAuctionBidder",
     "repo": "https://github.com/quakerzz/DKPAuctionBidder",
     "category": "Economy",
@@ -2286,15 +2174,6 @@
     "release_downloads_state": "none",
     "release_downloads": 0,
     "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "Postal Returned",
-    "repo": "",
-    "category": "Economy",
-    "description": "Improved version of Postal that Includes better mail return functionality, logging of attachments and money",
-    "source": "turtle_wiki",
-    "folder": "PostalReturned",
-    "installable": false
   },
   {
     "name": "RosterFilter",
@@ -2550,16 +2429,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "WoWAuctions",
-    "repo": "",
-    "category": "Economy",
-    "description": "Search the Turtle WoW Auction House from web (not actually an addon, just a useful resource)",
-    "source": "turtle_wiki",
-    "turtle_custom": true,
-    "folder": "www.wowauctions.net",
-    "installable": false
-  },
-  {
     "name": "WRUGS",
     "repo": "https://github.com/Daribon/WRUGS",
     "category": "Economy",
@@ -2572,21 +2441,9 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "!Toggle",
-    "repo": "https://github.com/shirsig/notoggle",
-    "category": "General",
-    "description": "Disables toggling behavior of Attack, Auto Shot and Shoot",
-    "source": "turtle_wiki",
-    "folder": "notoggle",
-    "release_downloads_repo": "shirsig/notoggle",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
     "name": "4HMHelper",
     "repo": "https://github.com/NiclasEriksen/4HMHelper",
-    "category": "General",
+    "category": "Raiding",
     "description": "Shows if you are in the safe zone, stacks you have and Zeliek chain range (/4hm).",
     "source": "turtle_wiki",
     "folder": "4HMHelper",
@@ -2598,7 +2455,7 @@
   {
     "name": "_AntInvite",
     "repo": "https://github.com/Kiiruaa/_AntInvite",
-    "category": "General",
+    "category": "Social",
     "description": "block invitation of people under level 15 [Img1]",
     "source": "turtle_wiki",
     "folder": "_AntInvite",
@@ -2608,29 +2465,9 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "aBindings",
-    "repo": "https://gitlab.com/aead/aBindings",
-    "category": "General",
-    "description": "Direct macrotext-to-key bindings",
-    "source": "turtle_wiki",
-    "folder": "aBindings"
-  },
-  {
-    "name": "Abraxas",
-    "repo": "https://github.com/xorann/Abraxas",
-    "category": "General",
-    "description": "Warlock Helper [Img1]",
-    "source": "turtle_wiki",
-    "folder": "Abraxas",
-    "release_downloads_repo": "xorann/Abraxas",
-    "release_downloads_state": "ok",
-    "release_downloads": 207,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
     "name": "Accountant",
     "repo": "https://github.com/The-Kludge-Bureau/Accountant",
-    "category": "General",
+    "category": "Economy",
     "description": "tracks your incoming / outgoing cash [Img1] https://github.com/terdong/Accountant Alt",
     "source": "turtle_wiki",
     "folder": "Accountant",
@@ -2646,29 +2483,9 @@
     "release_downloads_at": "2026-09-02T05:51:38Z"
   },
   {
-    "name": "ActionButtonUtils",
-    "repo": "https://github.com/Numielle/ActionButtonUtils",
-    "category": "General",
-    "description": "Retail-like glowing for WoW 1.12 ActionButtons",
-    "source": "turtle_wiki",
-    "folder": "ActionButtonUtils",
-    "release_downloads_repo": "Numielle/ActionButtonUtils",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "ActionMirroringFrame",
-    "repo": "https://gitlab.com/woblight/actionmirroringframe",
-    "category": "General",
-    "description": "Display a frame showing used actions [Img1]",
-    "source": "turtle_wiki",
-    "folder": "actionmirroringframe"
-  },
-  {
     "name": "Aero",
     "repo": "https://github.com/gashole/Aero",
-    "category": "General",
+    "category": "UI",
     "description": "Adds animations to frames [Img1]",
     "source": "turtle_wiki",
     "folder": "Aero",
@@ -2698,13 +2515,12 @@
     "release_downloads_repo": "gbl/Altoholic_Vanilla",
     "release_downloads_state": "ok",
     "release_downloads": 0,
-    "release_downloads_at": "2026-09-02T05:51:38Z",
-    "recommended": true
+    "release_downloads_at": "2026-09-02T05:51:38Z"
   },
   {
     "name": "AnnounceKick",
     "repo": "https://github.com/EinBaum/AnnounceKick",
-    "category": "General",
+    "category": "Combat",
     "description": "Very simple rogue addon that announces \"Kick\" in say chat",
     "source": "turtle_wiki",
     "folder": "AnnounceKick",
@@ -2716,7 +2532,7 @@
   {
     "name": "AntiSpamStopCast",
     "repo": "https://github.com/thepparker/AntiSpamStopCast",
-    "category": "General",
+    "category": "Combat",
     "description": "addon to prevent cancellation of fresh spell casts when mashing the button",
     "source": "turtle_wiki",
     "folder": "AntiSpamStopCast",
@@ -2728,7 +2544,7 @@
   {
     "name": "ArcaneSurgeWarning",
     "repo": "https://github.com/AllinGaming/ArcaneSurgeWarning",
-    "category": "General",
+    "category": "UI",
     "description": "provides a visual tracker for the Arcane Surge proc",
     "source": "turtle_wiki",
     "folder": "ArcaneSurgeWarning",
@@ -2754,8 +2570,7 @@
     "release_downloads_repo": "TheRealFayz/Arcanum",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-09-02T05:51:38Z",
-    "recommended": true
+    "release_downloads_at": "2026-09-02T05:51:38Z"
   },
   {
     "name": "ArchiTotem",
@@ -2778,7 +2593,7 @@
   {
     "name": "Attack",
     "repo": "https://github.com/shirsig/attack",
-    "category": "General",
+    "category": "Combat",
     "description": "Enable attack with /attack",
     "source": "turtle_wiki",
     "folder": "attack",
@@ -2808,13 +2623,12 @@
     "release_downloads_repo": "Siventt/AttackBar-TWoW",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z",
-    "recommended": true
+    "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
     "name": "AuldLangSyne",
     "repo": "https://github.com/refaim/AuldLangSyne",
-    "category": "General",
+    "category": "Social",
     "description": "combines the functions of CT_PlayerNotes and FriendsFacts",
     "source": "turtle_wiki",
     "folder": "AuldLangSyne",
@@ -2831,8 +2645,7 @@
     "release_downloads_repo": "Road-block/AuldLangSyne",
     "release_downloads_state": "ok",
     "release_downloads": 304,
-    "release_downloads_at": "2026-08-26T23:44:09Z",
-    "recommended": true
+    "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
     "name": "AutoDecline",
@@ -3119,7 +2932,7 @@
   {
     "name": "BGFlag",
     "repo": "https://github.com/Einherjarn/BGFlag",
-    "category": "General",
+    "category": "PvP",
     "description": "Small text display of the status of the Alliance and Horde flags",
     "source": "turtle_wiki",
     "folder": "BGFlag",
@@ -3131,7 +2944,7 @@
   {
     "name": "BigBrother",
     "repo": "https://github.com/jejkas/BigBrother",
-    "category": "General",
+    "category": "Social",
     "description": "addon to spy on your guild mates with! [Img1]",
     "source": "turtle_wiki",
     "folder": "BigBrother",
@@ -3155,7 +2968,7 @@
   {
     "name": "BitesCookBook",
     "repo": "https://github.com/chrisbigart/BitesCookBook",
-    "category": "General",
+    "category": "Professions",
     "description": "(Better Ingredients Tracking for Efficient Seasoning) shows you which cooking ingredients can be used to cook meals with.",
     "source": "turtle_wiki",
     "folder": "BitesCookBook",
@@ -3168,13 +2981,12 @@
     "release_downloads_repo": "DBFBlackbull/BitesCookBook",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z",
-    "recommended": true
+    "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
     "name": "BlackList",
     "repo": "https://github.com/matwebmasta/BlackList",
-    "category": "General",
+    "category": "Social",
     "description": "is like Ignore, except unlimited",
     "source": "turtle_wiki",
     "folder": "BlackList",
@@ -3195,8 +3007,7 @@
     "release_downloads_repo": "Zerf/BlackList",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z",
-    "recommended": true
+    "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
     "name": "Blockvalue",
@@ -3214,7 +3025,7 @@
   {
     "name": "Bloodrage",
     "repo": "https://github.com/muellerj/Bloodrage",
-    "category": "General",
+    "category": "Combat",
     "description": "Provide a single button to put you in the \"default\" stance and activate Bloodrage",
     "source": "turtle_wiki",
     "folder": "Bloodrage",
@@ -3238,7 +3049,7 @@
   {
     "name": "BossDeathTimer",
     "repo": "https://github.com/ZenSociety/BossDeathTimer",
-    "category": "General",
+    "category": "Raiding",
     "description": "A simple countdown timer that displays how long the boss will die.",
     "source": "turtle_wiki",
     "folder": "BossDeathTimer",
@@ -3285,7 +3096,7 @@
   {
     "name": "BSAlert TW",
     "repo": "https://github.com/FSuhas/BSAlert-TW",
-    "category": "General",
+    "category": "Combat",
     "description": "Notifies you when BattleShout is not up",
     "source": "turtle_wiki",
     "folder": "BSAlert-TW",
@@ -3543,8 +3354,8 @@
     ],
     "release_downloads_repo": "celguar/CharacterProfiler",
     "release_downloads_state": "ok",
-    "release_downloads": 134,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads": 135,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "ChatBar",
@@ -3633,8 +3444,8 @@
     ],
     "release_downloads_repo": "ScottHamper/chatsuey",
     "release_downloads_state": "ok",
-    "release_downloads": 5093,
-    "release_downloads_at": "2026-09-03T22:36:20Z"
+    "release_downloads": 5097,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "ChatTimestamps",
@@ -3699,8 +3510,8 @@
     "folder": "ClassicSnowFall",
     "release_downloads_repo": "Road-block/ClassicSnowFall",
     "release_downloads_state": "ok",
-    "release_downloads": 567,
-    "release_downloads_at": "2026-09-03T19:26:40Z"
+    "release_downloads": 568,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "ClassPortraits",
@@ -3829,8 +3640,7 @@
     "release_downloads_repo": "MarcelineVQ/Clique",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-09-02T05:51:38Z",
-    "recommended": true
+    "release_downloads_at": "2026-09-02T05:51:38Z"
   },
   {
     "name": "CLog",
@@ -4134,7 +3944,8 @@
     "release_downloads_repo": "DeterminedPanda/DifficultBulletinBoard",
     "release_downloads_state": "ok",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "DisableEscape",
@@ -4149,27 +3960,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "DiscordActionBars",
-    "repo": "",
-    "category": "General",
-    "description": "Spreads your base 120 action buttons across 10 configurable bars",
-    "source": "turtle_wiki",
-    "folder": "DiscordActionBars",
-    "installable": false
-  },
-  {
-    "name": "Distance",
-    "repo": "https://github.com/Linae-Kronos/Distance",
-    "category": "General",
-    "description": "shows how far your target is away, based on the spell ranges your class has [Img1]",
-    "source": "turtle_wiki",
-    "folder": "Distance",
-    "release_downloads_repo": "Linae-Kronos/Distance",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
     "name": "DistanceDisplay",
     "repo": "https://github.com/uc9089/DistanceDisplay",
     "category": "General",
@@ -4179,17 +3969,19 @@
     "forks": [
       {
         "label": "Utensile",
-        "repo": "https://github.com/Utensile/DistanceDisplay"
-      },
-      {
-        "label": "ErikNikolajsen",
-        "repo": "https://github.com/ErikNikolajsen/DistanceDisplay"
+        "repo": "https://github.com/Utensile/DistanceDisplay",
+        "requires": [
+          "unitxp"
+        ]
       }
     ],
     "release_downloads_repo": "uc9089/DistanceDisplay",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [
+      "unitxp"
+    ]
   },
   {
     "name": "DKPList",
@@ -4199,18 +3991,6 @@
     "source": "turtle_wiki",
     "folder": "DKPList",
     "release_downloads_repo": "quakerzz/DKPList",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "Doomed",
-    "repo": "https://github.com/EinBaum/doomed",
-    "category": "General",
-    "description": "(DOOM UI) is for fans of the classic shooter Doom [Img1]",
-    "source": "turtle_wiki",
-    "folder": "doomed",
-    "release_downloads_repo": "EinBaum/doomed",
     "release_downloads_state": "none",
     "release_downloads": 0,
     "release_downloads_at": "2026-08-26T23:44:09Z"
@@ -4336,8 +4116,8 @@
     ],
     "release_downloads_repo": "Medeah/Egnar",
     "release_downloads_state": "ok",
-    "release_downloads": 483,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads": 485,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "EliteWarriorTTD",
@@ -4438,7 +4218,7 @@
   {
     "name": "ES",
     "repo": "https://github.com/Smirgeli/ES",
-    "category": "General",
+    "category": "Combat",
     "description": "Plays the loud glang sound when using execute familiar from WotLK expansion",
     "source": "turtle_wiki",
     "folder": "ES",
@@ -4449,15 +4229,15 @@
   },
   {
     "name": "ETL",
-    "repo": "https://github.com/shirsig/ETL",
+    "repo": "https://github.com/rmarc29/ETL_minute",
     "category": "General",
     "description": "Exp Per hour/time til level addon [Img1]",
     "source": "turtle_wiki",
     "folder": "ETL",
     "forks": [
       {
-        "label": "rmarc29/ETL_minute",
-        "repo": "https://github.com/rmarc29/ETL_minute"
+        "label": "shirsig",
+        "repo": "https://github.com/shirsig/ETL"
       }
     ],
     "release_downloads_repo": "shirsig/ETL",
@@ -4608,15 +4388,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "FishingBuddy",
-    "repo": "",
-    "category": "General",
-    "description": "Help with fishing related tasks",
-    "source": "turtle_wiki",
-    "folder": "FishingBuddy",
-    "installable": false
-  },
-  {
     "name": "FishingVolume",
     "repo": "https://github.com/Deffar/FishingVolume",
     "category": "General",
@@ -4659,18 +4430,12 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "Fizzwidget Hunters Helper",
+    "name": "GFW HuntersHelper",
     "repo": "https://github.com/McPewPew/GFW_HuntersHelper",
     "category": "General",
-    "description": "Tooltips and info for learning pet spells from taming.",
+    "description": "Helps you find tameable beasts to learn pet skills from",
     "source": "turtle_wiki",
     "folder": "GFW_HuntersHelper",
-    "forks": [
-      {
-        "label": "ConquistadoresTWoW",
-        "repo": "https://github.com/ConquistadoresTWoW/GFW_HuntersHelper"
-      }
-    ],
     "release_downloads_repo": "McPewPew/GFW_HuntersHelper",
     "release_downloads_state": "none",
     "release_downloads": 0,
@@ -4791,15 +4556,6 @@
     "release_downloads_state": "none",
     "release_downloads": 0,
     "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "FuBar",
-    "repo": "",
-    "category": "General",
-    "description": "A panel that modules can plug into",
-    "source": "turtle_wiki",
-    "folder": "FuBar",
-    "installable": false
   },
   {
     "name": "FuBar Population",
@@ -4934,20 +4690,8 @@
     "folder": "wow-vanilla-gearmenu",
     "release_downloads_repo": "RagedUnicorn/wow-vanilla-gearmenu",
     "release_downloads_state": "ok",
-    "release_downloads": 2671,
-    "release_downloads_at": "2026-09-03T22:36:20Z"
-  },
-  {
-    "name": "GFW HuntersHelper",
-    "repo": "https://github.com/McPewPew/GFW_HuntersHelper",
-    "category": "General",
-    "description": "Helps you find tameable beasts to learn pet skills from",
-    "source": "turtle_wiki",
-    "folder": "GFW_HuntersHelper",
-    "release_downloads_repo": "McPewPew/GFW_HuntersHelper",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads": 2675,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "Ghost",
@@ -5360,15 +5104,6 @@
     "release_downloads_state": "none",
     "release_downloads": 0,
     "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "ImprovedErrorFrame",
-    "repo": "",
-    "category": "General",
-    "description": "Display errors in scroll-able/selecting frame",
-    "source": "turtle_wiki",
-    "folder": "ImprovedErrorFrame",
-    "installable": false
   },
   {
     "name": "ImprovedIgnore",
@@ -5852,6 +5587,10 @@
       {
         "label": "nanatot",
         "repo": "https://github.com/nanatot/LockPort"
+      },
+      {
+        "label": "Phaestas323",
+        "repo": "https://github.com/Phaestas323/LockPort"
       }
     ],
     "release_downloads_repo": "seacrabsam/LockPort",
@@ -6459,27 +6198,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "NotGrid",
-    "repo": "",
-    "category": "General",
-    "description": "It's pretty much grid and it works",
-    "source": "turtle_wiki",
-    "folder": "NotGrid",
-    "installable": false
-  },
-  {
-    "name": "NoToggle",
-    "repo": "https://github.com/shirsig/notoggle",
-    "category": "General",
-    "description": "Disables toggling behavior of Attack, Auto Shot and Shoot",
-    "source": "turtle_wiki",
-    "folder": "notoggle",
-    "release_downloads_repo": "shirsig/notoggle",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
     "name": "NugComboBar",
     "repo": "https://github.com/rgd87/NugComboBar",
     "category": "General",
@@ -6502,8 +6220,8 @@
     ],
     "release_downloads_repo": "rgd87/NugComboBar",
     "release_downloads_state": "ok",
-    "release_downloads": 110,
-    "release_downloads_at": "2026-09-03T12:51:29Z"
+    "release_downloads": 114,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "NugEnergy",
@@ -6810,7 +6528,7 @@
   {
     "name": "pfUI-fonts",
     "repo": "https://github.com/Gescht/pfUI-fonts",
-    "category": "General",
+    "category": "UI",
     "description": "A font package for pfUI, providing additional fonts from the google font project. [Img1]",
     "source": "turtle_wiki",
     "folder": "pfUI-fonts",
@@ -6829,7 +6547,7 @@
   {
     "name": "pfUI-turtle",
     "repo": "https://github.com/dsidirop/pfUI-turtle",
-    "category": "General",
+    "category": "UI",
     "description": "A small extension that fixes some issues that arise from Turtle's custom UI, class and item changes [img1]",
     "source": "turtle_wiki",
     "folder": "pfUI-turtle",
@@ -7015,26 +6733,19 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "Quartz3",
+    "name": "Quartz",
     "repo": "https://github.com/laytya/Quartz",
-    "category": "General",
-    "description": "Quartz is a modular approach to a casting bar addon. Ported to vanilla.",
+    "category": "UI",
+    "description": "Modular casting bar",
     "source": "turtle_wiki",
     "folder": "Quartz",
-    "forks": [
-      {
-        "label": "Timanaku",
-        "repo": "https://github.com/Timanaku/Quartz"
-      },
-      {
-        "label": "razzeee",
-        "repo": "https://github.com/razzeee/Quartz"
-      }
-    ],
     "release_downloads_repo": "laytya/Quartz",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [
+      "superwow"
+    ]
   },
   {
     "name": "QuickChat",
@@ -7283,8 +6994,8 @@
     ],
     "release_downloads_repo": "Steelbash/RestBar",
     "release_downloads_state": "ok",
-    "release_downloads": 469,
-    "release_downloads_at": "2026-09-03T12:51:29Z"
+    "release_downloads": 470,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "Rested",
@@ -7422,8 +7133,8 @@
     ],
     "release_downloads_repo": "jsb/RingMenu",
     "release_downloads_state": "ok",
-    "release_downloads": 838,
-    "release_downloads_at": "2026-09-03T12:51:29Z"
+    "release_downloads": 839,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "ROAR-Guild",
@@ -8466,8 +8177,8 @@
     ],
     "release_downloads_repo": "EinBaum/SP_Overpower",
     "release_downloads_state": "ok",
-    "release_downloads": 1526,
-    "release_downloads_at": "2026-09-03T12:51:29Z"
+    "release_downloads": 1528,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "SP_Revenge",
@@ -8522,18 +8233,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "Speed-o-meter",
-    "repo": "https://github.com/tomek7667/speed-o-meter",
-    "category": "General",
-    "description": "Adds the best speed measuring frame",
-    "source": "turtle_wiki",
-    "folder": "speed-o-meter",
-    "release_downloads_repo": "tomek7667/speed-o-meter",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
     "name": "Speedometer",
     "repo": "https://github.com/tomek7667/speed-o-meter",
     "category": "General",
@@ -8556,15 +8255,6 @@
     "release_downloads_state": "none",
     "release_downloads": 0,
     "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "Spy",
-    "repo": "",
-    "category": "General",
-    "description": "Detects and alerts you to the presence of nearby enemy players.",
-    "source": "turtle_wiki",
-    "folder": "Spy",
-    "installable": false
   },
   {
     "name": "StealthOverlay",
@@ -8715,15 +8405,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "SuperMacro",
-    "repo": "",
-    "category": "General",
-    "description": "provides a very much improved interface for macros [Vid1]",
-    "source": "turtle_wiki",
-    "folder": "SuperMacro",
-    "installable": false
-  },
-  {
     "name": "SVT",
     "repo": "https://github.com/xorann/SVT",
     "category": "General",
@@ -8845,8 +8526,7 @@
     "release_downloads_repo": "Otari98/TankHelper",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-09-02T05:51:38Z",
-    "recommended": true
+    "release_downloads_at": "2026-09-02T05:51:38Z"
   },
   {
     "name": "TimeManager",
@@ -9380,15 +9060,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "Unitscan",
-    "repo": "",
-    "category": "General",
-    "description": "automatically scans for characters by name and alerts you upon finding one [Img1]",
-    "source": "turtle_wiki",
-    "folder": "Unitscan",
-    "installable": false
-  },
-  {
     "name": "Vamper",
     "repo": "https://github.com/MarcelineVQ/Vamper",
     "category": "General",
@@ -9501,15 +9172,6 @@
     "release_downloads_state": "ok",
     "release_downloads": 0,
     "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "VanillaStoryline Transparent Patch",
-    "repo": "",
-    "category": "General",
-    "description": "Removes paper backgrounds [Img1]",
-    "source": "turtle_wiki",
-    "folder": "870",
-    "installable": false
   },
   {
     "name": "VF WarriorAddon",
@@ -9998,22 +9660,12 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "HCFilter",
+    "name": "TurtleHCFilter",
     "repo": "https://github.com/trumpetx/TurtleHCFilter",
     "category": "Hardcore",
-    "description": "Filter the HC chan messages and redirect them to a chatframe of choice",
+    "description": "Place HC Chat in a preferred window; modify the chat prefix; filter out WTS/T/LFM/G messages that are too far from your level.",
     "source": "turtle_wiki",
     "folder": "TurtleHCFilter",
-    "forks": [
-      {
-        "label": "leperidot",
-        "repo": "https://github.com/leperidot/TurtleHCFilter"
-      },
-      {
-        "label": "dingleshu",
-        "repo": "https://github.com/dingleshu/TurtleHCFilter"
-      }
-    ],
     "release_downloads_repo": "trumpetx/TurtleHCFilter",
     "release_downloads_state": "none",
     "release_downloads": 0,
@@ -10062,18 +9714,6 @@
     "source": "turtle_wiki",
     "folder": "TurtleHardcoreChatTamer",
     "release_downloads_repo": "refaim/TurtleHardcoreChatTamer",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "TurtleHCFilter",
-    "repo": "https://github.com/trumpetx/TurtleHCFilter",
-    "category": "Hardcore",
-    "description": "Place HC Chat in a preferred window; modify the chat prefix; filter out WTS/T/LFM/G messages that are too far from your level.",
-    "source": "turtle_wiki",
-    "folder": "TurtleHCFilter",
-    "release_downloads_repo": "trumpetx/TurtleHCFilter",
     "release_downloads_state": "none",
     "release_downloads": 0,
     "release_downloads_at": "2026-08-26T23:44:09Z"
@@ -10521,8 +10161,8 @@
     ],
     "release_downloads_repo": "laytya/MinimapButtonFrame-vanilla",
     "release_downloads_state": "ok",
-    "release_downloads": 2353,
-    "release_downloads_at": "2026-09-03T12:51:29Z"
+    "release_downloads": 2360,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "PingoMatic",
@@ -10685,8 +10325,9 @@
     ],
     "release_downloads_repo": "Shellyoung/AdvancedTradeSkillWindow2",
     "release_downloads_state": "ok",
-    "release_downloads": 159,
-    "release_downloads_at": "2026-09-02T05:51:38Z"
+    "release_downloads": 161,
+    "release_downloads_at": "2026-09-06T08:38:49Z",
+    "recommended": true
   },
   {
     "name": "Artisan",
@@ -10723,15 +10364,6 @@
     "release_downloads_state": "none",
     "release_downloads": 0,
     "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "BattleMusic Lore Friendly Music Pack",
-    "repo": "",
-    "category": "Professions",
-    "description": "Adds over 30 different Warcraft combat tunes.",
-    "source": "turtle_wiki",
-    "folder": "869",
-    "installable": false
   },
   {
     "name": "Better Character Panel",
@@ -11023,8 +10655,8 @@
     ],
     "release_downloads_repo": "laytya/Mendeleev",
     "release_downloads_state": "ok",
-    "release_downloads": 238,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads": 240,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "MissingCrafts",
@@ -11136,8 +10768,8 @@
     "folder": "ProfessionLevels",
     "release_downloads_repo": "gregdeichler/ProfessionLevels",
     "release_downloads_state": "ok",
-    "release_downloads": 1,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads": 3,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "Profession query",
@@ -11187,7 +10819,6 @@
         "repo": ""
       }
     ],
-    "recommended": true,
     "release_downloads_repo": "greendam/TheoryCraft-Turtle",
     "release_downloads_state": "none",
     "release_downloads": 0,
@@ -11462,15 +11093,6 @@
     "release_downloads_at": "2026-09-02T05:51:38Z"
   },
   {
-    "name": "Quickcall",
-    "repo": "",
-    "category": "PvP",
-    "description": "Battleground PvP Addon for Arathi Basin.",
-    "source": "turtle_wiki",
-    "folder": "Quickcall",
-    "installable": false
-  },
-  {
     "name": "Sentry",
     "repo": "https://github.com/shirsig/sentry",
     "category": "PvP",
@@ -11577,16 +11199,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "AtlasQuest Turtle",
-    "repo": "",
-    "category": "Questing",
-    "description": "see a list of vanilla and TurtleWOW quests related to each dungeon.",
-    "source": "turtle_wiki",
-    "turtle_custom": true,
-    "folder": "AtlasQuestTurtle",
-    "installable": false
-  },
-  {
     "name": "AutoBar",
     "repo": "https://github.com/Bestoriop/AutoBar",
     "category": "Questing",
@@ -11603,8 +11215,7 @@
     "release_downloads_repo": "laytya/AutoBar-for-Turtle-WoW",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z",
-    "recommended": true
+    "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
     "name": "AutoConfirm",
@@ -11657,8 +11268,8 @@
     "folder": "AutoQuest",
     "release_downloads_repo": "MickeyPickey/AutoQuest",
     "release_downloads_state": "ok",
-    "release_downloads": 292,
-    "release_downloads_at": "2026-09-03T12:51:29Z"
+    "release_downloads": 295,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "AutoTurnIn",
@@ -11835,8 +11446,8 @@
     ],
     "release_downloads_repo": "JeromeM/GuidelimeVanilla",
     "release_downloads_state": "ok",
-    "release_downloads": 274,
-    "release_downloads_at": "2026-09-03T12:51:29Z"
+    "release_downloads": 275,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "HardcoreAlarms",
@@ -11845,15 +11456,6 @@
     "description": "Configurable Alarms for Low HP, out of breath, dangerous quests and enemies. Primarily for hardcore characters.",
     "source": "turtle_wiki",
     "folder": "HardcoreAlarms"
-  },
-  {
-    "name": "LazyPig",
-    "repo": "",
-    "category": "Questing",
-    "description": "An addon for lazy people. Helps automate dismounting, repetitive quests, NPC interactions, and interface actions. [Vid1]",
-    "source": "turtle_wiki",
-    "folder": "LazyPig",
-    "installable": false
   },
   {
     "name": "LootCrestReminder",
@@ -11912,20 +11514,27 @@
     ],
     "release_downloads_repo": "Cliencer/pfExtend",
     "release_downloads_state": "ok",
-    "release_downloads": 14,
-    "release_downloads_at": "2026-09-03T19:26:40Z"
+    "release_downloads": 18,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "pfQuest",
-    "repo": "https://github.com/The-Kludge-Bureau/pfQuest",
+    "repo": "https://github.com/rivi-s/pfQuest",
     "category": "Questing",
     "description": "A lightweight quest helper and ingame database https://github.com/The-Kludge-Bureau/pfQuest Alt [Img1]",
     "source": "turtle_wiki",
     "folder": "pfQuest",
     "forks": [
       {
+        "label": "The-Kludge-Bureau",
+        "repo": "https://github.com/The-Kludge-Bureau/pfQuest"
+      },
+      {
         "label": "brues-code",
-        "repo": "https://github.com/brues-code/pfQuest"
+        "repo": "https://github.com/brues-code/pfQuest",
+        "requires": [
+          "classicapi"
+        ]
       },
       {
         "label": "liruqi",
@@ -11969,13 +11578,21 @@
       },
       {
         "label": "roby-brok",
-        "repo": "https://github.com/roby-brok/pfQuest"
+        "repo": "https://github.com/roby-brok/pfQuest",
+        "requires": [
+          "classicapi"
+        ]
+      },
+      {
+        "label": "shagu",
+        "repo": "https://github.com/shagu/pfQuest"
       }
     ],
     "release_downloads_repo": "The-Kludge-Bureau/pfQuest",
     "release_downloads_state": "ok",
-    "release_downloads": 7083,
-    "release_downloads_at": "2026-09-03T22:36:20Z"
+    "release_downloads": 7200,
+    "release_downloads_at": "2026-09-06T08:38:49Z",
+    "recommended": true
   },
   {
     "name": "pfQuest-icons",
@@ -12013,13 +11630,17 @@
   },
   {
     "name": "pfQuest-turtle",
-    "repo": "https://gitlab.com/Taroven/pfQuest-turtle",
+    "repo": "https://github.com/rivi-s/pfQuest-turtle",
     "category": "Questing",
     "description": "A TurtleWoW DB extension for pfQuest. You need base pfQuest for this to work!",
     "source": "turtle_wiki",
     "turtle_custom": true,
     "folder": "pfQuest-turtle",
     "forks": [
+      {
+        "label": "Taroven",
+        "repo": "https://gitlab.com/Taroven/pfQuest-turtle"
+      },
       {
         "label": "The-Kludge-Bureau",
         "repo": "https://github.com/The-Kludge-Bureau/pfQuest-turtle"
@@ -12068,18 +11689,12 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "Quest Immersion",
+    "name": "Immersive Dialog UI",
     "repo": "https://github.com/moiian/ImmersiveDialogUI",
-    "category": "Questing",
-    "description": "Immersive Dialog UI. A enhanced conversation addon with a focus on immersion and customization.File:Flightmap addon.png",
+    "category": "UI",
+    "description": "A enhanced conversation addon with a focus on immersion and customization.",
     "source": "turtle_wiki",
     "folder": "ImmersiveDialogUI",
-    "forks": [
-      {
-        "label": "Or0bas",
-        "repo": "https://github.com/Or0bas/ImmersiveDialogUI"
-      }
-    ],
     "release_downloads_repo": "moiian/ImmersiveDialogUI",
     "release_downloads_state": "none",
     "release_downloads": 0,
@@ -12272,15 +11887,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "TomTomVanilla",
-    "repo": "",
-    "category": "Questing",
-    "description": "a mix of the Legion TomTom and QuestieArrow",
-    "source": "turtle_wiki",
-    "folder": "TomTomVanilla",
-    "installable": false
-  },
-  {
     "name": "TourGuide Professions",
     "repo": "https://github.com/cralor/TourGuide_Professions",
     "category": "Questing",
@@ -12299,15 +11905,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "TourGuide Turtle",
-    "repo": "",
-    "category": "Questing",
-    "description": "Power Leveling guide framework",
-    "source": "turtle_wiki",
-    "folder": "TourGuideTurtle",
-    "installable": false
-  },
-  {
     "name": "TriviaBot Turtle",
     "repo": "https://github.com/greendam/TriviaBot-TurtleWow",
     "category": "Questing",
@@ -12324,8 +11921,7 @@
     "release_downloads_repo": "greendam/TriviaBot-TurtleWow",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-09-02T05:51:38Z",
-    "recommended": true
+    "release_downloads_at": "2026-09-02T05:51:38Z"
   },
   {
     "name": "TurtlesEpoch",
@@ -12367,15 +11963,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "WoW-Voiceover",
-    "repo": "",
-    "category": "Questing",
-    "description": "Adds AI generated voice acting to NPC dialogue and quests",
-    "source": "turtle_wiki",
-    "folder": "WoW-Voiceover",
-    "installable": false
-  },
-  {
     "name": "XToLevel-Classic",
     "repo": "https://github.com/jayparry/XToLevel-Classic",
     "category": "Questing",
@@ -12386,24 +11973,6 @@
     "release_downloads_state": "none",
     "release_downloads": 0,
     "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "Atlas Turtle",
-    "repo": "",
-    "category": "Raiding",
-    "description": "View maps of dungeons and raids",
-    "source": "turtle_wiki",
-    "folder": "AtlasTurtle",
-    "installable": false
-  },
-  {
-    "name": "AtlasLoot Turtle",
-    "repo": "",
-    "category": "Raiding",
-    "description": "Browse loot tables for Dungeons and Raids",
-    "source": "turtle_wiki",
-    "folder": "AtlasLootTurtle",
-    "installable": false
   },
   {
     "name": "AtlasLoot-GearFilter",
@@ -12441,8 +12010,7 @@
     "release_downloads_repo": "balakethelock/AutoMasterLooter",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z",
-    "recommended": true
+    "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
     "name": "Automaton",
@@ -12468,17 +12036,7 @@
     "release_downloads_repo": "balakethelock/bananabar",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z",
-    "recommended": true
-  },
-  {
-    "name": "BigTimer",
-    "repo": "",
-    "category": "Raiding",
-    "description": "No more macros for BigWigs pull timers, and readychecks.",
-    "source": "turtle_wiki",
-    "folder": "BigTimer",
-    "installable": false
+    "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
     "name": "BigWigs",
@@ -12649,26 +12207,20 @@
   {
     "name": "DamageMeters",
     "repo": "https://github.com/dogmax/DamageMeters",
-    "category": "Raiding",
+    "category": "Combat",
     "description": "Track damage. You can output the stats in \"say\", \"party\", \"raid\" etc.",
     "source": "turtle_wiki",
     "folder": "DamageMeters",
-    "forks": [
-      {
-        "label": "RavenOfSeven",
-        "repo": "https://github.com/RavenOfSeven/DamageMeters"
-      }
-    ],
     "release_downloads_repo": "dogmax/DamageMeters",
     "release_downloads_state": "none",
     "release_downloads": 0,
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "DBM",
+    "name": "LVBM",
     "repo": "https://github.com/yutsuku/LVBM",
     "category": "Raiding",
-    "description": "Deadly Boss Mods was known as La Vendetta Boss Mods (LVBM) back in Vanilla WoW, it's a stand-alone boss mod for raid groups playing in the end-game content.",
+    "description": "(La Vendetta Boss Mods) is a stand-alone boss mod for raid groups playing in the end-game content, you might be familiar with later versions of this known as DBM (Deadly Boss Mods)",
     "source": "turtle_wiki",
     "folder": "LVBM",
     "release_downloads_repo": "yutsuku/LVBM",
@@ -12679,7 +12231,7 @@
   {
     "name": "DevilsHunters",
     "repo": "https://github.com/jejkas/DevilsHunters",
-    "category": "Raiding",
+    "category": "General",
     "description": "creates a BigWigs timer when a Devilsaur dies and tries to pick the correct location",
     "source": "turtle_wiki",
     "folder": "DevilsHunters",
@@ -12722,18 +12274,6 @@
     "release_downloads_repo": "isitLoVe/EPGPexport",
     "release_downloads_state": "ok",
     "release_downloads": 7,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "ExoRaidSetup",
-    "repo": "https://github.com/0ldi/ExoRaidSetup",
-    "category": "Raiding",
-    "description": "allows a raid to share graphical representations of boss pulls",
-    "source": "turtle_wiki",
-    "folder": "ExoRaidSetup",
-    "release_downloads_repo": "0ldi/ExoRaidSetup",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
@@ -12839,15 +12379,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "KLHThreatMeter (KTM)",
-    "repo": "",
-    "category": "Raiding",
-    "description": "Threat meter. This version of KTM uses the TWThreat API when available, and the 1.12 threat guessing code otherwise.",
-    "source": "turtle_wiki",
-    "folder": "KLHThreatMeter(KTM)",
-    "installable": false
-  },
-  {
     "name": "LazyRes",
     "repo": "https://github.com/BlackHaste/LazyRes",
     "category": "Raiding",
@@ -12904,15 +12435,6 @@
     "release_downloads_state": "none",
     "release_downloads": 0,
     "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "Loot Hog",
-    "repo": "",
-    "category": "Raiding",
-    "description": "Detects and tracks rolls which are made with '/random' or '/roll' and sorts them, allowing raid leaders to announce roll winners quickly and easily.",
-    "source": "turtle_wiki",
-    "folder": "info12031-LootHog.html",
-    "installable": false
   },
   {
     "name": "LootAtMouse",
@@ -13052,18 +12574,6 @@
     "release_downloads_repo": "Road-block/LootTracker",
     "release_downloads_state": "ok",
     "release_downloads": 121,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "LVBM",
-    "repo": "https://github.com/yutsuku/LVBM",
-    "category": "Raiding",
-    "description": "(La Vendetta Boss Mods) is a stand-alone boss mod for raid groups playing in the end-game content, you might be familiar with later versions of this known as DBM (Deadly Boss Mods)",
-    "source": "turtle_wiki",
-    "folder": "LVBM",
-    "release_downloads_repo": "yutsuku/LVBM",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
@@ -13251,15 +12761,6 @@
     "release_downloads_state": "none",
     "release_downloads": 0,
     "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "oRA2",
-    "repo": "",
-    "category": "Raiding",
-    "description": "a lightweight alternative for CTRaidAssist [Img1]",
-    "source": "turtle_wiki",
-    "folder": "oRA2",
-    "installable": false
   },
   {
     "name": "Paladin Salva Remover",
@@ -13592,8 +13093,8 @@
     ],
     "release_downloads_repo": "obszczymucha/roll-for-vanilla",
     "release_downloads_state": "ok",
-    "release_downloads": 3759,
-    "release_downloads_at": "2026-09-03T22:36:20Z"
+    "release_downloads": 3766,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "RoundRobinhood",
@@ -13744,8 +13245,8 @@
     ],
     "release_downloads_repo": "Road-block/SimpleRaidTargetIcons",
     "release_downloads_state": "ok",
-    "release_downloads": 519,
-    "release_downloads_at": "2026-08-28T08:25:16Z"
+    "release_downloads": 520,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "SmartBuff",
@@ -14124,8 +13625,8 @@
     "folder": "XLoot_AddOns",
     "release_downloads_repo": "Road-block/XLoot_AddOns",
     "release_downloads_state": "ok",
-    "release_downloads": 1577,
-    "release_downloads_at": "2026-09-03T12:51:29Z"
+    "release_downloads": 1580,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "XtraUnitFrame",
@@ -14287,12 +13788,16 @@
   },
   {
     "name": "aDF",
-    "repo": "https://github.com/MarcelineVQ/aDF",
-    "category": "SuperWoW",
+    "repo": "https://github.com/DanKirichenko/aDF",
+    "category": "UI",
     "description": "adds a small HUD that standardizes critical info about your target's defences, including Armor, Resists, and specific debuffs [Img1] https://github.com/Autignem/aDF Alt",
     "source": "turtle_wiki",
     "folder": "aDF",
     "forks": [
+      {
+        "label": "MarcelineVQ",
+        "repo": "https://github.com/MarcelineVQ/aDF"
+      },
       {
         "label": "Zebouski",
         "repo": "https://github.com/Zebouski/aDF"
@@ -14312,63 +13817,97 @@
       {
         "label": "melbaa",
         "repo": "https://github.com/melbaa/aDF"
+      },
+      {
+        "label": "jrc13245",
+        "repo": "https://github.com/jrc13245/aDF"
+      },
+      {
+        "label": "Abstr4ctz",
+        "repo": "https://github.com/Abstr4ctz/aDF"
+      },
+      {
+        "label": "asyncwithsky",
+        "repo": "https://github.com/asyncwithsky/aDF"
       }
     ],
     "release_downloads_repo": "MarcelineVQ/aDF",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-09-02T05:51:38Z",
-    "recommended": true
+    "release_downloads_at": "2026-09-02T05:51:38Z"
   },
   {
     "name": "AutoLock",
     "repo": "https://github.com/DavidBecht/AutoLock",
-    "category": "SuperWoW",
+    "category": "Combat",
     "description": "Priority-based spell rotation addon for Warlocks.",
     "source": "turtle_wiki",
     "folder": "AutoLock",
     "release_downloads_repo": "DavidBecht/AutoLock",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [
+      "superwow",
+      "nampower"
+    ]
   },
   {
     "name": "AutoMarker",
     "repo": "https://github.com/MarcelineVQ/AutoMarker",
-    "category": "SuperWoW",
+    "category": "General",
     "description": "Automatically mark raid mobs.",
     "source": "turtle_wiki",
     "folder": "AutoMarker",
     "forks": [
       {
         "label": "JeSmyrna/Stonewall-Inn---AutoMarker",
-        "repo": "https://github.com/JeSmyrna/Stonewall-Inn---AutoMarker"
+        "repo": "https://github.com/JeSmyrna/Stonewall-Inn---AutoMarker",
+        "requires": [
+          "superwow",
+          "nampower"
+        ]
       },
       {
         "label": "TheRealFayz",
-        "repo": "https://github.com/TheRealFayz/AutoMarker"
+        "repo": "https://github.com/TheRealFayz/AutoMarker",
+        "requires": [
+          "superwow",
+          "nampower"
+        ]
       },
       {
         "label": "jrc13245",
-        "repo": "https://github.com/jrc13245/AutoMarker"
+        "repo": "https://github.com/jrc13245/AutoMarker",
+        "requires": [
+          "superwow",
+          "nampower"
+        ]
       }
     ],
     "release_downloads_repo": "MarcelineVQ/AutoMarker",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [
+      "superwow",
+      "nampower"
+    ]
   },
   {
     "name": "Cursive",
     "repo": "https://github.com/pepopo978/Cursive",
-    "category": "SuperWoW",
+    "category": "Combat",
     "description": "Curse tracker and multi curse assistant",
     "source": "turtle_wiki",
     "folder": "Cursive",
     "forks": [
       {
         "label": "Wayoff333",
-        "repo": "https://github.com/Wayoff333/Cursive"
+        "repo": "https://github.com/Wayoff333/Cursive",
+        "requires": [
+          "nampower"
+        ]
       },
       {
         "label": "Taeko-ar/Cursive-3.3.5a",
@@ -14376,7 +13915,10 @@
       },
       {
         "label": "razzeee",
-        "repo": "https://github.com/razzeee/Cursive"
+        "repo": "https://github.com/razzeee/Cursive",
+        "requires": [
+          "superwow"
+        ]
       },
       {
         "label": "bretharte89",
@@ -14470,24 +14012,30 @@
     "release_downloads_repo": "pepopo978/Cursive",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [
+      "nampower"
+    ]
   },
   {
     "name": "Cursive-raid",
     "repo": "https://github.com/Kirchlive/cursive-raid",
-    "category": "SuperWoW",
+    "category": "Raiding",
     "description": "Real-time debuff tracking, live armor monitoring, and full raid visibility.",
     "source": "turtle_wiki",
     "folder": "cursive-raid",
     "release_downloads_repo": "Kirchlive/cursive-raid",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [
+      "superwow"
+    ]
   },
   {
     "name": "Decursive",
     "repo": "https://github.com/MarcelineVQ/Decursive",
-    "category": "SuperWoW",
+    "category": "Combat",
     "description": "This is a cleaning mod. Its job it to help a class that can remove debuffs, do it with ease.",
     "source": "turtle_wiki",
     "folder": "Decursive",
@@ -14541,190 +14089,204 @@
   {
     "name": "DruidManaBar",
     "repo": "https://github.com/gashole/DruidManaBar",
-    "category": "SuperWoW",
+    "category": "UI",
     "description": "Displays a mana bar when shapeshifted [Img1]",
     "source": "turtle_wiki",
     "folder": "DruidManaBar",
     "forks": [
       {
         "label": "zmarotrix",
-        "repo": "https://github.com/zmarotrix/DruidManaBar"
+        "repo": "https://github.com/zmarotrix/DruidManaBar",
+        "requires": [
+          "superwow"
+        ]
       },
       {
         "label": "kluy18",
-        "repo": "https://github.com/kluy18/DruidManaBar"
+        "repo": "https://github.com/kluy18/DruidManaBar",
+        "requires": [
+          "superwow"
+        ]
       }
     ],
     "release_downloads_repo": "gashole/DruidManaBar",
     "release_downloads_state": "ok",
-    "release_downloads": 94,
-    "release_downloads_at": "2026-09-02T05:51:38Z"
+    "release_downloads": 95,
+    "release_downloads_at": "2026-09-06T08:38:49Z",
+    "requires": [
+      "superwow"
+    ]
   },
   {
     "name": "FastTOT",
     "repo": "https://github.com/OldManAlpha/FastTOT",
-    "category": "SuperWoW",
+    "category": "UI",
     "description": "Massively increases performance of Target Of Target frame",
     "source": "turtle_wiki",
     "folder": "FastTOT",
-    "forks": [
-      {
-        "label": "bretharte89",
-        "repo": "https://github.com/bretharte89/FastTOT"
-      }
-    ],
     "release_downloads_repo": "OldManAlpha/FastTOT",
     "release_downloads_state": "ok",
     "release_downloads": 20,
-    "release_downloads_at": "2026-09-02T05:51:38Z"
+    "release_downloads_at": "2026-09-02T05:51:38Z",
+    "requires": [
+      "superwow"
+    ]
   },
   {
     "name": "Friend-O-Tron",
     "repo": "https://github.com/refaim/Friend-O-Tron",
-    "category": "SuperWoW",
+    "category": "Social",
     "description": "Synchronizes your friends list across all your characters and accounts (with SuperWoW) on the same realm.",
     "source": "turtle_wiki",
     "folder": "Friend-O-Tron",
-    "forks": [
-      {
-        "label": "freadblangks",
-        "repo": "https://github.com/freadblangks/Friend-O-Tron"
-      }
-    ],
     "release_downloads_repo": "refaim/Friend-O-Tron",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [
+      "superwow"
+    ]
   },
   {
     "name": "GCDisplay",
     "repo": "https://github.com/MrDoufuru/GCDisplay",
-    "category": "SuperWoW",
+    "category": "Combat",
     "description": "Displays your GCD, with the last spell that triggers it, as a circle reducing its size.",
     "source": "turtle_wiki",
     "folder": "GCDisplay",
-    "forks": [
-      {
-        "label": "bretharte89",
-        "repo": "https://github.com/bretharte89/GCDisplay"
-      }
-    ],
     "release_downloads_repo": "MrDoufuru/GCDisplay",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [
+      "superwow"
+    ]
   },
   {
     "name": "IWinEnhanced",
-    "repo": "https://github.com/Profiler781/IWinEnhanced",
-    "category": "SuperWoW",
+    "repo": "https://github.com/Noravar/IWinEnhanced",
+    "category": "Combat",
     "description": "1-button rotation macros for Turtle Druids, Paladins and Warriors.",
     "source": "turtle_wiki",
     "folder": "IWinEnhanced",
     "forks": [
       {
-        "label": "Noravar",
-        "repo": "https://github.com/Noravar/IWinEnhanced"
-      },
-      {
-        "label": "bretharte89",
-        "repo": "https://github.com/bretharte89/IWinEnhanced"
+        "label": "Profiler781",
+        "repo": "https://github.com/Profiler781/IWinEnhanced",
+        "requires": [
+          "superwow",
+          "nampower",
+          "unitxp"
+        ]
       },
       {
         "label": "jrc13245",
-        "repo": "https://github.com/jrc13245/IWinEnhanced"
+        "repo": "https://github.com/jrc13245/IWinEnhanced",
+        "requires": [
+          "superwow",
+          "nampower",
+          "unitxp"
+        ]
       },
       {
         "label": "Bapiop",
-        "repo": "https://github.com/Bapiop/IWinEnhanced"
-      },
-      {
-        "label": "Gensoo",
-        "repo": "https://github.com/Gensoo/IWinEnhanced"
+        "repo": "https://github.com/Bapiop/IWinEnhanced",
+        "requires": [
+          "superwow",
+          "nampower",
+          "unitxp"
+        ]
       }
     ],
     "release_downloads_repo": "Profiler781/IWinEnhanced",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [
+      "superwow",
+      "nampower",
+      "unitxp"
+    ]
   },
   {
     "name": "JankyPlates",
     "repo": "https://github.com/Ageous27/JankyPlates",
-    "category": "SuperWoW",
+    "category": "UI",
     "description": "Colors enemy name plates based on players threat.",
     "source": "turtle_wiki",
     "folder": "JankyPlates",
     "release_downloads_repo": "Ageous27/JankyPlates",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [
+      "superwow"
+    ]
   },
   {
     "name": "Lateral",
     "repo": "https://github.com/Carravan/Lateral",
-    "category": "SuperWoW",
+    "category": "UI",
     "description": "Rogue Rotation and T3.5 Proc Tracking",
     "source": "turtle_wiki",
     "folder": "Lateral",
     "release_downloads_repo": "Carravan/Lateral",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [
+      "nampower"
+    ]
   },
   {
     "name": "MageHud",
-    "repo": "https://github.com/pepopo978/MageHud",
-    "category": "SuperWoW",
+    "repo": "https://github.com/CommanderSouza/MageHud",
+    "category": "UI",
     "description": "Display remaining mage shields for ice barrier/mana shield/protection pots and more.",
     "source": "turtle_wiki",
     "folder": "MageHud",
     "forks": [
       {
-        "label": "CommanderSouza",
-        "repo": "https://github.com/CommanderSouza/MageHud"
-      },
-      {
-        "label": "bugRanger",
-        "repo": "https://github.com/bugRanger/MageHud"
-      },
-      {
-        "label": "Monomode/TurtleWow--MageHud",
-        "repo": "https://github.com/Monomode/TurtleWow--MageHud"
-      },
-      {
-        "label": "tubtubs",
-        "repo": "https://github.com/tubtubs/MageHud"
+        "label": "pepopo978",
+        "repo": "https://github.com/pepopo978/MageHud",
+        "requires": [
+          "superwow"
+        ]
       },
       {
         "label": "laytya",
-        "repo": "https://github.com/laytya/MageHud"
+        "repo": "https://github.com/laytya/MageHud",
+        "requires": [
+          "superwow"
+        ]
       },
       {
         "label": "shikulja",
-        "repo": "https://github.com/shikulja/MageHud"
-      },
-      {
-        "label": "jilinge2/ArcHud2",
-        "repo": "https://github.com/jilinge2/ArcHud2"
+        "repo": "https://github.com/shikulja/MageHud",
+        "requires": [
+          "superwow"
+        ]
       }
     ],
     "release_downloads_repo": "pepopo978/MageHud",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [
+      "superwow"
+    ]
   },
   {
     "name": "MonkeySpeed",
-    "repo": "https://github.com/TrangOul/MonkeySpeed",
-    "category": "SuperWoW",
+    "repo": "https://github.com/DrOmida/MonkeySpeed",
+    "category": "General",
     "description": "Adds a simple movable speedometer displaying speed as a percentage of run speed.",
     "source": "turtle_wiki",
     "folder": "MonkeySpeed",
     "forks": [
       {
-        "label": "DrOmida",
-        "repo": "https://github.com/DrOmida/MonkeySpeed"
+        "label": "TrangOul",
+        "repo": "https://github.com/TrangOul/MonkeySpeed"
       }
     ],
     "release_downloads_repo": "TrangOul/MonkeySpeed",
@@ -14735,44 +14297,47 @@
   {
     "name": "oCB [SuperWoW",
     "repo": "https://github.com/Shellyoung/oCB-SuperWoW",
-    "category": "SuperWoW",
+    "category": "UI",
     "description": "] - (Otravi Casting Bar) Quartz Like castbar with SuperWoW support [Image].",
     "source": "turtle_wiki",
     "folder": "oCB",
     "release_downloads_repo": "Shellyoung/oCB-SuperWoW",
     "release_downloads_state": "ok",
     "release_downloads": 139,
-    "release_downloads_at": "2026-09-03T12:51:29Z"
+    "release_downloads_at": "2026-09-03T12:51:29Z",
+    "requires": [
+      "superwow"
+    ]
   },
   {
     "name": "Overhead",
     "repo": "https://github.com/Otari98/Overhead",
-    "category": "SuperWoW",
+    "category": "UI",
     "description": "Simple and lightweight overlapping nameplates with cast bars and class colors",
     "source": "turtle_wiki",
     "folder": "Overhead",
-    "forks": [
-      {
-        "label": "AmonRA",
-        "repo": "https://github.com/AmonRA/Overhead"
-      }
-    ],
     "release_downloads_repo": "Otari98/Overhead",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [
+      "superwow"
+    ]
   },
   {
     "name": "pfUI-bettertotems",
     "repo": "https://github.com/roby-brok/pfUI-bettertotems",
-    "category": "SuperWoW",
+    "category": "UI",
     "description": "External module for pfUI providing some extra features to totems [Img1]",
     "source": "turtle_wiki",
     "folder": "pfUI-bettertotems",
     "forks": [
       {
         "label": "Bombg",
-        "repo": "https://github.com/Bombg/pfUI-bettertotems"
+        "repo": "https://github.com/Bombg/pfUI-bettertotems",
+        "requires": [
+          "superwow"
+        ]
       },
       {
         "label": "RavenOfSeven",
@@ -14791,12 +14356,14 @@
     "release_downloads_state": "none",
     "release_downloads": 0,
     "release_downloads_at": "2026-08-26T23:44:09Z",
-    "recommended": true
+    "requires": [
+      "superwow"
+    ]
   },
   {
     "name": "Puppeteer",
     "repo": "https://github.com/OldManAlpha/Puppeteer",
-    "category": "SuperWoW",
+    "category": "UI",
     "description": "Unit frames addon for healers or any class/spec, an alternative to modern WoW's VuhDo, Cell, or Healbot",
     "source": "turtle_wiki",
     "folder": "Puppeteer",
@@ -14868,25 +14435,13 @@
     ],
     "release_downloads_repo": "OldManAlpha/Puppeteer",
     "release_downloads_state": "ok",
-    "release_downloads": 281,
-    "release_downloads_at": "2026-09-03T19:26:40Z"
-  },
-  {
-    "name": "Quartz",
-    "repo": "https://github.com/laytya/Quartz",
-    "category": "SuperWoW",
-    "description": "Modular casting bar",
-    "source": "turtle_wiki",
-    "folder": "Quartz",
-    "release_downloads_repo": "laytya/Quartz",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads": 286,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "QuickTurtleDBLookUp",
     "repo": "https://github.com/Taeko-ar/QuickTurtleDBLookUp",
-    "category": "SuperWoW",
+    "category": "General",
     "description": "Quick NPC search in the Turtle WoW database",
     "source": "turtle_wiki",
     "turtle_custom": true,
@@ -14899,7 +14454,7 @@
   {
     "name": "Rinse",
     "repo": "https://github.com/Otari98/Rinse",
-    "category": "SuperWoW",
+    "category": "Combat",
     "description": "This addon is very similar to Decursive, it helps with removing debuffs from friendly units",
     "source": "turtle_wiki",
     "folder": "Rinse",
@@ -14910,50 +14465,30 @@
       },
       {
         "label": "Dauls/Rinse-V-",
-        "repo": "https://github.com/Dauls/Rinse-V-"
+        "repo": "https://github.com/Dauls/Rinse-V-",
+        "requires": []
       },
       {
         "label": "EVANnnn1996",
-        "repo": "https://github.com/EVANnnn1996/Rinse"
-      },
-      {
-        "label": "al3xc1985",
-        "repo": "https://github.com/al3xc1985/Rinse"
-      },
-      {
-        "label": "tubtubs",
-        "repo": "https://github.com/tubtubs/Rinse"
+        "repo": "https://github.com/EVANnnn1996/Rinse",
+        "requires": []
       },
       {
         "label": "verge20",
         "repo": "https://github.com/verge20/Rinse"
-      },
-      {
-        "label": "Mats391",
-        "repo": "https://github.com/Mats391/Rinse"
-      },
-      {
-        "label": "whtmst",
-        "repo": "https://github.com/whtmst/Rinse"
-      },
-      {
-        "label": "Nikki1993",
-        "repo": "https://github.com/Nikki1993/Rinse"
-      },
-      {
-        "label": "Paenthy",
-        "repo": "https://github.com/Paenthy/Rinse"
       }
     ],
     "release_downloads_repo": "Otari98/Rinse",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [],
+    "recommended": true
   },
   {
     "name": "ShaguDPS",
-    "repo": "https://github.com/shagu/ShaguDPS",
-    "category": "SuperWoW",
+    "repo": "https://github.com/DCV-2142/ShaguDPS",
+    "category": "Combat",
     "description": "A very small and lightweight damage meter [Img1] [Img2]",
     "source": "turtle_wiki",
     "folder": "ShaguDPS",
@@ -14963,20 +14498,16 @@
         "repo": "https://github.com/Emyrk/ShaguDPS"
       },
       {
+        "label": "shagu",
+        "repo": "https://github.com/shagu/ShaguDPS"
+      },
+      {
         "label": "Nelethor",
         "repo": "https://github.com/Nelethor/ShaguDPS"
       },
       {
-        "label": "EVANnnn1996",
-        "repo": "https://github.com/EVANnnn1996/ShaguDPS"
-      },
-      {
         "label": "96Rex",
         "repo": "https://github.com/96Rex/ShaguDPS"
-      },
-      {
-        "label": "DCV-2142",
-        "repo": "https://github.com/DCV-2142/ShaguDPS"
       },
       {
         "label": "deceius",
@@ -15003,68 +14534,8 @@
         "repo": "https://github.com/Arthur-Helias/ShaguDPS"
       },
       {
-        "label": "Macumbafeh",
-        "repo": "https://github.com/Macumbafeh/ShaguDPS"
-      },
-      {
         "label": "Otari98",
         "repo": "https://github.com/Otari98/ShaguDPS"
-      },
-      {
-        "label": "AmonRA",
-        "repo": "https://github.com/AmonRA/ShaguDPS"
-      },
-      {
-        "label": "dwbclz",
-        "repo": "https://github.com/dwbclz/ShaguDPS"
-      },
-      {
-        "label": "jiangxt316",
-        "repo": "https://github.com/jiangxt316/ShaguDPS"
-      },
-      {
-        "label": "Sandworlds-MMO",
-        "repo": "https://github.com/Sandworlds-MMO/ShaguDPS"
-      },
-      {
-        "label": "ShigemuneKurogane",
-        "repo": "https://github.com/ShigemuneKurogane/ShaguDPS"
-      },
-      {
-        "label": "xinleibird",
-        "repo": "https://github.com/xinleibird/ShaguDPS"
-      },
-      {
-        "label": "yani9o",
-        "repo": "https://github.com/yani9o/ShaguDPS"
-      },
-      {
-        "label": "zyyysxd",
-        "repo": "https://github.com/zyyysxd/ShaguDPS"
-      },
-      {
-        "label": "dbulatovicx32",
-        "repo": "https://github.com/dbulatovicx32/ShaguDPS"
-      },
-      {
-        "label": "CommanderSouza",
-        "repo": "https://github.com/CommanderSouza/ShaguDPS"
-      },
-      {
-        "label": "Beardedrasta",
-        "repo": "https://github.com/Beardedrasta/ShaguDPS"
-      },
-      {
-        "label": "tperraut",
-        "repo": "https://github.com/tperraut/ShaguDPS"
-      },
-      {
-        "label": "WanLiQiaoXi",
-        "repo": "https://github.com/WanLiQiaoXi/ShaguDPS"
-      },
-      {
-        "label": "empty1021",
-        "repo": "https://github.com/empty1021/ShaguDPS"
       }
     ],
     "release_downloads_repo": "shagu/ShaguDPS",
@@ -15075,7 +14546,7 @@
   {
     "name": "ShaguPlates",
     "repo": "https://github.com/shagu/ShaguPlates",
-    "category": "SuperWoW",
+    "category": "UI",
     "description": "modifies and extends the default nameplates [Img1] TidyPlates-Edit",
     "source": "turtle_wiki",
     "folder": "ShaguPlates",
@@ -15086,7 +14557,10 @@
       },
       {
         "label": "MarcelineVQ/ShaguPlatesX",
-        "repo": "https://github.com/MarcelineVQ/ShaguPlatesX"
+        "repo": "https://github.com/MarcelineVQ/ShaguPlatesX",
+        "requires": [
+          "superwow"
+        ]
       },
       {
         "label": "paokkerkir",
@@ -15167,6 +14641,10 @@
       {
         "label": "skllskll",
         "repo": "https://github.com/skllskll/ShaguPlates"
+      },
+      {
+        "label": "MalcolmDahling",
+        "repo": "https://github.com/MalcolmDahling/ShaguPlatesX"
       }
     ],
     "release_downloads_repo": "shagu/ShaguPlates",
@@ -15176,74 +14654,82 @@
   },
   {
     "name": "ShaguScan",
-    "repo": "https://github.com/shagu/ShaguScan",
-    "category": "SuperWoW",
+    "repo": "https://github.com/helix-dev0/ShaguScan",
+    "category": "General",
     "description": "Tracks and filters nearby players and npcs",
     "source": "turtle_wiki",
     "folder": "ShaguScan",
     "forks": [
       {
-        "label": "The-Kludge-Bureau",
-        "repo": "https://github.com/The-Kludge-Bureau/ShaguScan"
-      },
-      {
-        "label": "helix-dev0",
-        "repo": "https://github.com/helix-dev0/ShaguScan"
+        "label": "shagu",
+        "repo": "https://github.com/shagu/ShaguScan",
+        "requires": [
+          "superwow"
+        ]
       },
       {
         "label": "qrospars/ShaguScanLongRange",
-        "repo": "https://github.com/qrospars/ShaguScanLongRange"
+        "repo": "https://github.com/qrospars/ShaguScanLongRange",
+        "requires": [
+          "superwow"
+        ]
       },
       {
         "label": "TheRealFayz",
-        "repo": "https://github.com/TheRealFayz/ShaguScan"
+        "repo": "https://github.com/TheRealFayz/ShaguScan",
+        "requires": [
+          "superwow"
+        ]
       },
       {
         "label": "whtmst",
-        "repo": "https://github.com/whtmst/ShaguScan"
+        "repo": "https://github.com/whtmst/ShaguScan",
+        "requires": [
+          "superwow"
+        ]
       },
       {
         "label": "kaneha",
-        "repo": "https://github.com/kaneha/ShaguScan"
-      },
-      {
-        "label": "AmonRA",
-        "repo": "https://github.com/AmonRA/ShaguScan"
-      },
-      {
-        "label": "dwbclz",
-        "repo": "https://github.com/dwbclz/ShaguScan"
-      },
-      {
-        "label": "jiangxt316",
-        "repo": "https://github.com/jiangxt316/ShaguScan"
-      },
-      {
-        "label": "max-bruhn",
-        "repo": "https://github.com/max-bruhn/ShaguScan"
+        "repo": "https://github.com/kaneha/ShaguScan",
+        "requires": [
+          "superwow"
+        ]
       },
       {
         "label": "JembaWoW",
-        "repo": "https://github.com/JembaWoW/ShaguScan"
+        "repo": "https://github.com/JembaWoW/ShaguScan",
+        "requires": [
+          "superwow"
+        ]
       },
       {
         "label": "shikulja",
-        "repo": "https://github.com/shikulja/ShaguScan"
+        "repo": "https://github.com/shikulja/ShaguScan",
+        "requires": [
+          "superwow"
+        ]
       }
     ],
     "release_downloads_repo": "shagu/ShaguScan",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [
+      "superwow"
+    ]
   },
   {
     "name": "ShaguTweaks",
-    "repo": "https://github.com/shagu/ShaguTweaks",
-    "category": "SuperWoW",
+    "repo": "https://github.com/Dusk-92/ShaguTweaks-ClassicAPI",
+    "category": "UI",
     "description": "A small AddOn for those who don't want to use any AddOns at all. [Img1]",
     "source": "turtle_wiki",
     "folder": "ShaguTweaks",
     "forks": [
+      {
+        "label": "shagu",
+        "repo": "https://github.com/shagu/ShaguTweaks"
+      },
       {
         "label": "paokkerkir",
         "repo": "https://github.com/paokkerkir/ShaguTweaks"
@@ -15265,136 +14751,12 @@
         "repo": "https://github.com/USS-Enterprise-Guild/ShaguTweaks"
       },
       {
-        "label": "Sandworlds-MMO",
-        "repo": "https://github.com/Sandworlds-MMO/ShaguTweaks"
-      },
-      {
-        "label": "hellowind777",
-        "repo": "https://github.com/hellowind777/ShaguTweaks"
-      },
-      {
-        "label": "balakethelock",
-        "repo": "https://github.com/balakethelock/ShaguTweaks"
-      },
-      {
-        "label": "refaim",
-        "repo": "https://github.com/refaim/ShaguTweaks"
-      },
-      {
-        "label": "KarstenBade",
-        "repo": "https://github.com/KarstenBade/ShaguTweaks"
-      },
-      {
         "label": "ziin",
         "repo": "https://github.com/ziin/ShaguTweaks"
       },
       {
-        "label": "wow-br",
-        "repo": "https://github.com/wow-br/ShaguTweaks"
-      },
-      {
-        "label": "lich906",
-        "repo": "https://github.com/lich906/ShaguTweaks"
-      },
-      {
         "label": "DBFBlackbull",
         "repo": "https://github.com/DBFBlackbull/ShaguTweaks"
-      },
-      {
-        "label": "flyinbed",
-        "repo": "https://github.com/flyinbed/ShaguTweaks"
-      },
-      {
-        "label": "gashole",
-        "repo": "https://github.com/gashole/ShaguTweaks"
-      },
-      {
-        "label": "AmonRA",
-        "repo": "https://github.com/AmonRA/ShaguTweaks"
-      },
-      {
-        "label": "dwbclz",
-        "repo": "https://github.com/dwbclz/ShaguTweaks"
-      },
-      {
-        "label": "jiangxt316",
-        "repo": "https://github.com/jiangxt316/ShaguTweaks"
-      },
-      {
-        "label": "jilinge2",
-        "repo": "https://github.com/jilinge2/ShaguTweaks"
-      },
-      {
-        "label": "nidski-wow",
-        "repo": "https://github.com/nidski-wow/ShaguTweaks"
-      },
-      {
-        "label": "panzier32564-cmd",
-        "repo": "https://github.com/panzier32564-cmd/ShaguTweaks"
-      },
-      {
-        "label": "RavenOfSeven",
-        "repo": "https://github.com/RavenOfSeven/ShaguTweaks"
-      },
-      {
-        "label": "ShigemuneKurogane",
-        "repo": "https://github.com/ShigemuneKurogane/ShaguTweaks"
-      },
-      {
-        "label": "yani9o",
-        "repo": "https://github.com/yani9o/ShaguTweaks"
-      },
-      {
-        "label": "zyyysxd",
-        "repo": "https://github.com/zyyysxd/ShaguTweaks"
-      },
-      {
-        "label": "Macumbafeh",
-        "repo": "https://github.com/Macumbafeh/ShaguTweaks"
-      },
-      {
-        "label": "alchem1ster",
-        "repo": "https://github.com/alchem1ster/ShaguTweaks"
-      },
-      {
-        "label": "Paenthy",
-        "repo": "https://github.com/Paenthy/ShaguTweaks"
-      },
-      {
-        "label": "Deadliftchic",
-        "repo": "https://github.com/Deadliftchic/ShaguTweaks"
-      },
-      {
-        "label": "DeicPro",
-        "repo": "https://github.com/DeicPro/ShaguTweaks"
-      },
-      {
-        "label": "OmegaZeroXIII",
-        "repo": "https://github.com/OmegaZeroXIII/ShaguTweaks"
-      },
-      {
-        "label": "Txuscolchonero",
-        "repo": "https://github.com/Txuscolchonero/ShaguTweaks"
-      },
-      {
-        "label": "waverion",
-        "repo": "https://github.com/waverion/ShaguTweaks"
-      },
-      {
-        "label": "JembaWoW",
-        "repo": "https://github.com/JembaWoW/ShaguTweaks"
-      },
-      {
-        "label": "likesc",
-        "repo": "https://github.com/likesc/ShaguTweaks"
-      },
-      {
-        "label": "IfElseThen",
-        "repo": "https://github.com/IfElseThen/ShaguTweaks"
-      },
-      {
-        "label": "Chad90b",
-        "repo": "https://github.com/Chad90b/ShaguTweaks"
       },
       {
         "label": "brightLee1983",
@@ -15404,12 +14766,16 @@
     "release_downloads_repo": "shagu/ShaguTweaks",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true,
+    "requires": [
+      "classicapi"
+    ]
   },
   {
     "name": "SimpleActionSets",
     "repo": "https://github.com/KarstenBade/SimpleActionSets",
-    "category": "SuperWoW",
+    "category": "UI",
     "description": "Save action bars as sets that can be swapped out.",
     "source": "turtle_wiki",
     "folder": "SimpleActionSets",
@@ -15443,34 +14809,46 @@
   },
   {
     "name": "SoloRaidTargetIcons",
-    "repo": "https://github.com/refaim/SoloRaidTargetIcons",
-    "category": "SuperWoW",
+    "repo": "https://github.com/jrc13245/SoloRaidTargetIcons",
+    "category": "General",
     "description": "Enables raid target icons through the default Blizzard UI while not in a group",
     "source": "turtle_wiki",
     "folder": "SoloRaidTargetIcons",
     "forks": [
       {
-        "label": "jrc13245",
-        "repo": "https://github.com/jrc13245/SoloRaidTargetIcons"
+        "label": "refaim",
+        "repo": "https://github.com/refaim/SoloRaidTargetIcons",
+        "requires": [
+          "superwow"
+        ]
       },
       {
         "label": "Arcitec",
-        "repo": "https://github.com/Arcitec/SoloRaidTargetIcons"
+        "repo": "https://github.com/Arcitec/SoloRaidTargetIcons",
+        "requires": [
+          "superwow"
+        ]
       },
       {
         "label": "Chad90b",
-        "repo": "https://github.com/Chad90b/SoloRaidTargetIcons"
+        "repo": "https://github.com/Chad90b/SoloRaidTargetIcons",
+        "requires": [
+          "superwow"
+        ]
       }
     ],
     "release_downloads_repo": "refaim/SoloRaidTargetIcons",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [
+      "superwow"
+    ]
   },
   {
     "name": "Sorgis Raid Marks",
     "repo": "https://github.com/sorgis-sorgis/sorgis_raid_marks",
-    "category": "SuperWoW",
+    "category": "Raiding",
     "description": "Raid mark targeting and assigning, improved fork making use of superwow",
     "source": "turtle_wiki",
     "folder": "sorgis_raid_marks",
@@ -15490,104 +14868,19 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "SP SwingTimer",
-    "repo": "https://github.com/MarcelineVQ/SP_SwingTimer",
-    "category": "SuperWoW",
-    "description": "Auto-Attack Swing Timer",
-    "source": "turtle_wiki",
-    "folder": "SP_SwingTimer",
-    "forks": [
-      {
-        "label": "al3xc1985",
-        "repo": "https://github.com/al3xc1985/SP_SwingTimer"
-      },
-      {
-        "label": "bretharte89",
-        "repo": "https://github.com/bretharte89/SP_SwingTimer"
-      },
-      {
-        "label": "TheoIX",
-        "repo": "https://github.com/TheoIX/SP_SwingTimer"
-      },
-      {
-        "label": "Leyki",
-        "repo": "https://github.com/Leyki/SP_SwingTimer"
-      },
-      {
-        "label": "Otari98",
-        "repo": "https://github.com/Otari98/SP_SwingTimer"
-      },
-      {
-        "label": "zanthor",
-        "repo": "https://github.com/zanthor/SP_SwingTimer"
-      },
-      {
-        "label": "Thrunk112",
-        "repo": "https://github.com/Thrunk112/SP_SwingTimer"
-      }
-    ],
-    "release_downloads_repo": "MarcelineVQ/SP_SwingTimer",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "SP_SwingTimer",
-    "repo": "https://github.com/balakethelock/SP_SwingTimer",
-    "category": "SuperWoW",
-    "description": "Warrior Swing Timer [Img1]",
-    "source": "turtle_wiki",
-    "folder": "SP_SwingTimer",
-    "forks": [
-      {
-        "label": "BahamutxD",
-        "repo": "https://github.com/BahamutxD/SP_SwingTimer"
-      },
-      {
-        "label": "Profiler781",
-        "repo": "https://github.com/Profiler781/SP_SwingTimer"
-      },
-      {
-        "label": "flyinbed",
-        "repo": "https://github.com/flyinbed/SP_SwingTimer"
-      },
-      {
-        "label": "kluy18",
-        "repo": "https://github.com/kluy18/SP_SwingTimer"
-      },
-      {
-        "label": "tperraut",
-        "repo": "https://github.com/tperraut/SP_SwingTimer"
-      }
-    ],
-    "release_downloads_repo": "balakethelock/SP_SwingTimer",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "SpiritLinker",
-    "repo": "https://github.com/MarcelineVQ/SpiritLinker",
-    "category": "SuperWoW",
-    "description": "Information bar for using Spirit Link",
-    "source": "turtle_wiki",
-    "folder": "SpiritLinker",
-    "release_downloads_repo": "MarcelineVQ/SpiritLinker",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
     "name": "SunderNP",
     "repo": "https://github.com/perks/SunderNP",
-    "category": "SuperWoW",
+    "category": "UI",
     "description": "Adds a sunder count to the right of your Nameplates",
     "source": "turtle_wiki",
     "folder": "SunderNP",
     "release_downloads_repo": "perks/SunderNP",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [
+      "superwow"
+    ]
   },
   {
     "name": "SuperAPI",
@@ -15598,22 +14891,20 @@
     "folder": "SuperAPI",
     "forks": [
       {
-        "label": "laytya",
-        "repo": "https://github.com/laytya/SuperAPI"
-      },
-      {
-        "label": "Otari98",
-        "repo": "https://github.com/Otari98/SuperAPI"
-      },
-      {
         "label": "EVANnnn1996",
-        "repo": "https://github.com/EVANnnn1996/SuperAPI"
+        "repo": "https://github.com/EVANnnn1996/SuperAPI",
+        "requires": [
+          "superwow"
+        ]
       }
     ],
     "release_downloads_repo": "balakethelock/SuperAPI",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [
+      "superwow"
+    ]
   },
   {
     "name": "SuperAPI Castlib",
@@ -15625,45 +14916,71 @@
     "forks": [
       {
         "label": "balakethelock",
-        "repo": "https://github.com/balakethelock/SuperAPI_Castlib"
+        "repo": "https://github.com/balakethelock/SuperAPI_Castlib",
+        "requires": [
+          "superwow"
+        ]
       }
     ],
     "release_downloads_repo": "Gescht/SuperAPI_Castlib",
     "release_downloads_state": "none",
     "release_downloads": 0,
     "release_downloads_at": "2026-09-02T05:51:38Z",
-    "recommended": true
+    "requires": [
+      "superwow"
+    ]
   },
   {
     "name": "SuperCleveRoid Macros",
     "repo": "https://github.com/brues-code/SuperCleveRoidMacros",
-    "category": "SuperWoW",
+    "category": "Combat",
     "description": "Enhance macros with dynamic tooltips, conditional execution, and extended syntax",
     "source": "turtle_wiki",
     "folder": "SuperCleveRoidMacros",
     "forks": [
       {
         "label": "jrc13245",
-        "repo": "https://github.com/jrc13245/SuperCleveRoidMacros"
+        "repo": "https://github.com/jrc13245/SuperCleveRoidMacros",
+        "requires": [
+          "nampower",
+          "unitxp"
+        ]
       },
       {
         "label": "eqomdx",
-        "repo": "https://github.com/eqomdx/SuperCleveRoidMacros"
+        "repo": "https://github.com/eqomdx/SuperCleveRoidMacros",
+        "requires": [
+          "nampower",
+          "unitxp"
+        ]
       },
       {
         "label": "twisniowski",
-        "repo": "https://github.com/twisniowski/SuperCleveRoidMacros"
+        "repo": "https://github.com/twisniowski/SuperCleveRoidMacros",
+        "requires": [
+          "nampower",
+          "unitxp"
+        ]
       },
       {
         "label": "Hippoom",
-        "repo": "https://github.com/Hippoom/SuperCleveRoidMacros"
+        "repo": "https://github.com/Hippoom/SuperCleveRoidMacros",
+        "requires": [
+          "nampower",
+          "unitxp"
+        ]
       }
     ],
     "release_downloads_repo": "brues-code/SuperCleveRoidMacros",
     "release_downloads_state": "ok",
-    "release_downloads": 76,
-    "release_downloads_at": "2026-09-03T19:26:40Z",
-    "recommended": true
+    "release_downloads": 82,
+    "release_downloads_at": "2026-09-06T08:38:49Z",
+    "recommended": true,
+    "requires": [
+      "classicapi",
+      "nampower",
+      "unitxp"
+    ]
   },
   {
     "name": "SuperLazyScript",
@@ -15679,108 +14996,81 @@
   },
   {
     "name": "SuperTotem",
-    "repo": "https://github.com/elboaf/SuperTotem",
-    "category": "SuperWoW",
+    "repo": "https://github.com/akzkak/SuperTotem",
+    "category": "UI",
     "description": "A Shaman totem and shield manager",
     "source": "turtle_wiki",
     "folder": "SuperTotem",
     "forks": [
       {
-        "label": "akzkak",
-        "repo": "https://github.com/akzkak/SuperTotem"
-      },
-      {
-        "label": "bretharte89",
-        "repo": "https://github.com/bretharte89/SuperTotem"
+        "label": "elboaf",
+        "repo": "https://github.com/elboaf/SuperTotem",
+        "requires": [
+          "superwow"
+        ]
       }
     ],
     "release_downloads_repo": "elboaf/SuperTotem",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [
+      "superwow"
+    ]
   },
   {
     "name": "SuperWowCombatLogger",
     "repo": "https://github.com/pepopo978/SuperWowCombatLogger",
-    "category": "SuperWoW",
+    "category": "Raiding",
     "description": "Improved combatlogger for TurtleWoW (for LegacyPlayers/Monkeylogs)",
     "source": "turtle_wiki",
     "turtle_custom": true,
     "folder": "SuperWowCombatLogger",
     "forks": [
       {
-        "label": "Thaodan",
-        "repo": "https://github.com/Thaodan/SuperWowCombatLogger"
-      },
-      {
         "label": "USS-Enterprise-Guild/1701-CaptainsLog",
-        "repo": "https://github.com/USS-Enterprise-Guild/1701-CaptainsLog"
-      },
-      {
-        "label": "bretharte89",
-        "repo": "https://github.com/bretharte89/SuperWowCombatLogger"
-      },
-      {
-        "label": "Emyrk",
-        "repo": "https://github.com/Emyrk/SuperWowCombatLogger"
-      },
-      {
-        "label": "zanthor",
-        "repo": "https://github.com/zanthor/SuperWowCombatLogger"
-      },
-      {
-        "label": "MarcelineVQ/AdvancedLogger",
-        "repo": "https://github.com/MarcelineVQ/AdvancedLogger"
-      },
-      {
-        "label": "whtmst",
-        "repo": "https://github.com/whtmst/SuperWowCombatLogger"
-      },
-      {
-        "label": "KameleonUK",
-        "repo": "https://github.com/KameleonUK/SuperWowCombatLogger"
-      },
-      {
-        "label": "DaniTot",
-        "repo": "https://github.com/DaniTot/SuperWowCombatLogger"
-      },
-      {
-        "label": "melbaa",
-        "repo": "https://github.com/melbaa/SuperWowCombatLogger"
-      },
-      {
-        "label": "vargv666",
-        "repo": "https://github.com/vargv666/SuperWowCombatLogger"
+        "repo": "https://github.com/USS-Enterprise-Guild/1701-CaptainsLog",
+        "requires": [
+          "superwow"
+        ]
       }
     ],
     "release_downloads_repo": "pepopo978/SuperWowCombatLogger",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [
+      "superwow"
+    ]
   },
   {
     "name": "Tankalyze",
     "repo": "https://github.com/twapegg/Tankalyze",
-    "category": "SuperWoW",
+    "category": "Combat",
     "description": "Captures missed Taunts and some other nice to have tank additions",
     "source": "turtle_wiki",
     "folder": "Tankalyze",
     "forks": [
       {
         "label": "MarcelineVQ",
-        "repo": "https://github.com/MarcelineVQ/Tankalyze"
+        "repo": "https://github.com/MarcelineVQ/Tankalyze",
+        "requires": [
+          "superwow"
+        ]
       }
     ],
     "release_downloads_repo": "twapegg/Tankalyze",
     "release_downloads_state": "none",
     "release_downloads": 0,
     "release_downloads_at": "2026-09-02T05:51:38Z",
-    "recommended": true
+    "requires": [
+      "superwow"
+    ]
   },
   {
     "name": "TankPlates",
     "repo": "https://github.com/daemonp/TankPlates",
-    "category": "SuperWoW",
+    "category": "UI",
     "description": "Colors enemy Nameplates depending on if they're targeting the player",
     "source": "turtle_wiki",
     "folder": "TankPlates",
@@ -15810,65 +15100,49 @@
     "release_downloads_state": "ok",
     "release_downloads": 0,
     "release_downloads_at": "2026-09-02T05:51:38Z",
-    "recommended": true
+    "recommended": true,
+    "requires": [
+      "superwow"
+    ]
   },
   {
     "name": "Tattler",
     "repo": "https://github.com/Bang1726528/Tattler",
-    "category": "SuperWoW",
+    "category": "Social",
     "description": "Announce when certain items or spells are used",
     "source": "turtle_wiki",
     "folder": "Tattler",
     "forks": [
       {
         "label": "MarcelineVQ",
-        "repo": "https://github.com/MarcelineVQ/Tattler"
+        "repo": "https://github.com/MarcelineVQ/Tattler",
+        "requires": [
+          "superwow"
+        ]
       }
     ],
     "release_downloads_repo": "Bang1726528/Tattler",
     "release_downloads_state": "none",
     "release_downloads": 0,
     "release_downloads_at": "2026-09-02T05:51:38Z",
-    "recommended": true
+    "requires": [
+      "superwow"
+    ]
   },
   {
     "name": "TrackTarget",
     "repo": "https://github.com/MarcelineVQ/TrackTarget",
-    "category": "SuperWoW",
+    "category": "General",
     "description": "Track any friendly you target which is assistable on the Minimap",
     "source": "turtle_wiki",
     "folder": "TrackTarget",
     "release_downloads_repo": "MarcelineVQ/TrackTarget",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "Twister",
-    "repo": "https://github.com/MarcelineVQ/Twister",
-    "category": "SuperWoW",
-    "description": "Addon to totem twist automatically.",
-    "source": "turtle_wiki",
-    "folder": "Twister",
-    "forks": [
-      {
-        "label": "bretharte89",
-        "repo": "https://github.com/bretharte89/Twister"
-      }
-    ],
-    "release_downloads_repo": "MarcelineVQ/Twister",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "_Nameplates",
-    "repo": "",
-    "category": "UI",
-    "description": "sorts nameplates into friendly and hostile columns [Img1]",
-    "source": "turtle_wiki",
-    "folder": "_Nameplates",
-    "installable": false
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [
+      "superwow"
+    ]
   },
   {
     "name": "ABreathBeneath",
@@ -15902,20 +15176,7 @@
     "release_downloads_repo": "Otari98/ActionBarProfiles",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-09-02T05:51:38Z",
-    "recommended": true
-  },
-  {
-    "name": "agUnitFramesImproved",
-    "repo": "https://github.com/satan666/ag_UnitFrames_Improved",
-    "category": "UI",
-    "description": "Customizable unit frame addon",
-    "source": "turtle_wiki",
-    "folder": "ag_UnitFrames_Improved",
-    "release_downloads_repo": "satan666/ag_UnitFrames_Improved",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-09-02T05:51:38Z"
   },
   {
     "name": "APD",
@@ -16332,18 +15593,6 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "Immersive Dialog UI",
-    "repo": "https://github.com/moiian/ImmersiveDialogUI",
-    "category": "UI",
-    "description": "A enhanced conversation addon with a focus on immersion and customization.",
-    "source": "turtle_wiki",
-    "folder": "ImmersiveDialogUI",
-    "release_downloads_repo": "moiian/ImmersiveDialogUI",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
     "name": "Impulse-booster",
     "repo": "https://github.com/Warlockbugs/impulse-booster",
     "category": "UI",
@@ -16392,24 +15641,6 @@
     "release_downloads_state": "ok",
     "release_downloads": 129,
     "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "Kui Nameplates",
-    "repo": "",
-    "category": "UI",
-    "description": "Prettier nameplates. Backport from later WoW versions.",
-    "source": "turtle_wiki",
-    "folder": "KuiNameplates",
-    "installable": false
-  },
-  {
-    "name": "LunaUnitFrames",
-    "repo": "",
-    "category": "UI",
-    "description": "Lightweight Unit Frames in a modern look",
-    "source": "turtle_wiki",
-    "folder": "LunaUnitFrames",
-    "installable": false
   },
   {
     "name": "McgUI",
@@ -16592,7 +15823,7 @@
     "release_downloads_state": "none",
     "release_downloads": 0,
     "release_downloads_at": "2026-08-26T23:44:09Z",
-    "recommended": true
+    "requires": []
   },
   {
     "name": "pfUI-autoinvite",
@@ -16636,8 +15867,7 @@
     "release_downloads_repo": "mr-rosh/pfUI-CustomMedia",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z",
-    "recommended": true
+    "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
     "name": "pfUI-eliteoverlay",
@@ -16976,26 +16206,25 @@
   {
     "name": "Aegis SBR",
     "repo": "https://github.com/Torchlite-bit/Aegis_SBR",
-    "category": "Aegis",
+    "category": "Combat",
     "description": "Single-button rotation for Turtle/1.18.1 — evaluates class, resources, and procs each press (requires SuperWoW + Nampower).",
     "source": "manual",
     "folder": "Aegis_SBR",
     "installable": true,
-    "forks": [
-      {
-        "label": "EirikAskheim",
-        "repo": "https://github.com/EirikAskheim/Aegis_SBR"
-      }
-    ],
     "release_downloads_repo": "Torchlite-bit/Aegis_SBR",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [
+      "superwow",
+      "nampower",
+      "unitxp"
+    ]
   },
   {
     "name": "Aegis Courier",
     "repo": "https://github.com/Torchlite-bit/Aegis_Courier",
-    "category": "Aegis",
+    "category": "Economy",
     "description": "Mailbox companion / TurtleMail replacement with auction-mail support and optional Aegis Exchange integration.",
     "source": "manual",
     "folder": "Aegis_Courier",
@@ -17003,35 +16232,28 @@
     "release_downloads_repo": "Torchlite-bit/Aegis_Courier",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [],
+    "recommended": true
   },
   {
     "name": "Aegis Exchange",
     "repo": "https://github.com/Torchlite-bit/Aegis_Exchange",
-    "category": "Aegis",
+    "category": "Economy",
     "description": "Clean, fast auction house UI for vanilla 1.12 with pricing, craft value, and gold tracking.",
     "source": "manual",
     "folder": "Aegis_Exchange",
     "installable": true,
-    "forks": [
-      {
-        "label": "rustybelter77",
-        "repo": "https://github.com/rustybelter77/Aegis_Exchange"
-      },
-      {
-        "label": "EirikAskheim",
-        "repo": "https://github.com/EirikAskheim/Aegis_Exchange"
-      }
-    ],
     "release_downloads_repo": "Torchlite-bit/Aegis_Exchange",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "recommended": true
   },
   {
     "name": "Aegis RallyPower",
     "repo": "https://github.com/Torchlite-bit/Aegis_RallyPower",
-    "category": "Aegis",
+    "category": "Combat",
     "description": "All-class raid buff coordination — PallyPower grid for Paladins plus matching buff bars for other classes.",
     "source": "manual",
     "folder": "Aegis_RallyPower",
@@ -17039,7 +16261,12 @@
     "release_downloads_repo": "Torchlite-bit/Aegis_RallyPower",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "requires": [
+      "superwow",
+      "unitxp"
+    ],
+    "recommended": true
   },
   {
     "name": "BijouCounter",
@@ -17138,8 +16365,8 @@
     "description": "# pfQuest (turtle)\nThis AddOn is a [pfQuest](https://github.com/shagu/pfQuest) extension, which adds support for the [TurtleWoW](https://turtle-wow.org/) Private Server. In order to run this extension, the latest version of [pfQuest](https://github.com/shagu/pfQuest) is always required and only enUS-Gameclients are supported.\n\n*Notice: Issues and bugs like \"please add quest XYZ\" and all other content requests will be silently ignored. This is, because the data is not manually added, but depends on the Turtle-WoW team to release their database to a trusted person that can produce pfQuest-turtle builds.*\n\nIf you wish to contribute, please feel free to send a [Pull Requests](https://github.com/bennylava/pfQuest-turtle/pulls).\n\n## Install\n*The latest version of [pfQuest](https://shagu.org/pfQuest) is required for this module to work.*\n\n1. Download **[pfQuest-turtle](https://github.com/bennylava/pfQuest-turtle/archive/master.zip)**\n2. Unpack the Zip file\n3. Rename the folder \"pfQuest-turtle-master\" to \"pfQuest-turtle\"\n4. Copy \"pfQuest-turtle\" into Wow-Directory\\Interface\\AddOns\n5. Restart Wow",
     "release_downloads_repo": "Bennylavaa/pfQuest-turtle",
     "release_downloads_state": "ok",
-    "release_downloads": 14,
-    "release_downloads_at": "2026-09-03T19:26:40Z"
+    "release_downloads": 17,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "pfQuest-turtle",
@@ -17157,26 +16384,15 @@
   {
     "name": "pfQuest-octo",
     "repo": "https://github.com/roby-brok/pfQuest-octo",
-    "category": "General",
+    "category": "Questing",
     "source": "community",
-    "turtle_custom": true,
     "folder": "pfQuest-octo",
-    "description": "A TurtleWoW DB extension for pfQuest (Moonwhisper70%)",
-    "release_downloads_repo": "vill8/pfQuest-octo",
-    "release_downloads_state": "none",
+    "description": "# pfQuest (Octo DB)\n\nA [pfQuest](https://github.com/The-Kludge-Bureau/pfQuest) database pack for the\n[OctoWoW](https://octowow.st) server (WoW 1.12.1), maintained by **Roby_Brok**.\nPart of my [OctoWoW addon setup](https://github.com/roby-brok/octowow-addons).\n\n**None of the data here is mine.** This pack is two existing packs combined, nothing more —\nsee [Credits](#credits). It exists because running both of them at once does not work.\n\n---\n\n## Why this exists\n\npfQuest database packs assign their tables outright rather than merging into them:\n\n```lua\npfDB[\"quests\"][\"data-turtle\"] = { ... }\n```\n\nSo with `pfQuest-octo` and `pfQuest-turtle` both installed, the one whose folder sorts last\nsimply replaces the other. `pfQuest-turtle` wins on the letter *t*, and `pfQuest-octo` is parsed\nat every login and thrown away — roughly 15 MB of work for data that never gets used, and the\nquest links point at the wrong server's website.\n\nPicking one meant giving something up: the turtle pack has far more quest data, the octo pack has\nthe OctoWoW corrections and links. This pack is both, so there is nothing to choose between.\n\n## What is in it\n\nThe TurtleWoW database as the base, with the Octo pack folded in on top:\n\n| | octo pack alone | this pack |\n|---|---|---|\n| quests | 5,175 | **6,842** |\n| units | 9,928 | **11,095** |\n| objects | 15,163 | **15,857** |\n| items | 9,301 | **12,672** |\n| locales | 5 | **6** (deDE regained) |\n| corrections | 137 | **162** |\n\n`overwrites.lua` carries three things in order — the 23 records the Octo DB has that the\nTurtleWoW build lacks, then the Octo pack's 137 corrections, then the TurtleWoW pack's own 2.\nRecords come first so anything indexing into them finds them present. The generated files under\n`db/` are byte-identical to the TurtleWoW build; nothing there was hand-edited, so a future\ndatabase refresh will not silently drop any of it.\n\nQuest links point at [octowow.st/db](https://octowow.st/db).\n\nThe pack's own code changes and fixes are listed in **[CHANGES-octo.md](CHANGES-octo.md)**.\n\n## Install\n\n**Requires [pfQuest](https://github.com/The-Kludge-Bureau/pfQuest).** This is a database pack, not\na standalone addon.\n\n1. **[Download the latest release](https://github.com/roby-brok/pfQuest-octo/releases/latest)** —\n   take *Source code (zip)* at the bottom of the release page\n2. Unpack it and open the `pfQuest-octo-<version>` folder inside\n3. Copy **`pfQuest-octo`** into `Wow-Directory\\Interface\\AddOns`\n4. *Non-English clients only:* also copy the one folder matching your language —\n   `pfQuest-octo-deDE`, `-esES`, `-ptBR`, `-ruRU` or `-zhCN`\n5. Restart WoW\n\n**Copy the folders from inside the wrapper, not the wrapper itself.** The zip unpacks to a\nfolder carrying the version or branch on the end — `pfQuest-octo-1.1.0`, or\n`pfQuest-octo-master` if you grabbed it straight off the branch. Copying *that* into `AddOns`\nis the one thing that goes wrong: WoW skips a folder whose name does not match the `.toc`\ninside it, in silence, with no error and no entry in the addon list. The folders one level\ndown are already named correctly, so there is nothing to rename.\n\n**English clients need only `pfQuest-octo`.** The language folders are load-on-demand: the pack\npulls in the single one matching your client and never touches the others, so copying all of them\ncosts nothing but disk. Copying none of them is fine too — quest text simply stays English.\n\n**Remove `pfQuest-turtle` if you have it.** Its data is already included here, and leaving both\ninstalled puts you right back in the situation this pack was built to avoid.\n\n## Credits\n\nEverything here is other people's work, combined and nothing else. All of it is MIT licensed,\ncopyright Eric Mauser (Shagu), and that licence is retained in full.\n\n* **[Shagu](https://github.com/shagu)** — wrote pfQuest and the original database packs.\n* **[The Kludge Bureau](https://github.com/The-Kludge-Bureau/pfQuest-turtle)** — the TurtleWoW\n  build this pack's databa\n\n… (truncated)",
+    "turtle_custom": true,
+    "release_downloads_repo": "roby-brok/pfQuest-octo",
+    "release_downloads_state": "ok",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z",
-    "forks": [
-      {
-        "label": "vill8",
-        "repo": "https://github.com/vill8/pfQuest-octo"
-      },
-      {
-        "label": "paokkerkir",
-        "repo": "https://github.com/paokkerkir/pfQuest-octo"
-      }
-    ],
-    "recommended": true
+    "release_downloads_at": "2026-09-02T05:51:38Z"
   },
   {
     "name": "pfQuest-turtle",
@@ -17342,8 +16558,8 @@
     "description": "# For TurtleWoW launcher\nClick Addons - Add new addon - paste this url there: https://github.com/vaniron/TourGuide-Turtle.git\n\n# Contact & Donations\nYou can add me on discord: **vanironcz**\n\nIf you wanna support this fork, you can do so via https://www.paypal.com/donate/?hosted_button_id=FSQQQGRSBDA58\n\n# TourGuide-Turtle\nTekkub's TourGuide Addon backported for WoW 1.12 *with tweaks for TurtleWoW*\n\nRecommended Downloads: \n\n[**TomTom-TWOW**](https://github.com/laytya/TomTom-TWOW)\n* **Arrow to navigate you to next guide point**\n* you have to disable arrow from pfQuest as its showing closest quest, not optimal path - TomTom is integrated directly to TourGuide and shoudl be used instead\n\n[**pfQuest**](https://github.com/shagu/pfQuest) + [**pfQuest-turtle**](https://github.com/shagu/pfQuest-turtle)\n* pfQuest adds many features like tracking, map icons etc.\n\n[**pfUI**](https://github.com/shagu/pfUI)\n* pfUI provides so much more, overall UI overhaul but all features can be tweaked and disabled if you dont like them\n\nOptional addon: [TourGuide_Professions](https://github.com/Lorwik/TourGuide_Professions)\n\n\n**Features**\n* Automatic detection of objective completion\n  * Detect quest accept, completion and turnin\n  * Detect travel (by foot, flight, boat and stone)\n  * Detection of flight point discovery\n  * Detection of Hearth point change\n* Conditionals based on player’s class and item possession (only tell the player to accept the quest if they have the item that starts the quest)\n* Small “lego block” style frame shows current objective, detailed tooltips on hover\n* “Use item” frame, for those annoying quests where you have to use an item on a mob before you kill it, or you have to equip something, or you have to use an item to start a quest\n* Pop out frame for detailed view of quest sequence\n* Automatic mapping of coordinates with TomTom and questgiver locations from pfQuest if installed\n\nGuides list, plus few others didnt make it into the screenshot (Plaguelands, Silithus, Winterspring), too many for one screen xD\n![image](https://github.com/user-attachments/assets/7d655a07-d8b9-48ad-b514-b95fcefb81a8)\n\n\n**Contributors**\n* Tekkub\n* Cralor\n* Road-block\n* Rsheep\n* Azgaardian\n* Kyliexx\n* laytya\n* jb6357\n* Ez-mode\n* Gescht\n* Vaniron\n* Trus3683\n* Ravenhost",
     "release_downloads_repo": "vaniron/TourGuide-Turtle",
     "release_downloads_state": "ok",
-    "release_downloads": 239,
-    "release_downloads_at": "2026-09-03T19:26:40Z"
+    "release_downloads": 244,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "TourGuideVanilla",
@@ -17479,12 +16695,16 @@
     "description": "# pfUI - OctoWoW Edition\n\n> ### About this fork\n>\n> **This fork is maintained for [OctoWoW](https://octowow.st).** Everything here was found and\n> fixed while running on that server; the fixes are not OctoWoW-specific and should apply to any\n> 1.12 client, but OctoWoW is the only place it has actually been tested.\n>\n> pfUI is the work of **[Shagu](https://github.com/shagu/pfUI)** (Eric Mauser), released under the\n> MIT licence, and this branch descends from **me0wg4ming's** Turtle WoW edition — which is why\n> parts of the documentation below still refer to Turtle WoW. All the credit belongs to them; this\n> fork only adds the fixes listed here, on top of their work.\n>\n> Note that the upstream repository this was cloned from\n> (`github.com/me0wg4ming/pfUI`) is no longer reachable, which is part of why this copy exists.\n> The full original commit history is preserved here.\n>\n> Fork maintained by **Roby_Brok**. Version bumped to **9.0.8** to distinguish it.\n>\n> ---\n>\n> #### UI scale / resolution\n>\n> - **`GetPerfectPixel` guards an unparseable `gxResolution`** (previously `768 / nil`, which killed\n>   every border on the UI).\n>\n>   ~~It also measured against `UIParent:GetEffectiveScale()` rather than the `uiScale` cvar.~~\n>   **Reverted 2026-08-10 — that was wrong.** The cvar's 1.0 cap looks like a bug but is\n>   load-bearing: the \"Huge\"/\"Large\" presets push `UIParent` to 1.42 / 1.14 via `SetScale`, and\n>   measuring that true scale makes `768 / screenheight / scale` fall below half a pixel, so border\n>   `edgeSize` rounds to zero and the borders vanish. Caught by\n>   [brues-code](https://github.com/brues-code) after the same change was merged and then reverted\n>   upstream.\n> - **`pixelperfect` loaded 55th, but sets the scale everything else is measured against.** That\n>   value is cached on first use, so every module loaded before it baked in the *previous* scale —\n>   the classic \"reload twice before it looks right\". It now loads first.\n> - The module only re-applies the scale when it actually changes, and drops the cached pixel and\n>   border sizes when it does.\n> - \"Enable UI-Scale\" now asks for a reload instead of applying live, since existing frames keep\n>   border sizes computed for the old scale.\n>\n> #### Features that silently did nothing\n>\n> pfUI runs each module inside a sandboxed environment that has `__index` but no `__newindex`, so\n> a bare global assignment inside a module never reaches `_G`. These all looked registered and\n> were not:\n>\n> | Where | What was dead |\n> |---|---|\n> | `modules/nampower.lua` | `/disenchantall`, `/dea` |\n> | `modules/superwow.lua` | `/clickthrough`, `/ct` |\n> | `modules/unitxp.lua` | `/pfunitxp`, and the battleground-pop notification |\n> | `modules/hdgraphic.lua` | `OptionsFrame_OnShow` — the extended world-detail slider never installed |\n> | `modules/raid.lua` | `GROUP_REPLACE_PARTY` |\n>\n> #### Other\n>\n> - `modules/loot.lua` — restored `local autoLoot = arg1`; `CloseLoot(not autoLoot)` was reading a\n>   nil global and always suppressing the server-side close notification.\n> - `api/ui-widgets.lua` — removed a dead fourth value in `SetHighlight`'s colour assignment.\n> - `init/skins.xml` — removed a duplicated block that loaded five Turtle WoW skins twice.\n> - Plus an earlier batch of fixes across the stutter-prone hot paths (nameplate debuff scanning,\n>   unit-frame aggro checks, throttle allocations, cooldown updates), a number of silently broken\n>   features, and a class-colour accent option.\n> - `modules/thirdparty-vanilla.lua` — [OWThreat](https://github.com/roby-brok/OWThreat) now docks\n>   into the right chat panel and takes the pfUI skin, exactly like the TWThreat it was forked\n>   from; both are driven by the same *TW/OW Threatmeter* checkboxes under *Thirdparty*.\n>\n> ---\n\n[![Version](https://img.shields.io/badge/version-9.0.8-blue.svg)](https://github.com/roby-brok/pfUI)\n[![OctoWoW](https://img.shields.io/badge/OctoWoW-supported-brightgreen.svg)](https://octowo\n\n… (truncated)",
     "release_downloads_repo": "roby-brok/pfUI",
     "release_downloads_state": "ok",
-    "release_downloads": 14,
-    "release_downloads_at": "2026-09-03T12:51:29Z",
+    "release_downloads": 19,
+    "release_downloads_at": "2026-09-06T08:38:49Z",
     "forks": [
       {
         "label": "brues-code",
-        "repo": "https://github.com/brues-code/pfUI"
+        "repo": "https://github.com/brues-code/pfUI",
+        "requires": [
+          "classicapi",
+          "nampower"
+        ]
       },
       {
         "label": "shagu",
@@ -17495,7 +16715,11 @@
         "repo": "https://github.com/IndieMiao/pfUI"
       }
     ],
-    "recommended": true
+    "recommended": true,
+    "requires": [
+      "classicapi",
+      "nampower"
+    ]
   },
   {
     "name": "pfUI",
@@ -17506,8 +16730,8 @@
     "description": "# pfUI - ClassicAPI Edition\n\n[![Octo WoW](https://img.shields.io/badge/Octo%20WoW-1.18.1-brightgreen.svg)](https://octowow.st/)\n[![ClassicAPI](https://img.shields.io/badge/ClassicAPI-Required-purple.svg)](https://github.com/brues-code/ClassicAPI)\n[![Nampower](https://img.shields.io/badge/Nampower-Required-purple.svg)](https://github.com/brues-code/nampower)\n[![SuperWoW](https://img.shields.io/badge/SuperWoW-Optional-yellow.svg)](https://github.com/balakethelock/SuperWoW)\n[![UnitXP](https://img.shields.io/badge/UnitXP__SP3-Optional-yellow.svg)](https://github.com/brues-code/UnitXP_SP3)\n\n**A pfUI fork specifically optimized for ClassicAPI on [Octo WoW](https://octowow.st/)**\n\nThis version includes significant performance improvements and DLL-enhanced features.\n\n## Installation\n1. Download **[Latest Version](https://github.com/brues-code/pfUI/releases/latest)**\n2. Unpack the Zip file\n4. Copy \"pfUI\" into Wow-Directory\\Interface\\AddOns\n5. Restart Wow\n\n## DLL Enhancements\n\nSince pfUI 6.0.0 includes integrations with client-side DLLs for enhanced functionality. These DLLs are permitted on Octo WoW:\n\n### [ClassicAPI](https://github.com/brues-code/ClassicAPI)\n\nProvides:\n- C_NamePlate - Event-driven nameplates (no more per-frame WorldFrame scanning) with real per-plate unit tokens and GUIDs\n- C_UnitAuras - Replaces over 3k lines of hand-rolled aura tracking\n- C_Spell - Replaces thousands of hardcoded spell names for each locale and powers castbar\n- Real cast bars - Actual cast/channel timing, spellID and interrupt state for any unit (C_Spell.UnitCastingInfo)\n- Focus - A genuine `focus` unit plus `/focus` and `/clearfocus` (FocusUnit / ClearFocus)\n- C_EquipmentSet - Full Equipment Manager with GUID-tracked gear sets (tells apart duplicate/enchanted items)\n- Instant Bag Sorting - C_Container.MoveItem / SwapItems instead of cursor pickup/drop\n- Sell junk in one call - C_MerchantFrame.GetNumJunkItems / SellAllJunkItems\n- Real item data - C_Item counts, quality, sell price and item info by ID\n- GUID-based targeting - Nameplates, mouseover and focus resolve by GUID, not by name text\n- Faster, safer profile sharing - Engine-side serialize/compress/base64 via C_EncodingUtil\n- C_Timer - After / NewTicker replacing hand-rolled OnUpdate throttles\n- Feign death, shapeshift and quest-item detection via real API calls\n- Mouseover Unit Frames\n- Click-casting\n- Loot Roll History (/loothistory)\n- New item highlighting\n- Plenty other functions\n\n### [Nampower](https://github.com/brues-code/nampower)\n\nProvides:\n- Spell queue indicator\n- GCD indicator\n\n### [SuperWoW](https://github.com/balakethelock/SuperWoW)\n\nProvides:\n- Tracks party/raid units on the minimap\n\n### [UnitXP_SP3](https://github.com/brues-code/UnitXP_SP3)\n\nProvides:\n- Line of Sight detection\n- Behind detection\n- Accurate distance calculations\n- OS notifications\n\nUse `/pfdll` in-game to check which DLLs are detected.\n\n## Commands\n\n    /pfui         Open the configuration GUI\n    /pfdll        Show DLL detection status (SuperWoW, Nampower, UnitXP)\n    /pfbehind     Test Behind/LOS detection on current target\n    /clickthrough Toggle clickthrough mode (or /ct)\n    /share        Open the configuration import/export dialog\n    /gm           Open the ticket Dialog\n    /rl           Reload the whole UI\n    /farm         Toggles the Farm-Mode\n    /pfcast       Same as /cast but for mouseover units\n    /focus        Creates a Focus-Frame for the current target\n    /castfocus    Same as /cast but for focus frame\n    /clearfocus   Clears the Focus-Frame\n    /swapfocus    Toggle Focus and Target-Frame\n    /pftest       Toggle pfUI Unitframe Test Mode\n    /abp          Addon Button Panel\n    /loothistory  Show Loot Roll History\n\n## Languages\npfUI supports and contains language specific code for the following gameclients.\n* English (enUS)\n* Korean (koKR)\n* French (frFR)\n* German (deDE)\n* Chinese (zhCN)\n* Spanish (esES)\n* Russian (ruRU)\n\n## Recommended Addons\n* [pfQuest](https://github.co\n\n… (truncated)",
     "release_downloads_repo": "brues-code/pfUI",
     "release_downloads_state": "ok",
-    "release_downloads": 48,
-    "release_downloads_at": "2026-09-03T22:36:20Z"
+    "release_downloads": 94,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "NiceDamage-1.12",
@@ -17518,8 +16742,8 @@
     "description": "# NiceDamage for WoW Vanilla 1.12\n\n> ## 📥 Latest Release\n>\n> **Download the latest version here:**\n>\n> https://github.com/Wurmschwanz/NiceDamage-1.12/releases/latest\n\nA lightweight enhancement of the original **NiceDamage** addon for **World of Warcraft Vanilla 1.12**.\n\nNiceDamage replaces the default floating combat text font and introduces a lightweight minimap-based font selector with themed style categories while staying true to the original philosophy: **simple, lightweight and fast.**\n\n---\n\n# ✨ Features\n\n- Lightweight combat text font replacement\n- Minimap button for quick access\n- Hierarchical font selection menu\n- Style-based font organization\n- Automatic font saving\n- Lightweight implementation\n- No measurable FPS or CPU impact\n- Compatible with WoW Vanilla 1.12\n- Compatible with pfUI\n\n---\n\n# 🎨 Available Style Categories\n\n## Blizzard\n\n- Warcraft III Style\n- Diablo Style\n- StarCraft Style\n\n## FPS\n\n- Doom Style\n- Quake Style\n- Unreal Style\n- Half-Life Style\n\n## Sci-Fi\n\n- Halo Style\n- Alien Style\n\n---\n\n# 📦 Installation\n\n1. Remove any previous `NiceDamage` and `NiceDamage_Font_*` folders from:\n\n```text\nInterface/AddOns/\n```\n\n2. Extract the archive into:\n\n```text\nInterface/AddOns/\n```\n\n3. Start World of Warcraft.\n\n4. Left-click the minimap button to open the font menu.\n\n5. Select your preferred combat text style.\n\n> **Note**\n>\n> Some WoW Vanilla 1.12 clients cache combat fonts during startup.\n>\n> After changing the selected combat font, a **full game restart** is required.\n>\n> Using `/reload` is **not** sufficient on affected clients.\n\n---\n\n# ⚡ Performance\n\nNiceDamage was designed to remain lightweight.\n\n- No permanent `OnUpdate` loops\n- No continuous background processing\n- No measurable FPS impact\n- Font changes are only processed when requested by the player\n\n---\n\n# ✅ Compatibility\n\n- WoW Vanilla 1.12\n- pfUI compatible\n- Compatible with most Vanilla private servers using the original 1.12 client\n\n---\n\n# 🚀 Roadmap\n\nThe following style categories are planned for future updates.\n\n### Retro\n\n- Arcade\n- Terminal\n- Pixel\n\n### Fantasy\n\n- Medieval\n- Ancient\n\nMore style categories and additional combat font styles will be added over time.\n\n---\n\n# ❤️ Credits\n\nOriginal **NiceDamage** addon by its original author(s).\n\nEnhanced for **WoW Vanilla 1.12** by **Wurmschwanz**.\n\nSpecial thanks to everyone who helped testing fonts and improving compatibility.",
     "release_downloads_repo": "Wurmschwanz/NiceDamage-1.12",
     "release_downloads_state": "ok",
-    "release_downloads": 118,
-    "release_downloads_at": "2026-09-03T19:26:40Z"
+    "release_downloads": 124,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "Chronometer-Turtle",
@@ -17563,7 +16787,7 @@
   {
     "name": "MikScrollingBattleText",
     "repo": "https://github.com/roby-brok/MikScrollingBattleText",
-    "category": "General",
+    "category": "UI",
     "source": "community",
     "folder": "MikScrollingBattleText",
     "description": "<html>\n\t<head>\n\t\t<title>Mik's Scrolling Battle Text Readme</title>\n\t\t<style type=\"text/css\">\n\t\t\tbody { font-size: 10pt; font-family: verdana, arial, helvetica, sans-serif; }\n\t\t\th1   { font-weight: bold; color: #004080; }\n\n\t\t\ta:link    { color: #000060; text-decoration: none; }\n\t\t\ta:visited { color: #000060; text-decoration: none; }\n\t\t\ta:hover   { text-decoration: underline; }\n\n\t\t\tdiv#HeaderBlock { background-color: #e0e0e0; border: 1px solid #000060; padding: 1ex; margin: 2em 0em 4em 0em; }\n\n\t\t\tdiv.TOCTitle      { font-weight: bold; font-size: 14pt; color: #004080; border-bottom: 1px solid #000060; }\n\t\t\tdiv.TOC           { margin: 2ex 1ex 4em 2ex; }\n\t\t\tdiv.TOCSection    { margin-bottom: 2ex; }\n\n\t\t\tdiv.SectionTitle    { margin-top: 6ex; font-weight: bold; font-size: 14pt; color: #004080; border-bottom: 1px solid #000060; }\n\t\t\tdiv.SectionBody     { margin: 2ex 0ex 2ex 2ex; }\n\t\t\tdiv.SectionBody ul  { margin-top: 1ex; }\n\n\t\t\tdiv.SectionBody a:link    { color: #002080; }\n\t\t\tdiv.SectionBody a:visited { color: #002080; }\n\t\t\tdiv.SectionBody a:hover   { text-decoration: underline; }\n\n\t\t\tdiv.SubsectionTitle { margin-top: 4ex; margin-bottom: 2ex; font-weight: bold; font-size: 110%; color: #004080; }\n\t\t\tdiv.SubsectionBody  { margin: 2ex 0ex 2ex 2ex; }\n\n\t\t\tdiv.TriggerParameter { margin-left: 2ex; }\n\n\t\t\ttd.ParameterName { font-size: 10pt; background-color: #e0e0e0; vertical-align: top; }\n\t\t\ttd.ParameterDesc { font-size: 10pt; background-color: #e0e0e0; text-align: left; }\n\n\t\t\tli.FAQListItem { margin-bottom: 6ex; }\n\t\t</style>\n\t</head>\n\t<body>\n\t\t<h1>Mik's Scrolling Battle Text</h1>\n\t\t<div id=\"HeaderBlock\">\n\t\t\tVersion: 5.7.148<br />\n\t\t\tAuthor: Mikord<br />\n\t\t\tUpdated: February 5, 2018<br />\n\t\t\tOfficial Site: <a href=\"https://wow.curseforge.com/projects/mik-scrolling-battle-text\">https://wow.curseforge.com/projects/mik-scrolling-battle-text</a><br /><br />\n\t\t\t<a href=\"#Credits\">See Credits</a>\n\t\t</div>\n\n\t\t<div class=\"SectionTitle\"><a name=\"TOC\"></a>Table of Contents:</div>\n\t\t<div class=\"TOC\">\n\t\t\t<ul>\n\t\t\t\t<li><a href=\"#WhatsNew\">What's new?</a></li>\n\t\t\t\t<li><a href=\"#Install\">Installation Instructions</a></li>\n\t\t\t\t<li><a href=\"#Description\">Description</a></li>\n\t\t\t\t<li><a href=\"#Commands\">Commands</a></li>\n\t\t\t\t<li>\n\t\t\t\t\t<a href=\"#TriggerGuide\">Trigger Guide</a>\n\t\t\t\t\t<div class=\"TOCSection\">\n\t\t\t\t\t\t<ul>\n\t\t\t\t\t\t\t<li><a href=\"#TriggerBasicConcepts\">Basic Concepts</a></li>\n\t\t\t\t\t\t\t<li><a href=\"#TriggerMechanics\">Trigger Mechanics</a></li>\n\t\t\t\t\t\t\t<li><a href=\"#TriggerAdvancedConcepts\">Advanced Concepts</a></li>\n\t\t\t\t\t\t\t<li><a href=\"#ExampleTriggers\">Example Triggers</a></li>\n\t\t\t\t\t\t</ul>\n\t\t\t\t\t</div>\n\t\t\t\t</li>\n\t\t\t\t<li>\n\t\t\t\t\t<a href=\"#TriggerReference\">Trigger Reference</a>\n\t\t\t\t\t<div class=\"TOCSection\">\n\t\t\t\t\t\t<ul>\n\t\t\t\t\t\t\t<li><a href=\"#MainEvents\">Trigger Main Events</a></li>\n\t\t\t\t\t\t\t<li><a href=\"#MainEventConditions\">Main Event Conditions</a></li>\n\t\t\t\t\t\t\t<li><a href=\"#TriggerExceptions\">Trigger Exceptions</a></li>\n\t\t\t\t\t\t</ul>\n\t\t\t\t\t</div>\n\t\t\t\t</li>\n\t\t\t\t<li><a href=\"#SearchPatternReference\">Search Pattern Reference</a></li>\n\t\t\t\t<li>\n\t\t\t\t\t<a href=\"#FAQ\">Frequently Asked Questions</a></li>\n\t\t\t\t\t<div class=\"TOCSection\">\n\t\t\t\t\t\t<ul>\n\t\t\t\t\t\t\t<li><a href=\"#FAQFonts\">I don't like any of the fonts supplied with MSBT. How do I use my own fonts?</a></li>\n\t\t\t\t\t\t\t<li><a href=\"#FAQFontSize\">How do I increase the font size to something larger than 38?</a></li>\n\t\t\t\t\t\t\t<li><a href=\"#FAQSounds\">How do I add my own custom sounds?</a></li>\n\t\t\t\t\t\t\t<li><a href=\"#FAQNewTrigger\">How do I create a new trigger?</a></li>\n\t\t\t\t\t\t\t<li><a href=\"#FAQMutilate\">Is it possible to prevent Mutilate from being merged?</a></li>\n\t\t\t\t\t\t\t<li><a href=\"#FAQXP\">Is is possible to disable the default Blizzard XP Text?</a></li>\n\t\t\t\t\t\t\t<li><a href=\"#FAQVE\">How do I suppress Vampiric Embrace?</a></li>\n\t\t\t\t\t\t\t<li><a href=\"#FAQExclusiveIcons\">I want to see skill names even when there is an icon. Is that possible?</a></li>\n\t\t\t\t\t\t\t<li><a href=\"#FAQGameDamage\">Is there a way to show the damage ab\n\n… (truncated)",
@@ -17575,9 +16799,19 @@
       {
         "label": "HOYS",
         "repo": "https://github.com/HOYS/MikScrollingBattleText"
+      },
+      {
+        "label": "brues-code",
+        "repo": "https://github.com/brues-code/Vanilla_MikScrollingBattleText",
+        "requires": [
+          "nampower"
+        ]
       }
     ],
-    "recommended": true
+    "recommended": true,
+    "requires": [
+      "nampower"
+    ]
   },
   {
     "name": "NotGrid",
@@ -17602,7 +16836,8 @@
     "release_downloads_state": "none",
     "release_downloads": 0,
     "release_downloads_at": "2026-08-26T23:44:09Z",
-    "recommended": true
+    "recommended": true,
+    "requires": []
   },
   {
     "name": "CombatLedger",
@@ -17642,34 +16877,9 @@
     "release_downloads_at": "2026-08-26T23:44:09Z"
   },
   {
-    "name": "ExAutoCSHS",
-    "repo": "https://github.com/Excinerus/ExAutoCSHS",
-    "category": "General",
-    "source": "community",
-    "turtle_custom": true,
-    "folder": "ExAutoCSHS",
-    "description": "# ExAutoCSHS\nAn Addon for TurtleWoW for automatically alternating Crusader/Holy strike to maintain maximum uptime on the Zeal / Holy Might buffs \nThis relies on CombatLog entries and internal timers, so even if you break rotation it'll manage to keep up with buffs.\n\nAdditionally it will use lower ranks of CS/HS depending on mana availability.\n\nUsage : Create a macro with:\n/AutoCS [openCS/openHS/openAuto] [moreCS/moreHS/moreAuto] [prioZeal] [exorcism]\n\n- openCS opens with Crusader Strike,\n- openHS opens with Holy Strike,\n- openAuto opens with CS if using a 2h weapon, HS is 1h [default setting],\n\n- moreCS will do 2 crusader strikes to ever holy strike,\n- moreHS will only do CS when Zeal needs a refresh  so close to 3 HS per CS (for maximum threat tanking),\n- moreAuto will do moreCS  with a 2h weapon , moreHS  with one handed weapon  [default setting],\n\n- prioZeal will priorize getting zeal to 3 stacks regardless of rest of settings then proceed following them [disabled by default],\n\n- exorcism will attempt to cast Exorcism if CS/HS is on CD and the target is valid [disabled by default]\n\n\nExample: \n\n/AutoCS openHS prioZeal \n\nwill open with HS, priorize building zeal until 3 stacks , then proceeds only doing CS when Zeal needs a refresh \nthis results most of the time in :\nHS-CS-CS-HS-CS-HS-HS-HS-CS-HS-HS-HS-CS-HS-HS-HS...\n----1-2-----3--starts doing 3 HS to CS \n\n/AutoCS openHS prioZeal exorcism\nwill do the same interwoven with exorcism : \nHS-Exorcism-CS-CS-HS-Exorcism-CS-HS-HS-Exorcism-HS-CS-HS-Exorcism-HS-HS-CS-Exorcism ...",
-    "release_downloads_repo": "Excinerus/ExAutoCSHS",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
-    "name": "ExAutoCSHS",
-    "repo": "https://github.com/kninib12a/ExAutoCSHS",
-    "category": "General",
-    "source": "community",
-    "folder": "ExAutoCSHS",
-    "description": "An Addon for automatically alternating Crusader/Holy strike to maintain maximum uptime on the buffs",
-    "release_downloads_repo": "kninib12a/ExAutoCSHS",
-    "release_downloads_state": "none",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
-  },
-  {
     "name": "BlizzNameplatesPlus",
     "repo": "https://github.com/Wurmschwanz/BlizzNameplatesPlus",
-    "category": "General",
+    "category": "UI",
     "source": "community",
     "folder": "BlizzNameplatesPlus",
     "description": "# ⚔️ Blizz Nameplates+\n\n**Blizz Nameplates+** enhances the original Blizzard nameplates for **Vanilla WoW / 1.12** while preserving their classic look.\n\nIt adds multi-target aura tracking, castbars, Crowd Control, Combo Points and useful visual options without replacing the original nameplate design.\n\n**Current version:** `v1.0.7`\n**Required:** `SuperWoW.dll` and `ClassicAPI.dll`\n\n## ✨ Features\n\n* GUID-based multi-target debuff and DoT tracking\n* Numeric aura timers and stack counters\n* Separate Crowd Control tracking with an optional dedicated row\n* Optional supported CC effects from other players\n* Enemy castbars with spell icons\n* Blizzard-style Combo Points for Rogues and Druids\n* Target Glow and Target Plate on Top\n* Health text, class colors and Tank Mode\n* Foreign-tagged mobs shown with a neutral grey healthbar\n* Adjustable nameplate scale, Y offset, aura size and non-target alpha\n* Instant target-alpha updates and clean nameplate/aura layering\n* In-game settings through the **BN+ minimap button** or `/bnp`\n\n## 🔎 New: Missing Spell / Aura Recorder\n\nMissing a spell, DoT, proc or custom-server aura? The new recorder creates one complete, copyable diagnostic report—no screenshots or manual chat commands required.\n\n1. Open the BNP settings and click **Missing Spell / Aura...**\n2. Select the affected unit.\n3. Click **Start Recording**.\n4. Apply the aura, refresh it while active, then let it expire or remove it.\n5. Click **Stop**, followed by **Copy Report**.\n6. Paste the report into your bug report or support message.\n\nThe report includes the relevant Spell IDs, aura timing, target data and refresh events. The recorder is completely inactive until **Start Recording** is pressed and stops when the window is closed.\n\n## 📦 Requirements\n\nBoth DLLs are required and must be loaded before the game starts.\n\n### SuperWoW.dll\n\nProvides the GUID, unit, combat and cast information used for multi-target tracking, castbars and nameplate identification.\n\n[Download SuperWoW](https://github.com/balakethelock/SuperWoW)\n\n### ClassicAPI.dll\n\nProvides exact nameplate resolution and more reliable aura information, including Spell IDs, durations and expiration times. It is also used for instant target-alpha updates and the recorder’s direct **Copy Report** function.\n\n[Download ClassicAPI](https://github.com/brues-code/ClassicAPI)\n\n> Keep both DLLs up to date. Without them, Blizz Nameplates+ is not supported.\n\n## 📥 Installation\n\n1. Install `SuperWoW.dll` and `ClassicAPI.dll` using the instructions supplied with those projects.\n\n2. Make sure both DLLs are enabled in your DLL loader or `dlls.txt`.\n\n3. Delete any older `BlizzNameplatesPlus` addon folder.\n\n4. Extract the new folder into `Interface\\AddOns\\`.\n\n5. Verify the final path:\n\n   `Interface\\AddOns\\BlizzNameplatesPlus\\BlizzNameplatesPlus.toc`\n\n6. Start the game through your DLL-enabled launcher and enable enemy nameplates.\n\n## ⚙️ Main Settings\n\n* **Nameplates:** Scale, Y Offset, Non-Target Alpha, Class Colors, Tank Mode and Health Text\n* **Target:** Target Glow, glow color and Target Plate on Top\n* **Auras:** Icon Size, Debuffs, Crowd Control, separate CC row and CCs from other players\n* **Castbar:** Enable/disable and adjust height\n* **Class Features:** Combo Points for Rogue and Druid\n\nChanges are applied immediately.\n\n## ❤️ Credits\n\nCreated by **Wurmschwanz**.\nThanks to everyone who tested the addon, reported bugs and supplied recorder data.",
@@ -17681,7 +16891,7 @@
   {
     "name": "Atlas",
     "repo": "https://github.com/Otari98/Atlas",
-    "category": "General",
+    "category": "Maps",
     "source": "community",
     "turtle_custom": true,
     "folder": "Atlas",
@@ -17693,7 +16903,7 @@
   },
   {
     "name": "FishingBuddy",
-    "repo": "https://github.com/SeVeN7000/FishingBuddy",
+    "repo": "https://github.com/RyanHope/FishingBuddy",
     "category": "General",
     "source": "community",
     "folder": "FishingBuddy",
@@ -17701,12 +16911,19 @@
     "release_downloads_repo": "SeVeN7000/FishingBuddy",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-26T23:44:09Z"
+    "release_downloads_at": "2026-08-26T23:44:09Z",
+    "forks": [
+      {
+        "label": "SeVeN7000",
+        "repo": "https://github.com/SeVeN7000/FishingBuddy"
+      }
+    ],
+    "recommended": true
   },
   {
     "name": "AtlasQuest",
     "repo": "https://github.com/Otari98/AtlasQuest",
-    "category": "General",
+    "category": "Questing",
     "source": "community",
     "turtle_custom": true,
     "folder": "AtlasQuest",
@@ -17803,7 +17020,7 @@
   {
     "name": "AtlasLoot",
     "repo": "https://github.com/ashigaru/AtlasLoot",
-    "category": "General",
+    "category": "Raiding",
     "source": "community",
     "turtle_custom": true,
     "folder": "AtlasLoot",
@@ -17828,19 +17045,25 @@
     "description": "A Questhelper and Database Addon for World of Warcraft: Vanilla & TBC",
     "release_downloads_repo": "shagu/pfQuest",
     "release_downloads_state": "ok",
-    "release_downloads": 228142,
-    "release_downloads_at": "2026-09-03T22:36:20Z"
+    "release_downloads": 228566,
+    "release_downloads_at": "2026-09-06T08:38:49Z"
   },
   {
     "name": "AddOnOrganizer",
-    "repo": "https://github.com/Monteo/AddOnOrganizer",
+    "repo": "https://github.com/Otari98/AddOnOrganizer",
     "category": "General",
     "source": "community",
     "folder": "AddOnOrganizer",
     "release_downloads_repo": "Monteo/AddOnOrganizer",
     "release_downloads_state": "none",
     "release_downloads": 0,
-    "release_downloads_at": "2026-08-27T23:32:15Z"
+    "release_downloads_at": "2026-08-27T23:32:15Z",
+    "forks": [
+      {
+        "label": "Monteo",
+        "repo": "https://github.com/Monteo/AddOnOrganizer"
+      }
+    ]
   },
   {
     "name": "FlightMap",
@@ -17939,25 +17162,60 @@
     "release_downloads_at": "2026-09-02T05:51:38Z"
   },
   {
-    "name": "pfQuest-octo",
-    "repo": "https://github.com/roby-brok/pfQuest-octo",
-    "category": "General",
-    "source": "community",
-    "folder": "pfQuest-octo",
-    "description": "# pfQuest (Octo DB)\n\nA [pfQuest](https://github.com/The-Kludge-Bureau/pfQuest) database pack for the\n[OctoWoW](https://octowow.st) server (WoW 1.12.1), maintained by **Roby_Brok**.\nPart of my [OctoWoW addon setup](https://github.com/roby-brok/octowow-addons).\n\n**None of the data here is mine.** This pack is two existing packs combined, nothing more —\nsee [Credits](#credits). It exists because running both of them at once does not work.\n\n---\n\n## Why this exists\n\npfQuest database packs assign their tables outright rather than merging into them:\n\n```lua\npfDB[\"quests\"][\"data-turtle\"] = { ... }\n```\n\nSo with `pfQuest-octo` and `pfQuest-turtle` both installed, the one whose folder sorts last\nsimply replaces the other. `pfQuest-turtle` wins on the letter *t*, and `pfQuest-octo` is parsed\nat every login and thrown away — roughly 15 MB of work for data that never gets used, and the\nquest links point at the wrong server's website.\n\nPicking one meant giving something up: the turtle pack has far more quest data, the octo pack has\nthe OctoWoW corrections and links. This pack is both, so there is nothing to choose between.\n\n## What is in it\n\nThe TurtleWoW database as the base, with the Octo pack folded in on top:\n\n| | octo pack alone | this pack |\n|---|---|---|\n| quests | 5,175 | **6,842** |\n| units | 9,928 | **11,095** |\n| objects | 15,163 | **15,857** |\n| items | 9,301 | **12,672** |\n| locales | 5 | **6** (deDE regained) |\n| corrections | 137 | **162** |\n\n`overwrites.lua` carries three things in order — the 23 records the Octo DB has that the\nTurtleWoW build lacks, then the Octo pack's 137 corrections, then the TurtleWoW pack's own 2.\nRecords come first so anything indexing into them finds them present. The generated files under\n`db/` are byte-identical to the TurtleWoW build; nothing there was hand-edited, so a future\ndatabase refresh will not silently drop any of it.\n\nQuest links point at [octowow.st/db](https://octowow.st/db).\n\nThe pack's own code changes and fixes are listed in **[CHANGES-octo.md](CHANGES-octo.md)**.\n\n## Install\n\n**Requires [pfQuest](https://github.com/The-Kludge-Bureau/pfQuest).** This is a database pack, not\na standalone addon.\n\n1. **[Download the latest release](https://github.com/roby-brok/pfQuest-octo/releases/latest)** —\n   take *Source code (zip)* at the bottom of the release page\n2. Unpack it and open the `pfQuest-octo-<version>` folder inside\n3. Copy **`pfQuest-octo`** into `Wow-Directory\\Interface\\AddOns`\n4. *Non-English clients only:* also copy the one folder matching your language —\n   `pfQuest-octo-deDE`, `-esES`, `-ptBR`, `-ruRU` or `-zhCN`\n5. Restart WoW\n\n**Copy the folders from inside the wrapper, not the wrapper itself.** The zip unpacks to a\nfolder carrying the version or branch on the end — `pfQuest-octo-1.1.0`, or\n`pfQuest-octo-master` if you grabbed it straight off the branch. Copying *that* into `AddOns`\nis the one thing that goes wrong: WoW skips a folder whose name does not match the `.toc`\ninside it, in silence, with no error and no entry in the addon list. The folders one level\ndown are already named correctly, so there is nothing to rename.\n\n**English clients need only `pfQuest-octo`.** The language folders are load-on-demand: the pack\npulls in the single one matching your client and never touches the others, so copying all of them\ncosts nothing but disk. Copying none of them is fine too — quest text simply stays English.\n\n**Remove `pfQuest-turtle` if you have it.** Its data is already included here, and leaving both\ninstalled puts you right back in the situation this pack was built to avoid.\n\n## Credits\n\nEverything here is other people's work, combined and nothing else. All of it is MIT licensed,\ncopyright Eric Mauser (Shagu), and that licence is retained in full.\n\n* **[Shagu](https://github.com/shagu)** — wrote pfQuest and the original database packs.\n* **[The Kludge Bureau](https://github.com/The-Kludge-Bureau/pfQuest-turtle)** — the TurtleWoW\n  build this pack's databa\n\n… (truncated)",
-    "turtle_custom": true,
-    "release_downloads_repo": "roby-brok/pfQuest-octo",
-    "release_downloads_state": "ok",
-    "release_downloads": 0,
-    "release_downloads_at": "2026-09-02T05:51:38Z"
-  },
-  {
     "name": "Caw DPS Meter",
     "repo": "https://github.com/NovaElysium/CawDPSMeter",
     "category": "Combat",
     "source": "community",
     "folder": "CawDPSMeter",
     "description": "Caw DPS Meter is a compact damage/healing/utility meter for the 1.12 client",
+    "recommended": true,
+    "release_downloads": 3,
+    "release_downloads_at": "2026-09-06T08:38:49Z",
+    "release_downloads_state": "ok",
+    "release_downloads_repo": "NovaElysium/CawDPSMeter"
+  },
+  {
+    "name": "aDF",
+    "repo": "https://github.com/MarcelineVQ/aDF",
+    "category": "SuperWoW",
+    "description": "adds a small HUD that standardizes critical info about your target's defences, including Armor, Resists, and specific debuffs [Img1] https://github.com/Autignem/aDF Alt",
+    "source": "turtle_wiki",
+    "folder": "aDF",
+    "forks": [
+      {
+        "label": "Zebouski",
+        "repo": "https://github.com/Zebouski/aDF"
+      },
+      {
+        "label": "whtmst",
+        "repo": "https://github.com/whtmst/aDF"
+      },
+      {
+        "label": "KameleonUK",
+        "repo": "https://github.com/KameleonUK/aDF"
+      },
+      {
+        "label": "pepopo978",
+        "repo": "https://github.com/pepopo978/aDF"
+      },
+      {
+        "label": "melbaa",
+        "repo": "https://github.com/melbaa/aDF"
+      }
+    ],
+    "release_downloads_repo": "MarcelineVQ/aDF",
+    "release_downloads_state": "none",
+    "release_downloads": 0,
+    "release_downloads_at": "2026-09-02T05:51:38Z",
+    "recommended": true
+  },
+  {
+    "name": "MusicExpanded",
+    "repo": "https://github.com/lightbladeninja/MusicExpanded",
+    "category": "General",
+    "source": "community",
+    "folder": "MusicExpanded",
+    "description": "This addon adds music from later expansions to vanilla wow 1.12 private servers.",
     "recommended": true
   }
 ]
