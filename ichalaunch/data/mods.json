@@ -1351,17 +1351,19 @@
       ]
     },
     "source": {
-      "type": "local",
-      "path": "tools/_weirdutils/out/dpslog.dll",
+      "type": "raw",
+      "url": "https://download.ravencraft.io/ichalaunch/weirdutils/dpslog.dll",
       "filename": "dpslog.dll",
-      "bundle": "weirdutils",
+      "sha256": "abfa563505a850b1525bc16c01c9528ad3d1bc7b6640be159c00eff0ea6cab51",
+      "dest_sha256": "abfa563505a850b1525bc16c01c9528ad3d1bc7b6640be159c00eff0ea6cab51",
       "version": "0.1",
-      "build_hint": "Run: python tools/build_weirdutils.py --build-only"
+      "skip_local_override": true
     },
     "files": [
       {
         "match": "dpslog.dll",
-        "destination": "dpslog.dll"
+        "destination": "dpslog.dll",
+        "sha256": "abfa563505a850b1525bc16c01c9528ad3d1bc7b6640be159c00eff0ea6cab51"
       }
     ],
     "dlls_txt": {
@@ -1454,25 +1456,25 @@
       "type": "raw",
       "url": "https://download.ravencraft.io/IchaLaunch.exe",
       "filename": "IchaLaunch.exe",
-      "sha256": "937de6f86b4fe0db4aa7b9b5b8bcff7240e0754792ab710045680bee1e6a7095",
-      "version": "1.6.6",
-      "size": 55363433,
+      "sha256": "b1c2617d70729446a540047577c4c536fa3604693feef6de5e36cda16c5e2331",
+      "version": "1.6.7",
+      "size": 57262944,
       "platforms": {
         "windows": {
           "type": "raw",
           "url": "https://download.ravencraft.io/IchaLaunch.exe",
           "filename": "IchaLaunch.exe",
-          "sha256": "937de6f86b4fe0db4aa7b9b5b8bcff7240e0754792ab710045680bee1e6a7095",
-          "version": "1.6.6",
-          "size": 55363433
+          "sha256": "b1c2617d70729446a540047577c4c536fa3604693feef6de5e36cda16c5e2331",
+          "version": "1.6.7",
+          "size": 57262944
         },
         "linux": {
           "type": "raw",
           "url": "https://download.ravencraft.io/IchaLaunch-linux-x86_64",
           "filename": "IchaLaunch-linux-x86_64",
-          "sha256": "ea92f57f1c700987db186404df7e107e9bc45ad962a1155700d8991f5b26a1e3",
-          "version": "1.6.6",
-          "size": 67906816
+          "sha256": "9c2883a032ce731dcd3e7315f2872843131637336102945f6b49f5f1bf0c922d",
+          "version": "1.6.7",
+          "size": 69806520
         }
       },
       "downloads": {
@@ -1480,25 +1482,25 @@
           "type": "raw",
           "url": "https://download.ravencraft.io/IchaLaunch.exe",
           "filename": "IchaLaunch.exe",
-          "sha256": "937de6f86b4fe0db4aa7b9b5b8bcff7240e0754792ab710045680bee1e6a7095",
-          "version": "1.6.6",
-          "size": 55363433
+          "sha256": "b1c2617d70729446a540047577c4c536fa3604693feef6de5e36cda16c5e2331",
+          "version": "1.6.7",
+          "size": 57262944
         },
         "linux_appimage": {
           "type": "raw",
-          "url": "https://download.ravencraft.io/Raven_Launcher-1.6.6-x86_64.AppImage",
-          "filename": "Raven_Launcher-1.6.6-x86_64.AppImage",
-          "sha256": "96d2a6657c8cd174853373b3314d6cc748bca0124d0727d587ba015bdd05ab9f",
-          "version": "1.6.6",
-          "size": 68434424
+          "url": "https://download.ravencraft.io/Raven_Launcher-1.6.7-x86_64.AppImage",
+          "filename": "Raven_Launcher-1.6.7-x86_64.AppImage",
+          "sha256": "7593b2c95974c19d26c12e24a615e7db81e6285c266f90adfdecf415d9dd90fd",
+          "version": "1.6.7",
+          "size": 70334968
         },
         "linux_tarball": {
           "type": "raw",
-          "url": "https://download.ravencraft.io/IchaLaunch-1.6.6-linux-x86_64.tar.gz",
-          "filename": "IchaLaunch-1.6.6-linux-x86_64.tar.gz",
-          "sha256": "5ba399b96b0b662536dc532cfc7380426614dd35c52d7c432fe67f5d7acc0920",
-          "version": "1.6.6",
-          "size": 67278928
+          "url": "https://download.ravencraft.io/IchaLaunch-1.6.7-linux-x86_64.tar.gz",
+          "filename": "IchaLaunch-1.6.7-linux-x86_64.tar.gz",
+          "sha256": "570865994e3fa9e9f2a13d0de73d149bf28463c85b104476808631a056275d29",
+          "version": "1.6.7",
+          "size": 69178483
         }
       }
     }
