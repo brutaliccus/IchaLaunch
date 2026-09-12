@@ -15125,6 +15125,57 @@
       "branches": {
         "master": "79c25e60f9ab3f314d69bec3d3edcbf965b7c312"
       }
+    },
+    "rivi-s/pfquest-turtle": {
+      "default_branch": "master",
+      "sha": "a63d53dd7a142effe6898bf95fa87313d58218ab",
+      "branches": {
+        "master": "a63d53dd7a142effe6898bf95fa87313d58218ab"
+      }
+    },
+    "indiemiao/pfui": {
+      "default_branch": "master",
+      "sha": "dfa541df002dfae4604b01fa3ab09201bc852c57",
+      "branches": {
+        "master": "dfa541df002dfae4604b01fa3ab09201bc852c57"
+      }
+    },
+    "brues-code/vanilla_mikscrollingbattletext": {
+      "default_branch": "master",
+      "sha": "d4931b1ba7906cd401ae882bb6656cf1da618918",
+      "branches": {
+        "master": "d4931b1ba7906cd401ae882bb6656cf1da618918"
+      },
+      "latest_tag": "v4.45"
+    },
+    "ryanhope/fishingbuddy": {
+      "default_branch": "main",
+      "sha": "c54204264212058488b324130fae19efbcf33fbb",
+      "branches": {
+        "main": "c54204264212058488b324130fae19efbcf33fbb"
+      }
+    },
+    "otari98/addonorganizer": {
+      "default_branch": "master",
+      "sha": "af2a5306d9ab08fafeb7a129ee08cc4956ec49e3",
+      "branches": {
+        "master": "af2a5306d9ab08fafeb7a129ee08cc4956ec49e3"
+      }
+    },
+    "novaelysium/cawdpsmeter": {
+      "default_branch": "main",
+      "sha": "b15a25d4876cb345c33750e7bfa49fc4dbee055b",
+      "branches": {
+        "main": "b15a25d4876cb345c33750e7bfa49fc4dbee055b"
+      },
+      "latest_tag": "v1.1.2"
+    },
+    "lightbladeninja/musicexpanded": {
+      "default_branch": "main",
+      "sha": "ebcf51e8640c98e0c47450c9a8ef9a73e87f2c72",
+      "branches": {
+        "main": "ebcf51e8640c98e0c47450c9a8ef9a73e87f2c72"
+      }
     }
   }
 }
